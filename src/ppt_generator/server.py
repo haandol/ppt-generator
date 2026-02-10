@@ -1,0 +1,31 @@
+import logging
+
+from mcp.server.fastmcp import FastMCP
+
+from ppt_generator.di.container import DIContainer
+from ppt_generator.tools.images.controller import register_image_tools
+from ppt_generator.tools.outline.controller import register_outline_tools
+from ppt_generator.tools.pptx.controller import register_pptx_tools
+from ppt_generator.tools.script.controller import register_script_tools
+
+logger = logging.getLogger(__name__)
+
+
+def create_server() -> FastMCP:
+    mcp = FastMCP("ppt-generator")
+    container = DIContainer()
+    register_script_tools(mcp, container.script_service)
+    register_outline_tools(mcp, container.outline_service)
+    register_image_tools(mcp, container.image_service)
+    register_pptx_tools(mcp, container.pptx_service)
+    return mcp
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+    mcp = create_server()
+    mcp.run(transport="stdio")
+
+
+if __name__ == "__main__":
+    main()
