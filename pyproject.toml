@@ -1,0 +1,23 @@
+[project]
+name = "ppt-generator"
+version = "0.1.0"
+description = "자동 프레젠테이션 생성 MCP 서버"
+requires-python = ">=3.13"
+dependencies = [
+    "mcp",
+    "python-pptx>=1.0.2",
+    "strands-agents",
+    "strands-agents-tools",
+]
+
+[project.scripts]
+ppt-generator = "ppt_generator.server:main"
+
+[dependency-groups]
+dev = [
+    "pytest",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
