@@ -123,6 +123,10 @@ class ProjectService:
 
     def load_metadata(self, project_dir: Path) -> ProjectMetadata:
         path = project_dir / "project.json"
+        if not path.exists():
+            if not project_dir.exists():
+                raise FileNotFoundError(f"프로젝트 디렉토리가 존재하지 않습니다: {project_dir}")
+            return ProjectMetadata(topic="", num_slides=0, steps_completed={})
         data = json.loads(path.read_text(encoding="utf-8"))
         return ProjectMetadata(
             topic=data.get("topic", ""),

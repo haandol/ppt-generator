@@ -4,7 +4,7 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted (Updated: reveal.js 기반으로 전환)
+Accepted (Updated: reveal.js 제거, 정적 HTML 수직 스크롤 방식으로 전환)
 
 ## Context
 
@@ -12,18 +12,20 @@ Accepted (Updated: reveal.js 기반으로 전환)
 
 HTML/CSS 기반으로 슬라이드를 생성하면 LLM의 코드 생성 능력을 활용하여 자유로운 레이아웃과 고품질 디자인을 달성할 수 있다. 세션 ID를 부여하여 이후 수정(F5)과 PPTX 내보내기(F6)에서 활용한다.
 
-기존 plain HTML 방식(`<div class="slide">`)은 LLM이 슬라이드 구조를 자유롭게 해석하여 일관성 없는 결과를 생성하는 경향이 있었다. reveal.js 프레임워크를 도입하여 슬라이드 구조를 표준화하고, 브라우저에서 바로 프레젠테이션으로 열람 가능하도록 한다.
+기존 reveal.js 방식은 프레임워크의 내부 레이아웃 엔진(`display: flex`, 자동 센터링, 스케일링)이 LLM이 생성한 Tailwind CSS 레이아웃과 충돌하여 배경색 누락, 콘텐츠 오버플로우 등 레이아웃이 깨지는 문제가 있었다. reveal.js를 제거하고 JavaScript 없는 순수 HTML/CSS 방식으로 전환하여, 각 슬라이드를 1280x720px 고정 크기 `<section>`으로 수직 스크롤 형태로 표시한다.
 
 ## Decision
 
-MCP 도구 `generate_slides`를 구현하여, Bedrock LLM이 reveal.js 프레임워크 기반의 HTML/CSS 슬라이드를 생성한다. LLM은 `<section>` 요소들만 생성하고, 서비스 레이어에서 reveal.js 템플릿(`slides_reveal.html`)에 삽입하여 완전한 프레젠테이션 문서를 구성한다.
+MCP 도구 `generate_slides`를 구현하여, Bedrock LLM이 HTML/CSS 슬라이드를 생성한다. LLM은 `<section>` 요소들만 생성하고, 서비스 레이어에서 HTML 템플릿(`slides.html`)에 삽입하여 완전한 HTML 문서를 구성한다. JavaScript 없이 순수 HTML/CSS + TailwindCSS만으로 슬라이드를 렌더링한다.
 
 ### Technical Details
 
 - Bedrock Claude Opus 4.6 호출 (Strands SDK 경유)
-- **reveal.js 5 CDN** 기반 (jsdelivr.net)
-- 슬라이드 규격: 960 x 540px (16:9, reveal.js `width`/`height` 설정)
-- HTML 구조: `<div class="reveal"><div class="slides"><section data-speaker-notes="...">`, CSS 레이아웃 기반 배치
+- **TailwindCSS v4 Browser** 기반 (jsdelivr.net CDN)
+- 슬라이드 규격: 1280 x 720px (16:9)
+- HTML 구조: `<body>` 안에 `<section id="slide-{N}" data-speaker-notes="...">` 요소들이 수직으로 나열
+- 각 section은 `position: relative; width: 1280px; height: 720px; overflow: hidden` 고정
+- 래퍼 div에 `absolute inset-0`을 사용하여 슬라이드 영역 전체를 커버
 - 이미지는 `{IMAGE_N}` placeholder → 후처리로 `file://` 경로 치환
 - 발표자 노트는 `data-speaker-notes` 속성에 포함
 - 세션 관리: 세션 ID로 현재 HTML 슬라이드 상태를 서버 메모리에 유지 (수정 루프 지원)
@@ -31,20 +33,40 @@ MCP 도구 `generate_slides`를 구현하여, Bedrock LLM이 reveal.js 프레임
 
 ### 템플릿 분리 전략
 
-- **reveal.js 템플릿**: `src/ppt_generator/templates/slides_reveal.html`
-  - CDN 링크 (reveal.css, theme/white.css, reveal.js)
+- **HTML 템플릿**: `src/ppt_generator/templates/slides.html`
+  - TailwindCSS v4 Browser CDN
   - 기본 폰트 설정 (`Pretendard`, `Noto Sans KR`)
-  - `Reveal.initialize()` 설정 (`hash: true`, `slideNumber: true`)
-  - `{custom_style}` placeholder: LLM이 생성한 `<style>` 태그 삽입
+  - section 기본 스타일 (1280x720px, 둥근 모서리, 그림자)
   - `{slides_content}` placeholder: LLM이 생성한 `<section>` 요소들 삽입
-- **LLM 역할**: `<section>` 요소들과 선택적 `<style>` 태그만 생성
-- **서비스 역할**: LLM 응답에서 section/style을 추출하여 템플릿에 삽입
+  - 슬라이드 번호 표시: JavaScript로 각 section을 `.slide-wrapper`로 감싸고 "N / 총수" 라벨 자동 생성
+- **LLM 역할**: `<section>` 요소들만 생성 (레이아웃 영역 좌표를 가이드라인으로 참조)
+- **서비스 역할**: LLM 응답에서 section을 추출하여 템플릿에 삽입
+
+### Layout Region Constraints
+
+PPTX 템플릿의 placeholder 위치를 python-pptx로 추출하여 1280x720px HTML 좌표로 변환한 뒤, `SLIDES_SYSTEM_PROMPT`에 구체적 px 값으로 반영한다. 이를 통해 LLM이 생성하는 HTML 슬라이드의 제목/본문 위치가 일관되도록 보장한다.
+
+- **추출 도구**: `scripts/extract_layout_positions.py` — 1회성 스크립트로 AWS 템플릿의 6개 레이아웃에서 placeholder 위치 추출
+- **변환 공식**: `px_x = inches * (1280/13.333)`, `px_y = inches * (720/7.5)`
+- **적용 위치**: `constants.py`의 `LAYOUT_REGIONS` 딕셔너리 + `SLIDES_SYSTEM_PROMPT` 내 "layout_type별 레이아웃 영역" 섹션
+- **적용 방식**: LLM에게 구체적 px 좌표를 가이드라인으로 제시하되, 실제 구현은 flex/grid 레이아웃으로 자연스럽게 처리
+
+대상 레이아웃 및 주요 영역:
+| layout_type | 제목 top | 본문 top | 본문 height | 특징 |
+|-------------|----------|----------|-------------|------|
+| title | 359px | - | - | 중앙 정렬, 부제목 458px |
+| text_image | 96px | 228px | 424px | 좌측 44% 텍스트, 우측 42% 이미지 |
+| text_only | 96px | 180px | 472px | 전체폭 본문 |
+| chart | 96px | 180px | 472px | 전체폭 데이터 시각화 |
+| closing | 240px | 370px | 214px | 중앙 정렬 마무리 |
+| freeform | 96px | 180px | 472px | elements 좌표 참고 |
 
 ### Alternatives Considered
 
 - **이미지 직접 삽입 방식**: 프롬프트에 base64를 직접 포함 → 토큰 급증으로 탈락
 - **Placeholder 방식 (채택)**: LLM에는 `{IMAGE_N}` placeholder만 전달, LLM이 `<img src="{IMAGE_0}">` 형태로 생성 → 후처리로 실제 파일 경로 치환
-- **plain HTML 방식 (폐기)**: `<div class="slide">` + 인라인 CSS + `position: absolute` → LLM의 자유 해석으로 일관성 부족, 브라우저에서 프레젠테이션 형태로 볼 수 없음
+- **plain HTML 방식 (폐기)**: `<div class="slide">` + 인라인 CSS + `position: absolute` → LLM의 자유 해석으로 일관성 부족
+- **reveal.js 방식 (폐기)**: reveal.js 프레임워크 기반 → 내부 레이아웃 엔진(display:flex, 자동 센터링/스케일링)이 LLM이 생성한 Tailwind CSS와 충돌하여 배경색 누락, 콘텐츠 오버플로우 등 레이아웃 깨짐 발생. CSS `!important` 오버라이드로도 안정적 해결 불가
 - **reveal.js 전체 HTML 생성 (폐기)**: LLM이 CDN 링크, 초기화 코드까지 모두 생성 → 프롬프트 토큰 낭비, CDN URL 오류 가능성
 
 ### HTML 추출 전략
@@ -64,13 +86,13 @@ LLM 응답에서 `<section>` 요소를 추출하는 3단계 fallback:
 
 ### Acceptance Criteria
 
-1. 아웃라인과 이미지를 입력하면 reveal.js 기반 HTML 슬라이드가 생성된다
+1. 아웃라인과 이미지를 입력하면 HTML 슬라이드가 생성된다
 2. 각 슬라이드가 layout_type에 맞는 디자인을 갖는다
 3. 이미지가 적절한 위치에 삽입되어 있다
-4. 발표자 노트가 포함되어 있다
+4. 발표자 노트가 `data-speaker-notes` 속성에 포함되어 있다
 5. 세션 ID가 반환되어 이후 수정/내보내기에 사용할 수 있다
-6. 브라우저에서 HTML 파일을 열면 reveal.js 프레젠테이션으로 동작한다
-7. 슬라이드 번호와 키보드 네비게이션이 지원된다
+6. 브라우저에서 HTML 파일을 열면 슬라이드가 수직으로 나열되어 스크롤로 확인 가능하다
+7. 각 section에 `id="slide-{N}"` 속성이 포함되어 파싱이 용이하다
 
 ### Out of Scope
 
@@ -88,9 +110,9 @@ sequenceDiagram
     LLM-->>Server: <section> 요소들 (+ 선택적 <style>)
     Server->>Server: section/style 추출 (3단계 fallback)
     Server->>Server: {IMAGE_N} → file:// 경로 치환
-    Server->>Server: reveal.js 템플릿에 삽입
+    Server->>Server: HTML 템플릿에 삽입
     Server->>Server: 세션 저장 (UUID → HTML)
-    Server-->>Client: reveal.js HTML 슬라이드 + 세션 ID
+    Server-->>Client: HTML 슬라이드 + 세션 ID
 ```
 
 ## Consequences
@@ -100,13 +122,14 @@ sequenceDiagram
 - 이미지 파일이 누락된 경우 해당 슬라이드는 텍스트만으로 구성
 - LLM이 유효하지 않은 section 반환 시 fallback으로 텍스트 반환
 - 세션은 메모리 기반이므로 서버 재시작 시 소실된다 (영속화는 별도 ADR 참조)
-- 브라우저에서 HTML 파일을 직접 열어 프레젠테이션을 확인할 수 있다
-- reveal.js CDN 의존성으로 오프라인 환경에서는 프레젠테이션 렌더링이 제한될 수 있다
+- 브라우저에서 HTML 파일을 직접 열어 슬라이드를 수직 스크롤로 확인할 수 있다
+- JavaScript 없이 순수 HTML/CSS로만 구성되어 오프라인에서도 안정적으로 렌더링된다 (TailwindCSS CDN만 필요)
+- reveal.js의 프레젠테이션 모드(키보드 네비게이션, 슬라이드 번호)는 더 이상 지원하지 않지만, HTML의 목적이 디자인 미리보기와 PPTX 변환용 중간 산출물이므로 문제없다
 
 ## References
 
 - 구현: `src/ppt_generator/tools/slides/` (controller.py, service.py)
-- 템플릿: `src/ppt_generator/templates/slides_reveal.html`
+- 템플릿: `src/ppt_generator/templates/slides.html`
 - 스키마: `src/ppt_generator/interfaces/schemas.py` — `SlidesRequest`, `SlidesResponse`
 - 프롬프트: `src/ppt_generator/interfaces/constants.py` — `SLIDES_SYSTEM_PROMPT`, `SLIDES_USER_PROMPT_TEMPLATE`
 - 관련 ADR: [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md)

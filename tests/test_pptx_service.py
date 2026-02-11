@@ -28,7 +28,6 @@ def _make_minimal_png() -> bytes:
 def _make_sample_html(png_path: Path) -> str:
     return (
         '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
-        '<div class="reveal"><div class="slides">\n'
         '<section data-speaker-notes="발표자 노트"\n'
         '     style="background-color:#1a2b3c;">\n'
         '  <h1 style="position:absolute;left:50px;top:30px;width:860px;height:80px;\n'
@@ -38,12 +37,11 @@ def _make_sample_html(png_path: Path) -> str:
         f'  <img src="file://{png_path}" alt="이미지 설명"\n'
         '       style="position:absolute;left:500px;top:130px;width:400px;height:300px;"/>\n'
         '</section>\n'
-        '</div></div>\n</body></html>'
+        '</body></html>'
     )
 
 MULTI_SLIDE_HTML = (
     '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
-    '<div class="reveal"><div class="slides">\n'
     '<section>\n'
     '  <h1 style="position:absolute;left:50px;top:30px;width:860px;height:80px;">슬라이드 1</h1>\n'
     '</section>\n'
@@ -53,7 +51,7 @@ MULTI_SLIDE_HTML = (
     '<section>\n'
     '  <h1 style="position:absolute;left:50px;top:30px;width:860px;height:80px;">슬라이드 3</h1>\n'
     '</section>\n'
-    '</div></div>\n</body></html>'
+    '</body></html>'
 )
 
 
@@ -143,10 +141,10 @@ class TestExportService:
         tb = textboxes[0]
         left_inches = tb.left / 914400  # EMU to inches
         top_inches = tb.top / 914400
-        # 50px * (13.333/960) ≈ 0.694in
-        assert abs(left_inches - 0.694) < 0.1
-        # 30px * (7.5/540) ≈ 0.417in
-        assert abs(top_inches - 0.417) < 0.1
+        # 50px * (13.333/1280) ≈ 0.521in
+        assert abs(left_inches - 0.521) < 0.1
+        # 30px * (7.5/720) ≈ 0.3125in
+        assert abs(top_inches - 0.3125) < 0.1
 
     def test_export_sets_image_alt_text(self, service):
         request = ExportPptxRequest(session_id="test-session")
@@ -166,13 +164,12 @@ class TestExportService:
     def test_export_handles_missing_image_file(self, service_with_html):
         html = (
             '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
-            '<div class="reveal"><div class="slides">\n'
             '<section>\n'
             '  <img src="file:///nonexistent/path/image.png" alt="없는 이미지"\n'
             '       style="position:absolute;left:100px;top:100px;width:200px;height:200px;"/>\n'
             '  <p style="position:absolute;left:50px;top:50px;width:200px;height:50px;">텍스트</p>\n'
             '</section>\n'
-            '</div></div>\n</body></html>'
+            '</body></html>'
         )
         svc = service_with_html(html)
         request = ExportPptxRequest(session_id="test-session")

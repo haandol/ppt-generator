@@ -13,7 +13,7 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
         """아웃라인과 이미지를 기반으로 HTML/CSS 슬라이드를 생성합니다.
 
         슬라이드 아웃라인 JSON과 이미지 경로 정보를 받아 Bedrock LLM이
-        960x540px 규격의 HTML/CSS 슬라이드를 생성합니다.
+        1280x720px 규격의 HTML/CSS 슬라이드를 생성합니다.
         반환되는 session_id를 사용하여 이후 슬라이드 수정(F5)이나
         PPTX 내보내기(F6)를 수행할 수 있습니다.
 

@@ -16,24 +16,24 @@ def _make_slide(index: int) -> SlideOutline:
     )
 
 
-# LLM이 반환하는 section 요소 (reveal.js 기반)
+# LLM이 반환하는 section 요소
 SAMPLE_SECTIONS = '<section data-speaker-notes="">내용</section>'
 
-# reveal.js 템플릿에 삽입된 완전한 HTML (수정 시 LLM이 반환)
-SAMPLE_REVEALJS_HTML = (
+# 템플릿에 삽입된 완전한 HTML (수정 시 LLM이 반환)
+SAMPLE_FULL_HTML = (
     "<!DOCTYPE html>\n"
     '<html lang="ko"><head><meta charset="UTF-8"></head>\n'
-    '<body><div class="reveal"><div class="slides">\n'
+    "<body>\n"
     '<section data-speaker-notes="">내용</section>\n'
-    "</div></div></body></html>"
+    "</body></html>"
 )
 
-MODIFIED_REVEALJS_HTML = (
+MODIFIED_FULL_HTML = (
     "<!DOCTYPE html>\n"
     '<html lang="ko"><head><meta charset="UTF-8"></head>\n'
-    '<body><div class="reveal"><div class="slides">\n'
+    "<body>\n"
     '<section data-speaker-notes="" style="background:blue;">수정됨</section>\n'
-    "</div></div></body></html>"
+    "</body></html>"
 )
 
 CONTINUATION_SECTIONS = '<section data-speaker-notes="">추가 슬라이드</section>'
@@ -49,7 +49,7 @@ def mock_agent():
 @pytest.fixture
 def mock_modify_agent():
     agent = MagicMock()
-    agent.return_value = MODIFIED_REVEALJS_HTML
+    agent.return_value = MODIFIED_FULL_HTML
     return agent
 
 
@@ -67,13 +67,13 @@ class TestGenerate:
         assert response.session_id
         assert response.html
 
-    def test_generate_produces_revealjs_structure(self, service):
+    def test_generate_produces_html_structure(self, service):
         request = SlidesRequest(slides=[_make_slide(0)], image_paths={})
         response = service.generate(request)
 
-        assert "reveal" in response.html
+        assert "<!DOCTYPE html>" in response.html
         assert "<section" in response.html
-        assert "Reveal.initialize" in response.html
+        assert "<body>" in response.html
 
     def test_generate_raises_on_empty_slides(self, service):
         request = SlidesRequest(slides=[], image_paths={})
@@ -141,9 +141,9 @@ class TestBatchedGeneration:
 
     def test_combine_html_batches_inserts_sections(self):
         first_html = (
-            '<html><body><div class="reveal"><div class="slides">'
+            "<html><body>"
             "<section>first</section>"
-            "</div></div></body></html>"
+            "</body></html>"
         )
         sections = ["<section>second</section>"]
         result = SlidesService._combine_html_batches(first_html, sections)
@@ -178,14 +178,14 @@ class TestModify:
 
         response = service.modify(gen_response.session_id, "배경색을 파란색으로 변경")
         assert isinstance(response, SlidesResponse)
-        assert response.html == MODIFIED_REVEALJS_HTML
+        assert response.html == MODIFIED_FULL_HTML
 
     def test_modify_updates_session(self, service):
         request = SlidesRequest(slides=[_make_slide(0)], image_paths={})
         gen_response = service.generate(request)
 
         service.modify(gen_response.session_id, "배경색을 파란색으로 변경")
-        assert service.get_session_html(gen_response.session_id) == MODIFIED_REVEALJS_HTML
+        assert service.get_session_html(gen_response.session_id) == MODIFIED_FULL_HTML
 
     def test_modify_preserves_session_id(self, service):
         request = SlidesRequest(slides=[_make_slide(0)], image_paths={})
@@ -220,9 +220,9 @@ class TestModify:
         """누적 수정이 동작하는지 확인"""
         modify_agent = MagicMock()
         modify_agent.side_effect = [
-            MODIFIED_REVEALJS_HTML,
-            '<!DOCTYPE html><html><body><div class="reveal"><div class="slides">'
-            "<section>최종</section></div></div></body></html>",
+            MODIFIED_FULL_HTML,
+            "<!DOCTYPE html><html><body>"
+            "<section>최종</section></body></html>",
         ]
         service = SlidesService(agent=mock_agent, modify_agent=modify_agent)
 
@@ -235,18 +235,18 @@ class TestModify:
         service.modify(gen_response.session_id, "텍스트 변경")
 
         second_call_prompt = modify_agent.call_args_list[1][0][0]
-        assert "수정됨" in second_call_prompt  # MODIFIED_REVEALJS_HTML의 내용이 포함
+        assert "수정됨" in second_call_prompt  # MODIFIED_FULL_HTML의 내용이 포함
 
 
 class TestModifySingleSlide:
     MULTI_SLIDE_HTML = (
         "<!DOCTYPE html>\n"
         '<html lang="ko"><head><meta charset="UTF-8"></head>\n'
-        '<body><div class="reveal"><div class="slides">\n'
+        "<body>\n"
         '<section data-speaker-notes="">슬라이드 0</section>\n'
         '<section data-speaker-notes="">슬라이드 1</section>\n'
         '<section data-speaker-notes="">슬라이드 2</section>\n'
-        "</div></div></body></html>"
+        "</body></html>"
     )
 
     def test_modify_single_slide(self, mock_agent):
@@ -295,14 +295,14 @@ class TestModifySingleSlide:
     def test_modify_negative_index_modifies_all(self, mock_agent):
         """slide_index=-1이면 전체 수정 (기존 동작)"""
         modify_agent = MagicMock()
-        modify_agent.return_value = MODIFIED_REVEALJS_HTML
+        modify_agent.return_value = MODIFIED_FULL_HTML
         service = SlidesService(agent=mock_agent, modify_agent=modify_agent)
 
         session_id = "test-session"
         service._sessions[session_id] = (self.MULTI_SLIDE_HTML, {})
 
         response = service.modify(session_id, "전체 수정")
-        assert response.html == MODIFIED_REVEALJS_HTML
+        assert response.html == MODIFIED_FULL_HTML
 
 
 class TestExtractSections:
@@ -313,9 +313,9 @@ class TestExtractSections:
 
     def test_extract_sections_from_full_html(self):
         text = (
-            '<!DOCTYPE html><html><body><div class="reveal"><div class="slides">'
+            "<!DOCTYPE html><html><body>"
             "<section>test</section>"
-            "</div></div></body></html>"
+            "</body></html>"
         )
         result = SlidesService._extract_sections(text)
         assert "<section>test</section>" in result
@@ -332,9 +332,10 @@ class TestExtractSections:
         assert result == "그냥 텍스트입니다"
 
     def test_extract_sections_with_style(self):
+        """style 태그가 포함된 입력에서 section만 추출"""
         text = "<style>.custom { color: red; }</style>\n<section>styled</section>"
         result = SlidesService._extract_sections(text)
-        assert "<style>" in result
+        assert "<style>" not in result
         assert "<section>styled</section>" in result
 
 

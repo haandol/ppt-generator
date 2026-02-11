@@ -87,9 +87,12 @@ class DIContainer:
         return self._outline_service
 
     @property
-    def image_service(self) -> ImageService:
+    def image_service(self) -> ImageService | None:
         if self._image_service is None:
-            client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+            api_key = os.environ.get("GEMINI_API_KEY")
+            if not api_key:
+                return None
+            client = genai.Client(api_key=api_key)
             self._image_service = ImageService(client=client)
         return self._image_service
 

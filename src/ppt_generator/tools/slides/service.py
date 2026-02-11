@@ -11,7 +11,7 @@ from strands import Agent
 from bs4 import BeautifulSoup
 
 from ppt_generator.interfaces.constants import (
-    REVEALJS_TEMPLATE_PATH,
+    SLIDES_TEMPLATE_PATH,
     SLIDES_BATCH_USER_PROMPT_TEMPLATE,
     SLIDES_DESIGN_SUMMARY_PROMPT,
     SLIDES_MAX_PER_BATCH,
@@ -66,9 +66,9 @@ class SlidesService:
 
     def _modify_single_slide(self, full_html: str, slide_index: int, modification_request: str) -> str:
         soup = BeautifulSoup(full_html, "html.parser")
-        slides_container = soup.find("div", class_="slides")
+        slides_container = soup.find("body")
         if slides_container is None:
-            raise ValueError("reveal.js slides 컨테이너를 찾을 수 없습니다.")
+            raise ValueError("HTML body를 찾을 수 없습니다.")
 
         sections = slides_container.find_all("section", recursive=False)
         if slide_index >= len(sections):
@@ -126,7 +126,7 @@ class SlidesService:
 
         sections_html = self._extract_sections(result)
         sections_html = self._replace_image_placeholders(sections_html, image_paths)
-        html = self._wrap_with_revealjs_template(sections_html)
+        html = self._wrap_with_template(sections_html)
         return html
 
     def _generate_batched(self, slides: list[SlideOutline], image_paths: dict[int, str]) -> str:
@@ -191,14 +191,17 @@ class SlidesService:
     @staticmethod
     def _combine_html_batches(first_html: str, continuation_sections: list[str]) -> str:
         insertion = "\n".join(continuation_sections)
-        # </div><!-- .slides --> 또는 마지막 </section> 뒤에 삽입
-        # reveal.js 구조에서 slides 컨테이너의 닫힘 태그 앞에 삽입
+        # <script> 태그 앞에 새 section들을 삽입 (IIFE가 모든 section을 인식하도록)
         soup = BeautifulSoup(first_html, "html.parser")
-        slides_container = soup.find("div", class_="slides")
-        if slides_container:
+        body = soup.find("body")
+        if body:
             new_sections = BeautifulSoup(insertion, "html.parser")
+            script_tag = body.find("script")
             for section in new_sections.find_all("section", recursive=False):
-                slides_container.append(section)
+                if script_tag:
+                    script_tag.insert_before(section)
+                else:
+                    body.append(section)
             return str(soup)
         # 폴백: </body> 앞에 삽입
         match = re.search(r"</body>", first_html, re.IGNORECASE)
@@ -284,26 +287,14 @@ class SlidesService:
         return text.strip()
 
     @staticmethod
-    def _wrap_with_revealjs_template(sections_html: str) -> str:
-        """section 요소들을 reveal.js 템플릿에 삽입하여 완전한 HTML 문서 생성."""
-        # style 태그와 section 태그 분리
-        style_parts: list[str] = []
-        remaining = sections_html
-        for style_match in re.finditer(r"<style[^>]*>.*?</style>", sections_html, re.DOTALL):
-            style_parts.append(style_match.group(0))
-        if style_parts:
-            for sp in style_parts:
-                remaining = remaining.replace(sp, "")
-
-        custom_style = "\n".join(style_parts)
-        slides_content = remaining.strip()
-
-        template = REVEALJS_TEMPLATE_PATH.read_text(encoding="utf-8")
-        return template.replace("{custom_style}", custom_style).replace("{slides_content}", slides_content)
+    def _wrap_with_template(sections_html: str) -> str:
+        """section 요소들을 HTML 템플릿에 삽입하여 완전한 HTML 문서 생성."""
+        template = SLIDES_TEMPLATE_PATH.read_text(encoding="utf-8")
+        return template.replace("{slides_content}", sections_html.strip())
 
     @staticmethod
     def _extract_sections(text: str) -> str:
-        """LLM 응답에서 <section> 요소들(및 선행 <style> 태그)을 추출."""
+        """LLM 응답에서 <section> 요소들을 추출."""
         # 1단계: 마크다운 코드블록에서 추출
         code_block = re.search(r"```(?:html)?\s*\n(.*?)```", text, re.DOTALL)
         if code_block:
@@ -312,22 +303,13 @@ class SlidesService:
         # 2단계: 완전한 HTML 문서가 반환된 경우 section들만 추출
         if "<!DOCTYPE html>" in text.lower() or "<html" in text.lower():
             soup = BeautifulSoup(text, "html.parser")
-            # style 태그들 추출
-            style_tags = []
-            for style in soup.find_all("style"):
-                style_tags.append(str(style))
-            # section 태그들 추출
             sections = soup.find_all("section")
             if sections:
-                parts = style_tags + [str(s) for s in sections]
-                return "\n".join(parts)
+                return "\n".join(str(s) for s in sections)
 
-        # 3단계: <section> 태그가 있으면 그대로 반환
+        # 3단계: <section> 태그가 있으면 section만 추출
         if "<section" in text:
-            # style 태그와 section 태그를 포함한 부분만 추출
             parts: list[str] = []
-            for style_match in re.finditer(r"<style[^>]*>.*?</style>", text, re.DOTALL):
-                parts.append(style_match.group(0))
             for section_match in re.finditer(r"(<section[\s>].*?</section>)", text, re.DOTALL):
                 parts.append(section_match.group(0))
             if parts:
