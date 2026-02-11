@@ -4,7 +4,7 @@ Date: 2026-02-11
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -82,6 +82,8 @@ Proposed
 
 ## References
 
-- 구현 대상: `src/ppt_generator/tools/project/` (신규)
-- 수정 대상: 각 `tools/*/controller.py`, `di/container.py`, `server.py`
+- 구현: `src/ppt_generator/tools/project/service.py`, `src/ppt_generator/tools/project/controller.py`
+- 수정: 각 `tools/*/controller.py`, `di/container.py`, `server.py`
+- 스키마: `interfaces/schemas.py` (`ProjectMetadata`)
+- 테스트: `tests/test_project_service.py`
 - 관련 ADR: [0001](./0001-script-generation.md)~[0006](./0006-pptx-export.md) 전체

@@ -82,3 +82,10 @@ class SlidesRequest:
 class SlidesResponse:
     session_id: str
     html: str
+
+
+@dataclass
+class ProjectMetadata:
+    topic: str = ""
+    num_slides: int = 0
+    steps_completed: dict[str, str] = field(default_factory=dict)
