@@ -30,7 +30,7 @@ class ExportService:
         self._slides_service = slides_service
         self._template_path = template_path
 
-    def export(self, request: ExportPptxRequest) -> ExportPptxResponse:
+    def export(self, request: ExportPptxRequest, output_dir: Path | None = None) -> ExportPptxResponse:
         html = self._slides_service.get_session_html(request.session_id)
         slide_divs = self._parse_slides(html)
 
@@ -63,7 +63,10 @@ class ExportService:
             if notes:
                 self._set_speaker_notes(slide, notes)
 
-        output_path = Path(tempfile.mkdtemp(prefix="ppt_export_")) / "presentation.pptx"
+        if output_dir is None:
+            output_dir = Path(tempfile.mkdtemp(prefix="ppt_export_"))
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir / "presentation.pptx"
         prs.save(str(output_path))
         logger.info("PPTX 내보내기 완료: %s", output_path)
         return ExportPptxResponse(pptx_path=str(output_path))

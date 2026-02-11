@@ -204,3 +204,23 @@ class TestExportService:
         svc = service_with_html("<html><body>빈 페이지</body></html>")
         with pytest.raises(ValueError, match="슬라이드를 찾을 수 없습니다"):
             svc.export(ExportPptxRequest(session_id="test-session"))
+
+    def test_export_uses_custom_output_dir(self, service_with_html, tmp_path):
+        svc = service_with_html(MULTI_SLIDE_HTML)
+        custom_dir = tmp_path / "custom_export"
+        request = ExportPptxRequest(session_id="test-session")
+        response = svc.export(request, output_dir=custom_dir)
+
+        path = Path(response.pptx_path)
+        assert path.parent == custom_dir
+        assert path.exists()
+        assert path.name == "presentation.pptx"
+
+    def test_export_creates_output_dir(self, service_with_html, tmp_path):
+        svc = service_with_html(MULTI_SLIDE_HTML)
+        nested_dir = tmp_path / "a" / "b" / "export"
+        request = ExportPptxRequest(session_id="test-session")
+        response = svc.export(request, output_dir=nested_dir)
+
+        assert nested_dir.exists()
+        assert Path(response.pptx_path).exists()

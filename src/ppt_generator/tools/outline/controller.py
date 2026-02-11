@@ -1,6 +1,5 @@
 import json
 from dataclasses import asdict
-from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
@@ -13,7 +12,7 @@ from ppt_generator.tools.project.service import ProjectService
 def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, project_service: ProjectService) -> None:
     @mcp.tool()
     def generate_outline(
-        topic: str, num_slides: int = DEFAULT_NUM_SLIDES, project_dir: str = ""
+        topic: str, num_slides: int = DEFAULT_NUM_SLIDES, project_id: str = ""
     ) -> str:
         """주제를 기반으로 슬라이드 아웃라인 JSON을 생성합니다.
 
@@ -26,16 +25,22 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
         Args:
             topic: 발표 주제 (예: "2024년 클라우드 컴퓨팅 트렌드")
             num_slides: 슬라이드 수 (3~20, 기본값 5)
-            project_dir: 결과물 저장 디렉토리 (미지정 시 저장 안 함)
+            project_id: 프로젝트 ID (미지정 시 자동 생성)
 
         Returns:
-            슬라이드 아웃라인 JSON 문자열
+            슬라이드 아웃라인 JSON 문자열 (project_id 포함)
         """
         num_slides = max(MIN_NUM_SLIDES, min(MAX_NUM_SLIDES, num_slides))
         request = OutlineRequest(topic=topic, num_slides=num_slides)
         response = outline_service.generate(request)
         result = json.dumps(asdict(response), ensure_ascii=False, indent=2)
-        if project_dir:
-            project_service.save_outline(Path(project_dir), result)
-            project_service.update_step(Path(project_dir), "outline")
-        return result
+
+        project_id, project_dir = project_service.resolve_project_dir(project_id)
+        project_service.save_outline(project_dir, result)
+        project_service.update_step(project_dir, "outline")
+
+        return json.dumps(
+            {**json.loads(result), "project_id": project_id},
+            ensure_ascii=False,
+            indent=2,
+        )

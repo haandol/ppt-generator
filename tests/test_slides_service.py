@@ -77,39 +77,55 @@ class TestGenerate:
 
 
 class TestBatchedGeneration:
-    def test_generate_small_outline_single_call(self, mock_agent, mock_modify_agent):
-        """10장 이하면 agent 1회 호출"""
+    def test_generate_single_slide_single_call(self, mock_agent, mock_modify_agent):
+        """SLIDES_MAX_PER_BATCH=1이므로 1장이면 agent 1회 호출"""
         service = SlidesService(agent=mock_agent, modify_agent=mock_modify_agent)
-        slides = [_make_slide(i) for i in range(5)]
+        slides = [_make_slide(0)]
         request = SlidesRequest(slides=slides, image_paths={})
         service.generate(request)
 
         assert mock_agent.call_count == 1
 
-    def test_generate_large_outline_batched_calls(self, mock_modify_agent):
-        """15장이면 agent 여러 회 호출 (첫 배치 + 디자인 요약 + 후속 배치)"""
+    def test_generate_two_slides_batched(self, mock_modify_agent):
+        """SLIDES_MAX_PER_BATCH=1이므로 2장이면 배치 처리 (첫 배치 + 디자인 요약 + 후속 배치)"""
         agent = MagicMock()
-        # 첫 호출: 전체 HTML, 두 번째: 디자인 요약, 세 번째: 후속 배치 div
         agent.side_effect = [
             SAMPLE_HTML,
             "배경색: 흰색, 폰트: Pretendard, 제목: 28px bold",
             CONTINUATION_DIVS,
         ]
         service = SlidesService(agent=agent, modify_agent=mock_modify_agent)
-        slides = [_make_slide(i) for i in range(15)]
+        slides = [_make_slide(i) for i in range(2)]
         request = SlidesRequest(slides=slides, image_paths={})
         service.generate(request)
 
         assert agent.call_count == 3
 
-    def test_chunk_slides_correct_sizes(self):
-        slides = [_make_slide(i) for i in range(23)]
-        chunks = SlidesService._chunk_slides(slides, 10)
+    def test_generate_five_slides_batched(self, mock_modify_agent):
+        """5장이면 첫 배치 + 디자인 요약 + 후속 배치 4회 = agent 6회 호출"""
+        agent = MagicMock()
+        agent.side_effect = [
+            SAMPLE_HTML,           # 첫 배치 (1장)
+            "디자인 요약",          # 디자인 요약 추출
+            CONTINUATION_DIVS,     # 후속 배치 2
+            CONTINUATION_DIVS,     # 후속 배치 3
+            CONTINUATION_DIVS,     # 후속 배치 4
+            CONTINUATION_DIVS,     # 후속 배치 5
+        ]
+        service = SlidesService(agent=agent, modify_agent=mock_modify_agent)
+        slides = [_make_slide(i) for i in range(5)]
+        request = SlidesRequest(slides=slides, image_paths={})
+        service.generate(request)
 
-        assert len(chunks) == 3
-        assert len(chunks[0]) == 10
-        assert len(chunks[1]) == 10
-        assert len(chunks[2]) == 3
+        assert agent.call_count == 6
+
+    def test_chunk_slides_with_batch_size_1(self):
+        slides = [_make_slide(i) for i in range(5)]
+        chunks = SlidesService._chunk_slides(slides, 1)
+
+        assert len(chunks) == 5
+        for chunk in chunks:
+            assert len(chunk) == 1
 
     def test_combine_html_batches_inserts_before_body(self):
         first_html = "<html><body><div>first</div></body></html>"
@@ -127,19 +143,19 @@ class TestBatchedGeneration:
         """전역 인덱스가 유지되는지 확인"""
         agent = MagicMock()
         agent.side_effect = [
-            SAMPLE_HTML,
-            "디자인 요약",
-            CONTINUATION_DIVS,
+            SAMPLE_HTML,       # 첫 배치 (슬라이드 0)
+            "디자인 요약",      # 디자인 요약
+            CONTINUATION_DIVS, # 슬라이드 1
+            CONTINUATION_DIVS, # 슬라이드 2
         ]
         service = SlidesService(agent=agent, modify_agent=mock_modify_agent)
-        slides = [_make_slide(i) for i in range(12)]
+        slides = [_make_slide(i) for i in range(3)]
         request = SlidesRequest(slides=slides, image_paths={})
         service.generate(request)
 
-        # 후속 배치 호출의 프롬프트에서 전역 인덱스(10, 11) 사용 확인
-        third_call_prompt = agent.call_args_list[2][0][0]
-        assert "슬라이드 10" in third_call_prompt
-        assert "슬라이드 11" in third_call_prompt
+        # 마지막 호출의 프롬프트에서 전역 인덱스(2) 사용 확인
+        last_call_prompt = agent.call_args_list[-1][0][0]
+        assert "슬라이드 2" in last_call_prompt
 
 
 class TestModify:
@@ -207,6 +223,73 @@ class TestModify:
 
         second_call_prompt = modify_agent.call_args_list[1][0][0]
         assert "수정됨" in second_call_prompt  # MODIFIED_HTML의 내용이 포함
+
+
+class TestModifySingleSlide:
+    MULTI_SLIDE_HTML = (
+        "<!DOCTYPE html>\n"
+        "<html><head><meta charset=\"UTF-8\"></head>\n"
+        "<body>\n"
+        '<div class="slide" data-speaker-notes="">슬라이드 0</div>\n'
+        '<div class="slide" data-speaker-notes="">슬라이드 1</div>\n'
+        '<div class="slide" data-speaker-notes="">슬라이드 2</div>\n'
+        "</body></html>"
+    )
+
+    def test_modify_single_slide(self, mock_agent):
+        """slide_index 지정 시 해당 슬라이드만 수정"""
+        modify_agent = MagicMock()
+        modify_agent.return_value = '<div class="slide" data-speaker-notes="">수정된 슬라이드 1</div>'
+        service = SlidesService(agent=mock_agent, modify_agent=modify_agent)
+
+        # 세션에 직접 HTML 등록
+        session_id = "test-session"
+        service._sessions[session_id] = (self.MULTI_SLIDE_HTML, {})
+
+        response = service.modify(session_id, "텍스트 변경", slide_index=1)
+
+        assert "수정된 슬라이드 1" in response.html
+        assert "슬라이드 0" in response.html
+        assert "슬라이드 2" in response.html
+
+    def test_modify_single_preserves_others(self, mock_agent):
+        """다른 슬라이드 변경 없음 확인"""
+        modify_agent = MagicMock()
+        modify_agent.return_value = '<div class="slide" data-speaker-notes="">변경됨</div>'
+        service = SlidesService(agent=mock_agent, modify_agent=modify_agent)
+
+        session_id = "test-session"
+        service._sessions[session_id] = (self.MULTI_SLIDE_HTML, {})
+
+        response = service.modify(session_id, "수정", slide_index=0)
+
+        # 슬라이드 0만 변경되고, 1과 2는 그대로
+        assert "변경됨" in response.html
+        assert "슬라이드 1" in response.html
+        assert "슬라이드 2" in response.html
+
+    def test_modify_raises_on_invalid_index(self, mock_agent):
+        """범위 초과 시 IndexError"""
+        modify_agent = MagicMock()
+        service = SlidesService(agent=mock_agent, modify_agent=modify_agent)
+
+        session_id = "test-session"
+        service._sessions[session_id] = (self.MULTI_SLIDE_HTML, {})
+
+        with pytest.raises(IndexError, match="슬라이드 인덱스 범위 초과"):
+            service.modify(session_id, "수정", slide_index=5)
+
+    def test_modify_negative_index_modifies_all(self, mock_agent):
+        """slide_index=-1이면 전체 수정 (기존 동작)"""
+        modify_agent = MagicMock()
+        modify_agent.return_value = MODIFIED_HTML
+        service = SlidesService(agent=mock_agent, modify_agent=modify_agent)
+
+        session_id = "test-session"
+        service._sessions[session_id] = (self.MULTI_SLIDE_HTML, {})
+
+        response = service.modify(session_id, "전체 수정")
+        assert response.html == MODIFIED_HTML
 
 
 class TestExtractHtml:

@@ -8,10 +8,13 @@ from pathlib import Path
 
 from strands import Agent
 
+from bs4 import BeautifulSoup
+
 from ppt_generator.interfaces.constants import (
     SLIDES_BATCH_USER_PROMPT_TEMPLATE,
     SLIDES_DESIGN_SUMMARY_PROMPT,
     SLIDES_MAX_PER_BATCH,
+    SLIDES_MODIFY_SINGLE_USER_PROMPT_TEMPLATE,
     SLIDES_MODIFY_USER_PROMPT_TEMPLATE,
     SLIDES_USER_PROMPT_TEMPLATE,
 )
@@ -41,19 +44,46 @@ class SlidesService:
         logger.info("HTML 슬라이드 생성 완료: session_id=%s, 슬라이드 수=%d", session_id, len(request.slides))
         return SlidesResponse(session_id=session_id, html=html)
 
-    def modify(self, session_id: str, modification_request: str) -> SlidesResponse:
+    def modify(self, session_id: str, modification_request: str, slide_index: int = -1) -> SlidesResponse:
         if not modification_request.strip():
             raise ValueError("수정 요청이 비어있습니다.")
         current_html = self.get_session_html(session_id)
-        prompt = SLIDES_MODIFY_USER_PROMPT_TEMPLATE.format(
-            current_html=current_html,
-            modification_request=modification_request,
-        )
-        result = str(self._modify_agent(prompt))
-        html = self._extract_html(result)
+
+        if slide_index >= 0:
+            html = self._modify_single_slide(current_html, slide_index, modification_request)
+        else:
+            prompt = SLIDES_MODIFY_USER_PROMPT_TEMPLATE.format(
+                current_html=current_html,
+                modification_request=modification_request,
+            )
+            result = str(self._modify_agent(prompt))
+            html = self._extract_html(result)
+
         _, image_paths = self._sessions[session_id]
         self._sessions[session_id] = (html, image_paths)
         return SlidesResponse(session_id=session_id, html=html)
+
+    def _modify_single_slide(self, full_html: str, slide_index: int, modification_request: str) -> str:
+        soup = BeautifulSoup(full_html, "html.parser")
+        slide_divs = soup.find_all("div", class_="slide")
+        if slide_index >= len(slide_divs):
+            raise IndexError(f"슬라이드 인덱스 범위 초과: {slide_index} (총 {len(slide_divs)}장)")
+
+        target_html = str(slide_divs[slide_index])
+        prompt = SLIDES_MODIFY_SINGLE_USER_PROMPT_TEMPLATE.format(
+            slide_index=slide_index,
+            current_slide_html=target_html,
+            modification_request=modification_request,
+        )
+        result = str(self._modify_agent(prompt))
+        modified_div_html = self._extract_divs(result)
+
+        modified_div = BeautifulSoup(modified_div_html, "html.parser").find("div", class_="slide")
+        if modified_div is None:
+            raise ValueError("수정된 슬라이드 div를 파싱할 수 없습니다.")
+
+        slide_divs[slide_index].replace_with(modified_div)
+        return str(soup)
 
     def get_session_html(self, session_id: str) -> str:
         session = self._sessions.get(session_id)

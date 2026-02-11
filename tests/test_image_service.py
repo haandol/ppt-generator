@@ -121,3 +121,25 @@ class TestImageService:
         assert body["textToImageParams"]["text"] == "a futuristic city"
         assert body["imageGenerationConfig"]["width"] == 1280
         assert body["imageGenerationConfig"]["height"] == 768
+
+    def test_generate_uses_custom_output_dir(self, service, tmp_path):
+        from pathlib import Path
+
+        custom_dir = tmp_path / "custom_images"
+        request = ImageRequest(slides=[_make_slide()])
+        response = service.generate(request, output_dir=custom_dir)
+
+        assert len(response.images) == 1
+        path = Path(response.images[0].image_path)
+        assert path.parent == custom_dir
+        assert path.exists()
+
+    def test_generate_creates_output_dir(self, service, tmp_path):
+        from pathlib import Path
+
+        nested_dir = tmp_path / "a" / "b" / "images"
+        request = ImageRequest(slides=[_make_slide()])
+        response = service.generate(request, output_dir=nested_dir)
+
+        assert nested_dir.exists()
+        assert len(response.images) == 1

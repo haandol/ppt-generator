@@ -1,6 +1,5 @@
 import json
 from dataclasses import asdict
-from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
@@ -11,7 +10,7 @@ from ppt_generator.tools.project.service import ProjectService
 
 def register_image_tools(mcp: FastMCP, image_service: ImageService, project_service: ProjectService) -> None:
     @mcp.tool()
-    def generate_images(outline_json: str, project_dir: str = "") -> str:
+    def generate_images(outline_json: str, project_id: str = "") -> str:
         """슬라이드 아웃라인의 image_idea를 기반으로 슬라이드별 이미지를 생성합니다.
 
         각 슬라이드의 image_idea 필드를 사용하여 Titan Image Generator v2로 이미지를 생성합니다.
@@ -19,10 +18,10 @@ def register_image_tools(mcp: FastMCP, image_service: ImageService, project_serv
 
         Args:
             outline_json: generate_outline로 생성된 슬라이드 아웃라인 JSON 문자열
-            project_dir: 결과물 저장 디렉토리 (미지정 시 저장 안 함)
+            project_id: 프로젝트 ID (미지정 시 자동 생성)
 
         Returns:
-            생성된 이미지 파일 경로 목록 JSON
+            생성된 이미지 파일 경로 목록 JSON (project_id 포함)
         """
         data = json.loads(outline_json)
         slides = [
@@ -49,9 +48,16 @@ def register_image_tools(mcp: FastMCP, image_service: ImageService, project_serv
             for s in data["slides"]
         ]
         request = ImageRequest(slides=slides)
-        response = image_service.generate(request)
+
+        project_id, project_dir = project_service.resolve_project_dir(project_id)
+        response = image_service.generate(request, output_dir=project_dir / "images")
         result = json.dumps(asdict(response), ensure_ascii=False, indent=2)
-        if project_dir:
-            project_service.save_images(Path(project_dir), result)
-            project_service.update_step(Path(project_dir), "images")
-        return result
+
+        project_service.save_images_meta(project_dir, result)
+        project_service.update_step(project_dir, "images")
+
+        return json.dumps(
+            {**json.loads(result), "project_id": project_id},
+            ensure_ascii=False,
+            indent=2,
+        )

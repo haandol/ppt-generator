@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 import logging
 import shutil
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ppt_generator.interfaces.constants import PPT_GENERATOR_HOME
 from ppt_generator.interfaces.schemas import ProjectMetadata
 
 if TYPE_CHECKING:
@@ -20,6 +22,14 @@ class ProjectService:
 
     def __init__(self, slides_service: SlidesService) -> None:
         self._slides_service = slides_service
+
+    def resolve_project_dir(self, project_id: str = "") -> tuple[str, Path]:
+        """project_id → (project_id, project_dir). 빈 값이면 UUID 자동 생성."""
+        if not project_id:
+            project_id = str(uuid.uuid4())
+        project_dir = PPT_GENERATOR_HOME / project_id
+        project_dir.mkdir(parents=True, exist_ok=True)
+        return project_id, project_dir
 
     # --- 저장 메서드 ---
 
@@ -62,6 +72,11 @@ class ProjectService:
         remapped_json = json.dumps({"images": remapped_images}, ensure_ascii=False, indent=2)
         (project_dir / "images.json").write_text(remapped_json, encoding="utf-8")
         logger.info("images.json 저장 완료 (%d개): %s", len(remapped_images), project_dir)
+
+    def save_images_meta(self, project_dir: Path, images_json: str) -> None:
+        """이미지 메타데이터(images.json)만 저장. 파일 복사는 하지 않음."""
+        self._ensure_dir(project_dir)
+        (project_dir / "images.json").write_text(images_json, encoding="utf-8")
 
     def save_slides_html(
         self,

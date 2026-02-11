@@ -205,6 +205,44 @@ class TestSaveMetadataAndUpdateStep:
         assert "T" in loaded.steps_completed["outline"]
 
 
+class TestResolveProjectDir:
+    def test_generates_uuid_when_empty(self, project_service: ProjectService, tmp_path: Path, monkeypatch) -> None:
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        project_id, project_dir = project_service.resolve_project_dir("")
+        assert project_id  # 빈 문자열이 아닌 UUID가 생성됨
+        assert len(project_id) == 36  # UUID 형식 (8-4-4-4-12)
+        assert project_dir == tmp_path / project_id
+        assert project_dir.exists()
+
+    def test_reuses_existing_id(self, project_service: ProjectService, tmp_path: Path, monkeypatch) -> None:
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        existing_id = "my-existing-project"
+        project_id, project_dir = project_service.resolve_project_dir(existing_id)
+        assert project_id == existing_id
+        assert project_dir == tmp_path / existing_id
+        assert project_dir.exists()
+
+
+class TestSaveImagesMeta:
+    def test_saves_meta_only(self, project_service: ProjectService, project_dir: Path) -> None:
+        images_json = json.dumps(
+            {"images": [{"slide_index": 0, "image_path": "/some/path.png"}]},
+            ensure_ascii=False,
+        )
+        project_service.save_images_meta(project_dir, images_json)
+
+        meta_path = project_dir / "images.json"
+        assert meta_path.exists()
+        loaded = json.loads(meta_path.read_text(encoding="utf-8"))
+        assert loaded["images"][0]["slide_index"] == 0
+        # 이미지 파일 복사는 하지 않으므로 images 디렉토리가 생성되지 않음
+        assert not (project_dir / "images").exists()
+
+
 class TestLoadNonexistentRaises:
     def test_outline(self, project_service: ProjectService, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):

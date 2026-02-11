@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
@@ -10,7 +9,7 @@ from ppt_generator.tools.slides.service import SlidesService
 
 def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_service: ProjectService) -> None:
     @mcp.tool()
-    def generate_slides(outline_json: str, images_json: str = "{}", project_dir: str = "") -> str:
+    def generate_slides(outline_json: str, images_json: str = "{}", project_id: str = "") -> str:
         """아웃라인과 이미지를 기반으로 HTML/CSS 슬라이드를 생성합니다.
 
         슬라이드 아웃라인 JSON과 이미지 경로 정보를 받아 Bedrock LLM이
@@ -21,10 +20,10 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
         Args:
             outline_json: generate_outline로 생성된 슬라이드 아웃라인 JSON 문자열
             images_json: generate_images로 생성된 이미지 경로 JSON 문자열
-            project_dir: 결과물 저장 디렉토리 (미지정 시 저장 안 함)
+            project_id: 프로젝트 ID (미지정 시 자동 생성)
 
         Returns:
-            session_id와 html을 포함하는 JSON 문자열
+            session_id, html, project_id를 포함하는 JSON 문자열
         """
         outline_data = json.loads(outline_json)
         slides = [
@@ -58,18 +57,23 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
 
         request = SlidesRequest(slides=slides, image_paths=image_paths)
         response = slides_service.generate(request)
-        if project_dir:
-            project_service.save_slides_html(
-                Path(project_dir), response.session_id, response.html, image_paths,
-            )
-            project_service.update_step(Path(project_dir), "slides")
+
+        project_id, project_dir = project_service.resolve_project_dir(project_id)
+        project_service.save_slides_html(
+            project_dir, response.session_id, response.html, image_paths,
+        )
+        project_service.update_step(project_dir, "slides")
+
         return json.dumps(
-            {"session_id": response.session_id, "html": response.html},
+            {"session_id": response.session_id, "html": response.html, "project_id": project_id},
             ensure_ascii=False,
         )
 
     @mcp.tool()
-    def modify_slides(session_id: str, modification_request: str, project_dir: str = "") -> str:
+    def modify_slides(
+        session_id: str, modification_request: str,
+        slide_index: int = -1, project_id: str = "",
+    ) -> str:
         """세션의 HTML 슬라이드를 자연어 수정 요청에 따라 수정합니다.
 
         generate_slides로 생성된 세션의 슬라이드를 수정 요청에 따라 변경합니다.
@@ -79,19 +83,22 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
         Args:
             session_id: generate_slides에서 반환된 세션 ID
             modification_request: 자연어 수정 요청 (예: "배경색을 파란색으로 변경해주세요")
-            project_dir: 결과물 저장 디렉토리 (미지정 시 저장 안 함)
+            slide_index: 수정할 슬라이드 인덱스 (0부터, -1이면 전체)
+            project_id: 프로젝트 ID (미지정 시 자동 생성)
 
         Returns:
-            session_id와 수정된 html을 포함하는 JSON 문자열
+            session_id, html, project_id를 포함하는 JSON 문자열
         """
-        response = slides_service.modify(session_id, modification_request)
-        if project_dir:
-            image_paths = slides_service.get_session_image_paths(session_id)
-            project_service.save_slides_html(
-                Path(project_dir), response.session_id, response.html, image_paths,
-            )
-            project_service.update_step(Path(project_dir), "slides_modified")
+        response = slides_service.modify(session_id, modification_request, slide_index)
+
+        project_id, project_dir = project_service.resolve_project_dir(project_id)
+        image_paths = slides_service.get_session_image_paths(session_id)
+        project_service.save_slides_html(
+            project_dir, response.session_id, response.html, image_paths,
+        )
+        project_service.update_step(project_dir, "slides_modified")
+
         return json.dumps(
-            {"session_id": response.session_id, "html": response.html},
+            {"session_id": response.session_id, "html": response.html, "project_id": project_id},
             ensure_ascii=False,
         )

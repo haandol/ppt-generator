@@ -29,6 +29,8 @@ adr/
 - [0006: PPTX 내보내기 (F6)](./pipeline/0006-pptx-export.md)
 - [0007: 파이프라인 결과물 저장/로드](./pipeline/0007-pipeline-artifact-persistence.md)
 - [0009: 이미지 파일 참조 방식 전환](./pipeline/0009-image-file-reference.md)
+- [0010: 워킹 디렉토리 통합 및 슬라이드 개별 생성/수정](./pipeline/0010-workspace-and-per-slide.md)
+- [0011: 점진적 구체화 파이프라인 설계](./pipeline/0011-progressive-refinement-pipeline.md)
 
 ## ADR 작성 가이드
 
