@@ -64,7 +64,7 @@ OUTLINE_USER_PROMPT_TEMPLATE = (
     "슬라이드 수: {num_slides}장"
 )
 
-PPTX_TEMPLATE_PATH = "2026 Confidential AWS Powerpoint Template Light & Dark Themes.pptx"
+PPTX_TEMPLATE_PATH = "template/template.pptx"
 PPTX_FONT_NAME = "맑은 고딕"
 PPTX_BODY_FONT_SIZE_PT = 16
 PPTX_TITLE_FONT_SIZE_PT = 28
@@ -322,4 +322,63 @@ SLIDES_MODIFY_SINGLE_USER_PROMPT_TEMPLATE = (
     "- 커스텀 CSS 클래스를 만들지 말고 인라인 style만 사용하세요.\n"
     "- data-region 속성이 있는 div의 style 속성(position, left, top, width, height)은 절대 변경하지 마세요.\n"
     "- data-region div 내부의 콘텐츠만 수정 가능합니다."
+)
+
+# --- F5-LLM: HTML→PPTX LLM 변환 ---
+PPTX_CONVERT_MODEL_ID = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+PPTX_CONVERT_MAX_TOKENS = 8_000
+
+PPTX_CONVERT_SYSTEM_PROMPT = (
+    "당신은 HTML 슬라이드를 PPTX 요소 JSON으로 변환하는 전문가입니다.\n"
+    "주어진 <section> HTML을 분석하여, python-pptx로 재현할 수 있는 텍스트박스와 도형의 "
+    "위치/크기/서식 정보를 JSON으로 출력하세요.\n\n"
+    "슬라이드 좌표계: 1280x720 px\n\n"
+    "출력 JSON 스키마:\n"
+    "```json\n"
+    "{\n"
+    '  "background_color": "#RRGGBB 또는 null",\n'
+    '  "textboxes": [\n'
+    "    {\n"
+    '      "left_px": number, "top_px": number, "width_px": number, "height_px": number,\n'
+    '      "paragraphs": [\n'
+    "        {\n"
+    '          "runs": [\n'
+    '            {"text": "...", "font_size_pt": number|null, "color": "#RRGGBB"|null, "bold": bool, "italic": bool}\n'
+    "          ],\n"
+    '          "bullet_level": -1|0|1\n'
+    "        }\n"
+    "      ]\n"
+    "    }\n"
+    "  ],\n"
+    '  "shapes": [\n'
+    "    {\n"
+    '      "left_px": number, "top_px": number, "width_px": number, "height_px": number,\n'
+    '      "shape_type": "rectangle"|"rounded_rectangle"|"line",\n'
+    '      "fill_color": "#RRGGBB"|null,\n'
+    '      "border_color": "#RRGGBB"|null,\n'
+    '      "border_width_pt": number|null,\n'
+    '      "corner_radius_px": number|null,\n'
+    '      "text": "..."|null,\n'
+    '      "text_color": "#RRGGBB"|null,\n'
+    '      "text_size_pt": number|null,\n'
+    '      "text_bold": bool\n'
+    "    }\n"
+    "  ]\n"
+    "}\n"
+    "```\n\n"
+    "변환 규칙:\n"
+    "- 모든 텍스트를 빠짐없이 textbox로 변환하세요. 텍스트가 누락되면 안 됩니다.\n"
+    "- 배경색은 래퍼 div의 background-color에서 추출하세요.\n"
+    "- 장식용 div(구분선, 컬러 바 등)는 shapes로 변환하세요.\n"
+    "- CSS rem 단위는 1rem=16px로 변환하세요.\n"
+    "- flex/grid 레이아웃의 자식 요소는 각각 적절한 절대 좌표를 계산하여 배치하세요.\n"
+    "- 텍스트 색상(color)은 가장 가까운 조상의 인라인 style에서 상속하세요. "
+    "배경이 어두우면 텍스트는 밝은 색이어야 합니다.\n"
+    "- data-region div가 있으면 그 좌표(left, top, width, height)를 텍스트박스 좌표로 사용하세요.\n"
+    "- 반드시 JSON만 출력하세요. 마크다운 코드블록으로 감싸지 마세요."
+)
+
+PPTX_CONVERT_USER_PROMPT_TEMPLATE = (
+    "다음 HTML <section>을 PPTX 요소 JSON으로 변환해주세요.\n\n"
+    "슬라이드 HTML:\n{section_html}"
 )

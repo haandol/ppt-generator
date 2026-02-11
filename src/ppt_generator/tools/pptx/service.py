@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 
+import boto3
 from bs4 import BeautifulSoup, Tag
 from pptx import Presentation
 from pptx.dml.color import RGBColor
@@ -14,6 +17,7 @@ from pptx.oxml.ns import qn
 from pptx.util import Inches, Pt
 
 from ppt_generator.interfaces.constants import (
+    BEDROCK_REGION,
     EXPORT_PX_TO_INCHES_X,
     EXPORT_PX_TO_INCHES_Y,
     PPTX_BULLET_CHAR_L0,
@@ -21,10 +25,22 @@ from ppt_generator.interfaces.constants import (
     PPTX_BULLET_INDENT_EMU_L1,
     PPTX_BULLET_MARGIN_EMU_L0,
     PPTX_BULLET_MARGIN_EMU_L1,
+    PPTX_CONVERT_MAX_TOKENS,
+    PPTX_CONVERT_MODEL_ID,
+    PPTX_CONVERT_SYSTEM_PROMPT,
+    PPTX_CONVERT_USER_PROMPT_TEMPLATE,
     PPTX_FONT_NAME,
     REM_TO_PX,
 )
-from ppt_generator.interfaces.schemas import ExportPptxRequest, ExportPptxResponse
+from ppt_generator.interfaces.schemas import (
+    ExportPptxRequest,
+    ExportPptxResponse,
+    PptxParagraph,
+    PptxShape,
+    PptxSlideSpec,
+    PptxTextBox,
+    PptxTextRun,
+)
 from ppt_generator.templates.layout_mapping import find_blank_layout_index
 from ppt_generator.tools.slides.service import SlidesService
 
@@ -45,9 +61,15 @@ class _RichTextFragment:
 
 
 class ExportService:
-    def __init__(self, slides_service: SlidesService, template_path: Path) -> None:
+    def __init__(
+        self,
+        slides_service: SlidesService,
+        template_path: Path,
+        use_llm_convert: bool = True,
+    ) -> None:
         self._slides_service = slides_service
         self._template_path = template_path
+        self._use_llm_convert = use_llm_convert
 
     def export(self, request: ExportPptxRequest, output_dir: Path | None = None) -> ExportPptxResponse:
         html = self._slides_service.get_session_html(request.session_id)
@@ -63,7 +85,12 @@ class ExportService:
             logger.warning("템플릿 파일 없음: %s, 기본 프레젠테이션으로 폴백", self._template_path)
             prs = Presentation()
 
-        for div in slide_divs:
+        # LLM 변환: 모든 section을 병렬로 변환
+        llm_specs: dict[int, PptxSlideSpec | None] = {}
+        if self._use_llm_convert:
+            llm_specs = self._convert_all_sections_with_llm(slide_divs)
+
+        for idx, div in enumerate(slide_divs):
             blank_idx = find_blank_layout_index(prs)
             try:
                 slide_layout = prs.slide_layouts[blank_idx]
@@ -71,12 +98,20 @@ class ExportService:
                 slide_layout = prs.slide_layouts[0]
 
             slide = prs.slides.add_slide(slide_layout)
+            self._remove_placeholders(slide)
 
-            bg_color = self._extract_background(div)
-            if bg_color:
-                self._set_slide_background(slide, bg_color)
-
-            self._extract_elements(slide, div)
+            spec = llm_specs.get(idx)
+            if spec is not None:
+                # LLM 변환 성공: spec 기반 배치
+                if spec.background_color:
+                    self._set_slide_background(slide, spec.background_color)
+                self._build_slide_from_spec(slide, spec)
+            else:
+                # 룰 기반 폴백
+                bg_color = self._extract_background(div)
+                if bg_color:
+                    self._set_slide_background(slide, bg_color)
+                self._extract_elements(slide, div)
 
             notes = div.get("data-speaker-notes", "")
             if notes:
@@ -89,6 +124,202 @@ class ExportService:
         prs.save(str(output_path))
         logger.info("PPTX 내보내기 완료: %s", output_path)
         return ExportPptxResponse(pptx_path=str(output_path))
+
+    @staticmethod
+    def _remove_placeholders(slide) -> None:
+        """슬라이드에서 모든 placeholder shape을 제거한다."""
+        sp_tree = slide.shapes._spTree
+        for ph in list(slide.placeholders):
+            sp_tree.remove(ph._element)
+
+    # --- LLM 변환 파이프라인 ---
+
+    def _convert_all_sections_with_llm(self, sections: list[Tag]) -> dict[int, PptxSlideSpec | None]:
+        """모든 section을 ThreadPoolExecutor로 병렬 LLM 변환."""
+        results: dict[int, PptxSlideSpec | None] = {}
+
+        def _convert(idx: int, section: Tag) -> tuple[int, PptxSlideSpec | None]:
+            try:
+                spec = self._convert_section_with_llm(section)
+                return idx, spec
+            except Exception:
+                logger.exception("LLM 변환 실패 (슬라이드 %d), 룰 기반 폴백", idx)
+                return idx, None
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {executor.submit(_convert, i, s): i for i, s in enumerate(sections)}
+            for future in as_completed(futures):
+                idx, spec = future.result()
+                results[idx] = spec
+
+        return results
+
+    def _convert_section_with_llm(self, section: Tag) -> PptxSlideSpec:
+        """단일 section HTML을 Bedrock Converse API로 LLM에 보내 PptxSlideSpec을 반환."""
+        section_html = str(section)
+        user_prompt = PPTX_CONVERT_USER_PROMPT_TEMPLATE.format(section_html=section_html)
+
+        client = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
+        response = client.converse(
+            modelId=PPTX_CONVERT_MODEL_ID,
+            system=[{"text": PPTX_CONVERT_SYSTEM_PROMPT}],
+            messages=[{"role": "user", "content": [{"text": user_prompt}]}],
+            inferenceConfig={"maxTokens": PPTX_CONVERT_MAX_TOKENS, "temperature": 0.2},
+        )
+
+        raw_text = response["output"]["message"]["content"][0]["text"]
+        # JSON 블록 추출 (마크다운 코드블록 제거)
+        json_text = re.sub(r"^```(?:json)?\s*", "", raw_text.strip())
+        json_text = re.sub(r"\s*```$", "", json_text.strip())
+        data = json.loads(json_text)
+        return self._parse_slide_spec(data)
+
+    @staticmethod
+    def _parse_slide_spec(data: dict) -> PptxSlideSpec:
+        """JSON dict를 PptxSlideSpec dataclass로 변환."""
+        textboxes: list[PptxTextBox] = []
+        for tb in data.get("textboxes", []):
+            paragraphs: list[PptxParagraph] = []
+            for p in tb.get("paragraphs", []):
+                runs: list[PptxTextRun] = []
+                for r in p.get("runs", []):
+                    runs.append(PptxTextRun(
+                        text=r.get("text", ""),
+                        font_size_pt=r.get("font_size_pt"),
+                        color=r.get("color"),
+                        bold=r.get("bold", False),
+                        italic=r.get("italic", False),
+                    ))
+                paragraphs.append(PptxParagraph(
+                    runs=runs,
+                    bullet_level=p.get("bullet_level", -1),
+                ))
+            textboxes.append(PptxTextBox(
+                left_px=tb.get("left_px", 0),
+                top_px=tb.get("top_px", 0),
+                width_px=tb.get("width_px", 100),
+                height_px=tb.get("height_px", 50),
+                paragraphs=paragraphs,
+            ))
+
+        shapes: list[PptxShape] = []
+        for s in data.get("shapes", []):
+            shapes.append(PptxShape(
+                left_px=s.get("left_px", 0),
+                top_px=s.get("top_px", 0),
+                width_px=s.get("width_px", 100),
+                height_px=s.get("height_px", 50),
+                shape_type=s.get("shape_type", "rectangle"),
+                fill_color=s.get("fill_color"),
+                border_color=s.get("border_color"),
+                border_width_pt=s.get("border_width_pt"),
+                corner_radius_px=s.get("corner_radius_px"),
+                text=s.get("text"),
+                text_color=s.get("text_color"),
+                text_size_pt=s.get("text_size_pt"),
+                text_bold=s.get("text_bold", False),
+            ))
+
+        return PptxSlideSpec(
+            background_color=data.get("background_color"),
+            textboxes=textboxes,
+            shapes=shapes,
+        )
+
+    def _build_slide_from_spec(self, slide, spec: PptxSlideSpec) -> None:
+        """PptxSlideSpec을 python-pptx 슬라이드 요소로 배치."""
+        for tb in spec.textboxes:
+            self._add_textbox_from_spec(slide, tb)
+        for shape in spec.shapes:
+            self._add_shape_from_spec(slide, shape)
+
+    def _add_textbox_from_spec(self, slide, tb: PptxTextBox) -> None:
+        """PptxTextBox spec으로 텍스트박스를 생성."""
+        left = tb.left_px * EXPORT_PX_TO_INCHES_X
+        top = tb.top_px * EXPORT_PX_TO_INCHES_Y
+        width = tb.width_px * EXPORT_PX_TO_INCHES_X
+        height = tb.height_px * EXPORT_PX_TO_INCHES_Y
+
+        txbox = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
+        tf = txbox.text_frame
+        tf.word_wrap = True
+
+        for p_idx, para_spec in enumerate(tb.paragraphs):
+            if p_idx == 0:
+                para = tf.paragraphs[0]
+            else:
+                para = tf.add_paragraph()
+
+            for run_spec in para_spec.runs:
+                if not run_spec.text:
+                    continue
+                run = para.add_run()
+                run.text = run_spec.text
+                run.font.name = PPTX_FONT_NAME
+                if run_spec.font_size_pt:
+                    run.font.size = Pt(run_spec.font_size_pt)
+                run.font.bold = run_spec.bold
+                run.font.italic = run_spec.italic
+                if run_spec.color:
+                    rgb = self._parse_color(run_spec.color)
+                    if rgb:
+                        run.font.color.rgb = rgb
+
+            if para_spec.bullet_level >= 0:
+                self._apply_bullet(para, para_spec.bullet_level)
+
+    def _add_shape_from_spec(self, slide, shape_spec: PptxShape) -> None:
+        """PptxShape spec으로 도형을 생성."""
+        left = shape_spec.left_px * EXPORT_PX_TO_INCHES_X
+        top = shape_spec.top_px * EXPORT_PX_TO_INCHES_Y
+        width = shape_spec.width_px * EXPORT_PX_TO_INCHES_X
+        height = shape_spec.height_px * EXPORT_PX_TO_INCHES_Y
+
+        shape_type_map = {
+            "rectangle": MSO_SHAPE.RECTANGLE,
+            "rounded_rectangle": MSO_SHAPE.ROUNDED_RECTANGLE,
+            "line": MSO_SHAPE.RECTANGLE,  # 라인은 얇은 사각형으로 표현
+        }
+        mso_shape = shape_type_map.get(shape_spec.shape_type, MSO_SHAPE.RECTANGLE)
+
+        shape = slide.shapes.add_shape(
+            mso_shape, Inches(left), Inches(top), Inches(width), Inches(height),
+        )
+
+        # 채우기 색상
+        if shape_spec.fill_color:
+            rgb = self._parse_color(shape_spec.fill_color)
+            if rgb:
+                shape.fill.solid()
+                shape.fill.fore_color.rgb = rgb
+        else:
+            shape.fill.background()
+
+        # 테두리
+        if shape_spec.border_color:
+            rgb = self._parse_color(shape_spec.border_color)
+            if rgb:
+                shape.line.color.rgb = rgb
+            if shape_spec.border_width_pt:
+                shape.line.width = Pt(shape_spec.border_width_pt)
+        else:
+            shape.line.fill.background()
+
+        # 텍스트
+        if shape_spec.text:
+            tf = shape.text_frame
+            tf.word_wrap = True
+            p = tf.paragraphs[0]
+            run = p.add_run()
+            run.text = shape_spec.text
+            run.font.name = PPTX_FONT_NAME
+            if shape_spec.text_size_pt:
+                run.font.size = Pt(shape_spec.text_size_pt)
+            run.font.bold = shape_spec.text_bold
+            if shape_spec.text_color:
+                rgb = self._parse_color(shape_spec.text_color)
+                if rgb:
+                    run.font.color.rgb = rgb
 
     # --- HTML 파싱 ---
 
