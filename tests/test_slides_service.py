@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from ppt_generator.interfaces.constants import LAYOUT_REGIONS, build_layout_skeleton
-from ppt_generator.interfaces.schemas import SlidesRequest, SlidesResponse, SlideOutline
+from ppt_generator.interfaces.schemas import SlidesResponse, SlideOutline
 from ppt_generator.tools.slides.service import SlidesService
 
 
@@ -81,29 +81,25 @@ def service(mock_agent, mock_modify_agent):
 
 class TestGenerate:
     def test_generate_returns_slides_response(self, service):
-        request = SlidesRequest(slides=[_make_slide(0)], image_paths={})
-        response = service.generate(request)
+        response = service.generate(slides=[_make_slide(0)])
 
         assert isinstance(response, SlidesResponse)
         assert response.session_id
         assert response.html
 
     def test_generate_produces_html_structure(self, service):
-        request = SlidesRequest(slides=[_make_slide(0)], image_paths={})
-        response = service.generate(request)
+        response = service.generate(slides=[_make_slide(0)])
 
         assert "<!DOCTYPE html>" in response.html
         assert "<section" in response.html
         assert "<body>" in response.html
 
     def test_generate_raises_on_empty_slides(self, service):
-        request = SlidesRequest(slides=[], image_paths={})
         with pytest.raises(ValueError, match="슬라이드 목록이 비어있습니다"):
-            service.generate(request)
+            service.generate(slides=[])
 
     def test_generate_stores_session(self, service):
-        request = SlidesRequest(slides=[_make_slide(0)], image_paths={})
-        response = service.generate(request)
+        response = service.generate(slides=[_make_slide(0)])
 
         html = service.get_session_html(response.session_id)
         assert html == response.html
@@ -114,8 +110,7 @@ class TestBatchedGeneration:
         """SLIDES_MAX_PER_BATCH=1이므로 1장이면 agent 1회 호출"""
         service = SlidesService(agent=mock_agent, modify_agent=mock_modify_agent)
         slides = [_make_slide(0)]
-        request = SlidesRequest(slides=slides, image_paths={})
-        service.generate(request)
+        service.generate(slides=slides)
 
         assert mock_agent.call_count == 1
 
@@ -129,8 +124,7 @@ class TestBatchedGeneration:
         ]
         service = SlidesService(agent=agent, modify_agent=mock_modify_agent)
         slides = [_make_slide(i) for i in range(2)]
-        request = SlidesRequest(slides=slides, image_paths={})
-        service.generate(request)
+        service.generate(slides=slides)
 
         assert agent.call_count == 3
 
@@ -147,8 +141,7 @@ class TestBatchedGeneration:
         ]
         service = SlidesService(agent=agent, modify_agent=mock_modify_agent)
         slides = [_make_slide(i) for i in range(5)]
-        request = SlidesRequest(slides=slides, image_paths={})
-        service.generate(request)
+        service.generate(slides=slides)
 
         assert agent.call_count == 6
 
@@ -183,8 +176,7 @@ class TestBatchedGeneration:
         ]
         service = SlidesService(agent=agent, modify_agent=mock_modify_agent)
         slides = [_make_slide(i) for i in range(3)]
-        request = SlidesRequest(slides=slides, image_paths={})
-        service.generate(request)
+        service.generate(slides=slides)
 
         # 마지막 호출의 프롬프트에서 전역 인덱스(2) 사용 확인
         last_call_prompt = agent.call_args_list[-1][0][0]
@@ -194,23 +186,20 @@ class TestBatchedGeneration:
 class TestModify:
     def test_modify_returns_updated_html(self, service):
         # 먼저 세션 생성
-        request = SlidesRequest(slides=[_make_slide(0)], image_paths={})
-        gen_response = service.generate(request)
+        gen_response = service.generate(slides=[_make_slide(0)])
 
         response = service.modify(gen_response.session_id, "배경색을 파란색으로 변경")
         assert isinstance(response, SlidesResponse)
         assert response.html == MODIFIED_FULL_HTML
 
     def test_modify_updates_session(self, service):
-        request = SlidesRequest(slides=[_make_slide(0)], image_paths={})
-        gen_response = service.generate(request)
+        gen_response = service.generate(slides=[_make_slide(0)])
 
         service.modify(gen_response.session_id, "배경색을 파란색으로 변경")
         assert service.get_session_html(gen_response.session_id) == MODIFIED_FULL_HTML
 
     def test_modify_preserves_session_id(self, service):
-        request = SlidesRequest(slides=[_make_slide(0)], image_paths={})
-        gen_response = service.generate(request)
+        gen_response = service.generate(slides=[_make_slide(0)])
 
         mod_response = service.modify(gen_response.session_id, "배경색 변경")
         assert mod_response.session_id == gen_response.session_id
@@ -220,15 +209,13 @@ class TestModify:
             service.modify("nonexistent-id", "수정 요청")
 
     def test_modify_raises_on_empty_request(self, service):
-        request = SlidesRequest(slides=[_make_slide(0)], image_paths={})
-        gen_response = service.generate(request)
+        gen_response = service.generate(slides=[_make_slide(0)])
 
         with pytest.raises(ValueError, match="수정 요청이 비어있습니다"):
             service.modify(gen_response.session_id, "   ")
 
     def test_modify_calls_modify_agent(self, service, mock_agent, mock_modify_agent):
-        request = SlidesRequest(slides=[_make_slide(0)], image_paths={})
-        gen_response = service.generate(request)
+        gen_response = service.generate(slides=[_make_slide(0)])
 
         service.modify(gen_response.session_id, "배경색 변경")
 
@@ -247,8 +234,7 @@ class TestModify:
         ]
         service = SlidesService(agent=mock_agent, modify_agent=modify_agent)
 
-        request = SlidesRequest(slides=[_make_slide(0)], image_paths={})
-        gen_response = service.generate(request)
+        gen_response = service.generate(slides=[_make_slide(0)])
 
         # 첫 번째 수정
         service.modify(gen_response.session_id, "배경색 변경")
@@ -278,7 +264,7 @@ class TestModifySingleSlide:
 
         # 세션에 직접 HTML 등록
         session_id = "test-session"
-        service._sessions[session_id] = (self.MULTI_SLIDE_HTML, {})
+        service._sessions[session_id] = self.MULTI_SLIDE_HTML
 
         response = service.modify(session_id, "텍스트 변경", slide_index=1)
 
@@ -293,7 +279,7 @@ class TestModifySingleSlide:
         service = SlidesService(agent=mock_agent, modify_agent=modify_agent)
 
         session_id = "test-session"
-        service._sessions[session_id] = (self.MULTI_SLIDE_HTML, {})
+        service._sessions[session_id] = self.MULTI_SLIDE_HTML
 
         response = service.modify(session_id, "수정", slide_index=0)
 
@@ -308,7 +294,7 @@ class TestModifySingleSlide:
         service = SlidesService(agent=mock_agent, modify_agent=modify_agent)
 
         session_id = "test-session"
-        service._sessions[session_id] = (self.MULTI_SLIDE_HTML, {})
+        service._sessions[session_id] = self.MULTI_SLIDE_HTML
 
         with pytest.raises(IndexError, match="슬라이드 인덱스 범위 초과"):
             service.modify(session_id, "수정", slide_index=5)
@@ -320,7 +306,7 @@ class TestModifySingleSlide:
         service = SlidesService(agent=mock_agent, modify_agent=modify_agent)
 
         session_id = "test-session"
-        service._sessions[session_id] = (self.MULTI_SLIDE_HTML, {})
+        service._sessions[session_id] = self.MULTI_SLIDE_HTML
 
         response = service.modify(session_id, "전체 수정")
         assert response.html == MODIFIED_FULL_HTML
@@ -391,16 +377,12 @@ class TestBuildLayoutSkeleton:
         assert 'data-region="title"' in skeleton
         assert 'data-region="subtitle"' in skeleton
 
-    def test_text_image_skeleton_has_three_regions(self):
+    def test_text_image_layout_falls_back_to_text_only(self):
         skeleton = build_layout_skeleton(28, 0)
         assert 'data-region="title"' in skeleton
         assert 'data-region="body"' in skeleton
-        assert 'data-region="image"' in skeleton
-
-    def test_image_placeholder_inserted(self):
-        skeleton = build_layout_skeleton(28, 0, image_placeholder="{IMAGE_0}")
-        assert '<img src="{IMAGE_0}"' in skeleton
-        assert "<!-- CONTENT:image -->" not in skeleton
+        # layout 28은 제거되었으므로 text_only(22)로 폴백
+        assert 'data-region="image"' not in skeleton
 
     def test_speaker_notes_included(self):
         skeleton = build_layout_skeleton(22, 0, speaker_notes="테스트 노트")
@@ -487,7 +469,7 @@ class TestDetectLayoutIndex:
         result = SlidesService._detect_layout_index_from_html(html)
         assert result == 22
 
-    def test_detect_text_image(self):
+    def test_detect_text_image_falls_back(self):
         html = (
             '<section><div data-wrapper="true">'
             '<div data-region="title">t</div>'
@@ -496,7 +478,8 @@ class TestDetectLayoutIndex:
             '</div></section>'
         )
         result = SlidesService._detect_layout_index_from_html(html)
-        assert result == 28
+        # layout 28이 제거되었으므로 매칭되지 않고 default(22)로 폴백
+        assert result == 22
 
     def test_detect_title(self):
         html = (

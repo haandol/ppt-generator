@@ -3,7 +3,7 @@
 ## Overview
 
 사용자가 주제를 입력하면 AI가 자동으로 HTML 기반 프레젠테이션을 생성하고, 사용자의 수정 요청을 반영한 뒤 최종적으로 편집 가능한 PPTX로 내보내는 Python MCP 서버입니다.
-Amazon Bedrock LLM으로 콘텐츠를 생성하고, HTML 슬라이드 생성 과정에서 필요한 경우 Gemini로 시각 자료를 생성하여, HTML 프레임워크 기반 슬라이드로 자유로운 디자인을 구현한 뒤 최종 PPTX로 변환합니다.
+Amazon Bedrock LLM으로 콘텐츠를 생성하고, HTML 프레임워크 기반 슬라이드로 자유로운 디자인을 구현한 뒤 최종 PPTX로 변환합니다.
 Claude Desktop, Kiro 등 MCP 호환 클라이언트에서 사용할 수 있습니다.
 
 > 📄 **ALPS 설계 문서**: 피쳐 목록, 기능 명세, 인수 기준 등 구현에 필요한 세부 사항은 [`docs/ppt-generator.alps.md`](docs/ppt-generator.alps.md) (또는 원본 [`docs/ppt-generator.alps.xml`](docs/ppt-generator.alps.xml))를 반드시 확인하세요.
@@ -28,9 +28,6 @@ ppt-generator/
 │   │   │   ├── controller.py      # MCP 인터페이스
 │   │   │   └── service.py         # Bedrock LLM 호출 로직
 │   │   ├── script/                # 발표 스크립트 생성 도구 (F2)
-│   │   │   ├── controller.py
-│   │   │   └── service.py
-│   │   ├── images/                # 이미지 생성 도구 (F3에서 내부 호출)
 │   │   │   ├── controller.py
 │   │   │   └── service.py
 │   │   ├── pptx/                  # PPTX 내보내기 도구 (F5)
@@ -65,7 +62,6 @@ ppt-generator/
 - **Agent Framework**: AWS Strands SDK (`strands-agents`)
 - **LLM**: Amazon Bedrock - Claude Opus 4.6 (`us.anthropic.claude-opus-4-6-v1`)
 - **Outline LLM**: Amazon Bedrock - Claude Sonnet 4.5 (`us.anthropic.claude-sonnet-4-5-20250929-v1:0`)
-- **Image Generation**: Google Gemini 2.5 Flash (`gemini-2.5-flash-image`)
 - **Slide Framework**: 순수 HTML/CSS (인라인 스타일, JavaScript 없음, `templates/slides.html` 템플릿)
 - **HTML Parsing**: BeautifulSoup4 (HTML → PPTX 변환용 파싱)
 - **PPTX Export**: python-pptx (HTML 세션 → PPTX 변환)
@@ -76,7 +72,6 @@ ppt-generator/
 - [uv](https://docs.astral.sh/uv/) 패키지 매니저
 - AWS 자격 증명 (`~/.aws/credentials` 또는 환경 변수)
   - Amazon Bedrock 모델 접근 권한 필요 (Claude Opus 4.6, Claude Sonnet 4.5)
-  - Google Gemini API 접근 권한 필요 (이미지 생성용)
   - 리전: `us-east-1`
 
 ## Development Commands
@@ -130,7 +125,7 @@ F1: generate_outline   → 슬라이드 아웃라인 JSON 생성 (Bedrock LLM, t
     ↓
 F2: generate_script    → 아웃라인 기반 슬라이드별 발표 스크립트 생성
     ↓
-F3: generate_slides    → 아웃라인 → HTML 슬라이드 생성 (이미지는 필요한 경우에만 내부 생성, 레이아웃 골격 생성 → LLM이 영역 내부 컨텐츠 생성 → 좌표 검증 → 템플릿 삽입)
+F3: generate_slides    → 아웃라인 → HTML 슬라이드 생성 (레이아웃 골격 생성 → LLM이 영역 내부 컨텐츠 생성 → 좌표 검증 → 템플릿 삽입)
     ↓ (선택)
 F4: modify_slides      → HTML 슬라이드 수정 (사용자 요청 반영)
     ↓
@@ -148,13 +143,12 @@ F5: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
 |------|--------|-------------|
 | `generate_outline` | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (title, content_summary, layout_index) |
 | `generate_script` | `tools/script/` | 아웃라인 JSON을 기반으로 슬라이드별 발표 스크립트 생성 |
-| `generate_slides` | `tools/slides/` | 아웃라인 기반 HTML 슬라이드 생성 (이미지는 필요한 경우에만 내부 생성, LLM이 section 생성 → 템플릿 삽입, 세션 반환) |
+| `generate_slides` | `tools/slides/` | 아웃라인 기반 HTML 슬라이드 생성 (LLM이 section 생성 → 템플릿 삽입, 세션 반환) |
 | `modify_slides` | `tools/slides/` | 기존 HTML 슬라이드를 사용자 요청에 따라 수정 |
 | `export_pptx` | `tools/pptx/` | 세션의 HTML 슬라이드를 편집 가능한 PPTX 파일로 내보내기 |
 | `load_project_status` | `tools/project/` | 프로젝트 상태 및 메타데이터 로드 |
 | `load_outline` | `tools/project/` | 저장된 아웃라인 JSON 로드 |
 | `load_script` | `tools/project/` | 저장된 스크립트 JSON 로드 |
-| `load_images` | `tools/project/` | 저장된 이미지 메타 JSON 로드 |
 | `load_slides_html` | `tools/project/` | 저장된 HTML 슬라이드 로드 및 세션 복원 |
 
 ## Key Data Schemas
@@ -166,7 +160,6 @@ F5: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
 | `OutlineRequest` / `OutlineResponse` | 아웃라인 생성 입출력 (topic, num_slides → slides) |
 | `ScriptRequest` / `ScriptResponse` | 스크립트 생성 입출력 (outline → slides) |
 | `SlideOutline` | 개별 슬라이드 아웃라인 (title, content_summary, layout_index) |
-| `ImageRequest` / `ImageResult` / `ImageResponse` | 이미지 생성 입출력 (내부 스키마, F3에서 내부 호출) |
 | `SlidesRequest` / `SlidesResponse` | HTML 슬라이드 생성 입출력 (slides → session_id, html) |
 | `ExportPptxRequest` / `ExportPptxResponse` | PPTX 내보내기 입출력 (session_id → pptx_path) |
 | `ProjectMetadata` | 프로젝트 메타데이터 (topic, num_slides, steps_completed) |
@@ -190,7 +183,6 @@ F5: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
 | layout_index | 설명                      | 비고                     |
 | ------------ | ------------------------- | ------------------------ |
 | `0`          | 제목 슬라이드             | 첫 번째 슬라이드, 위치 구조적 강제 |
-| `28`         | 좌측 텍스트 + 우측 이미지 | 위치 구조적 강제         |
 | `22`         | 전체 텍스트               | 알 수 없는 인덱스의 폴백, 위치 구조적 강제 |
 | `21`         | 차트 중심                 | 위치 구조적 강제         |
 | `87`         | 마무리 슬라이드           | 마지막 슬라이드, 위치 구조적 강제 |
@@ -243,10 +235,6 @@ uv run pytest tests/test_xxx.py  # 개별 테스트
 - **빈 주제 입력** → 입력 검증 후 `ValueError` 발생
 - **LLM이 유효하지 않은 JSON 반환** → 재시도 또는 에러 반환
 - **알 수 없는 layout_index** → `text_only`(22) 레이아웃으로 폴백
-- **이미지 불필요 슬라이드** → layout_index가 `SKIP_IMAGE_LAYOUT_INDICES`에 해당하면 이미지 생성 건너뜀
-- **Gemini API 호출 실패** → 해당 슬라이드는 이미지 없이 진행, 에러 로그 기록
-- **이미지 파일 누락** → 텍스트만으로 슬라이드 구성
-- **이미지 base64 디코딩 실패** → 해당 이미지 건너뛰고 텍스트만 배치
 
 ## Agent-specific Instructions
 

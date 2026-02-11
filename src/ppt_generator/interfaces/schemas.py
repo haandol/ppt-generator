@@ -30,22 +30,6 @@ class OutlineResponse:
 
 
 @dataclass(frozen=True)
-class ImageRequest:
-    slides: list[SlideOutline]
-
-
-@dataclass(frozen=True)
-class ImageResult:
-    slide_index: int
-    image_path: str
-
-
-@dataclass(frozen=True)
-class ImageResponse:
-    images: list[ImageResult]
-
-
-@dataclass(frozen=True)
 class ExportPptxRequest:
     session_id: str
 
@@ -58,7 +42,6 @@ class ExportPptxResponse:
 @dataclass(frozen=True)
 class SlidesRequest:
     slides: list[SlideOutline]
-    image_paths: dict[int, str]  # slide_index -> file path
 
 
 @dataclass(frozen=True)

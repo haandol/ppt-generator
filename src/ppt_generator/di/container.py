@@ -1,8 +1,5 @@
-import os
 from pathlib import Path
 
-import boto3
-from google import genai
 from strands import Agent
 from strands.models.bedrock import BedrockModel
 
@@ -20,7 +17,6 @@ from ppt_generator.interfaces.constants import (
     SLIDES_MODIFY_SYSTEM_PROMPT,
     SLIDES_REGION_SYSTEM_PROMPT,
 )
-from ppt_generator.tools.images.service import ImageService
 from ppt_generator.tools.outline.service import OutlineService
 from ppt_generator.tools.pptx.service import ExportService
 from ppt_generator.tools.project.service import ProjectService
@@ -33,7 +29,6 @@ class DIContainer:
         self._project_root = project_root or Path(__file__).resolve().parents[3]
         self._script_service: ScriptService | None = None
         self._outline_service: OutlineService | None = None
-        self._image_service: ImageService | None = None
         self._export_service: ExportService | None = None
         self._slides_service: SlidesService | None = None
         self._project_service: ProjectService | None = None
@@ -85,16 +80,6 @@ class DIContainer:
             agent = self._create_outline_agent()
             self._outline_service = OutlineService(agent=agent)
         return self._outline_service
-
-    @property
-    def image_service(self) -> ImageService | None:
-        if self._image_service is None:
-            api_key = os.environ.get("GEMINI_API_KEY")
-            if not api_key:
-                return None
-            client = genai.Client(api_key=api_key)
-            self._image_service = ImageService(client=client)
-        return self._image_service
 
     @property
     def export_service(self) -> ExportService:

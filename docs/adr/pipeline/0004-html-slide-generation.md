@@ -4,11 +4,11 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted (Updated: reveal.js 제거 → 정적 HTML 수직 스크롤 → 레이아웃 골격 기반 위치 강제 → 이미지 생성을 독립 단계에서 슬라이드 생성 내부로 통합)
+Accepted (Updated: reveal.js 제거 → 정적 HTML 수직 스크롤 → 레이아웃 골격 기반 위치 강제 → 이미지 생성 기능 제거)
 
 ## Context
 
-아웃라인(F1/F2)을 기반으로 전문적인 디자인의 슬라이드를 생성해야 한다. 이미지는 필요한 경우 내부에서 생성한다. python-pptx로 직접 생성하면 레이아웃 제약(고정 플레이스홀더, 제한된 CSS 스타일링)이 있어 자유로운 디자인이 어렵다.
+아웃라인(F1/F2)을 기반으로 전문적인 디자인의 슬라이드를 생성해야 한다. python-pptx로 직접 생성하면 레이아웃 제약(고정 플레이스홀더, 제한된 CSS 스타일링)이 있어 자유로운 디자인이 어렵다.
 
 HTML/CSS 기반으로 슬라이드를 생성하면 LLM의 코드 생성 능력을 활용하여 자유로운 레이아웃과 고품질 디자인을 달성할 수 있다. 세션 ID를 부여하여 이후 수정(F4)과 PPTX 내보내기(F5)에서 활용한다.
 
@@ -27,9 +27,8 @@ MCP 도구 `generate_slides`를 구현하여, Bedrock LLM이 HTML/CSS 슬라이�
 - 각 section은 `position: relative; width: 1280px; height: 720px; overflow: hidden` 고정
 - 래퍼 div(`data-wrapper="true"`)에 `absolute inset-0`을 사용하여 슬라이드 영역 전체를 커버
 - 래퍼 div 안에 `data-region` div들이 `position:absolute`로 고정 좌표에 배치
-- `data-region` div: `title`, `subtitle`, `body`, `image` 등 영역별 마커
+- `data-region` div: `title`, `subtitle`, `body` 등 영역별 마커
 - LLM은 각 `data-region` div 내부의 `<!-- CONTENT:xxx -->` 마커를 실제 HTML로 교체
-- 이미지는 `{IMAGE_N}` placeholder → 후처리로 `file://` 경로 치환
 - 발표자 노트는 `data-speaker-notes` 속성에 포함
 - 세션 관리: 세션 ID로 현재 HTML 슬라이드 상태를 서버 메모리에 유지 (수정 루프 지원)
 - 한글 폰트: Pretendard, Noto Sans KR
@@ -85,7 +84,6 @@ _wrap_with_template()             → HTML 템플릿에 삽입
 | layout_type | 영역(data-region) | 제목 top | 본문 top | 본문 height | 특징 |
 |-------------|-------------------|----------|----------|-------------|------|
 | title | title, subtitle | 359px | - | - | 중앙 정렬, 부제목 458px |
-| text_image | title, body, image | 96px | 228px | 424px | 좌측 44% 텍스트, 우측 42% 이미지 |
 | text_only | title, body | 96px | 180px | 472px | 전체폭 본문 |
 | chart | title, body | 96px | 180px | 472px | 전체폭 데이터 시각화 |
 | closing | title, body | 240px | 370px | 214px | 중앙 정렬 마무리 |
@@ -93,8 +91,6 @@ _wrap_with_template()             → HTML 템플릿에 삽입
 
 ### Alternatives Considered
 
-- **이미지 직접 삽입 방식**: 프롬프트에 base64를 직접 포함 → 토큰 급증으로 탈락
-- **Placeholder 방식 (채택)**: LLM에는 `{IMAGE_N}` placeholder만 전달, LLM이 `<img src="{IMAGE_0}">` 형태로 생성 → 후처리로 실제 파일 경로 치환
 - **plain HTML 방식 (폐기)**: `<div class="slide">` + 인라인 CSS + `position: absolute` → LLM의 자유 해석으로 일관성 부족
 - **reveal.js 방식 (폐기)**: reveal.js 프레임워크 기반 → 내부 레이아웃 엔진(display:flex, 자동 센터링/스케일링)이 LLM이 생성한 Tailwind CSS와 충돌하여 배경색 누락, 콘텐츠 오버플로우 등 레이아웃 깨짐 발생. CSS `!important` 오버라이드로도 안정적 해결 불가
 - **reveal.js 전체 HTML 생성 (폐기)**: LLM이 CDN 링크, 초기화 코드까지 모두 생성 → 프롬프트 토큰 낭비, CDN URL 오류 가능성
@@ -112,14 +108,13 @@ LLM 응답에서 `<section>` 요소를 추출하는 3단계 fallback:
 |------|-----|
 | Tool | `generate_slides` |
 | 입력 | `outline_json: str` (슬라이드 아웃라인) |
-| 출력 | reveal.js HTML 슬라이드 (파일 경로 또는 HTML 문자열), 세션 ID 포함 |
+| 출력 | HTML 슬라이드 (HTML 문자열), 세션 ID 포함 |
 
 ### Acceptance Criteria
 
-1. 아웃라인과 이미지를 입력하면 HTML 슬라이드가 생성된다
+1. 아웃라인을 입력하면 HTML 슬라이드가 생성된다
 2. 각 슬라이드가 layout_type에 맞는 디자인을 갖는다
-3. 이미지가 적절한 위치에 삽입되어 있다
-4. 발표자 노트가 `data-speaker-notes` 속성에 포함되어 있다
+3. 발표자 노트가 `data-speaker-notes` 속성에 포함되어 있다
 5. 세션 ID가 반환되어 이후 수정/내보내기에 사용할 수 있다
 6. 브라우저에서 HTML 파일을 열면 슬라이드가 수직으로 나열되어 스크롤로 확인 가능하다
 7. 각 section에 `id="slide-{N}"` 속성이 포함되어 파싱이 용이하다
@@ -135,7 +130,7 @@ sequenceDiagram
     participant LLM as Bedrock Claude
 
     Client->>Server: generate_slides(outline_json)
-    Server->>Server: 아웃라인 파싱 + 필요시 이미지 내부 생성
+    Server->>Server: 아웃라인 파싱
 
     loop 슬라이드마다 (SLIDES_MAX_PER_BATCH=1)
         Server->>Server: build_layout_skeleton() — 골격 HTML 생성
@@ -145,7 +140,6 @@ sequenceDiagram
     end
 
     Server->>Server: section 합산
-    Server->>Server: {IMAGE_N} → file:// 경로 치환
     Server->>Server: HTML 템플릿에 삽입
     Server->>Server: 세션 저장 (UUID → HTML)
     Server-->>Client: HTML 슬라이드 + 세션 ID
@@ -155,7 +149,6 @@ sequenceDiagram
 
 - F4(수정)에서 세션 ID로 HTML 상태 접근/갱신 가능
 - F5(PPTX 내보내기)에서 세션의 최종 HTML을 파싱하여 변환 가능 (`<section>` 태그 기반 파싱)
-- 이미지 파일이 누락된 경우 해당 슬라이드는 텍스트만으로 구성
 - LLM이 유효하지 않은 section 반환 시 fallback으로 텍스트 반환
 - 세션은 메모리 기반이므로 서버 재시작 시 소실된다 (영속화는 별도 ADR 참조)
 - 브라우저에서 HTML 파일을 직접 열어 슬라이드를 수직 스크롤로 확인할 수 있다
@@ -171,5 +164,4 @@ sequenceDiagram
 - 프롬프트: `src/ppt_generator/interfaces/constants.py` — `SLIDES_REGION_SYSTEM_PROMPT`, `SLIDES_REGION_USER_PROMPT_TEMPLATE`
 - 좌표 검증: `src/ppt_generator/tools/slides/service.py` — `_validate_region_styles()`
 - 관련 ADR: [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md), [0012-layout-skeleton-enforcement](./0012-layout-skeleton-enforcement.md)
-- 관련 ADR: [0013-image-generation-integration](./0013-image-generation-integration.md)
 - ALPS: Section 7.3

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 import logging
 import re
 import tempfile
@@ -181,9 +180,7 @@ class ExportService:
                 continue
             style = self._parse_inline_style(child.get("style", ""))
 
-            if child.name == "img":
-                self._add_picture(slide, child, style)
-            elif child.name in ("h1", "h2", "h3", "h4", "h5", "h6", "p", "div", "span", "ul", "ol"):
+            if child.name in ("h1", "h2", "h3", "h4", "h5", "h6", "p", "div", "span", "ul", "ol"):
                 if child.get_text(strip=True):
                     self._add_textbox(slide, child, style)
             else:
@@ -199,19 +196,9 @@ class ExportService:
             region_name = region_div["data-region"]
             is_title = region_name in ("title", "subtitle")
 
-            # region 내부에서 img와 텍스트 요소를 추출
-            has_img = False
-            for child in region_div.descendants:
-                if not isinstance(child, Tag):
-                    continue
-                if child.name == "img":
-                    self._add_picture(slide, child, region_style)
-                    has_img = True
-
-            if not has_img:
-                text = region_div.get_text(strip=True)
-                if text:
-                    self._add_textbox_at(slide, region_div, left, top, width, height, is_title=is_title)
+            text = region_div.get_text(strip=True)
+            if text:
+                self._add_textbox_at(slide, region_div, left, top, width, height, is_title=is_title)
 
     def _get_position_and_size(self, style: dict[str, str]) -> tuple[float, float, float, float]:
         left = self._px_to_inches(style.get("left", "0"), "x") or 0.0
@@ -284,31 +271,6 @@ class ExportService:
                 if color:
                     run.font.color.rgb = color
 
-    def _add_picture(self, slide, element: Tag, style: dict[str, str]) -> None:
-        src = element.get("src", "")
-        if not src:
-            logger.warning("이미지 소스가 비어있음")
-            return
-
-        image_stream = self._load_image(src)
-        if image_stream is None:
-            return
-
-        left, top, width, height = self._get_position_and_size(style)
-
-        try:
-            pic = slide.shapes.add_picture(image_stream, Inches(left), Inches(top), Inches(width), Inches(height))
-            # alt-text 설정
-            alt_text = element.get("alt", "")
-            if alt_text:
-                nvPicPr = pic._element.find(qn("p:nvPicPr"))
-                if nvPicPr is not None:
-                    cNvPr = nvPicPr.find(qn("p:cNvPr"))
-                    if cNvPr is not None:
-                        cNvPr.set("descr", alt_text)
-        except Exception:
-            logger.warning("이미지 삽입 실패", exc_info=True)
-
     def _add_shape(self, slide, element: Tag, style: dict[str, str]) -> None:
         left, top, width, height = self._get_position_and_size(style)
         shape = slide.shapes.add_shape(
@@ -368,16 +330,3 @@ class ExportService:
             return RGBColor(int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3)))
         return None
 
-    def _load_image(self, src: str) -> io.BytesIO | None:
-        if src.startswith("file://"):
-            file_path = Path(src[7:])  # file:// 제거
-            if not file_path.exists():
-                logger.warning("이미지 파일 없음: %s", file_path)
-                return None
-            try:
-                return io.BytesIO(file_path.read_bytes())
-            except Exception:
-                logger.warning("이미지 파일 읽기 실패: %s", file_path, exc_info=True)
-                return None
-        logger.warning("지원하지 않는 이미지 소스: %s", src[:50])
-        return None

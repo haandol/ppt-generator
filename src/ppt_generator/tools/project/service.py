@@ -43,53 +43,15 @@ class ProjectService:
         (project_dir / "script.json").write_text(script_json, encoding="utf-8")
         logger.info("script.json 저장 완료: %s", project_dir)
 
-    def save_images(self, project_dir: Path, images_json: str) -> None:
-        self._ensure_dir(project_dir)
-        images_dir = project_dir / "images"
-        images_dir.mkdir(parents=True, exist_ok=True)
-
-        data = json.loads(images_json)
-        remapped_images: list[dict] = []
-
-        for img in data.get("images", []):
-            slide_index = img["slide_index"]
-            src_path = Path(img["image_path"])
-            dest_filename = f"slide_{slide_index}{src_path.suffix}"
-            dest_path = images_dir / dest_filename
-
-            if src_path.exists():
-                shutil.copy2(str(src_path), str(dest_path))
-                logger.info("이미지 복사: %s → %s", src_path, dest_path)
-            else:
-                logger.warning("이미지 원본 파일 없음, 건너뜀: %s", src_path)
-                continue
-
-            remapped_images.append({
-                "slide_index": slide_index,
-                "image_path": str(dest_path),
-            })
-
-        remapped_json = json.dumps({"images": remapped_images}, ensure_ascii=False, indent=2)
-        (project_dir / "images.json").write_text(remapped_json, encoding="utf-8")
-        logger.info("images.json 저장 완료 (%d개): %s", len(remapped_images), project_dir)
-
-    def save_images_meta(self, project_dir: Path, images_json: str) -> None:
-        """이미지 메타데이터(images.json)만 저장. 파일 복사는 하지 않음."""
-        self._ensure_dir(project_dir)
-        (project_dir / "images.json").write_text(images_json, encoding="utf-8")
-
     def save_slides_html(
         self,
         project_dir: Path,
         session_id: str,
         html: str,
-        image_paths: dict[int, str] | None = None,
     ) -> None:
         self._ensure_dir(project_dir)
         (project_dir / "slides.html").write_text(html, encoding="utf-8")
         meta: dict = {"session_id": session_id}
-        if image_paths:
-            meta["image_paths"] = {str(k): v for k, v in image_paths.items()}
         (project_dir / "slides_meta.json").write_text(
             json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
         )
@@ -142,20 +104,13 @@ class ProjectService:
         path = project_dir / "script.json"
         return path.read_text(encoding="utf-8")
 
-    def load_images(self, project_dir: Path) -> str:
-        path = project_dir / "images.json"
-        return path.read_text(encoding="utf-8")
-
     def load_slides_html(self, project_dir: Path) -> tuple[str, str]:
         html = (project_dir / "slides.html").read_text(encoding="utf-8")
         meta = json.loads((project_dir / "slides_meta.json").read_text(encoding="utf-8"))
         session_id = meta["session_id"]
-        image_paths: dict[int, str] = {
-            int(k): v for k, v in meta.get("image_paths", {}).items()
-        }
 
         # SlidesService 인메모리 세션 복원
-        self._slides_service._sessions[session_id] = (html, image_paths)
+        self._slides_service._sessions[session_id] = html
         logger.info("슬라이드 세션 복원 완료: session_id=%s", session_id)
 
         return session_id, html

@@ -88,57 +88,6 @@ class TestSaveAndLoadScript:
         assert json.loads(loaded) == json.loads(SAMPLE_SCRIPT)
 
 
-class TestSaveImagesCopiesFiles:
-    def test_copies_files(self, project_service: ProjectService, project_dir: Path, tmp_path: Path) -> None:
-        # 임시 이미지 파일 생성
-        img_dir = tmp_path / "temp_images"
-        img_dir.mkdir()
-        img_file = img_dir / "image_0.png"
-        img_file.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
-
-        images_json = json.dumps(
-            {"images": [{"slide_index": 0, "image_path": str(img_file)}]},
-            ensure_ascii=False,
-        )
-
-        project_service.save_images(project_dir, images_json)
-
-        # 이미지 파일이 project_dir/images/에 복사됨
-        copied = project_dir / "images" / "slide_0.png"
-        assert copied.exists()
-        assert copied.read_bytes() == img_file.read_bytes()
-
-
-class TestSaveImagesRemapsPaths:
-    def test_remapped_paths(self, project_service: ProjectService, project_dir: Path, tmp_path: Path) -> None:
-        img_dir = tmp_path / "temp_images"
-        img_dir.mkdir()
-        img_file = img_dir / "image_1.png"
-        img_file.write_bytes(b"\x89PNG\r\n\x1a\n")
-
-        images_json = json.dumps(
-            {"images": [{"slide_index": 1, "image_path": str(img_file)}]},
-            ensure_ascii=False,
-        )
-
-        project_service.save_images(project_dir, images_json)
-
-        # images.json의 경로가 프로젝트 디렉토리 경로로 리매핑됨
-        loaded = json.loads(project_service.load_images(project_dir))
-        assert len(loaded["images"]) == 1
-        remapped_path = loaded["images"][0]["image_path"]
-        assert str(project_dir / "images") in remapped_path
-
-    def test_missing_source_skipped(self, project_service: ProjectService, project_dir: Path) -> None:
-        images_json = json.dumps(
-            {"images": [{"slide_index": 0, "image_path": "/nonexistent/path.png"}]},
-            ensure_ascii=False,
-        )
-        project_service.save_images(project_dir, images_json)
-        loaded = json.loads(project_service.load_images(project_dir))
-        assert len(loaded["images"]) == 0
-
-
 class TestSaveAndLoadSlidesHtml:
     def test_roundtrip(self, project_service: ProjectService, project_dir: Path) -> None:
         session_id = "test-session-123"
@@ -157,22 +106,19 @@ class TestSaveAndLoadSlidesHtml:
 class TestLoadSlidesRestoresSession:
     def test_session_restored(self, project_service: ProjectService, slides_service: MagicMock, project_dir: Path) -> None:
         session_id = "restore-test-456"
-        image_paths = {0: "/tmp/img0.png", 2: "/tmp/img2.png"}
-        project_service.save_slides_html(project_dir, session_id, SAMPLE_HTML, image_paths)
+        project_service.save_slides_html(project_dir, session_id, SAMPLE_HTML)
 
         project_service.load_slides_html(project_dir)
-        html, restored_paths = slides_service._sessions[session_id]
+        html = slides_service._sessions[session_id]
         assert html == SAMPLE_HTML
-        assert restored_paths == image_paths
 
     def test_session_restored_without_image_paths(self, project_service: ProjectService, slides_service: MagicMock, project_dir: Path) -> None:
         session_id = "restore-no-images"
         project_service.save_slides_html(project_dir, session_id, SAMPLE_HTML)
 
         project_service.load_slides_html(project_dir)
-        html, restored_paths = slides_service._sessions[session_id]
+        html = slides_service._sessions[session_id]
         assert html == SAMPLE_HTML
-        assert restored_paths == {}
 
 
 class TestSavePptxCopiesFile:
@@ -225,22 +171,6 @@ class TestResolveProjectDir:
         assert project_id == existing_id
         assert project_dir == tmp_path / existing_id
         assert project_dir.exists()
-
-
-class TestSaveImagesMeta:
-    def test_saves_meta_only(self, project_service: ProjectService, project_dir: Path) -> None:
-        images_json = json.dumps(
-            {"images": [{"slide_index": 0, "image_path": "/some/path.png"}]},
-            ensure_ascii=False,
-        )
-        project_service.save_images_meta(project_dir, images_json)
-
-        meta_path = project_dir / "images.json"
-        assert meta_path.exists()
-        loaded = json.loads(meta_path.read_text(encoding="utf-8"))
-        assert loaded["images"][0]["slide_index"] == 0
-        # 이미지 파일 복사는 하지 않으므로 images 디렉토리가 생성되지 않음
-        assert not (project_dir / "images").exists()
 
 
 class TestListProjects:
@@ -311,10 +241,6 @@ class TestLoadNonexistentRaises:
     def test_script(self, project_service: ProjectService, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
             project_service.load_script(tmp_path / "empty")
-
-    def test_images(self, project_service: ProjectService, tmp_path: Path) -> None:
-        with pytest.raises(FileNotFoundError):
-            project_service.load_images(tmp_path / "empty")
 
     def test_slides_html(self, project_service: ProjectService, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):

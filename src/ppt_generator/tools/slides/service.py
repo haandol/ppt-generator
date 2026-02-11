@@ -4,7 +4,6 @@ import json
 import logging
 import re
 import uuid
-from pathlib import Path
 
 from strands import Agent
 
@@ -22,7 +21,7 @@ from ppt_generator.interfaces.constants import (
     SLIDES_REGION_USER_PROMPT_TEMPLATE,
     build_layout_skeleton,
 )
-from ppt_generator.interfaces.schemas import SlidesRequest, SlidesResponse, SlideOutline
+from ppt_generator.interfaces.schemas import SlidesResponse, SlideOutline
 
 logger = logging.getLogger(__name__)
 
@@ -31,21 +30,21 @@ class SlidesService:
     def __init__(self, agent: Agent, modify_agent: Agent) -> None:
         self._agent = agent
         self._modify_agent = modify_agent
-        self._sessions: dict[str, tuple[str, dict[int, str]]] = {}
+        self._sessions: dict[str, str] = {}
 
-    def generate(self, request: SlidesRequest) -> SlidesResponse:
-        if not request.slides:
+    def generate(self, slides: list[SlideOutline]) -> SlidesResponse:
+        if not slides:
             raise ValueError("슬라이드 목록이 비어있습니다.")
 
-        if len(request.slides) <= SLIDES_MAX_PER_BATCH:
-            html = self._generate_single(request.slides, request.image_paths)
+        if len(slides) <= SLIDES_MAX_PER_BATCH:
+            html = self._generate_single(slides)
         else:
-            html = self._generate_batched(request.slides, request.image_paths)
+            html = self._generate_batched(slides)
 
         session_id = str(uuid.uuid4())
-        self._sessions[session_id] = (html, dict(request.image_paths))
+        self._sessions[session_id] = html
 
-        logger.info("HTML 슬라이드 생성 완료: session_id=%s, 슬라이드 수=%d", session_id, len(request.slides))
+        logger.info("HTML 슬라이드 생성 완료: session_id=%s, 슬라이드 수=%d", session_id, len(slides))
         return SlidesResponse(session_id=session_id, html=html)
 
     def modify(self, session_id: str, modification_request: str, slide_index: int = -1) -> SlidesResponse:
@@ -63,8 +62,7 @@ class SlidesService:
             result = str(self._modify_agent(prompt))
             html = self._extract_full_html(result)
 
-        _, image_paths = self._sessions[session_id]
-        self._sessions[session_id] = (html, image_paths)
+        self._sessions[session_id] = html
         return SlidesResponse(session_id=session_id, html=html)
 
     def _modify_single_slide(self, full_html: str, slide_index: int, modification_request: str) -> str:
@@ -98,45 +96,34 @@ class SlidesService:
         return str(soup)
 
     def get_session_html(self, session_id: str) -> str:
-        session = self._sessions.get(session_id)
-        if session is None:
+        html = self._sessions.get(session_id)
+        if html is None:
             raise KeyError(f"세션을 찾을 수 없습니다: {session_id}")
-        return session[0]
-
-    def get_session_image_paths(self, session_id: str) -> dict[int, str]:
-        session = self._sessions.get(session_id)
-        if session is None:
-            raise KeyError(f"세션을 찾을 수 없습니다: {session_id}")
-        return session[1]
+        return html
 
     def update_session_html(self, session_id: str, html: str) -> None:
         if session_id not in self._sessions:
             raise KeyError(f"세션을 찾을 수 없습니다: {session_id}")
-        _, image_paths = self._sessions[session_id]
-        self._sessions[session_id] = (html, image_paths)
+        self._sessions[session_id] = html
 
     # --- 생성 내부 메서드 ---
 
-    def _generate_single(self, slides: list[SlideOutline], image_paths: dict[int, str], start_index: int = 0) -> str:
+    def _generate_single(self, slides: list[SlideOutline], start_index: int = 0) -> str:
         all_sections: list[str] = []
         for i, slide in enumerate(slides):
             global_idx = start_index + i
-            image_placeholder = f"{{IMAGE_{global_idx}}}" if global_idx in image_paths else None
             skeleton = build_layout_skeleton(
                 layout_index=slide.layout_index,
                 slide_index=global_idx,
-                image_placeholder=image_placeholder,
             )
             outline_json = json.dumps(
                 {"slides": [self._slide_to_dict(slide)]},
                 ensure_ascii=False,
                 indent=2,
             )
-            image_data = self._build_image_data([slide], image_paths, start_index=global_idx)
 
             prompt = SLIDES_REGION_USER_PROMPT_TEMPLATE.format(
                 outline_json=outline_json,
-                image_data=image_data,
                 skeleton_html=skeleton,
             )
             result = str(self._agent(prompt))
@@ -146,17 +133,15 @@ class SlidesService:
             all_sections.append(section)
 
         combined = "\n".join(all_sections)
-        combined = self._replace_image_placeholders(combined, image_paths)
         html = self._wrap_with_template(combined)
         return html
 
-    def _generate_batched(self, slides: list[SlideOutline], image_paths: dict[int, str]) -> str:
+    def _generate_batched(self, slides: list[SlideOutline]) -> str:
         chunks = self._chunk_slides(slides, SLIDES_MAX_PER_BATCH)
 
         # 첫 배치: 전체 HTML 문서 생성
         first_chunk = chunks[0]
-        first_image_paths = {i: image_paths[i] for i in range(len(first_chunk)) if i in image_paths}
-        first_html = self._generate_single(first_chunk, first_image_paths)
+        first_html = self._generate_single(first_chunk)
 
         if len(chunks) == 1:
             return first_html
@@ -168,7 +153,7 @@ class SlidesService:
         continuation_divs: list[str] = []
         offset = len(first_chunk)
         for chunk in chunks[1:]:
-            divs = self._generate_continuation_batch(chunk, image_paths, design_summary, offset)
+            divs = self._generate_continuation_batch(chunk, design_summary, offset)
             continuation_divs.append(divs)
             offset += len(chunk)
 
@@ -182,30 +167,25 @@ class SlidesService:
     def _generate_continuation_batch(
         self,
         slides: list[SlideOutline],
-        image_paths: dict[int, str],
         design_summary: str,
         offset: int,
     ) -> str:
         all_sections: list[str] = []
         for i, slide in enumerate(slides):
             global_idx = offset + i
-            image_placeholder = f"{{IMAGE_{global_idx}}}" if global_idx in image_paths else None
             skeleton = build_layout_skeleton(
                 layout_index=slide.layout_index,
                 slide_index=global_idx,
-                image_placeholder=image_placeholder,
             )
             outline_json = json.dumps(
                 {"slides": [self._slide_to_dict(slide)]},
                 ensure_ascii=False,
                 indent=2,
             )
-            image_data = self._build_image_data([slide], image_paths, start_index=global_idx)
 
             prompt = SLIDES_REGION_BATCH_USER_PROMPT_TEMPLATE.format(
                 design_summary=design_summary,
                 outline_json=outline_json,
-                image_data=image_data,
                 skeleton_html=skeleton,
             )
             result = str(self._agent(prompt))
@@ -214,9 +194,7 @@ class SlidesService:
             section = self._validate_region_styles(section, slide.layout_index)
             all_sections.append(section)
 
-        combined = "\n".join(all_sections)
-        combined = self._replace_image_placeholders(combined, image_paths)
-        return combined
+        return "\n".join(all_sections)
 
     @staticmethod
     def _chunk_slides(slides: list[SlideOutline], chunk_size: int) -> list[list[SlideOutline]]:
@@ -290,34 +268,6 @@ class SlidesService:
             "content_summary": slide.content_summary,
             "layout_index": slide.layout_index,
         }
-
-    @staticmethod
-    def _build_image_data(
-        slides: list[SlideOutline],
-        image_paths: dict[int, str],
-        start_index: int = 0,
-    ) -> str:
-        lines: list[str] = []
-        for i, slide in enumerate(slides):
-            global_idx = start_index + i
-            if global_idx in image_paths and Path(image_paths[global_idx]).exists():
-                lines.append(
-                    f"- 슬라이드 {global_idx} (layout_index={slide.layout_index}): "
-                    f"이미지 있음 → {{IMAGE_{global_idx}}} placeholder를 사용하세요."
-                )
-            else:
-                lines.append(f"- 슬라이드 {global_idx} (layout_index={slide.layout_index}): 이미지 없음")
-        return "\n".join(lines)
-
-    @staticmethod
-    def _replace_image_placeholders(html: str, image_paths: dict[int, str]) -> str:
-        for idx, path in image_paths.items():
-            file_path = Path(path).resolve()
-            if not file_path.exists():
-                logger.warning("이미지 파일 누락: %s", path)
-                continue
-            html = html.replace(f"{{IMAGE_{idx}}}", f"file://{file_path}")
-        return html
 
     @staticmethod
     def _extract_full_html(text: str) -> str:
