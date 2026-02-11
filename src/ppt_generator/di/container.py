@@ -12,7 +12,6 @@ from ppt_generator.interfaces.constants import (
     BEDROCK_SCRIPT_MAX_TOKENS,
     BEDROCK_TEMPERATURE,
     OUTLINE_SYSTEM_PROMPT,
-    PPTX_TEMPLATE_PATH,
     SCRIPT_SYSTEM_PROMPT,
     SLIDES_MODIFY_SYSTEM_PROMPT,
     SLIDES_REGION_SYSTEM_PROMPT,
@@ -84,10 +83,8 @@ class DIContainer:
     @property
     def export_service(self) -> ExportService:
         if self._export_service is None:
-            template_path = self._project_root / PPTX_TEMPLATE_PATH
             self._export_service = ExportService(
                 slides_service=self.slides_service,
-                template_path=template_path,
                 use_llm_convert=True,
             )
         return self._export_service

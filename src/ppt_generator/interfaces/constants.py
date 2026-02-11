@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 PPT_GENERATOR_HOME = Path.home() / ".ppt-generator"
@@ -64,7 +65,8 @@ OUTLINE_USER_PROMPT_TEMPLATE = (
     "슬라이드 수: {num_slides}장"
 )
 
-PPTX_TEMPLATE_PATH = "template/template.pptx"
+PPTX_SLIDE_WIDTH_EMU = 12_192_000   # 13.333" × 914400
+PPTX_SLIDE_HEIGHT_EMU = 6_858_000   # 7.5" × 914400
 PPTX_FONT_NAME = "맑은 고딕"
 PPTX_BODY_FONT_SIZE_PT = 16
 PPTX_TITLE_FONT_SIZE_PT = 28
@@ -85,31 +87,32 @@ SLIDES_HEIGHT_PX = 720
 EXPORT_PX_TO_INCHES_X = 13.333 / 1280  # ~0.01042
 EXPORT_PX_TO_INCHES_Y = 7.5 / 720      # ~0.01042
 
-# --- 레이아웃 영역 좌표 (AWS PPTX 템플릿 placeholder → 1280x720px 변환) ---
-# scripts/extract_layout_positions.py로 추출한 결과.
-# 각 값은 {"left": px, "top": px, "width": px, "height": px} 형식.
-LAYOUT_REGIONS: dict[int, dict[str, dict[str, int]]] = {
-    0: {  # title
-        "title": {"left": 50, "top": 359, "width": 678, "height": 97},
-        "subtitle": {"left": 64, "top": 458, "width": 678, "height": 56},
-    },
-    22: {  # text_only
-        "title": {"left": 57, "top": 96, "width": 1152, "height": 56},
-        "body": {"left": 64, "top": 180, "width": 1152, "height": 472},
-    },
-    21: {  # chart
-        "title": {"left": 57, "top": 96, "width": 1152, "height": 56},
-        "body": {"left": 64, "top": 180, "width": 1152, "height": 472},
-    },
-    87: {  # closing
-        "title": {"left": 64, "top": 240, "width": 1152, "height": 106},
-        "body": {"left": 64, "top": 370, "width": 1152, "height": 214},
-    },
-    88: {  # freeform
-        "title": {"left": 57, "top": 96, "width": 1152, "height": 56},
-        "body": {"left": 64, "top": 180, "width": 1152, "height": 472},
-    },
-}
+# --- 레이아웃 영역 좌표 (template/layout.json에서 로드) ---
+# scripts/extract_layout_json.py로 template.pptx에서 추출.
+# 각 값은 {"left": px, "top": px, "width": px, "height": px} 형식 (1280x720px 기준).
+def _load_layout_regions() -> dict[int, dict[str, dict[str, int]]]:
+    """layout.json에서 레이아웃별 region 좌표를 로드."""
+    layout_json = Path(__file__).resolve().parent.parent.parent.parent / "template" / "layout.json"
+    if not layout_json.exists():
+        # layout.json이 없으면 최소 폴백
+        return {
+            22: {
+                "title": {"left": 57, "top": 96, "width": 1152, "height": 56},
+                "body": {"left": 64, "top": 180, "width": 1152, "height": 231},
+            },
+        }
+    with open(layout_json, encoding="utf-8") as f:
+        data = json.load(f)
+    regions: dict[int, dict[str, dict[str, int]]] = {}
+    for layout in data.get("layouts", []):
+        idx = layout["layout_index"]
+        r = layout.get("regions", {})
+        if r:
+            regions[idx] = r
+    return regions
+
+
+LAYOUT_REGIONS: dict[int, dict[str, dict[str, int]]] = _load_layout_regions()
 
 DEFAULT_LAYOUT_INDEX = 22  # text_only
 
@@ -129,7 +132,7 @@ def build_layout_skeleton(
     regions = LAYOUT_REGIONS.get(layout_index, LAYOUT_REGIONS[DEFAULT_LAYOUT_INDEX])
     parts: list[str] = []
     notes_attr = f' data-speaker-notes="{speaker_notes}"' if speaker_notes else ' data-speaker-notes=""'
-    parts.append(f'<section id="slide-{slide_index}"{notes_attr}>')
+    parts.append(f'<section id="slide-{slide_index}" data-layout-index="{layout_index}"{notes_attr}>')
     parts.append('  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">')
 
     for region_name, coords in regions.items():
