@@ -6,7 +6,14 @@
 Amazon Bedrock LLM으로 콘텐츠를 생성하고, Titan Image Generator v2로 시각 자료를 생성하여, HTML/CSS 기반 슬라이드로 자유로운 디자인을 구현한 뒤 최종 PPTX로 변환합니다.
 Claude Desktop, Kiro 등 MCP 호환 클라이언트에서 사용할 수 있습니다.
 
-> 📄 구현에 대한 세부 사항(기능 명세, 설계 결정, 데모 시나리오, 메트릭 등)은 [`docs/ppt-generator.alps.md`](docs/ppt-generator.alps.md)를 참고하세요.
+> 📄 **ALPS 설계 문서**: 피쳐 목록, 기능 명세, 인수 기준 등 구현에 필요한 세부 사항은 [`docs/ppt-generator.alps.md`](docs/ppt-generator.alps.md) (또는 원본 [`docs/ppt-generator.alps.xml`](docs/ppt-generator.alps.xml))를 반드시 확인하세요.
+>
+> ALPS 문서에 포함된 내용:
+> - **Section 1~3**: 프로젝트 개요, MVP 목표, 데모 시나리오
+> - **Section 4~5**: 아키텍처, 설계 명세
+> - **Section 6**: 요구사항 요약
+> - **Section 7**: 피쳐별 상세 명세 (F1~F6) — 사용자 스토리, 흐름, 기술 설명, 엣지 케이스, 인수 기준
+> - **Section 8~9**: MVP 메트릭, 범위 외 항목
 
 ## Directory Structure
 
@@ -17,10 +24,10 @@ ppt-generator/
 │   ├── di/
 │   │   └── container.py           # 의존성 주입 컨테이너
 │   ├── tools/
-│   │   ├── script/                # 발표 스크립트 생성 도구 (F1)
+│   │   ├── outline/               # 슬라이드 아웃라인 생성 도구 (F1)
 │   │   │   ├── controller.py      # MCP 인터페이스
 │   │   │   └── service.py         # Bedrock LLM 호출 로직
-│   │   ├── outline/               # 슬라이드 아웃라인 생성 도구 (F2)
+│   │   ├── script/                # 발표 스크립트 생성 도구 (F2)
 │   │   │   ├── controller.py
 │   │   │   └── service.py
 │   │   ├── images/                # 이미지 생성 도구 (F3)
@@ -89,9 +96,9 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 ```
 사용자 입력 (주제 + 슬라이드 수)
     ↓
-F1: generate_script    → 발표 스크립트 생성 (Bedrock Claude Opus 4)
+F1: generate_outline   → 슬라이드 아웃라인 JSON 생성 (Bedrock LLM, speaker_notes 비어있음)
     ↓
-F2: generate_outline   → 슬라이드 아웃라인 JSON 생성 (Bedrock LLM)
+F2: generate_script    → 아웃라인 기반 슬라이드별 스크립트 생성 (speaker_notes 채움)
     ↓
 F3: generate_images    → 슬라이드별 이미지 생성 (Titan Image Generator v2)
     ↓
@@ -104,8 +111,8 @@ F4: generate_pptx      → 아웃라인 + 이미지 → 편집 가능한 PPTX �
 
 | Tool | Module | Description |
 |------|--------|-------------|
-| `generate_script` | `tools/script/` | 주제와 슬라이드 수를 기반으로 발표 스크립트 생성 |
-| `generate_outline` | `tools/outline/` | 발표 스크립트를 슬라이드 아웃라인 JSON으로 변환 |
+| `generate_outline` | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (speaker_notes 비어있음) |
+| `generate_script` | `tools/script/` | 아웃라인 JSON을 기반으로 슬라이드별 발표자 노트(speaker_notes) 생성 |
 | `generate_images` | `tools/images/` | 아웃라인의 image_idea를 기반으로 Titan Image v2로 슬라이드별 이미지 생성 |
 | `generate_pptx` | `tools/pptx/` | 아웃라인과 이미지를 결합하여 편집 가능한 PPTX 파일 생성 |
 
@@ -115,8 +122,8 @@ F4: generate_pptx      → 아웃라인 + 이미지 → 편집 가능한 PPTX �
 
 | Schema | 용도 |
 |--------|------|
-| `ScriptRequest` / `ScriptResponse` | 스크립트 생성 입출력 |
-| `OutlineRequest` / `OutlineResponse` | 아웃라인 생성 입출력 |
+| `OutlineRequest` / `OutlineResponse` | 아웃라인 생성 입출력 (topic, num_slides → slides) |
+| `ScriptRequest` / `ScriptResponse` | 스크립트 생성 입출력 (outline → slides with speaker_notes) |
 | `SlideOutline` | 개별 슬라이드 아웃라인 (title, bullets, image_idea, layout_type, speaker_notes, elements) |
 | `SlideElement` | freeform 레이아웃의 개별 요소 (type, left, top, width, height, content, font_size_pt, bold) |
 | `ImageRequest` / `ImageResult` / `ImageResponse` | 이미지 생성 입출력 |
