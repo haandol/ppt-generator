@@ -6,6 +6,10 @@ Date: 2026-02-11
 
 Proposed
 
+> **Note (2026-02-11)**: AWS 기본 템플릿에 대해서는 정적 추출을 먼저 적용하였다.
+> `scripts/extract_layout_positions.py`로 placeholder 위치를 추출하여 `constants.py`의 `LAYOUT_REGIONS` 상수와
+> `SLIDES_SYSTEM_PROMPT`에 구체적 px 좌표로 반영함. 동적 `analyze_template` 도구 구현은 추후 진행 예정.
+
 ## Context
 
 현재 시스템은 AWS 전용 PPTX 템플릿에 하드코딩으로 종속되어 있다:

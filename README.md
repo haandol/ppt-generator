@@ -1,8 +1,8 @@
 # PPT Generator
 
-주제를 입력하면 AI가 자동으로 reveal.js 기반 프레젠테이션을 생성하고, 사용자의 수정 요청을 반영한 뒤 편집 가능한 PPTX로 내보내는 MCP 서버입니다.
+주제를 입력하면 AI가 자동으로 HTML/CSS 기반 프레젠테이션을 생성하고, 사용자의 수정 요청을 반영한 뒤 편집 가능한 PPTX로 내보내는 MCP 서버입니다.
 
-Amazon Bedrock Claude로 콘텐츠를 생성하고, Gemini로 시각 자료를 만들어, reveal.js 프레임워크 기반 슬라이드로 자유로운 디자인을 구현합니다. 생성된 HTML은 브라우저에서 바로 프레젠테이션으로 열람 가능하며, 최종 확정 후 python-pptx로 편집 가능한 PPTX 파일로 내보냅니다. Claude Desktop, Kiro 등 MCP 호환 클라이언트에서 사용할 수 있습니다.
+Amazon Bedrock Claude로 콘텐츠를 생성하고, Gemini로 시각 자료를 만들어, HTML/CSS + TailwindCSS 기반 슬라이드로 자유로운 디자인을 구현합니다. 생성된 HTML은 브라우저에서 수직 스크롤로 디자인을 확인할 수 있으며, 최종 확정 후 python-pptx로 편집 가능한 PPTX 파일로 내보냅니다. Claude Desktop, Kiro 등 MCP 호환 클라이언트에서 사용할 수 있습니다.
 
 ## 처리 파이프라인
 
@@ -14,11 +14,11 @@ Amazon Bedrock Claude로 콘텐츠를 생성하고, Gemini로 시각 자료를 �
 텍스트 (가장 추상적)       — 사용자가 주제만 입력
   → 아웃라인 (구조화)      — 슬라이드 구성·요점·레이아웃을 JSON으로 정리
     → 스크립트 (구체적)     — 발표 내용(speaker_notes)을 채움
-      → reveal.js 슬라이드  — LLM이 <section> 생성 → 템플릿에 삽입
+      → HTML 슬라이드       — LLM이 <section> 생성 → 템플릿에 삽입
         → PPTX              — 자유도를 최대한 유지하면서 편집 가능한 포맷으로 변환
 ```
 
-reveal.js를 중간 표현으로 사용하는 이유는, python-pptx 직접 생성 대비 LLM이 HTML/CSS 코드로 자유 배치·스타일링을 할 수 있어 디자인 자유도가 훨씬 높기 때문입니다. LLM은 `<section>` 요소만 생성하고, 서비스가 reveal.js 템플릿(`slides_reveal.html`)에 삽입하여 일관된 프레젠테이션 구조를 보장합니다. 생성된 HTML은 브라우저에서 바로 프레젠테이션으로 열람 가능하며, 최종 PPTX 변환 시에는 `<section>` 내 HTML 요소를 개별 편집 가능한 PPTX 객체(텍스트박스, 이미지, 도형)로 매핑하여 실무 편집성을 확보합니다.
+HTML을 중간 표현으로 사용하는 이유는, python-pptx 직접 생성 대비 LLM이 HTML/CSS 코드로 자유 배치·스타일링을 할 수 있어 디자인 자유도가 훨씬 높기 때문입니다. LLM은 `<section>` 요소만 생성하고, 서비스가 템플릿(`slides.html`)에 삽입하여 일관된 슬라이드 구조를 보장합니다. 생성된 HTML은 브라우저에서 수직 스크롤로 디자인을 확인할 수 있으며, 최종 PPTX 변환 시에는 `<section>` 내 HTML 요소를 개별 편집 가능한 PPTX 객체(텍스트박스, 이미지, 도형)로 매핑하여 실무 편집성을 확보합니다.
 
 ### 파이프라인 흐름
 
@@ -31,7 +31,7 @@ F2: generate_script    → 아웃라인 기반 발표 스크립트 생성 (speak
     ↓
 F3: generate_images    → 슬라이드별 이미지 생성 (Gemini 2.5 Flash)
     ↓
-F4: generate_slides    → 아웃라인 + 이미지 → reveal.js 슬라이드 생성 (section → 템플릿 삽입, 1장씩 개별)
+F4: generate_slides    → 아웃라인 + 이미지 → HTML 슬라이드 생성 (section → 템플릿 삽입, 1장씩 개별)
     ↓ (선택)
 F5: modify_slides      → 사용자 수정 요청 반영 (슬라이드 단위 또는 전체, 반복 가능)
     ↓
@@ -106,7 +106,7 @@ uv run pytest
 | `generate_outline` | 슬라이드 아웃라인 생성 | 주제, 슬라이드 수, [project_id] | 아웃라인 JSON + project_id |
 | `generate_script` | 발표 스크립트 생성 | 아웃라인 JSON, [project_id] | speaker_notes 포함 아웃라인 JSON + project_id |
 | `generate_images` | 슬라이드별 이미지 생성 | 아웃라인 JSON, [project_id] | 이미지 경로 목록 JSON + project_id |
-| `generate_slides` | reveal.js 슬라이드 생성 | 아웃라인 JSON, 이미지 경로 JSON, [project_id] | session_id + HTML + project_id |
+| `generate_slides` | HTML 슬라이드 생성 | 아웃라인 JSON, 이미지 경로 JSON, [project_id] | session_id + HTML + project_id |
 | `modify_slides` | 슬라이드 수정 | 세션 ID, 수정 요청, [slide_index], [project_id] | session_id + 수정된 HTML + project_id |
 | `export_pptx` | PPTX 내보내기 | 세션 ID, [project_id] | project_id + .pptx 파일 경로 |
 
@@ -132,13 +132,13 @@ ppt-generator/
 │   │   ├── constants.py           # 모델 설정, 프롬프트, 상수
 │   │   └── schemas.py             # 데이터클래스 (Request/Response)
 │   ├── templates/
-│   │   ├── slides_reveal.html     # reveal.js HTML 템플릿
+│   │   ├── slides.html            # HTML 슬라이드 템플릿 (TailwindCSS, 수직 스크롤)
 │   │   └── layout_mapping.py      # layout_type → 슬라이드 레이아웃 매핑
 │   └── tools/
 │       ├── outline/               # F1: 아웃라인 생성
 │       ├── script/                # F2: 발표 스크립트 생성
 │       ├── images/                # F3: 이미지 생성
-│       ├── slides/                # F4/F5: reveal.js 슬라이드 생성 + 수정
+│       ├── slides/                # F4/F5: HTML 슬라이드 생성 + 수정
 │       ├── pptx/                  # F6: PPTX 내보내기
 │       └── project/               # F7: 프로젝트 저장/로드
 ├── docs/
@@ -157,8 +157,8 @@ ppt-generator/
 | 에이전트 프레임워크 | AWS Strands SDK |
 | LLM | Amazon Bedrock - Claude Opus 4.6, Sonnet 4.5 (아웃라인) |
 | 이미지 생성 | Google Gemini 2.5 Flash |
-| 슬라이드 프레임워크 | reveal.js 5 (CDN 기반, 템플릿 분리) |
-| PPTX 내보내기 | python-pptx (reveal.js HTML → PPTX 변환) |
+| 슬라이드 프레임워크 | 순수 HTML/CSS + TailwindCSS v4 (JavaScript 없음, 수직 스크롤) |
+| PPTX 내보내기 | python-pptx (HTML → PPTX 변환) |
 | HTML 파싱 | BeautifulSoup (`<section>` 기반 슬라이드 파싱) |
 | 패키지 관리 | uv + hatchling |
 

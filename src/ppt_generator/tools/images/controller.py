@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 from dataclasses import asdict
 
@@ -8,7 +10,9 @@ from ppt_generator.tools.images.service import ImageService
 from ppt_generator.tools.project.service import ProjectService
 
 
-def register_image_tools(mcp: FastMCP, image_service: ImageService, project_service: ProjectService) -> None:
+def register_image_tools(
+    mcp: FastMCP, image_service: ImageService | None, project_service: ProjectService
+) -> None:
     @mcp.tool()
     def generate_images(outline_json: str, project_id: str = "") -> str:
         """슬라이드 아웃라인의 image_idea를 기반으로 슬라이드별 이미지를 생성합니다.
@@ -23,6 +27,18 @@ def register_image_tools(mcp: FastMCP, image_service: ImageService, project_serv
         Returns:
             생성된 이미지 파일 경로 목록 JSON (project_id 포함)
         """
+        if image_service is None:
+            return json.dumps(
+                {
+                    "status": "skipped",
+                    "message": "GEMINI_API_KEY 환경변수가 설정되지 않아 이미지 생성을 건너뜁니다. "
+                    "이미지 생성을 사용하려면 GEMINI_API_KEY를 설정한 후 다시 시도하세요.",
+                    "images": [],
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+
         data = json.loads(outline_json)
         slides = [
             SlideOutline(

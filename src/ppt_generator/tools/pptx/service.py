@@ -75,10 +75,10 @@ class ExportService:
 
     def _parse_slides(self, html: str) -> list[Tag]:
         soup = BeautifulSoup(html, "html.parser")
-        # reveal.js 구조: <div class="slides"> 안의 <section> 태그들
-        slides_container = soup.find("div", class_="slides")
-        if slides_container:
-            return slides_container.find_all("section", recursive=False)
+        # body 안의 section 태그들을 슬라이드로 파싱
+        body = soup.find("body")
+        if body:
+            return body.find_all("section", recursive=False)
         # 폴백: 전체에서 section 태그 검색
         return soup.find_all("section")
 
