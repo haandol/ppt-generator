@@ -300,6 +300,161 @@ class TestRegionBasedExport:
         # 96px * (7.5/720) ≈ 1.0in
         assert abs(top_inches - 1.0) < 0.1
 
+    def test_export_region_preserves_rem_font_size(self, service_with_html):
+        """rem 단위 글꼴 크기가 PPTX에 보존되는지 확인."""
+        html = (
+            '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
+            '<section id="slide-0">\n'
+            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">\n'
+            '    <div data-region="title" style="position:absolute; left:57px; top:96px; '
+            'width:1152px; height:56px; overflow:hidden;">\n'
+            '      <h2 style="color:#fff; font-size:1.875rem; font-weight:bold;">제목</h2>\n'
+            '    </div>\n'
+            '  </div>\n'
+            '</section>\n'
+            '</body></html>'
+        )
+        svc = service_with_html(html)
+        response = svc.export(ExportPptxRequest(session_id="test-session"))
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        textboxes = [s for s in slide.shapes if s.has_text_frame and "제목" in s.text_frame.text]
+        assert len(textboxes) >= 1
+        tb = textboxes[0]
+        # 1.875rem * 16 = 30px → Pt(30)
+        for p in tb.text_frame.paragraphs:
+            for run in p.runs:
+                if run.text.strip():
+                    assert run.font.size is not None
+                    assert run.font.size.pt == 30
+
+    def test_export_region_preserves_child_color(self, service_with_html):
+        """자식 요소의 color가 PPTX에 보존되는지 확인."""
+        html = (
+            '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
+            '<section id="slide-0">\n'
+            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">\n'
+            '    <div data-region="title" style="position:absolute; left:57px; top:96px; '
+            'width:1152px; height:56px; overflow:hidden;">\n'
+            '      <h2 style="color:#ff5500; font-size:28px; font-weight:bold;">색상 제목</h2>\n'
+            '    </div>\n'
+            '  </div>\n'
+            '</section>\n'
+            '</body></html>'
+        )
+        svc = service_with_html(html)
+        response = svc.export(ExportPptxRequest(session_id="test-session"))
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        textboxes = [s for s in slide.shapes if s.has_text_frame and "색상 제목" in s.text_frame.text]
+        assert len(textboxes) >= 1
+        tb = textboxes[0]
+        for p in tb.text_frame.paragraphs:
+            for run in p.runs:
+                if run.text.strip():
+                    assert run.font.color.rgb is not None
+                    assert str(run.font.color.rgb) == "FF5500"
+
+    def test_export_region_bullet_points(self, service_with_html):
+        """ul/li 불릿 포인트가 PPTX 불릿으로 변환되는지 확인."""
+        html = (
+            '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
+            '<section id="slide-0">\n'
+            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">\n'
+            '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
+            'width:1152px; height:472px; overflow:hidden;">\n'
+            '      <ul>\n'
+            '        <li style="color:#fff; font-size:18px;">항목 1</li>\n'
+            '        <li style="color:#fff; font-size:18px;">항목 2</li>\n'
+            '        <li style="color:#fff; font-size:18px;">항목 3</li>\n'
+            '      </ul>\n'
+            '    </div>\n'
+            '  </div>\n'
+            '</section>\n'
+            '</body></html>'
+        )
+        svc = service_with_html(html)
+        response = svc.export(ExportPptxRequest(session_id="test-session"))
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        from lxml import etree
+        from pptx.oxml.ns import qn
+        textboxes = [s for s in slide.shapes if s.has_text_frame]
+        bullet_count = 0
+        for tb in textboxes:
+            for p in tb.text_frame.paragraphs:
+                pPr = p._p.find(qn("a:pPr"))
+                if pPr is not None:
+                    buChar = pPr.find(qn("a:buChar"))
+                    if buChar is not None:
+                        bullet_count += 1
+        assert bullet_count == 3
+
+    def test_export_region_flex_columns(self, service_with_html):
+        """flex 멀티 컬럼 레이아웃이 개별 텍스트박스로 변환되는지 확인."""
+        html = (
+            '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
+            '<section id="slide-0">\n'
+            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">\n'
+            '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
+            'width:1152px; height:472px; overflow:hidden;">\n'
+            '      <div style="display:flex; gap:32px;">\n'
+            '        <div style="flex:1;"><p style="color:#fff;">왼쪽 컬럼</p></div>\n'
+            '        <div style="flex:1;"><p style="color:#fff;">오른쪽 컬럼</p></div>\n'
+            '      </div>\n'
+            '    </div>\n'
+            '  </div>\n'
+            '</section>\n'
+            '</body></html>'
+        )
+        svc = service_with_html(html)
+        response = svc.export(ExportPptxRequest(session_id="test-session"))
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        textboxes = [s for s in slide.shapes if s.has_text_frame]
+        # flex 2컬럼 → 2개의 텍스트박스
+        assert len(textboxes) >= 2
+        all_text = " ".join(s.text_frame.text for s in textboxes)
+        assert "왼쪽 컬럼" in all_text
+        assert "오른쪽 컬럼" in all_text
+        # 두 텍스트박스의 left 값이 다른지 확인 (분할 배치)
+        lefts = sorted(set(s.left for s in textboxes))
+        assert len(lefts) >= 2
+
+    def test_export_region_bold_detection(self, service_with_html):
+        """h3 및 font-weight:bold가 PPTX에서 bold로 감지되는지 확인."""
+        html = (
+            '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
+            '<section id="slide-0">\n'
+            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">\n'
+            '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
+            'width:1152px; height:472px; overflow:hidden;">\n'
+            '      <h3 style="color:#fff; font-weight:bold;">볼드 제목</h3>\n'
+            '      <p style="color:#fff; font-weight:bold;">볼드 본문</p>\n'
+            '    </div>\n'
+            '  </div>\n'
+            '</section>\n'
+            '</body></html>'
+        )
+        svc = service_with_html(html)
+        response = svc.export(ExportPptxRequest(session_id="test-session"))
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        textboxes = [s for s in slide.shapes if s.has_text_frame]
+        bold_texts = []
+        for tb in textboxes:
+            for p in tb.text_frame.paragraphs:
+                for run in p.runs:
+                    if run.font.bold and run.text.strip():
+                        bold_texts.append(run.text.strip())
+        assert "볼드 제목" in bold_texts
+        assert "볼드 본문" in bold_texts
+
     def test_legacy_html_still_works(self, service_with_html):
         """data-wrapper가 없는 레거시 HTML도 정상 동작."""
         legacy_html = (
