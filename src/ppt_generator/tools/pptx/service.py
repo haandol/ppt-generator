@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import io
 import logging
 import re
@@ -206,19 +205,17 @@ class ExportService:
 
     def _add_picture(self, slide, element: Tag, style: dict[str, str]) -> None:
         src = element.get("src", "")
-        if not src or not src.startswith("data:"):
-            logger.warning("data URI가 아닌 이미지 소스 건너뜀: %s", src[:50] if src else "(없음)")
+        if not src:
+            logger.warning("이미지 소스가 비어있음")
             return
 
-        image_data = self._decode_base64_image(src)
-        if image_data is None:
+        image_stream = self._load_image(src)
+        if image_stream is None:
             return
 
-        image_bytes, _ = image_data
         left, top, width, height = self._get_position_and_size(style)
 
         try:
-            image_stream = io.BytesIO(image_bytes)
             pic = slide.shapes.add_picture(image_stream, Inches(left), Inches(top), Inches(width), Inches(height))
             # alt-text 설정
             alt_text = element.get("alt", "")
@@ -290,17 +287,16 @@ class ExportService:
             return RGBColor(int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3)))
         return None
 
-    def _decode_base64_image(self, data_uri: str) -> tuple[bytes, str] | None:
-        # data:image/png;base64,xxxxx
-        match = re.match(r"data:image/(\w+);base64,(.+)", data_uri, re.DOTALL)
-        if not match:
-            logger.warning("data URI 형식 인식 실패")
-            return None
-        fmt = match.group(1)
-        b64_data = match.group(2)
-        try:
-            image_bytes = base64.b64decode(b64_data)
-            return image_bytes, fmt
-        except Exception:
-            logger.warning("base64 이미지 디코딩 실패", exc_info=True)
-            return None
+    def _load_image(self, src: str) -> io.BytesIO | None:
+        if src.startswith("file://"):
+            file_path = Path(src[7:])  # file:// 제거
+            if not file_path.exists():
+                logger.warning("이미지 파일 없음: %s", file_path)
+                return None
+            try:
+                return io.BytesIO(file_path.read_bytes())
+            except Exception:
+                logger.warning("이미지 파일 읽기 실패: %s", file_path, exc_info=True)
+                return None
+        logger.warning("지원하지 않는 이미지 소스: %s", src[:50])
+        return None

@@ -63,10 +63,18 @@ class ProjectService:
         (project_dir / "images.json").write_text(remapped_json, encoding="utf-8")
         logger.info("images.json 저장 완료 (%d개): %s", len(remapped_images), project_dir)
 
-    def save_slides_html(self, project_dir: Path, session_id: str, html: str) -> None:
+    def save_slides_html(
+        self,
+        project_dir: Path,
+        session_id: str,
+        html: str,
+        image_paths: dict[int, str] | None = None,
+    ) -> None:
         self._ensure_dir(project_dir)
         (project_dir / "slides.html").write_text(html, encoding="utf-8")
-        meta = {"session_id": session_id}
+        meta: dict = {"session_id": session_id}
+        if image_paths:
+            meta["image_paths"] = {str(k): v for k, v in image_paths.items()}
         (project_dir / "slides_meta.json").write_text(
             json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
         )
@@ -123,9 +131,12 @@ class ProjectService:
         html = (project_dir / "slides.html").read_text(encoding="utf-8")
         meta = json.loads((project_dir / "slides_meta.json").read_text(encoding="utf-8"))
         session_id = meta["session_id"]
+        image_paths: dict[int, str] = {
+            int(k): v for k, v in meta.get("image_paths", {}).items()
+        }
 
         # SlidesService 인메모리 세션 복원
-        self._slides_service._sessions[session_id] = html
+        self._slides_service._sessions[session_id] = (html, image_paths)
         logger.info("슬라이드 세션 복원 완료: session_id=%s", session_id)
 
         return session_id, html

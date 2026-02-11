@@ -28,6 +28,7 @@ adr/
 - [0005: 슬라이드 수정 (F5)](./pipeline/0005-slide-modification.md)
 - [0006: PPTX 내보내기 (F6)](./pipeline/0006-pptx-export.md)
 - [0007: 파이프라인 결과물 저장/로드](./pipeline/0007-pipeline-artifact-persistence.md)
+- [0009: 이미지 파일 참조 방식 전환](./pipeline/0009-image-file-reference.md)
 
 ## ADR 작성 가이드
 

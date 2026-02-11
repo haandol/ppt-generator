@@ -59,7 +59,9 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
         request = SlidesRequest(slides=slides, image_paths=image_paths)
         response = slides_service.generate(request)
         if project_dir:
-            project_service.save_slides_html(Path(project_dir), response.session_id, response.html)
+            project_service.save_slides_html(
+                Path(project_dir), response.session_id, response.html, image_paths,
+            )
             project_service.update_step(Path(project_dir), "slides")
         return json.dumps(
             {"session_id": response.session_id, "html": response.html},
@@ -84,7 +86,10 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
         """
         response = slides_service.modify(session_id, modification_request)
         if project_dir:
-            project_service.save_slides_html(Path(project_dir), response.session_id, response.html)
+            image_paths = slides_service.get_session_image_paths(session_id)
+            project_service.save_slides_html(
+                Path(project_dir), response.session_id, response.html, image_paths,
+            )
             project_service.update_step(Path(project_dir), "slides_modified")
         return json.dumps(
             {"session_id": response.session_id, "html": response.html},

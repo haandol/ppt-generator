@@ -1,4 +1,3 @@
-import base64
 import struct
 import zlib
 from pathlib import Path
@@ -26,20 +25,19 @@ def _make_minimal_png() -> bytes:
     return sig + ihdr + idat + iend
 
 
-VALID_PNG_B64 = base64.b64encode(_make_minimal_png()).decode("ascii")
-
-SAMPLE_HTML = (
-    '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
-    '<div class="slide" data-speaker-notes="발표자 노트"\n'
-    '     style="width:960px;height:540px;position:relative;background-color:#1a2b3c;">\n'
-    '  <h1 style="position:absolute;left:50px;top:30px;width:860px;height:80px;\n'
-    '             font-size:36px;font-weight:bold;color:#333333;">제목</h1>\n'
-    '  <p style="position:absolute;left:50px;top:130px;width:400px;height:200px;\n'
-    '            font-size:18px;">본문 텍스트</p>\n'
-    '  <img src="data:image/png;base64,' + VALID_PNG_B64 + '" alt="이미지 설명"\n'
-    '       style="position:absolute;left:500px;top:130px;width:400px;height:300px;"/>\n'
-    '</div>\n</body></html>'
-)
+def _make_sample_html(png_path: Path) -> str:
+    return (
+        '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
+        '<div class="slide" data-speaker-notes="발표자 노트"\n'
+        '     style="width:960px;height:540px;position:relative;background-color:#1a2b3c;">\n'
+        '  <h1 style="position:absolute;left:50px;top:30px;width:860px;height:80px;\n'
+        '             font-size:36px;font-weight:bold;color:#333333;">제목</h1>\n'
+        '  <p style="position:absolute;left:50px;top:130px;width:400px;height:200px;\n'
+        '            font-size:18px;">본문 텍스트</p>\n'
+        f'  <img src="file://{png_path}" alt="이미지 설명"\n'
+        '       style="position:absolute;left:500px;top:130px;width:400px;height:300px;"/>\n'
+        '</div>\n</body></html>'
+    )
 
 MULTI_SLIDE_HTML = (
     '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
@@ -56,15 +54,24 @@ MULTI_SLIDE_HTML = (
 )
 
 
-def _make_slides_service(html: str = SAMPLE_HTML) -> MagicMock:
+def _make_slides_service(html: str) -> MagicMock:
     mock = MagicMock()
     mock.get_session_html.return_value = html
     return mock
 
 
 @pytest.fixture
-def service(tmp_path):
-    mock_slides = _make_slides_service()
+def png_file(tmp_path) -> Path:
+    """테스트용 PNG 파일 생성."""
+    p = tmp_path / "test_image.png"
+    p.write_bytes(_make_minimal_png())
+    return p
+
+
+@pytest.fixture
+def service(tmp_path, png_file):
+    html = _make_sample_html(png_file)
+    mock_slides = _make_slides_service(html)
     return ExportService(slides_service=mock_slides, template_path=tmp_path / "nonexistent.pptx")
 
 
@@ -153,11 +160,11 @@ class TestExportService:
         assert cNvPr is not None
         assert cNvPr.get("descr") == "이미지 설명"
 
-    def test_export_handles_base64_decode_failure(self, service_with_html):
+    def test_export_handles_missing_image_file(self, service_with_html):
         html = (
             '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
             '<div class="slide" style="width:960px;height:540px;position:relative;">\n'
-            '  <img src="data:image/png;base64,INVALID_BASE64!!!" alt="깨진 이미지"\n'
+            '  <img src="file:///nonexistent/path/image.png" alt="없는 이미지"\n'
             '       style="position:absolute;left:100px;top:100px;width:200px;height:200px;"/>\n'
             '  <p style="position:absolute;left:50px;top:50px;width:200px;height:50px;">텍스트</p>\n'
             '</div>\n</body></html>'

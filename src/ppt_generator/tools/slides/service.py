@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import json
 import logging
 import re
@@ -25,7 +24,7 @@ class SlidesService:
     def __init__(self, agent: Agent, modify_agent: Agent) -> None:
         self._agent = agent
         self._modify_agent = modify_agent
-        self._sessions: dict[str, str] = {}
+        self._sessions: dict[str, tuple[str, dict[int, str]]] = {}
 
     def generate(self, request: SlidesRequest) -> SlidesResponse:
         if not request.slides:
@@ -37,7 +36,7 @@ class SlidesService:
             html = self._generate_batched(request.slides, request.image_paths)
 
         session_id = str(uuid.uuid4())
-        self._sessions[session_id] = html
+        self._sessions[session_id] = (html, dict(request.image_paths))
 
         logger.info("HTML 슬라이드 생성 완료: session_id=%s, 슬라이드 수=%d", session_id, len(request.slides))
         return SlidesResponse(session_id=session_id, html=html)
@@ -52,19 +51,27 @@ class SlidesService:
         )
         result = str(self._modify_agent(prompt))
         html = self._extract_html(result)
-        self._sessions[session_id] = html
+        _, image_paths = self._sessions[session_id]
+        self._sessions[session_id] = (html, image_paths)
         return SlidesResponse(session_id=session_id, html=html)
 
     def get_session_html(self, session_id: str) -> str:
-        html = self._sessions.get(session_id)
-        if html is None:
+        session = self._sessions.get(session_id)
+        if session is None:
             raise KeyError(f"세션을 찾을 수 없습니다: {session_id}")
-        return html
+        return session[0]
+
+    def get_session_image_paths(self, session_id: str) -> dict[int, str]:
+        session = self._sessions.get(session_id)
+        if session is None:
+            raise KeyError(f"세션을 찾을 수 없습니다: {session_id}")
+        return session[1]
 
     def update_session_html(self, session_id: str, html: str) -> None:
         if session_id not in self._sessions:
             raise KeyError(f"세션을 찾을 수 없습니다: {session_id}")
-        self._sessions[session_id] = html
+        _, image_paths = self._sessions[session_id]
+        self._sessions[session_id] = (html, image_paths)
 
     # --- 생성 내부 메서드 ---
 
@@ -204,16 +211,11 @@ class SlidesService:
     @staticmethod
     def _replace_image_placeholders(html: str, image_paths: dict[int, str]) -> str:
         for idx, path in image_paths.items():
-            file_path = Path(path)
+            file_path = Path(path).resolve()
             if not file_path.exists():
                 logger.warning("이미지 파일 누락: %s", path)
                 continue
-            data = file_path.read_bytes()
-            suffix = file_path.suffix.lower().lstrip(".")
-            mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "gif": "image/gif", "webp": "image/webp"}.get(suffix, "image/png")
-            b64 = base64.b64encode(data).decode("ascii")
-            data_uri = f"data:{mime};base64,{b64}"
-            html = html.replace(f"{{IMAGE_{idx}}}", data_uri)
+            html = html.replace(f"{{IMAGE_{idx}}}", f"file://{file_path}")
         return html
 
     @staticmethod
