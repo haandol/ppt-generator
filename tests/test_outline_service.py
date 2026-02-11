@@ -133,3 +133,87 @@ class TestOutlineService:
         assert slide.image_idea == ""
         assert slide.layout_type == "text_only"
         assert slide.speaker_notes == ""
+
+    def test_generate_parses_elements(self, mock_agent):
+        data = {
+            "slides": [
+                {
+                    "title": "Freeform 슬라이드",
+                    "bullets": [],
+                    "image_idea": "",
+                    "layout_type": "freeform",
+                    "speaker_notes": "노트",
+                    "elements": [
+                        {
+                            "type": "textbox",
+                            "left": 0.5,
+                            "top": 0.5,
+                            "width": 12.0,
+                            "height": 1.5,
+                            "content": "제목",
+                            "font_size_pt": 28,
+                            "bold": True,
+                        }
+                    ],
+                }
+            ]
+        }
+        mock_agent.return_value = json.dumps(data, ensure_ascii=False)
+        service = OutlineService(agent=mock_agent)
+        request = OutlineRequest(script="스크립트 내용")
+        response = service.generate(request)
+
+        slide = response.slides[0]
+        assert slide.layout_type == "freeform"
+        assert len(slide.elements) == 1
+        elem = slide.elements[0]
+        assert elem.type == "textbox"
+        assert elem.left == 0.5
+        assert elem.top == 0.5
+        assert elem.width == 12.0
+        assert elem.height == 1.5
+        assert elem.content == "제목"
+        assert elem.font_size_pt == 28
+        assert elem.bold is True
+
+    def test_generate_elements_default_empty_list(self, mock_agent):
+        data = {
+            "slides": [
+                {
+                    "title": "일반 슬라이드",
+                    "layout_type": "text_only",
+                }
+            ]
+        }
+        mock_agent.return_value = json.dumps(data)
+        service = OutlineService(agent=mock_agent)
+        request = OutlineRequest(script="스크립트 내용")
+        response = service.generate(request)
+
+        assert response.slides[0].elements == []
+
+    def test_generate_freeform_mode_uses_freeform_agent(self, mock_agent):
+        freeform_agent = MagicMock()
+        freeform_data = {
+            "slides": [
+                {
+                    "title": "Freeform",
+                    "bullets": [],
+                    "image_idea": "",
+                    "layout_type": "freeform",
+                    "speaker_notes": "",
+                    "elements": [
+                        {"type": "textbox", "left": 1, "top": 1, "width": 5, "height": 2, "content": "자유 배치"}
+                    ],
+                }
+            ]
+        }
+        freeform_agent.return_value = json.dumps(freeform_data, ensure_ascii=False)
+        service = OutlineService(agent=mock_agent, freeform_agent=freeform_agent)
+        request = OutlineRequest(script="스크립트 내용")
+        response = service.generate(request, freeform=True)
+
+        freeform_agent.assert_called_once()
+        mock_agent.assert_not_called()
+        assert response.slides[0].layout_type == "freeform"
+        assert len(response.slides[0].elements) == 1

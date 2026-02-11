@@ -2,13 +2,14 @@ from ppt_generator.templates.layout_mapping import (
     DEFAULT_LAYOUT_TYPE,
     LAYOUT_MAP,
     LayoutInfo,
+    find_blank_layout_index,
     get_layout_info,
 )
 
 
 class TestLayoutMapping:
     def test_all_layout_types_defined(self):
-        expected_types = {"title", "text_image", "text_only", "chart", "closing"}
+        expected_types = {"title", "text_image", "text_only", "chart", "closing", "freeform"}
         assert set(LAYOUT_MAP.keys()) == expected_types
 
     def test_get_layout_info_title(self):
@@ -48,6 +49,13 @@ class TestLayoutMapping:
         expected = LAYOUT_MAP[DEFAULT_LAYOUT_TYPE]
         assert info == expected
 
+    def test_get_layout_info_freeform(self):
+        info = get_layout_info("freeform")
+        assert info.layout_name == "Blank"
+        assert info.title_ph is None
+        assert info.body_ph is None
+        assert info.picture_ph is None
+
     def test_layout_info_is_frozen(self):
         info = get_layout_info("title")
         try:
@@ -55,3 +63,13 @@ class TestLayoutMapping:
             assert False, "Should raise FrozenInstanceError"
         except AttributeError:
             pass
+
+
+class TestFindBlankLayoutIndex:
+    def test_find_blank_returns_default_for_basic_presentation(self):
+        from pptx import Presentation
+
+        prs = Presentation()
+        idx = find_blank_layout_index(prs)
+        # 기본 프레젠테이션에서 blank 레이아웃을 찾거나, 기본값 반환
+        assert isinstance(idx, int)
