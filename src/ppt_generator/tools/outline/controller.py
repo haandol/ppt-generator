@@ -4,7 +4,7 @@ from dataclasses import asdict
 from mcp.server.fastmcp import FastMCP
 
 from ppt_generator.interfaces.constants import DEFAULT_NUM_SLIDES, MAX_NUM_SLIDES, MIN_NUM_SLIDES
-from ppt_generator.interfaces.schemas import OutlineRequest
+from ppt_generator.interfaces.schemas import OutlineRequest, ProjectMetadata
 from ppt_generator.tools.outline.service import OutlineService
 from ppt_generator.tools.project.service import ProjectService
 
@@ -36,6 +36,10 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
         result = json.dumps(asdict(response), ensure_ascii=False, indent=2)
 
         project_id, project_dir = project_service.resolve_project_dir(project_id)
+        project_service.save_metadata(
+            project_dir,
+            ProjectMetadata(topic=topic, num_slides=num_slides, steps_completed={}),
+        )
         project_service.save_outline(project_dir, result)
         project_service.update_step(project_dir, "outline")
 
