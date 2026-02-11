@@ -10,22 +10,20 @@ from ppt_generator.tools.slides.service import SlidesService
 def _make_slide(index: int) -> SlideOutline:
     return SlideOutline(
         title=f"슬라이드 {index}",
-        bullets=[f"항목 {index}-1"],
-        image_idea="",
-        layout_type="text_only",
-        speaker_notes="",
+        content_summary=f"슬라이드 {index} 내용 요약",
+        layout_index=22,
     )
 
 
 # LLM이 반환하는 region 기반 section 요소
 SAMPLE_SECTIONS = (
     '<section id="slide-0" data-speaker-notes="">'
-    '<div data-wrapper="true" class="absolute inset-0 bg-slate-900" style="background-color:#0f172a;">'
+    '<div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0; background-color:#0f172a;">'
     '<div data-region="title" style="position:absolute; left:57px; top:96px; width:1152px; height:56px; overflow:hidden;">'
-    '<h2 class="text-white text-3xl font-bold">내용</h2>'
+    '<h2 style="color:#fff; font-size:1.875rem; font-weight:bold;">내용</h2>'
     '</div>'
     '<div data-region="body" style="position:absolute; left:64px; top:180px; width:1152px; height:472px; overflow:hidden;">'
-    '<p class="text-white text-lg">본문</p>'
+    '<p style="color:#fff; font-size:1.125rem;">본문</p>'
     '</div>'
     '</div>'
     '</section>'
@@ -50,7 +48,7 @@ MODIFIED_FULL_HTML = (
 
 CONTINUATION_SECTIONS = (
     '<section id="slide-1" data-speaker-notes="">'
-    '<div data-wrapper="true" class="absolute inset-0 bg-slate-900">'
+    '<div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0; background-color:#0f172a;">'
     '<div data-region="title" style="position:absolute; left:57px; top:96px; width:1152px; height:56px; overflow:hidden;">'
     '추가 슬라이드'
     '</div>'
@@ -381,7 +379,7 @@ class TestExtractFullHtml:
 
 class TestBuildLayoutSkeleton:
     def test_text_only_skeleton_has_title_and_body(self):
-        skeleton = build_layout_skeleton("text_only", 0)
+        skeleton = build_layout_skeleton(22, 0)
         assert 'data-region="title"' in skeleton
         assert 'data-region="body"' in skeleton
         assert 'id="slide-0"' in skeleton
@@ -389,47 +387,47 @@ class TestBuildLayoutSkeleton:
         assert "<!-- CONTENT:body -->" in skeleton
 
     def test_title_skeleton_has_title_and_subtitle(self):
-        skeleton = build_layout_skeleton("title", 0)
+        skeleton = build_layout_skeleton(0, 0)
         assert 'data-region="title"' in skeleton
         assert 'data-region="subtitle"' in skeleton
 
     def test_text_image_skeleton_has_three_regions(self):
-        skeleton = build_layout_skeleton("text_image", 0)
+        skeleton = build_layout_skeleton(28, 0)
         assert 'data-region="title"' in skeleton
         assert 'data-region="body"' in skeleton
         assert 'data-region="image"' in skeleton
 
     def test_image_placeholder_inserted(self):
-        skeleton = build_layout_skeleton("text_image", 0, image_placeholder="{IMAGE_0}")
+        skeleton = build_layout_skeleton(28, 0, image_placeholder="{IMAGE_0}")
         assert '<img src="{IMAGE_0}"' in skeleton
         assert "<!-- CONTENT:image -->" not in skeleton
 
     def test_speaker_notes_included(self):
-        skeleton = build_layout_skeleton("text_only", 0, speaker_notes="테스트 노트")
+        skeleton = build_layout_skeleton(22, 0, speaker_notes="테스트 노트")
         assert 'data-speaker-notes="테스트 노트"' in skeleton
 
     def test_wrapper_div_present(self):
-        skeleton = build_layout_skeleton("text_only", 0)
+        skeleton = build_layout_skeleton(22, 0)
         assert 'data-wrapper="true"' in skeleton
 
     def test_position_absolute_in_region_style(self):
-        skeleton = build_layout_skeleton("text_only", 0)
+        skeleton = build_layout_skeleton(22, 0)
         assert "position:absolute" in skeleton
 
-    def test_all_layout_types_generate_skeleton(self):
-        for layout_type in LAYOUT_REGIONS:
-            skeleton = build_layout_skeleton(layout_type, 0)
+    def test_all_layout_indices_generate_skeleton(self):
+        for layout_index in LAYOUT_REGIONS:
+            skeleton = build_layout_skeleton(layout_index, 0)
             assert 'data-wrapper="true"' in skeleton
             assert "<section" in skeleton
 
     def test_unknown_layout_falls_back_to_text_only(self):
-        skeleton = build_layout_skeleton("unknown_type", 0)
+        skeleton = build_layout_skeleton(999, 0)
         assert 'data-region="title"' in skeleton
         assert 'data-region="body"' in skeleton
 
     def test_coordinates_match_layout_regions(self):
-        regions = LAYOUT_REGIONS["text_only"]
-        skeleton = build_layout_skeleton("text_only", 0)
+        regions = LAYOUT_REGIONS[22]
+        skeleton = build_layout_skeleton(22, 0)
         assert f"left:{regions['title']['left']}px" in skeleton
         assert f"top:{regions['title']['top']}px" in skeleton
         assert f"width:{regions['title']['width']}px" in skeleton
@@ -448,8 +446,8 @@ class TestValidateRegionStyles:
             '<p>본문</p></div>'
             '</div></section>'
         )
-        result = SlidesService._validate_region_styles(html, "text_only")
-        regions = LAYOUT_REGIONS["text_only"]
+        result = SlidesService._validate_region_styles(html, 22)
+        regions = LAYOUT_REGIONS[22]
         assert f"left:{regions['title']['left']}px" in result
         assert f"top:{regions['title']['top']}px" in result
         assert f"width:{regions['body']['width']}px" in result
@@ -460,12 +458,12 @@ class TestValidateRegionStyles:
             '<section id="slide-0" data-speaker-notes="">'
             '<div data-wrapper="true">'
             '<div data-region="title" style="position:absolute; left:0px; top:0px; width:100px; height:100px;">'
-            '<h2 class="text-white text-3xl font-bold">중요 제목</h2></div>'
+            '<h2 style="color:#fff; font-size:1.875rem; font-weight:bold;">중요 제목</h2></div>'
             '</div></section>'
         )
-        result = SlidesService._validate_region_styles(html, "title")
+        result = SlidesService._validate_region_styles(html, 0)
         assert "중요 제목" in result
-        assert 'class="text-white text-3xl font-bold"' in result
+        assert 'style="color:#fff; font-size:1.875rem; font-weight:bold;"' in result
 
     def test_skips_unknown_region(self):
         """LAYOUT_REGIONS에 없는 region은 건드리지 않음"""
@@ -474,11 +472,11 @@ class TestValidateRegionStyles:
             '<div data-region="custom" style="position:absolute; left:10px; top:10px; width:100px; height:100px;">'
             'text</div></div></section>'
         )
-        result = SlidesService._validate_region_styles(html, "text_only")
+        result = SlidesService._validate_region_styles(html, 22)
         assert "left:10px" in result
 
 
-class TestDetectLayoutType:
+class TestDetectLayoutIndex:
     def test_detect_text_only(self):
         html = (
             '<section><div data-wrapper="true">'
@@ -486,8 +484,8 @@ class TestDetectLayoutType:
             '<div data-region="body">b</div>'
             '</div></section>'
         )
-        result = SlidesService._detect_layout_type_from_html(html)
-        assert result == "text_only"
+        result = SlidesService._detect_layout_index_from_html(html)
+        assert result == 22
 
     def test_detect_text_image(self):
         html = (
@@ -497,8 +495,8 @@ class TestDetectLayoutType:
             '<div data-region="image">i</div>'
             '</div></section>'
         )
-        result = SlidesService._detect_layout_type_from_html(html)
-        assert result == "text_image"
+        result = SlidesService._detect_layout_index_from_html(html)
+        assert result == 28
 
     def test_detect_title(self):
         html = (
@@ -507,10 +505,10 @@ class TestDetectLayoutType:
             '<div data-region="subtitle">s</div>'
             '</div></section>'
         )
-        result = SlidesService._detect_layout_type_from_html(html)
-        assert result == "title"
+        result = SlidesService._detect_layout_index_from_html(html)
+        assert result == 0
 
     def test_fallback_no_regions(self):
         html = '<section><div>no regions</div></section>'
-        result = SlidesService._detect_layout_type_from_html(html)
-        assert result == "text_only"
+        result = SlidesService._detect_layout_index_from_html(html)
+        assert result == 22

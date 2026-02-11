@@ -233,7 +233,7 @@ def _make_region_html(png_path: Path | None = None) -> str:
     img_tag = ""
     if png_path:
         img_tag = (
-            f'      <img src="file://{png_path}" class="w-full h-full object-cover" />'
+            f'      <img src="file://{png_path}" style="width:100%; height:100%; object-fit:cover;" />'
         )
     image_region = ""
     if png_path:
@@ -246,15 +246,15 @@ def _make_region_html(png_path: Path | None = None) -> str:
     return (
         '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
         '<section id="slide-0" data-speaker-notes="발표자 노트">\n'
-        '  <div data-wrapper="true" class="absolute inset-0 bg-slate-900" '
-        'style="background-color:#0f172a;">\n'
+        '  <div data-wrapper="true" '
+        'style="position:absolute; top:0; left:0; right:0; bottom:0; background-color:#0f172a;">\n'
         '    <div data-region="title" style="position:absolute; left:57px; top:96px; '
         'width:1152px; height:56px; overflow:hidden;">\n'
-        '      <h2 class="text-white text-3xl font-bold">제목 텍스트</h2>\n'
+        '      <h2 style="color:#fff; font-size:1.875rem; font-weight:bold;">제목 텍스트</h2>\n'
         '    </div>\n'
         '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
         'width:1152px; height:472px; overflow:hidden;">\n'
-        '      <p class="text-white text-lg">본문 텍스트</p>\n'
+        '      <p style="color:#fff; font-size:1.125rem;">본문 텍스트</p>\n'
         '    </div>\n'
         f'{image_region}'
         '  </div>\n'
