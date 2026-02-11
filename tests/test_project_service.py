@@ -243,6 +243,66 @@ class TestSaveImagesMeta:
         assert not (project_dir / "images").exists()
 
 
+class TestListProjects:
+    def test_empty_home(self, project_service: ProjectService, tmp_path: Path, monkeypatch) -> None:
+        import ppt_generator.tools.project.service as svc_module
+        empty_home = tmp_path / "empty_home"
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", empty_home)
+
+        result = project_service.list_projects()
+        assert result == []
+        assert empty_home.exists()  # 디렉토리가 자동 생성됨
+
+    def test_lists_existing_projects(self, project_service: ProjectService, tmp_path: Path, monkeypatch) -> None:
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        # 프로젝트 2개 생성
+        for name, topic in [("proj-a", "주제 A"), ("proj-b", "주제 B")]:
+            d = tmp_path / name
+            d.mkdir()
+            meta = {"topic": topic, "num_slides": 5, "steps_completed": {"outline": "2025-01-01T00:00:00+00:00"}}
+            (d / "project.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+
+        result = project_service.list_projects()
+        assert len(result) == 2
+        topics = {p["topic"] for p in result}
+        assert topics == {"주제 A", "주제 B"}
+
+    def test_skips_dirs_without_project_json(self, project_service: ProjectService, tmp_path: Path, monkeypatch) -> None:
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        # project.json이 없는 디렉토리
+        (tmp_path / "no-meta").mkdir()
+        # project.json이 있는 디렉토리
+        valid = tmp_path / "valid-proj"
+        valid.mkdir()
+        meta = {"topic": "유효한 프로젝트", "num_slides": 3, "steps_completed": {}}
+        (valid / "project.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+
+        result = project_service.list_projects()
+        assert len(result) == 1
+        assert result[0]["topic"] == "유효한 프로젝트"
+
+    def test_sorted_by_created_at_desc(self, project_service: ProjectService, tmp_path: Path, monkeypatch) -> None:
+        import ppt_generator.tools.project.service as svc_module
+        import time
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        # 시간차를 두고 프로젝트 생성
+        for name in ["older", "newer"]:
+            d = tmp_path / name
+            d.mkdir()
+            meta = {"topic": name, "num_slides": 1, "steps_completed": {}}
+            (d / "project.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+            time.sleep(0.1)
+
+        result = project_service.list_projects()
+        assert result[0]["topic"] == "newer"
+        assert result[1]["topic"] == "older"
+
+
 class TestLoadNonexistentRaises:
     def test_outline(self, project_service: ProjectService, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):

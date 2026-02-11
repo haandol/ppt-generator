@@ -13,8 +13,8 @@ def register_image_tools(mcp: FastMCP, image_service: ImageService, project_serv
     def generate_images(outline_json: str, project_id: str = "") -> str:
         """슬라이드 아웃라인의 image_idea를 기반으로 슬라이드별 이미지를 생성합니다.
 
-        각 슬라이드의 image_idea 필드를 사용하여 Titan Image Generator v2로 이미지를 생성합니다.
-        image_idea가 없거나 layout_type이 text_only인 슬라이드는 건너뜁니다.
+        각 슬라이드의 image_idea 필드를 사용하여 Gemini Image Generation으로 이미지를 생성합니다.
+        image_idea가 없거나 layout_type이 title, text_only, closing인 슬라이드는 건너뜁니다.
 
         Args:
             outline_json: generate_outline로 생성된 슬라이드 아웃라인 JSON 문자열

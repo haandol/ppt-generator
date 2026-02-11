@@ -28,29 +28,32 @@ def _make_minimal_png() -> bytes:
 def _make_sample_html(png_path: Path) -> str:
     return (
         '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
-        '<div class="slide" data-speaker-notes="발표자 노트"\n'
-        '     style="width:960px;height:540px;position:relative;background-color:#1a2b3c;">\n'
+        '<div class="reveal"><div class="slides">\n'
+        '<section data-speaker-notes="발표자 노트"\n'
+        '     style="background-color:#1a2b3c;">\n'
         '  <h1 style="position:absolute;left:50px;top:30px;width:860px;height:80px;\n'
         '             font-size:36px;font-weight:bold;color:#333333;">제목</h1>\n'
         '  <p style="position:absolute;left:50px;top:130px;width:400px;height:200px;\n'
         '            font-size:18px;">본문 텍스트</p>\n'
         f'  <img src="file://{png_path}" alt="이미지 설명"\n'
         '       style="position:absolute;left:500px;top:130px;width:400px;height:300px;"/>\n'
-        '</div>\n</body></html>'
+        '</section>\n'
+        '</div></div>\n</body></html>'
     )
 
 MULTI_SLIDE_HTML = (
     '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
-    '<div class="slide" style="width:960px;height:540px;position:relative;">\n'
+    '<div class="reveal"><div class="slides">\n'
+    '<section>\n'
     '  <h1 style="position:absolute;left:50px;top:30px;width:860px;height:80px;">슬라이드 1</h1>\n'
-    '</div>\n'
-    '<div class="slide" style="width:960px;height:540px;position:relative;">\n'
+    '</section>\n'
+    '<section>\n'
     '  <h1 style="position:absolute;left:50px;top:30px;width:860px;height:80px;">슬라이드 2</h1>\n'
-    '</div>\n'
-    '<div class="slide" style="width:960px;height:540px;position:relative;">\n'
+    '</section>\n'
+    '<section>\n'
     '  <h1 style="position:absolute;left:50px;top:30px;width:860px;height:80px;">슬라이드 3</h1>\n'
-    '</div>\n'
-    '</body></html>'
+    '</section>\n'
+    '</div></div>\n</body></html>'
 )
 
 
@@ -163,11 +166,13 @@ class TestExportService:
     def test_export_handles_missing_image_file(self, service_with_html):
         html = (
             '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
-            '<div class="slide" style="width:960px;height:540px;position:relative;">\n'
+            '<div class="reveal"><div class="slides">\n'
+            '<section>\n'
             '  <img src="file:///nonexistent/path/image.png" alt="없는 이미지"\n'
             '       style="position:absolute;left:100px;top:100px;width:200px;height:200px;"/>\n'
             '  <p style="position:absolute;left:50px;top:50px;width:200px;height:50px;">텍스트</p>\n'
-            '</div>\n</body></html>'
+            '</section>\n'
+            '</div></div>\n</body></html>'
         )
         svc = service_with_html(html)
         request = ExportPptxRequest(session_id="test-session")

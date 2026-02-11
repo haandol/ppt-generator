@@ -7,6 +7,29 @@ from ppt_generator.tools.project.service import ProjectService
 
 def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> None:
     @mcp.tool()
+    def list_projects() -> str:
+        """기존 프로젝트 목록을 조회합니다.
+
+        ~/.ppt-generator/ 디렉토리를 확인하여 저장된 프로젝트 목록을 반환합니다.
+        각 프로젝트의 ID, 주제, 슬라이드 수, 완료 단계, 생성 시간을 포함합니다.
+        최신 프로젝트가 먼저 표시됩니다.
+
+        **사용 시점**: PPT 생성 파이프라인을 시작하기 전에 반드시 이 도구를 먼저 호출하세요.
+        - 프로젝트가 없으면: 새 프로젝트를 시작합니다 (generate_outline 호출).
+        - 프로젝트가 있으면: 사용자에게 기존 프로젝트를 이어서 작업할지,
+          새 프로젝트를 시작할지 선택하도록 안내합니다.
+
+        Returns:
+            프로젝트 목록 JSON 문자열. 프로젝트가 없으면 빈 배열 [].
+        """
+        projects = project_service.list_projects()
+        return json.dumps(
+            {"total": len(projects), "projects": projects},
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    @mcp.tool()
     def load_project_status(project_id: str) -> str:
         """프로젝트 상태 및 메타데이터를 로드합니다.
 
