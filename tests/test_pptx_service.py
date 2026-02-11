@@ -73,7 +73,7 @@ def png_file(tmp_path) -> Path:
 def service(tmp_path, png_file):
     html = _make_sample_html(png_file)
     mock_slides = _make_slides_service(html)
-    return ExportService(slides_service=mock_slides, template_path=tmp_path / "nonexistent.pptx")
+    return ExportService(slides_service=mock_slides, template_path=tmp_path / "nonexistent.pptx", use_llm_convert=False)
 
 
 @pytest.fixture
@@ -81,7 +81,7 @@ def service_with_html(tmp_path):
     """커스텀 HTML로 ExportService를 생성하는 팩토리 fixture."""
     def _factory(html: str):
         mock_slides = _make_slides_service(html)
-        return ExportService(slides_service=mock_slides, template_path=tmp_path / "nonexistent.pptx")
+        return ExportService(slides_service=mock_slides, template_path=tmp_path / "nonexistent.pptx", use_llm_convert=False)
     return _factory
 
 

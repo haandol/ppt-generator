@@ -72,13 +72,31 @@ DEFAULT_LAYOUT_INDEX = 22
 def find_blank_layout_index(prs) -> int:
     """프레젠테이션에서 placeholder가 없는 blank 레이아웃 인덱스를 찾습니다.
 
-    찾지 못하면 LAYOUT_MAP[88]에 등록된 기본 인덱스를 반환합니다.
+    3단계 폴백:
+    1. 이름에 'blank'가 포함되고 placeholder가 없는 레이아웃
+    2. placeholder가 없는 아무 레이아웃
+    3. placeholder 수가 가장 적은 레이아웃
     """
+    # 1단계: blank + no placeholders
     for i, layout in enumerate(prs.slide_layouts):
         name_lower = layout.name.lower()
         if "blank" in name_lower and len(layout.placeholders) == 0:
             return i
-    return LAYOUT_MAP[88].layout_index
+
+    # 2단계: placeholder가 없는 아무 레이아웃
+    for i, layout in enumerate(prs.slide_layouts):
+        if len(layout.placeholders) == 0:
+            return i
+
+    # 3단계: placeholder 수가 가장 적은 레이아웃
+    min_ph_count = float("inf")
+    min_idx = 0
+    for i, layout in enumerate(prs.slide_layouts):
+        ph_count = len(layout.placeholders)
+        if ph_count < min_ph_count:
+            min_ph_count = ph_count
+            min_idx = i
+    return min_idx
 
 
 def get_layout_info(layout_index: int) -> LayoutInfo:
