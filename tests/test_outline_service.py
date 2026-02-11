@@ -85,7 +85,7 @@ class TestOutlineService:
 
         assert len(response.slides) == 3
 
-    def test_generate_raises_on_invalid_json(self, mock_agent):
+    def test_generate_raises_on_invalid_json_after_retries(self, mock_agent):
         mock_agent.return_value = "이것은 JSON이 아닙니다"
         service = OutlineService(agent=mock_agent)
         request = OutlineRequest(topic="스크립트 내용", num_slides=5)
@@ -93,13 +93,26 @@ class TestOutlineService:
         with pytest.raises(ValueError, match="유효하지 않은 JSON"):
             service.generate(request)
 
-    def test_generate_raises_on_missing_slides_key(self, mock_agent):
+        assert mock_agent.call_count == 3
+
+    def test_generate_raises_on_missing_slides_key_after_retries(self, mock_agent):
         mock_agent.return_value = '{"data": []}'
         service = OutlineService(agent=mock_agent)
         request = OutlineRequest(topic="스크립트 내용", num_slides=5)
 
         with pytest.raises(ValueError, match="slides"):
             service.generate(request)
+
+        assert mock_agent.call_count == 3
+
+    def test_generate_retries_on_invalid_json_then_succeeds(self, mock_agent):
+        mock_agent.side_effect = ["잘못된 JSON", VALID_OUTLINE_JSON]
+        service = OutlineService(agent=mock_agent)
+        request = OutlineRequest(topic="스크립트 내용", num_slides=5)
+        response = service.generate(request)
+
+        assert mock_agent.call_count == 2
+        assert len(response.slides) == 3
 
     def test_generate_falls_back_unknown_layout_type(self, mock_agent):
         data = {
@@ -192,28 +205,9 @@ class TestOutlineService:
 
         assert response.slides[0].elements == []
 
-    def test_generate_freeform_mode_uses_freeform_agent(self, mock_agent):
-        freeform_agent = MagicMock()
-        freeform_data = {
-            "slides": [
-                {
-                    "title": "Freeform",
-                    "bullets": [],
-                    "image_idea": "",
-                    "layout_type": "freeform",
-                    "speaker_notes": "",
-                    "elements": [
-                        {"type": "textbox", "left": 1, "top": 1, "width": 5, "height": 2, "content": "자유 배치"}
-                    ],
-                }
-            ]
-        }
-        freeform_agent.return_value = json.dumps(freeform_data, ensure_ascii=False)
-        service = OutlineService(agent=mock_agent, freeform_agent=freeform_agent)
-        request = OutlineRequest(topic="스크립트 내용", num_slides=5)
-        response = service.generate(request, freeform=True)
+    def test_generate_prompt_contains_freeform(self, service, mock_agent):
+        request = OutlineRequest(topic="테스트 주제", num_slides=5)
+        service.generate(request)
 
-        freeform_agent.assert_called_once()
-        mock_agent.assert_not_called()
-        assert response.slides[0].layout_type == "freeform"
-        assert len(response.slides[0].elements) == 1
+        prompt = mock_agent.call_args[0][0]
+        assert "freeform" in prompt.lower() or "free-form" in prompt.lower()

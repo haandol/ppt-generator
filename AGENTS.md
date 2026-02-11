@@ -96,7 +96,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 ```
 사용자 입력 (주제 + 슬라이드 수)
     ↓
-F1: generate_outline   → 슬라이드 아웃라인 JSON 생성 (Bedrock LLM, speaker_notes 비어있음)
+F1: generate_outline   → 슬라이드 아웃라인 JSON 생성 (Bedrock LLM, freeform 기본, speaker_notes 비어있음)
     ↓
 F2: generate_script    → 아웃라인 기반 슬라이드별 스크립트 생성 (speaker_notes 채움)
     ↓
@@ -111,7 +111,7 @@ F4: generate_pptx      → 아웃라인 + 이미지 → 편집 가능한 PPTX �
 
 | Tool | Module | Description |
 |------|--------|-------------|
-| `generate_outline` | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (speaker_notes 비어있음) |
+| `generate_outline` | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (기본 freeform 모드, speaker_notes 비어있음) |
 | `generate_script` | `tools/script/` | 아웃라인 JSON을 기반으로 슬라이드별 발표자 노트(speaker_notes) 생성 |
 | `generate_images` | `tools/images/` | 아웃라인의 image_idea를 기반으로 Titan Image v2로 슬라이드별 이미지 생성 |
 | `generate_pptx` | `tools/pptx/` | 아웃라인과 이미지를 결합하여 편집 가능한 PPTX 파일 생성 |
@@ -138,7 +138,7 @@ F4: generate_pptx      → 아웃라인 + 이미지 → 편집 가능한 PPTX �
       "title": "슬라이드 제목",
       "bullets": ["요점 1", "요점 2"],
       "image_idea": "이미지 설명 (영어 프롬프트로 변환됨)",
-      "layout_type": "title | text_image | text_only | chart | closing | freeform",
+      "layout_type": "freeform (기본) | title | text_image | text_only | chart | closing",
       "speaker_notes": "발표자 노트 (스크립트 내용)",
       "elements": []
     }
@@ -155,7 +155,7 @@ F4: generate_pptx      → 아웃라인 + 이미지 → 편집 가능한 PPTX �
 | `text_only`  | 전체 텍스트               | 알 수 없는 타입의 폴백   |
 | `chart`      | 차트 중심                 | -                        |
 | `closing`    | 마무리 슬라이드           | 마지막 슬라이드          |
-| `freeform`   | 자유 배치 (좌표 기반)     | elements 배열 사용       |
+| `freeform`   | 자유 배치 (좌표 기반)     | **기본 모드**, elements 배열 사용 |
 
 ## Coding Conventions
 
