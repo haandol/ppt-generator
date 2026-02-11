@@ -14,23 +14,23 @@ Accepted
 
 ## Decision
 
-MCP 도구 `generate_outline`을 구현하여, 주제와 슬라이드 수를 입력받아 Bedrock Claude Opus 4.6이 구조화된 JSON 아웃라인을 생성한다. `freeform` 모드를 통해 좌표 기반 자유 배치도 지원한다.
+MCP 도구 `generate_outline`을 구현하여, 주제와 슬라이드 수를 입력받아 Bedrock Claude Opus 4.6이 구조화된 JSON 아웃라인을 생성한다. 기본적으로 `freeform` 모드(좌표 기반 자유 배치)로 동작하여, PPTX 변환 시 HTML로 표현한 디자인 자유도를 최대한 보장한다.
 
 ### Technical Details
 
 - Bedrock Claude Opus 4.6 호출 (Strands SDK 경유)
 - 프롬프트: 주제를 기반으로 구조화된 JSON 아웃라인 생성 요청
-- 출력 JSON 스키마: `{ slides: [{ title, bullets: [], image_idea, layout_type, speaker_notes: "" }] }`
-- layout_type: `title`, `text_image`, `text_only`, `chart`, `closing` (HTML 슬라이드 생성 시 디자인 힌트로 활용)
+- 출력 JSON 스키마: `{ slides: [{ title, bullets: [], image_idea, layout_type, speaker_notes: "", elements: [] }] }`
+- 기본 모드는 freeform: `elements[]` 배열로 요소별 좌표(인치 단위, 13.333 x 7.5인치 좌표계) 포함. PPTX 변환 시 HTML 디자인 자유도를 최대한 보장
+- layout_type: 기본값 `freeform` (좌표 기반 자유 배치). placeholder 모드 사용 시 `title`, `text_image`, `text_only`, `chart`, `closing`
 - speaker_notes는 빈 문자열로 생성되며, 이후 `generate_script`(F2)에서 채워짐
-- freeform 모드: `elements[]` 배열로 요소별 좌표(인치 단위, 13.333 x 7.5인치 좌표계) 포함
 
 ### MCP Tool Interface
 
 | 항목 | 값 |
 |------|-----|
 | Tool | `generate_outline` |
-| 입력 | `topic: str`, `num_slides: int`, `freeform: bool = False` |
+| 입력 | `topic: str`, `num_slides: int` |
 | 출력 | 아웃라인 JSON 문자열 (speaker_notes 비어있음) |
 
 ### Acceptance Criteria
@@ -68,5 +68,5 @@ sequenceDiagram
 
 - 구현: `src/ppt_generator/tools/outline/` (controller.py, service.py)
 - 스키마: `src/ppt_generator/interfaces/schemas.py` — `OutlineRequest(topic, num_slides)`, `OutlineResponse`
-- 프롬프트: `src/ppt_generator/interfaces/constants.py` — `OUTLINE_SYSTEM_PROMPT`, `OUTLINE_FREEFORM_SYSTEM_PROMPT`
+- 프롬프트: `src/ppt_generator/interfaces/constants.py` — `OUTLINE_FREEFORM_SYSTEM_PROMPT`
 - ALPS: Section 7.1

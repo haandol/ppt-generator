@@ -1,39 +1,43 @@
 import json
+import logging
 import re
 
 from strands import Agent
 
-from ppt_generator.interfaces.constants import (
-    OUTLINE_FREEFORM_USER_PROMPT_TEMPLATE,
-    OUTLINE_USER_PROMPT_TEMPLATE,
-)
+from ppt_generator.interfaces.constants import OUTLINE_FREEFORM_USER_PROMPT_TEMPLATE
 from ppt_generator.interfaces.schemas import OutlineRequest, OutlineResponse, SlideElement, SlideOutline
 
 VALID_LAYOUT_TYPES = {"title", "text_image", "text_only", "chart", "closing", "freeform"}
+MAX_RETRIES = 3
+
+logger = logging.getLogger(__name__)
 
 
 class OutlineService:
-    def __init__(self, agent: Agent, freeform_agent: Agent | None = None) -> None:
+    def __init__(self, agent: Agent) -> None:
         self._agent = agent
-        self._freeform_agent = freeform_agent
 
-    def generate(self, request: OutlineRequest, freeform: bool = False) -> OutlineResponse:
+    def generate(self, request: OutlineRequest) -> OutlineResponse:
         if not request.topic.strip():
             raise ValueError("주제가 비어있습니다.")
 
-        if freeform and self._freeform_agent is not None:
-            prompt = OUTLINE_FREEFORM_USER_PROMPT_TEMPLATE.format(
-                topic=request.topic, num_slides=request.num_slides
-            )
-            result = str(self._freeform_agent(prompt))
-        else:
-            prompt = OUTLINE_USER_PROMPT_TEMPLATE.format(
-                topic=request.topic, num_slides=request.num_slides
-            )
+        prompt = OUTLINE_FREEFORM_USER_PROMPT_TEMPLATE.format(
+            topic=request.topic, num_slides=request.num_slides
+        )
+
+        last_error: ValueError | None = None
+        for attempt in range(1, MAX_RETRIES + 1):
             result = str(self._agent(prompt))
-        data = self._parse_json(result)
-        slides = self._build_slides(data)
-        return OutlineResponse(slides=slides)
+            try:
+                data = self._parse_json(result)
+            except ValueError as e:
+                last_error = e
+                logger.warning("아웃라인 JSON 파싱 실패 (시도 %d/%d): %s", attempt, MAX_RETRIES, e)
+                continue
+            slides = self._build_slides(data)
+            return OutlineResponse(slides=slides)
+
+        raise last_error  # type: ignore[misc]
 
     def _parse_json(self, text: str) -> dict:
         match = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)

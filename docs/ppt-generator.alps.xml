@@ -231,8 +231,10 @@ sequenceDiagram
 #### 7.1.3 기술 설명
 - Bedrock Claude Opus 4.6 호출 (Strands SDK 경유)
 - 프롬프트: 주제를 기반으로 구조화된 JSON 아웃라인 생성 요청
-- 출력 JSON 스키마: `{ slides: [{ title, bullets: [], image_idea, layout_type, speaker_notes: "" }] }`
-- layout_type: `title`, `text_image`, `text_only`, `chart`, `closing` 등 (HTML 슬라이드 생성 시 디자인 힌트로 활용)
+- 출력 JSON 스키마: `{ slides: [{ title, bullets: [], image_idea, layout_type, speaker_notes: "", elements: [] }] }`
+- layout_type: 기본값 `freeform` (좌표 기반 자유 배치). 그 외 `title`, `text_image`, `text_only`, `chart`, `closing` (placeholder 모드 사용 시)
+- freeform 모드가 기본: PPTX 변환 시 HTML로 표현한 디자인 자유도를 최대한 보장하기 위해 좌표 기반 자유 배치를 기본으로 사용
+- elements 배열: freeform 모드에서 각 요소의 type, left, top, width, height, content, font_size_pt, bold를 포함 (인치 단위, 13.333 x 7.5인치 좌표계)
 - speaker_notes는 빈 문자열로 생성되며, 이후 generate_script에서 채워짐
 
 #### 7.1.4 엣지 케이스
