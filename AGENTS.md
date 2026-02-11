@@ -36,6 +36,9 @@ ppt-generator/
 │   │   ├── pptx/                  # PPTX 내보내기 도구 (F6)
 │   │   │   ├── controller.py
 │   │   │   └── service.py
+│   │   ├── project/               # 프로젝트 저장/로드 도구 (F7)
+│   │   │   ├── controller.py
+│   │   │   └── service.py
 │   │   └── slides/                # HTML 슬라이드 생성/수정 도구 (F4/F5)
 │   │       ├── controller.py
 │   │       └── service.py
@@ -45,8 +48,7 @@ ppt-generator/
 │   └── templates/
 │       └── layout_mapping.py      # 레이아웃 타입 → 슬라이드 레이아웃 매핑
 ├── scripts/
-│   ├── generate_images.py         # 이미지 생성 유틸리티 (standalone)
-│   └── run_generate.py            # 전체 파이프라인 실행 스크립트
+│   └── run_generate.py            # 전체 파이프라인 실행 스크립트 (--project-dir 지원)
 ├── docs/
 │   ├── ppt-generator.alps.xml     # ALPS 설계 문서
 │   └── ppt-generator.alps.md      # ALPS 마크다운 내보내기
@@ -125,6 +127,11 @@ F6: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
 | `generate_slides` | `tools/slides/` | 아웃라인과 이미지를 결합하여 HTML/CSS 슬라이드 생성 (세션 반환) |
 | `modify_slides` | `tools/slides/` | 기존 HTML 슬라이드를 사용자 요청에 따라 수정 |
 | `export_pptx` | `tools/pptx/` | 세션의 HTML 슬라이드를 편집 가능한 PPTX 파일로 내보내기 |
+| `load_project_status` | `tools/project/` | 프로젝트 상태 및 메타데이터 로드 |
+| `load_outline` | `tools/project/` | 저장된 아웃라인 JSON 로드 |
+| `load_script` | `tools/project/` | 저장된 스크립트 JSON 로드 |
+| `load_images` | `tools/project/` | 저장된 이미지 메타 JSON 로드 |
+| `load_slides_html` | `tools/project/` | 저장된 HTML 슬라이드 로드 및 세션 복원 |
 
 ## Key Data Schemas
 
@@ -139,6 +146,7 @@ F6: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
 | `ImageRequest` / `ImageResult` / `ImageResponse` | 이미지 생성 입출력 |
 | `SlidesRequest` / `SlidesResponse` | HTML 슬라이드 생성 입출력 (slides, image_paths → session_id, html) |
 | `ExportPptxRequest` / `ExportPptxResponse` | PPTX 내보내기 입출력 (session_id → pptx_path) |
+| `ProjectMetadata` | 프로젝트 메타데이터 (topic, num_slides, steps_completed) |
 
 ### 슬라이드 아웃라인 JSON
 
@@ -226,7 +234,6 @@ uv run pytest tests/test_xxx.py  # 개별 테스트
 
 - `src/ppt_generator/templates/` - 레이아웃 매핑 로직 수정
 - `src/ppt_generator/interfaces/` - 상수, 스키마 수정
-- `scripts/` - 유틸리티 스크립트
 - 새로운 도구 추가 (`tools/` 하위에 새 모듈 생성)
 
 ### Approach with Caution

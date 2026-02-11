@@ -9,8 +9,8 @@ from ppt_generator.interfaces.constants import (
     BEDROCK_MODEL_ID,
     BEDROCK_OUTLINE_MAX_TOKENS,
     BEDROCK_OUTLINE_MODEL_ID,
-    BEDROCK_SCRIPT_MAX_TOKENS,
     BEDROCK_REGION,
+    BEDROCK_SCRIPT_MAX_TOKENS,
     BEDROCK_TEMPERATURE,
     OUTLINE_FREEFORM_SYSTEM_PROMPT,
     PPTX_TEMPLATE_PATH,
@@ -22,6 +22,7 @@ from ppt_generator.interfaces.constants import (
 from ppt_generator.tools.images.service import ImageService
 from ppt_generator.tools.outline.service import OutlineService
 from ppt_generator.tools.pptx.service import ExportService
+from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.script.service import ScriptService
 from ppt_generator.tools.slides.service import SlidesService
 
@@ -34,6 +35,7 @@ class DIContainer:
         self._image_service: ImageService | None = None
         self._export_service: ExportService | None = None
         self._slides_service: SlidesService | None = None
+        self._project_service: ProjectService | None = None
 
     def _create_bedrock_model(self) -> BedrockModel:
         return BedrockModel(
@@ -107,3 +109,9 @@ class DIContainer:
             modify_agent = self._create_slides_modify_agent()
             self._slides_service = SlidesService(agent=agent, modify_agent=modify_agent)
         return self._slides_service
+
+    @property
+    def project_service(self) -> ProjectService:
+        if self._project_service is None:
+            self._project_service = ProjectService(slides_service=self.slides_service)
+        return self._project_service

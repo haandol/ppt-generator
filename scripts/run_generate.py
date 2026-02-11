@@ -7,10 +7,15 @@
 3. generate_images - 이미지 생성
 4. generate_slides - HTML 슬라이드 생성 (F4)
 5. export_pptx - PPTX 내보내기 (F6)
+
+--project-dir 옵션으로 결과물을 디렉토리에 저장할 수 있습니다.
 """
 
+import argparse
+import json
 import logging
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 # 프로젝트 소스를 임포트 경로에 추가
@@ -21,6 +26,7 @@ from ppt_generator.interfaces.schemas import (
     ExportPptxRequest,
     ImageRequest,
     OutlineRequest,
+    ProjectMetadata,
     ScriptRequest,
     SlidesRequest,
 )
@@ -74,19 +80,43 @@ NUM_SLIDES = 9
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="PPT 생성 파이프라인")
+    parser.add_argument("--project-dir", default="", help="결과물 저장 디렉토리")
+    args = parser.parse_args()
+
     container = DIContainer(project_root=Path(__file__).parent)
+    project_dir = Path(args.project_dir) if args.project_dir else None
+
+    if project_dir:
+        project_dir.mkdir(parents=True, exist_ok=True)
+        container.project_service.save_metadata(
+            project_dir,
+            ProjectMetadata(topic=NOTE_TOPIC, num_slides=NUM_SLIDES),
+        )
 
     # Step 1: 아웃라인 생성
     logger.info("=== Step 1: 아웃라인 생성 시작 ===")
     outline_request = OutlineRequest(topic=NOTE_TOPIC, num_slides=NUM_SLIDES)
     outline_response = container.outline_service.generate(outline_request)
     logger.info("아웃라인 생성 완료 (슬라이드 %d장)", len(outline_response.slides))
+    outline_json = json.dumps(asdict(outline_response), ensure_ascii=False, indent=2)
+    if project_dir:
+        container.project_service.save_outline(project_dir, outline_json)
+        container.project_service.update_step(project_dir, "outline")
 
     # Step 2: 스크립트 생성 (아웃라인 기반 speaker_notes 채우기)
     logger.info("=== Step 2: 스크립트 생성 시작 ===")
     script_request = ScriptRequest(outline=outline_response)
     script_response = container.script_service.generate(script_request)
     logger.info("스크립트 생성 완료 (슬라이드 %d장)", len(script_response.slides))
+    script_json = json.dumps(
+        {"slides": [asdict(s) for s in script_response.slides]},
+        ensure_ascii=False,
+        indent=2,
+    )
+    if project_dir:
+        container.project_service.save_script(project_dir, script_json)
+        container.project_service.update_step(project_dir, "script")
 
     # speaker_notes가 채워진 슬라이드 목록 사용
     slides = script_response.slides
@@ -96,6 +126,10 @@ def main() -> None:
     image_request = ImageRequest(slides=slides)
     image_response = container.image_service.generate(image_request)
     logger.info("이미지 생성 완료 (%d개)", len(image_response.images))
+    images_json = json.dumps(asdict(image_response), ensure_ascii=False, indent=2)
+    if project_dir:
+        container.project_service.save_images(project_dir, images_json)
+        container.project_service.update_step(project_dir, "images")
 
     # Step 4: HTML 슬라이드 생성 (F4)
     logger.info("=== Step 4: HTML 슬라이드 생성 시작 ===")
@@ -105,13 +139,22 @@ def main() -> None:
     slides_request = SlidesRequest(slides=slides, image_paths=image_paths)
     slides_response = container.slides_service.generate(slides_request)
     logger.info("HTML 슬라이드 생성 완료: session_id=%s", slides_response.session_id)
+    if project_dir:
+        container.project_service.save_slides_html(project_dir, slides_response.session_id, slides_response.html)
+        container.project_service.update_step(project_dir, "slides")
 
     # Step 5: PPTX 내보내기 (F6)
     logger.info("=== Step 5: PPTX 내보내기 시작 ===")
     export_request = ExportPptxRequest(session_id=slides_response.session_id)
     export_response = container.export_service.export(export_request)
     logger.info("=== PPTX 내보내기 완료! ===")
+    if project_dir:
+        container.project_service.save_pptx(project_dir, export_response.pptx_path)
+        container.project_service.update_step(project_dir, "pptx")
+
     print(f"\n생성된 파일: {export_response.pptx_path}")
+    if project_dir:
+        print(f"프로젝트 디렉토리: {project_dir}")
 
 
 if __name__ == "__main__":

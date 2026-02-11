@@ -1,5 +1,6 @@
 import json
 from dataclasses import asdict
+from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
@@ -9,12 +10,13 @@ from ppt_generator.interfaces.schemas import (
     SlideElement,
     SlideOutline,
 )
+from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.script.service import ScriptService
 
 
-def register_script_tools(mcp: FastMCP, script_service: ScriptService) -> None:
+def register_script_tools(mcp: FastMCP, script_service: ScriptService, project_service: ProjectService) -> None:
     @mcp.tool()
-    def generate_script(outline_json: str) -> str:
+    def generate_script(outline_json: str, project_dir: str = "") -> str:
         """아웃라인을 기반으로 슬라이드별 발표자 노트(스크립트)를 생성합니다.
 
         generate_outline로 생성된 아웃라인 JSON을 입력받아, 각 슬라이드에 대한
@@ -22,6 +24,7 @@ def register_script_tools(mcp: FastMCP, script_service: ScriptService) -> None:
 
         Args:
             outline_json: generate_outline로 생성된 슬라이드 아웃라인 JSON 문자열
+            project_dir: 결과물 저장 디렉토리 (미지정 시 저장 안 함)
 
         Returns:
             speaker_notes가 채워진 슬라이드 아웃라인 JSON 문자열
@@ -29,11 +32,15 @@ def register_script_tools(mcp: FastMCP, script_service: ScriptService) -> None:
         outline = _parse_outline(outline_json)
         request = ScriptRequest(outline=outline)
         response = script_service.generate(request)
-        return json.dumps(
+        result = json.dumps(
             {"slides": [asdict(s) for s in response.slides]},
             ensure_ascii=False,
             indent=2,
         )
+        if project_dir:
+            project_service.save_script(Path(project_dir), result)
+            project_service.update_step(Path(project_dir), "script")
+        return result
 
 
 def _parse_outline(outline_json: str) -> OutlineResponse:

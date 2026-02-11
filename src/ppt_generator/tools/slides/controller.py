@@ -1,14 +1,16 @@
 import json
+from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
 from ppt_generator.interfaces.schemas import SlidesRequest, SlideElement, SlideOutline
+from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
 
 
-def register_slides_tools(mcp: FastMCP, slides_service: SlidesService) -> None:
+def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_service: ProjectService) -> None:
     @mcp.tool()
-    def generate_slides(outline_json: str, images_json: str = "{}") -> str:
+    def generate_slides(outline_json: str, images_json: str = "{}", project_dir: str = "") -> str:
         """아웃라인과 이미지를 기반으로 HTML/CSS 슬라이드를 생성합니다.
 
         슬라이드 아웃라인 JSON과 이미지 경로 정보를 받아 Bedrock LLM이
@@ -19,6 +21,7 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService) -> None:
         Args:
             outline_json: generate_outline로 생성된 슬라이드 아웃라인 JSON 문자열
             images_json: generate_images로 생성된 이미지 경로 JSON 문자열
+            project_dir: 결과물 저장 디렉토리 (미지정 시 저장 안 함)
 
         Returns:
             session_id와 html을 포함하는 JSON 문자열
@@ -55,13 +58,16 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService) -> None:
 
         request = SlidesRequest(slides=slides, image_paths=image_paths)
         response = slides_service.generate(request)
+        if project_dir:
+            project_service.save_slides_html(Path(project_dir), response.session_id, response.html)
+            project_service.update_step(Path(project_dir), "slides")
         return json.dumps(
             {"session_id": response.session_id, "html": response.html},
             ensure_ascii=False,
         )
 
     @mcp.tool()
-    def modify_slides(session_id: str, modification_request: str) -> str:
+    def modify_slides(session_id: str, modification_request: str, project_dir: str = "") -> str:
         """세션의 HTML 슬라이드를 자연어 수정 요청에 따라 수정합니다.
 
         generate_slides로 생성된 세션의 슬라이드를 수정 요청에 따라 변경합니다.
@@ -71,11 +77,15 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService) -> None:
         Args:
             session_id: generate_slides에서 반환된 세션 ID
             modification_request: 자연어 수정 요청 (예: "배경색을 파란색으로 변경해주세요")
+            project_dir: 결과물 저장 디렉토리 (미지정 시 저장 안 함)
 
         Returns:
             session_id와 수정된 html을 포함하는 JSON 문자열
         """
         response = slides_service.modify(session_id, modification_request)
+        if project_dir:
+            project_service.save_slides_html(Path(project_dir), response.session_id, response.html)
+            project_service.update_step(Path(project_dir), "slides_modified")
         return json.dumps(
             {"session_id": response.session_id, "html": response.html},
             ensure_ascii=False,
