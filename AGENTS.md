@@ -3,7 +3,7 @@
 ## Overview
 
 사용자가 주제를 입력하면 AI가 자동으로 HTML 기반 프레젠테이션을 생성하고, 사용자의 수정 요청을 반영한 뒤 최종적으로 편집 가능한 PPTX로 내보내는 Python MCP 서버입니다.
-Amazon Bedrock LLM으로 콘텐츠를 생성하고, Gemini로 시각 자료를 생성하여, HTML 프레임워크 기반 슬라이드로 자유로운 디자인을 구현한 뒤 최종 PPTX로 변환합니다.
+Amazon Bedrock LLM으로 콘텐츠를 생성하고, HTML 슬라이드 생성 과정에서 필요한 경우 Gemini로 시각 자료를 생성하여, HTML 프레임워크 기반 슬라이드로 자유로운 디자인을 구현한 뒤 최종 PPTX로 변환합니다.
 Claude Desktop, Kiro 등 MCP 호환 클라이언트에서 사용할 수 있습니다.
 
 > 📄 **ALPS 설계 문서**: 피쳐 목록, 기능 명세, 인수 기준 등 구현에 필요한 세부 사항은 [`docs/ppt-generator.alps.md`](docs/ppt-generator.alps.md) (또는 원본 [`docs/ppt-generator.alps.xml`](docs/ppt-generator.alps.xml))를 반드시 확인하세요.
@@ -12,7 +12,7 @@ Claude Desktop, Kiro 등 MCP 호환 클라이언트에서 사용할 수 있습�
 > - **Section 1~3**: 프로젝트 개요, MVP 목표, 데모 시나리오
 > - **Section 4~5**: 아키텍처, 설계 명세
 > - **Section 6**: 요구사항 요약
-> - **Section 7**: 피쳐별 상세 명세 (F1~F7) — 사용자 스토리, 흐름, 기술 설명, 엣지 케이스, 인수 기준
+> - **Section 7**: 피쳐별 상세 명세 (F1~F6) — 사용자 스토리, 흐름, 기술 설명, 엣지 케이스, 인수 기준
 > - **Section 8~9**: MVP 메트릭, 범위 외 항목
 
 ## Directory Structure
@@ -30,24 +30,24 @@ ppt-generator/
 │   │   ├── script/                # 발표 스크립트 생성 도구 (F2)
 │   │   │   ├── controller.py
 │   │   │   └── service.py
-│   │   ├── images/                # 이미지 생성 도구 (F3)
+│   │   ├── images/                # 이미지 생성 도구 (F3에서 내부 호출)
 │   │   │   ├── controller.py
 │   │   │   └── service.py
-│   │   ├── pptx/                  # PPTX 내보내기 도구 (F6)
+│   │   ├── pptx/                  # PPTX 내보내기 도구 (F5)
 │   │   │   ├── controller.py
 │   │   │   └── service.py
-│   │   ├── project/               # 프로젝트 저장/로드 도구 (F7)
+│   │   ├── project/               # 프로젝트 저장/로드 도구 (F6)
 │   │   │   ├── controller.py
 │   │   │   └── service.py
-│   │   └── slides/                # HTML 슬라이드 생성/수정 도구 (F4/F5)
+│   │   └── slides/                # HTML 슬라이드 생성/수정 도구 (F3/F4)
 │   │       ├── controller.py
 │   │       └── service.py
 │   ├── interfaces/
 │   │   ├── constants.py           # 모델 설정, 프롬프트, 상수
 │   │   └── schemas.py             # 데이터클래스 (Request/Response)
 │   └── templates/
-│       ├── slides.html     # HTML 슬라이드 템플릿 (TailwindCSS CDN, 수직 스크롤)
-│       └── layout_mapping.py      # 레이아웃 타입 → 슬라이드 레이아웃 매핑
+│       ├── slides.html     # HTML 슬라이드 템플릿 (인라인 CSS, 수직 스크롤)
+│       └── layout_mapping.py      # 레이아웃 인덱스 → 슬라이드 레이아웃 매핑
 ├── docs/
 │   ├── adr/                       # Architecture Decision Records
 │   ├── ppt-generator.alps.xml     # ALPS 설계 문서
@@ -66,7 +66,7 @@ ppt-generator/
 - **LLM**: Amazon Bedrock - Claude Opus 4.6 (`us.anthropic.claude-opus-4-6-v1`)
 - **Outline LLM**: Amazon Bedrock - Claude Sonnet 4.5 (`us.anthropic.claude-sonnet-4-5-20250929-v1:0`)
 - **Image Generation**: Google Gemini 2.5 Flash (`gemini-2.5-flash-image`)
-- **Slide Framework**: 순수 HTML/CSS + TailwindCSS v4 (JavaScript 없음, `templates/slides.html` 템플릿)
+- **Slide Framework**: 순수 HTML/CSS (인라인 스타일, JavaScript 없음, `templates/slides.html` 템플릿)
 - **HTML Parsing**: BeautifulSoup4 (HTML → PPTX 변환용 파싱)
 - **PPTX Export**: python-pptx (HTML 세션 → PPTX 변환)
 
@@ -106,8 +106,8 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 
 ```
 텍스트 (가장 추상적)
-  → 아웃라인 (구조화된 JSON — 슬라이드 구성, 요점, 레이아웃)
-    → 스크립트 (구체적 — 발표 내용이 채워진 아웃라인)
+  → 아웃라인 (구조화된 JSON — 제목, 내용 요약, 레이아웃 인덱스)
+    → 스크립트 (구체적 — 아웃라인 기반 발표 스크립트)
       → HTML 슬라이드 (LLM이 <section> 요소 생성 → 템플릿에 삽입)
         → PPTX (디자인 자유도를 최대한 유지하면서 편집 가능한 포맷으로 변환)
 ```
@@ -115,7 +115,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 **왜 이런 구조인가?**
 
 - **아웃라인 → 스크립트 분리**: 아웃라인은 슬라이드의 뼈대(구조)이고, 스크립트는 살(발표 내용)입니다. 분리하면 구조를 먼저 확정한 뒤 내용을 채울 수 있고, LLM이 각 단계에 집중할 수 있습니다.
-- **HTML을 중간 표현으로 사용**: python-pptx로 직접 생성하면 고정 플레이스홀더와 제한된 스타일링으로 디자인 자유도가 크게 떨어집니다. HTML/CSS + TailwindCSS를 사용하면 LLM이 `<section>` 요소만 생성하고, 서비스가 템플릿(`slides.html`)에 삽입하여 일관된 구조의 슬라이드를 만들 수 있습니다. 브라우저에서 수직 스크롤로 디자인을 확인할 수 있습니다.
+- **HTML을 중간 표현으로 사용**: python-pptx로 직접 생성하면 고정 플레이스홀더와 제한된 스타일링으로 디자인 자유도가 크게 떨어집니다. HTML/CSS (인라인 스타일)를 사용하면 LLM이 `<section>` 요소만 생성하고, 서비스가 템플릿(`slides.html`)에 삽입하여 일관된 구조의 슬라이드를 만들 수 있습니다. 브라우저에서 수직 스크롤로 디자인을 확인할 수 있습니다.
 - **레이아웃 골격(Skeleton) 기반 위치 강제**: `LAYOUT_REGIONS` 좌표를 사용하여 `position:absolute` div 골격을 코드로 생성하고, LLM은 각 `data-region` div 내부 컨텐츠만 채웁니다. 후처리에서 `_validate_region_styles()`로 좌표를 검증/복원하여, LLM이 좌표를 변경하더라도 원래 위치가 보장됩니다. PPTX 변환 시 `data-region` div의 좌표를 직접 사용하여 정확한 위치에 요소를 배치합니다.
 - **HTML → PPTX 변환**: `<section>` 태그 내 HTML 요소를 PPTX의 개별 편집 가능한 객체(텍스트박스, 이미지, 도형)로 매핑하여, 디자인 자유도를 최대한 유지하면서도 실무에서 편집할 수 있는 최종 산출물을 제공합니다.
 
@@ -126,32 +126,29 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 ```
 사용자 입력 (주제 + 슬라이드 수)
     ↓
-F1: generate_outline   → 슬라이드 아웃라인 JSON 생성 (Bedrock LLM, freeform 기본, speaker_notes 비어있음)
+F1: generate_outline   → 슬라이드 아웃라인 JSON 생성 (Bedrock LLM, title/content_summary/layout_index)
     ↓
-F2: generate_script    → 아웃라인 기반 슬라이드별 스크립트 생성 (speaker_notes 채움)
+F2: generate_script    → 아웃라인 기반 슬라이드별 발표 스크립트 생성
     ↓
-F3: generate_images    → 슬라이드별 이미지 생성 (Gemini 2.5 Flash)
-    ↓
-F4: generate_slides    → 아웃라인 + 이미지 → HTML 슬라이드 생성 (레이아웃 골격 생성 → LLM이 영역 내부 컨텐츠 생성 → 좌표 검증 → 템플릿 삽입)
+F3: generate_slides    → 아웃라인 → HTML 슬라이드 생성 (이미지는 필요한 경우에만 내부 생성, 레이아웃 골격 생성 → LLM이 영역 내부 컨텐츠 생성 → 좌표 검증 → 템플릿 삽입)
     ↓ (선택)
-F5: modify_slides      → HTML 슬라이드 수정 (사용자 요청 반영)
+F4: modify_slides      → HTML 슬라이드 수정 (사용자 요청 반영)
     ↓
-F6: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보내기
+F5: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보내기
     ↓
 출력: 편집 가능한 .pptx 파일
 
 * 모든 도구가 project_id를 자동 생성하여 ~/.ppt-generator/<UUID>/에 결과물을 저장
-* F7: load_* 도구에 project_id를 전달하여 저장된 결과물을 로드, 중간 단계부터 재개 가능
+* F6: load_* 도구에 project_id를 전달하여 저장된 결과물을 로드, 중간 단계부터 재개 가능
 ```
 
 ## Available Tools
 
 | Tool | Module | Description |
 |------|--------|-------------|
-| `generate_outline` | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (기본 freeform 모드, speaker_notes 비어있음) |
-| `generate_script` | `tools/script/` | 아웃라인 JSON을 기반으로 슬라이드별 발표자 노트(speaker_notes) 생성 |
-| `generate_images` | `tools/images/` | 아웃라인의 image_idea를 기반으로 Gemini 2.5 Flash로 슬라이드별 이미지 생성 |
-| `generate_slides` | `tools/slides/` | 아웃라인과 이미지를 결합하여 HTML 슬라이드 생성 (LLM이 section 생성 → 템플릿 삽입, 세션 반환) |
+| `generate_outline` | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (title, content_summary, layout_index) |
+| `generate_script` | `tools/script/` | 아웃라인 JSON을 기반으로 슬라이드별 발표 스크립트 생성 |
+| `generate_slides` | `tools/slides/` | 아웃라인 기반 HTML 슬라이드 생성 (이미지는 필요한 경우에만 내부 생성, LLM이 section 생성 → 템플릿 삽입, 세션 반환) |
 | `modify_slides` | `tools/slides/` | 기존 HTML 슬라이드를 사용자 요청에 따라 수정 |
 | `export_pptx` | `tools/pptx/` | 세션의 HTML 슬라이드를 편집 가능한 PPTX 파일로 내보내기 |
 | `load_project_status` | `tools/project/` | 프로젝트 상태 및 메타데이터 로드 |
@@ -167,11 +164,10 @@ F6: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
 | Schema | 용도 |
 |--------|------|
 | `OutlineRequest` / `OutlineResponse` | 아웃라인 생성 입출력 (topic, num_slides → slides) |
-| `ScriptRequest` / `ScriptResponse` | 스크립트 생성 입출력 (outline → slides with speaker_notes) |
-| `SlideOutline` | 개별 슬라이드 아웃라인 (title, bullets, image_idea, layout_type, speaker_notes, elements) |
-| `SlideElement` | freeform 레이아웃의 개별 요소 (type, left, top, width, height, content, font_size_pt, bold) |
-| `ImageRequest` / `ImageResult` / `ImageResponse` | 이미지 생성 입출력 |
-| `SlidesRequest` / `SlidesResponse` | HTML 슬라이드 생성 입출력 (slides, image_paths → session_id, html) |
+| `ScriptRequest` / `ScriptResponse` | 스크립트 생성 입출력 (outline → slides) |
+| `SlideOutline` | 개별 슬라이드 아웃라인 (title, content_summary, layout_index) |
+| `ImageRequest` / `ImageResult` / `ImageResponse` | 이미지 생성 입출력 (내부 스키마, F3에서 내부 호출) |
+| `SlidesRequest` / `SlidesResponse` | HTML 슬라이드 생성 입출력 (slides → session_id, html) |
 | `ExportPptxRequest` / `ExportPptxResponse` | PPTX 내보내기 입출력 (session_id → pptx_path) |
 | `ProjectMetadata` | 프로젝트 메타데이터 (topic, num_slides, steps_completed) |
 
@@ -182,26 +178,23 @@ F6: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
   "slides": [
     {
       "title": "슬라이드 제목",
-      "bullets": ["요점 1", "요점 2"],
-      "image_idea": "이미지 설명 (영어 프롬프트로 변환됨)",
-      "layout_type": "freeform (기본) | title | text_image | text_only | chart | closing",
-      "speaker_notes": "발표자 노트 (스크립트 내용)",
-      "elements": []
+      "content_summary": "슬라이드에 담길 핵심 내용 요약",
+      "layout_index": 0
     }
   ]
 }
 ```
 
-### 레이아웃 타입
+### 레이아웃 인덱스
 
-| layout_type  | 설명                      | 비고                     |
+| layout_index | 설명                      | 비고                     |
 | ------------ | ------------------------- | ------------------------ |
-| `title`      | 제목 슬라이드             | 첫 번째 슬라이드, 위치 구조적 강제 |
-| `text_image` | 좌측 텍스트 + 우측 이미지 | 위치 구조적 강제         |
-| `text_only`  | 전체 텍스트               | 알 수 없는 타입의 폴백, 위치 구조적 강제 |
-| `chart`      | 차트 중심                 | 위치 구조적 강제         |
-| `closing`    | 마무리 슬라이드           | 마지막 슬라이드, 위치 구조적 강제 |
-| `freeform`   | 자유 배치 (좌표 기반)     | **기본 모드**, elements 배열 사용, 위치 구조적 강제 |
+| `0`          | 제목 슬라이드             | 첫 번째 슬라이드, 위치 구조적 강제 |
+| `28`         | 좌측 텍스트 + 우측 이미지 | 위치 구조적 강제         |
+| `22`         | 전체 텍스트               | 알 수 없는 인덱스의 폴백, 위치 구조적 강제 |
+| `21`         | 차트 중심                 | 위치 구조적 강제         |
+| `87`         | 마무리 슬라이드           | 마지막 슬라이드, 위치 구조적 강제 |
+| `88`         | 자유 배치 (Blank)         | 특수 레이아웃, 위치 구조적 강제 |
 
 ## Coding Conventions
 
@@ -249,9 +242,9 @@ uv run pytest tests/test_xxx.py  # 개별 테스트
 
 - **빈 주제 입력** → 입력 검증 후 `ValueError` 발생
 - **LLM이 유효하지 않은 JSON 반환** → 재시도 또는 에러 반환
-- **알 수 없는 layout_type** → `text_only` 레이아웃으로 폴백
-- **image_idea 없는 슬라이드** → 이미지 생성 건너뜀 (`SKIP_IMAGE_LAYOUT_TYPES`에 정의)
-- **Titan Image API 호출 실패** → 해당 슬라이드는 이미지 없이 진행, 에러 로그 기록
+- **알 수 없는 layout_index** → `text_only`(22) 레이아웃으로 폴백
+- **이미지 불필요 슬라이드** → layout_index가 `SKIP_IMAGE_LAYOUT_INDICES`에 해당하면 이미지 생성 건너뜀
+- **Gemini API 호출 실패** → 해당 슬라이드는 이미지 없이 진행, 에러 로그 기록
 - **이미지 파일 누락** → 텍스트만으로 슬라이드 구성
 - **이미지 base64 디코딩 실패** → 해당 이미지 건너뛰고 텍스트만 배치
 
@@ -270,4 +263,4 @@ uv run pytest tests/test_xxx.py  # 개별 테스트
 - 기존 도구 시그니처 변경 (MCP 클라이언트 호환성에 영향)
 - Bedrock API 호출 파라미터 변경 (비용 및 품질에 영향)
 - PPTX 변환 로직 (`tools/pptx/service.py` - section 파싱, 좌표 변환, 스타일 매핑)
-- HTML 템플릿 구조 (`templates/slides.html` - TailwindCSS CDN, placeholder 구조)
+- HTML 템플릿 구조 (`templates/slides.html` - 인라인 CSS, placeholder 구조)
