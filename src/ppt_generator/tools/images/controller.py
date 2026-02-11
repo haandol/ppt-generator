@@ -3,7 +3,7 @@ from dataclasses import asdict
 
 from mcp.server.fastmcp import FastMCP
 
-from ppt_generator.interfaces.schemas import ImageRequest, SlideOutline
+from ppt_generator.interfaces.schemas import ImageRequest, SlideElement, SlideOutline
 from ppt_generator.tools.images.service import ImageService
 
 
@@ -29,6 +29,19 @@ def register_image_tools(mcp: FastMCP, image_service: ImageService) -> None:
                 image_idea=s.get("image_idea", ""),
                 layout_type=s.get("layout_type", "text_only"),
                 speaker_notes=s.get("speaker_notes", ""),
+                elements=[
+                    SlideElement(
+                        type=e.get("type", "textbox"),
+                        left=float(e.get("left", 0)),
+                        top=float(e.get("top", 0)),
+                        width=float(e.get("width", 1)),
+                        height=float(e.get("height", 1)),
+                        content=e.get("content", ""),
+                        font_size_pt=int(e.get("font_size_pt", 16)),
+                        bold=bool(e.get("bold", False)),
+                    )
+                    for e in s.get("elements", [])
+                ],
             )
             for s in data["slides"]
         ]

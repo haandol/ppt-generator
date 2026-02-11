@@ -59,9 +59,25 @@ LAYOUT_MAP: dict[str, LayoutInfo] = {
         layout_index=87,
         layout_name="Thank You Option 1",
     ),
+    "freeform": LayoutInfo(
+        layout_index=88,
+        layout_name="Blank",
+    ),
 }
 
 DEFAULT_LAYOUT_TYPE = "text_only"
+
+
+def find_blank_layout_index(prs) -> int:
+    """프레젠테이션에서 placeholder가 없는 blank 레이아웃 인덱스를 찾습니다.
+
+    찾지 못하면 LAYOUT_MAP['freeform']에 등록된 기본 인덱스를 반환합니다.
+    """
+    for i, layout in enumerate(prs.slide_layouts):
+        name_lower = layout.name.lower()
+        if "blank" in name_lower and len(layout.placeholders) == 0:
+            return i
+    return LAYOUT_MAP["freeform"].layout_index
 
 
 def get_layout_info(layout_type: str) -> LayoutInfo:

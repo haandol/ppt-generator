@@ -8,6 +8,7 @@ from ppt_generator.interfaces.constants import (
     BEDROCK_MODEL_ID,
     BEDROCK_REGION,
     BEDROCK_TEMPERATURE,
+    OUTLINE_FREEFORM_SYSTEM_PROMPT,
     OUTLINE_SYSTEM_PROMPT,
     PPTX_TEMPLATE_PATH,
     SCRIPT_SYSTEM_PROMPT,
@@ -36,11 +37,15 @@ class DIContainer:
 
     def _create_script_agent(self) -> Agent:
         model = self._create_bedrock_model()
-        return Agent(model=model, system_prompt=SCRIPT_SYSTEM_PROMPT)
+        return Agent(model=model, system_prompt=SCRIPT_SYSTEM_PROMPT, callback_handler=None, tools=[])
 
     def _create_outline_agent(self) -> Agent:
         model = self._create_bedrock_model()
-        return Agent(model=model, system_prompt=OUTLINE_SYSTEM_PROMPT)
+        return Agent(model=model, system_prompt=OUTLINE_SYSTEM_PROMPT, callback_handler=None, tools=[])
+
+    def _create_freeform_outline_agent(self) -> Agent:
+        model = self._create_bedrock_model()
+        return Agent(model=model, system_prompt=OUTLINE_FREEFORM_SYSTEM_PROMPT, callback_handler=None, tools=[])
 
     @property
     def script_service(self) -> ScriptService:
@@ -53,7 +58,8 @@ class DIContainer:
     def outline_service(self) -> OutlineService:
         if self._outline_service is None:
             agent = self._create_outline_agent()
-            self._outline_service = OutlineService(agent=agent)
+            freeform_agent = self._create_freeform_outline_agent()
+            self._outline_service = OutlineService(agent=agent, freeform_agent=freeform_agent)
         return self._outline_service
 
     @property

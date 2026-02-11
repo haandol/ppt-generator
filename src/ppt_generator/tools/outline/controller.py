@@ -9,7 +9,7 @@ from ppt_generator.tools.outline.service import OutlineService
 
 def register_outline_tools(mcp: FastMCP, outline_service: OutlineService) -> None:
     @mcp.tool()
-    def generate_outline(script: str) -> str:
+    def generate_outline(script: str, freeform: bool = False) -> str:
         """발표 스크립트를 분석하여 슬라이드 아웃라인 JSON을 생성합니다.
 
         스크립트의 논리적 흐름을 분석하여 슬라이드별 제목, 본문 요점, 이미지 아이디어,
@@ -17,10 +17,12 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService) -> Non
 
         Args:
             script: generate_script로 생성된 발표 스크립트 텍스트
+            freeform: True이면 요소별 좌표를 포함한 free-form 레이아웃을 생성합니다.
+                      기본값은 False (기존 placeholder 모드).
 
         Returns:
             슬라이드 아웃라인 JSON 문자열
         """
         request = OutlineRequest(script=script)
-        response = outline_service.generate(request)
+        response = outline_service.generate(request, freeform=freeform)
         return json.dumps(asdict(response), ensure_ascii=False, indent=2)
