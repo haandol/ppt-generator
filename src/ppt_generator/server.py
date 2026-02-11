@@ -7,6 +7,7 @@ from ppt_generator.tools.images.controller import register_image_tools
 from ppt_generator.tools.outline.controller import register_outline_tools
 from ppt_generator.tools.pptx.controller import register_pptx_tools
 from ppt_generator.tools.script.controller import register_script_tools
+from ppt_generator.tools.slides.controller import register_slides_tools
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ def create_server() -> FastMCP:
     register_outline_tools(mcp, container.outline_service)
     register_image_tools(mcp, container.image_service)
     register_pptx_tools(mcp, container.pptx_service)
+    register_slides_tools(mcp, container.slides_service)
     return mcp
 
 
