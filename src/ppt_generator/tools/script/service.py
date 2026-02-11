@@ -1,6 +1,5 @@
 import json
 import re
-from dataclasses import replace
 
 from strands import Agent
 
@@ -21,8 +20,7 @@ class ScriptService:
         result = str(self._agent(prompt))
 
         scripts = self._parse_scripts(result)
-        updated_slides = self._apply_scripts(request.outline.slides, scripts)
-        return ScriptResponse(slides=updated_slides)
+        return ScriptResponse(slides=request.outline.slides)
 
     def _build_outline_json(self, slides: list[SlideOutline]) -> str:
         data = []
@@ -31,8 +29,8 @@ class ScriptService:
                 {
                     "slide_index": i,
                     "title": slide.title,
-                    "bullets": slide.bullets,
-                    "layout_type": slide.layout_type,
+                    "content_summary": slide.content_summary,
+                    "layout_index": slide.layout_index,
                 }
             )
         return json.dumps({"slides": data}, ensure_ascii=False, indent=2)
@@ -56,14 +54,3 @@ class ScriptService:
             if isinstance(idx, int) and idx >= 0:
                 result[idx] = notes
         return result
-
-    def _apply_scripts(
-        self, slides: list[SlideOutline], scripts: dict[int, str]
-    ) -> list[SlideOutline]:
-        updated: list[SlideOutline] = []
-        for i, slide in enumerate(slides):
-            if i in scripts:
-                updated.append(replace(slide, speaker_notes=scripts[i]))
-            else:
-                updated.append(slide)
-        return updated

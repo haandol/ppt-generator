@@ -22,15 +22,13 @@ pytestmark = pytest.mark.skipif(
 
 def _make_slide(
     title: str = "테스트 슬라이드",
-    image_idea: str = "a simple blue circle on white background",
-    layout_type: str = "text_image",
+    content_summary: str = "a simple blue circle on white background",
+    layout_index: int = 28,
 ) -> SlideOutline:
     return SlideOutline(
         title=title,
-        bullets=["bullet 1"],
-        image_idea=image_idea,
-        layout_type=layout_type,
-        speaker_notes="",
+        content_summary=content_summary,
+        layout_index=layout_index,
     )
 
 
@@ -58,8 +56,8 @@ class TestImageServiceIntegration:
     def test_generate_multiple_images(self, image_service, tmp_path):
         """여러 슬라이드에 대해 이미지를 생성합니다."""
         slides = [
-            _make_slide(title="첫 번째", image_idea="a red triangle on white background"),
-            _make_slide(title="두 번째", image_idea="a green square on white background"),
+            _make_slide(title="첫 번째", content_summary="a red triangle on white background"),
+            _make_slide(title="두 번째", content_summary="a green square on white background"),
         ]
         request = ImageRequest(slides=slides)
         response = image_service.generate(request, output_dir=tmp_path)
@@ -74,10 +72,10 @@ class TestImageServiceIntegration:
     def test_skip_and_generate_mixed(self, image_service, tmp_path):
         """스킵 대상과 생성 대상이 섞인 경우를 테스트합니다."""
         slides = [
-            _make_slide(layout_type="title", image_idea="should be skipped"),
-            _make_slide(image_idea="a yellow star on dark background"),
-            _make_slide(image_idea=""),
-            _make_slide(image_idea="a purple diamond on light gray background"),
+            _make_slide(layout_index=0, content_summary="should be skipped"),
+            _make_slide(content_summary="a yellow star on dark background"),
+            _make_slide(content_summary=""),
+            _make_slide(content_summary="a purple diamond on light gray background"),
         ]
         request = ImageRequest(slides=slides)
         response = image_service.generate(request, output_dir=tmp_path)

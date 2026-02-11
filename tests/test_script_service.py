@@ -9,24 +9,18 @@ from ppt_generator.tools.script.service import ScriptService
 SAMPLE_SLIDES = [
     SlideOutline(
         title="클라우드 컴퓨팅 트렌드",
-        bullets=["핵심 트렌드 소개", "시장 현황"],
-        image_idea="클라우드 인프라 개념도",
-        layout_type="title",
-        speaker_notes="",
+        content_summary="핵심 트렌드 소개, 시장 현황 개요",
+        layout_index=0,
     ),
     SlideOutline(
         title="멀티클라우드 전략",
-        bullets=["AWS, Azure, GCP 비교", "하이브리드 접근"],
-        image_idea="멀티클라우드 아키텍처 다이어그램",
-        layout_type="text_image",
-        speaker_notes="",
+        content_summary="AWS, Azure, GCP 비교 및 하이브리드 접근 방식",
+        layout_index=28,
     ),
     SlideOutline(
         title="감사합니다",
-        bullets=["Q&A"],
-        image_idea="",
-        layout_type="closing",
-        speaker_notes="",
+        content_summary="Q&A 시간",
+        layout_index=87,
     ),
 ]
 
@@ -55,15 +49,12 @@ def service(mock_agent):
 
 
 class TestScriptService:
-    def test_generate_returns_script_response_with_speaker_notes(self, service):
+    def test_generate_returns_script_response(self, service):
         outline = OutlineResponse(slides=SAMPLE_SLIDES)
         request = ScriptRequest(outline=outline)
         response = service.generate(request)
 
         assert len(response.slides) == 3
-        assert response.slides[0].speaker_notes == "안녕하세요, 오늘은 클라우드 컴퓨팅 트렌드에 대해 발표하겠습니다."
-        assert response.slides[1].speaker_notes == "첫 번째 트렌드는 멀티클라우드 전략입니다."
-        assert response.slides[2].speaker_notes == "이상으로 발표를 마치겠습니다."
 
     def test_generate_preserves_slide_fields(self, service):
         outline = OutlineResponse(slides=SAMPLE_SLIDES)
@@ -71,8 +62,8 @@ class TestScriptService:
         response = service.generate(request)
 
         assert response.slides[0].title == "클라우드 컴퓨팅 트렌드"
-        assert response.slides[0].layout_type == "title"
-        assert response.slides[1].bullets == ["AWS, Azure, GCP 비교", "하이브리드 접근"]
+        assert response.slides[0].layout_index == 0
+        assert response.slides[1].content_summary == "AWS, Azure, GCP 비교 및 하이브리드 접근 방식"
 
     def test_generate_calls_agent_with_outline(self, service, mock_agent):
         outline = OutlineResponse(slides=SAMPLE_SLIDES)
@@ -97,7 +88,6 @@ class TestScriptService:
         response = service.generate(request)
 
         assert len(response.slides) == 3
-        assert response.slides[0].speaker_notes != ""
 
     def test_generate_raises_on_invalid_json(self, mock_agent):
         mock_agent.return_value = "이것은 JSON이 아닙니다"
@@ -116,22 +106,3 @@ class TestScriptService:
 
         with pytest.raises(ValueError, match="scripts"):
             service.generate(request)
-
-    def test_generate_keeps_original_notes_for_missing_indices(self, mock_agent):
-        partial_scripts = json.dumps(
-            {
-                "scripts": [
-                    {"slide_index": 0, "speaker_notes": "첫 번째 노트"},
-                ]
-            },
-            ensure_ascii=False,
-        )
-        mock_agent.return_value = partial_scripts
-        service = ScriptService(agent=mock_agent)
-        outline = OutlineResponse(slides=SAMPLE_SLIDES)
-        request = ScriptRequest(outline=outline)
-        response = service.generate(request)
-
-        assert response.slides[0].speaker_notes == "첫 번째 노트"
-        assert response.slides[1].speaker_notes == ""
-        assert response.slides[2].speaker_notes == ""

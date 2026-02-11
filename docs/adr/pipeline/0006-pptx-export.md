@@ -1,4 +1,4 @@
-# 6. PPTX 내보내기 (F6)
+# 6. PPTX 내보내기 (F5)
 
 Date: 2026-02-11
 
@@ -8,7 +8,7 @@ Accepted (Updated: data-region 기반 요소 추출 추가)
 
 ## Context
 
-F4/F5를 거쳐 확정된 HTML 슬라이드를 편집 가능한 .pptx 파일로 변환해야 한다. HTML 기반 슬라이드는 디자인 자유도가 높지만, 최종 결과물은 PowerPoint에서 텍스트/이미지/도형을 개별적으로 편집할 수 있어야 실무에서 활용 가능하다.
+F3/F4를 거쳐 확정된 HTML 슬라이드를 편집 가능한 .pptx 파일로 변환해야 한다. HTML 기반 슬라이드는 디자인 자유도가 높지만, 최종 결과물은 PowerPoint에서 텍스트/이미지/도형을 개별적으로 편집할 수 있어야 실무에서 활용 가능하다.
 
 ## Decision
 
@@ -97,4 +97,4 @@ sequenceDiagram
 - 의존: `src/ppt_generator/tools/slides/service.py` — `SlidesService.get_session_html()`
 - 테스트: `tests/test_pptx_service.py`
 - 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0005-slide-modification](./0005-slide-modification.md), [0012-layout-skeleton-enforcement](./0012-layout-skeleton-enforcement.md)
-- ALPS: Section 7.6
+- ALPS: Section 7.5

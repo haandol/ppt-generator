@@ -29,13 +29,11 @@ F1: generate_outline   → 슬라이드 아웃라인 JSON 생성 (freeform 좌�
     ↓
 F2: generate_script    → 아웃라인 기반 발표 스크립트 생성 (speaker_notes 채움)
     ↓
-F3: generate_images    → 슬라이드별 이미지 생성 (Gemini 2.5 Flash)
-    ↓
-F4: generate_slides    → 아웃라인 + 이미지 → HTML 슬라이드 생성 (section → 템플릿 삽입, 1장씩 개별)
+F3: generate_slides    → 아웃라인 → HTML 슬라이드 생성 (이미지는 필요한 경우에만 내부 생성, 1장씩 개별)
     ↓ (선택)
-F5: modify_slides      → 사용자 수정 요청 반영 (슬라이드 단위 또는 전체, 반복 가능)
+F4: modify_slides      → 사용자 수정 요청 반영 (슬라이드 단위 또는 전체, 반복 가능)
     ↓
-F6: export_pptx        → 편집 가능한 PPTX 파일 내보내기
+F5: export_pptx        → 편집 가능한 PPTX 파일 내보내기
     ↓
 출력: .pptx 파일 경로
 ```
@@ -49,11 +47,11 @@ F6: export_pptx        → 편집 가능한 PPTX 파일 내보내기
   project.json         # 메타데이터 (주제, 슬라이드 수, 단계 완료 상태)
   outline.json         # F1 출력
   script.json          # F2 출력
-  images/              # F3 출력 (이미지 파일)
-  images.json          # F3 메타 (이미지 경로 목록)
-  slides.html          # F4/F5 출력
+  images/              # F3에서 내부 생성 (이미지 파일)
+  images.json          # F3에서 내부 생성 메타 (이미지 경로 목록)
+  slides.html          # F3/F4 출력
   slides_meta.json     # 세션 메타 (session_id, image_paths)
-  presentation.pptx    # F6 출력
+  presentation.pptx    # F5 출력
 ```
 
 ## 요구사항
@@ -105,8 +103,7 @@ uv run pytest
 |------|------|------|------|
 | `generate_outline` | 슬라이드 아웃라인 생성 | 주제, 슬라이드 수, [project_id] | 아웃라인 JSON + project_id |
 | `generate_script` | 발표 스크립트 생성 | 아웃라인 JSON, [project_id] | speaker_notes 포함 아웃라인 JSON + project_id |
-| `generate_images` | 슬라이드별 이미지 생성 | 아웃라인 JSON, [project_id] | 이미지 경로 목록 JSON + project_id |
-| `generate_slides` | HTML 슬라이드 생성 | 아웃라인 JSON, 이미지 경로 JSON, [project_id] | session_id + HTML + project_id |
+| `generate_slides` | HTML 슬라이드 생성 (이미지 내부 생성) | 아웃라인 JSON, [project_id] | session_id + HTML + project_id |
 | `modify_slides` | 슬라이드 수정 | 세션 ID, 수정 요청, [slide_index], [project_id] | session_id + 수정된 HTML + project_id |
 | `export_pptx` | PPTX 내보내기 | 세션 ID, [project_id] | project_id + .pptx 파일 경로 |
 
@@ -137,10 +134,10 @@ ppt-generator/
 │   └── tools/
 │       ├── outline/               # F1: 아웃라인 생성
 │       ├── script/                # F2: 발표 스크립트 생성
-│       ├── images/                # F3: 이미지 생성
-│       ├── slides/                # F4/F5: HTML 슬라이드 생성 + 수정
-│       ├── pptx/                  # F6: PPTX 내보내기
-│       └── project/               # F7: 프로젝트 저장/로드
+│       ├── images/                # F3에서 내부 호출: 이미지 생성
+│       ├── slides/                # F3/F4: HTML 슬라이드 생성 + 수정
+│       ├── pptx/                  # F5: PPTX 내보내기
+│       └── project/               # F6: 프로젝트 저장/로드
 ├── docs/
 │   ├── adr/                       # Architecture Decision Records
 │   ├── ppt-generator.alps.xml     # ALPS 설계 문서

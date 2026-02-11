@@ -14,7 +14,7 @@ from ppt_generator.interfaces.constants import (
     BEDROCK_REGION,
     BEDROCK_SCRIPT_MAX_TOKENS,
     BEDROCK_TEMPERATURE,
-    OUTLINE_FREEFORM_SYSTEM_PROMPT,
+    OUTLINE_SYSTEM_PROMPT,
     PPTX_TEMPLATE_PATH,
     SCRIPT_SYSTEM_PROMPT,
     SLIDES_MODIFY_SYSTEM_PROMPT,
@@ -62,7 +62,7 @@ class DIContainer:
             temperature=BEDROCK_TEMPERATURE,
             max_tokens=BEDROCK_OUTLINE_MAX_TOKENS,
         )
-        return Agent(model=model, system_prompt=OUTLINE_FREEFORM_SYSTEM_PROMPT, callback_handler=None, tools=[])
+        return Agent(model=model, system_prompt=OUTLINE_SYSTEM_PROMPT, callback_handler=None, tools=[])
 
     def _create_slides_agent(self) -> Agent:
         model = self._create_bedrock_model()

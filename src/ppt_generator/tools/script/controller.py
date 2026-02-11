@@ -6,7 +6,6 @@ from mcp.server.fastmcp import FastMCP
 from ppt_generator.interfaces.schemas import (
     OutlineResponse,
     ScriptRequest,
-    SlideElement,
     SlideOutline,
 )
 from ppt_generator.tools.project.service import ProjectService
@@ -52,27 +51,11 @@ def _parse_outline(outline_json: str) -> OutlineResponse:
     data = json.loads(outline_json)
     slides: list[SlideOutline] = []
     for item in data["slides"]:
-        elements = [
-            SlideElement(
-                type=e.get("type", "textbox"),
-                left=float(e.get("left", 0)),
-                top=float(e.get("top", 0)),
-                width=float(e.get("width", 1)),
-                height=float(e.get("height", 1)),
-                content=e.get("content", ""),
-                font_size_pt=int(e.get("font_size_pt", 16)),
-                bold=bool(e.get("bold", False)),
-            )
-            for e in item.get("elements", [])
-        ]
         slides.append(
             SlideOutline(
                 title=item.get("title", ""),
-                bullets=item.get("bullets", []),
-                image_idea=item.get("image_idea", ""),
-                layout_type=item.get("layout_type", "text_only"),
-                speaker_notes=item.get("speaker_notes", ""),
-                elements=elements,
+                content_summary=item.get("content_summary", ""),
+                layout_index=item.get("layout_index", 22),
             )
         )
     return OutlineResponse(slides=slides)

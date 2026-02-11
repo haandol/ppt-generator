@@ -8,10 +8,10 @@ Accepted
 
 ## Context
 
-F4(generate_slides)가 이미지를 base64 data URI로 HTML에 임베딩하고 있어, 이미지 포함 시 HTML이 수 MB로 커지는 문제가 발생한다:
+F3(generate_slides)가 이미지를 base64 data URI로 HTML에 임베딩하고 있어, 이미지 포함 시 HTML이 수 MB로 커지는 문제가 발생한다:
 
 - MCP 응답 토큰 한도 초과
-- F5(modify_slides)에서 LLM에 전달되는 HTML의 토큰 급증
+- F4(modify_slides)에서 LLM에 전달되는 HTML의 토큰 급증
 - 세션 메모리 사용량 증가
 
 ## Decision

@@ -11,6 +11,7 @@ from strands import Agent
 from bs4 import BeautifulSoup
 
 from ppt_generator.interfaces.constants import (
+    DEFAULT_LAYOUT_INDEX,
     LAYOUT_REGIONS,
     SLIDES_TEMPLATE_PATH,
     SLIDES_DESIGN_SUMMARY_PROMPT,
@@ -86,8 +87,8 @@ class SlidesService:
         modified_section_html = self._extract_sections(result)
 
         # region 기반 좌표 검증
-        layout_type = self._detect_layout_type_from_html(modified_section_html)
-        modified_section_html = self._validate_region_styles(modified_section_html, layout_type)
+        layout_index = self._detect_layout_index_from_html(modified_section_html)
+        modified_section_html = self._validate_region_styles(modified_section_html, layout_index)
 
         modified_section = BeautifulSoup(modified_section_html, "html.parser").find("section")
         if modified_section is None:
@@ -122,9 +123,8 @@ class SlidesService:
             global_idx = start_index + i
             image_placeholder = f"{{IMAGE_{global_idx}}}" if global_idx in image_paths else None
             skeleton = build_layout_skeleton(
-                layout_type=slide.layout_type,
+                layout_index=slide.layout_index,
                 slide_index=global_idx,
-                speaker_notes=slide.speaker_notes,
                 image_placeholder=image_placeholder,
             )
             outline_json = json.dumps(
@@ -142,7 +142,7 @@ class SlidesService:
             result = str(self._agent(prompt))
 
             section = self._extract_sections(result)
-            section = self._validate_region_styles(section, slide.layout_type)
+            section = self._validate_region_styles(section, slide.layout_index)
             all_sections.append(section)
 
         combined = "\n".join(all_sections)
@@ -191,9 +191,8 @@ class SlidesService:
             global_idx = offset + i
             image_placeholder = f"{{IMAGE_{global_idx}}}" if global_idx in image_paths else None
             skeleton = build_layout_skeleton(
-                layout_type=slide.layout_type,
+                layout_index=slide.layout_index,
                 slide_index=global_idx,
-                speaker_notes=slide.speaker_notes,
                 image_placeholder=image_placeholder,
             )
             outline_json = json.dumps(
@@ -212,7 +211,7 @@ class SlidesService:
             result = str(self._agent(prompt))
 
             section = self._extract_sections(result)
-            section = self._validate_region_styles(section, slide.layout_type)
+            section = self._validate_region_styles(section, slide.layout_index)
             all_sections.append(section)
 
         combined = "\n".join(all_sections)
@@ -248,9 +247,9 @@ class SlidesService:
     # --- 좌표 검증 ---
 
     @staticmethod
-    def _validate_region_styles(section_html: str, layout_type: str) -> str:
+    def _validate_region_styles(section_html: str, layout_index: int) -> str:
         """LLM이 region div의 좌표를 변경했을 경우 LAYOUT_REGIONS 원본 좌표로 복원."""
-        regions = LAYOUT_REGIONS.get(layout_type, LAYOUT_REGIONS["text_only"])
+        regions = LAYOUT_REGIONS.get(layout_index, LAYOUT_REGIONS[DEFAULT_LAYOUT_INDEX])
         soup = BeautifulSoup(section_html, "html.parser")
 
         for region_div in soup.find_all("div", attrs={"data-region": True}):
@@ -267,47 +266,30 @@ class SlidesService:
         return str(soup)
 
     @staticmethod
-    def _detect_layout_type_from_html(section_html: str) -> str:
-        """section HTML의 data-region 이름들로 layout_type을 추정."""
+    def _detect_layout_index_from_html(section_html: str) -> int:
+        """section HTML의 data-region 이름들로 layout_index를 추정."""
         soup = BeautifulSoup(section_html, "html.parser")
         region_names = {
             div["data-region"]
             for div in soup.find_all("div", attrs={"data-region": True})
         }
         if not region_names:
-            return "text_only"
+            return DEFAULT_LAYOUT_INDEX
 
-        for layout_type, regions in LAYOUT_REGIONS.items():
+        for layout_index, regions in LAYOUT_REGIONS.items():
             if set(regions.keys()) == region_names:
-                return layout_type
-        return "text_only"
+                return layout_index
+        return DEFAULT_LAYOUT_INDEX
 
     # --- 유틸리티 ---
 
     @staticmethod
     def _slide_to_dict(slide: SlideOutline) -> dict:
-        d: dict = {
+        return {
             "title": slide.title,
-            "bullets": slide.bullets,
-            "image_idea": slide.image_idea,
-            "layout_type": slide.layout_type,
-            "speaker_notes": slide.speaker_notes,
+            "content_summary": slide.content_summary,
+            "layout_index": slide.layout_index,
         }
-        if slide.elements:
-            d["elements"] = [
-                {
-                    "type": e.type,
-                    "left": e.left,
-                    "top": e.top,
-                    "width": e.width,
-                    "height": e.height,
-                    "content": e.content,
-                    "font_size_pt": e.font_size_pt,
-                    "bold": e.bold,
-                }
-                for e in slide.elements
-            ]
-        return d
 
     @staticmethod
     def _build_image_data(
@@ -320,11 +302,11 @@ class SlidesService:
             global_idx = start_index + i
             if global_idx in image_paths and Path(image_paths[global_idx]).exists():
                 lines.append(
-                    f"- 슬라이드 {global_idx} ({slide.layout_type}): "
+                    f"- 슬라이드 {global_idx} (layout_index={slide.layout_index}): "
                     f"이미지 있음 → {{IMAGE_{global_idx}}} placeholder를 사용하세요."
                 )
             else:
-                lines.append(f"- 슬라이드 {global_idx} ({slide.layout_type}): 이미지 없음")
+                lines.append(f"- 슬라이드 {global_idx} (layout_index={slide.layout_index}): 이미지 없음")
         return "\n".join(lines)
 
     @staticmethod
