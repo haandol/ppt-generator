@@ -26,11 +26,13 @@ class ImageService:
     def __init__(self, bedrock_runtime: BedrockRuntimeClient) -> None:
         self._client = bedrock_runtime
 
-    def generate(self, request: ImageRequest) -> ImageResponse:
+    def generate(self, request: ImageRequest, output_dir: Path | None = None) -> ImageResponse:
         if not request.slides:
             raise ValueError("슬라이드 목록이 비어있습니다.")
 
-        output_dir = Path(tempfile.mkdtemp(prefix="ppt_images_"))
+        if output_dir is None:
+            output_dir = Path(tempfile.mkdtemp(prefix="ppt_images_"))
+        output_dir.mkdir(parents=True, exist_ok=True)
         results: list[ImageResult] = []
 
         for i, slide in enumerate(request.slides):

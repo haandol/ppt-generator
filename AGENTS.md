@@ -96,6 +96,26 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 - **Service** (`service.py`): 비즈니스 로직. Request 데이터클래스를 받아 Response 데이터클래스를 반환합니다.
 - **DIContainer** (`di/container.py`): Bedrock 모델, Agent, Service 인스턴스를 생성하고 연결합니다. 지연 초기화(lazy init) 패턴을 사용합니다.
 
+### Pipeline Design Philosophy: Progressive Refinement
+
+파이프라인은 **추상에서 구체로의 점진적 구체화(Progressive Refinement)** 원칙으로 설계되었습니다. 각 단계는 이전 단계의 출력을 더 구체적인 형태로 변환하며, 디자인 자유도를 최대한 보존합니다.
+
+```
+텍스트 (가장 추상적)
+  → 아웃라인 (구조화된 JSON — 슬라이드 구성, 요점, 레이아웃)
+    → 스크립트 (구체적 — 발표 내용이 채워진 아웃라인)
+      → HTML 슬라이드 (코드로 디자인 자유도 최대화 — CSS position:absolute 자유 배치)
+        → PPTX (디자인 자유도를 최대한 유지하면서 편집 가능한 포맷으로 변환)
+```
+
+**왜 이런 구조인가?**
+
+- **아웃라인 → 스크립트 분리**: 아웃라인은 슬라이드의 뼈대(구조)이고, 스크립트는 살(발표 내용)입니다. 분리하면 구조를 먼저 확정한 뒤 내용을 채울 수 있고, LLM이 각 단계에 집중할 수 있습니다.
+- **HTML을 중간 표현으로 사용**: python-pptx로 직접 생성하면 고정 플레이스홀더와 제한된 스타일링으로 디자인 자유도가 크게 떨어집니다. HTML/CSS는 LLM이 코드로 자유롭게 디자인할 수 있는 최적의 중간 표현입니다.
+- **HTML → PPTX 변환**: HTML의 자유로운 디자인을 PPTX의 개별 편집 가능한 객체(텍스트박스, 이미지, 도형)로 매핑하여, 디자인 자유도를 최대한 유지하면서도 실무에서 편집할 수 있는 최종 산출물을 제공합니다.
+
+> 관련 ADR: [0011-progressive-refinement-pipeline](../docs/adr/pipeline/0011-progressive-refinement-pipeline.md)
+
 ### Processing Pipeline
 
 ```
@@ -115,8 +135,8 @@ F6: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
     ↓
 출력: 편집 가능한 .pptx 파일
 
-* 모든 generate 도구에 project_dir 파라미터를 지정하면 결과물이 자동 저장됨
-* F7: load_* 도구로 저장된 결과물을 로드하여 중간 단계부터 재개 가능
+* 모든 도구가 project_id를 자동 생성하여 ~/.ppt-generator/<UUID>/에 결과물을 저장
+* F7: load_* 도구에 project_id를 전달하여 저장된 결과물을 로드, 중간 단계부터 재개 가능
 ```
 
 ## Available Tools

@@ -1,3 +1,7 @@
+from pathlib import Path
+
+PPT_GENERATOR_HOME = Path.home() / ".ppt-generator"
+
 BEDROCK_MODEL_ID = "us.anthropic.claude-opus-4-6-v1"
 BEDROCK_OUTLINE_MODEL_ID = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 BEDROCK_REGION = "us-east-1"
@@ -123,7 +127,7 @@ SLIDES_USER_PROMPT_TEMPLATE = (
 )
 
 # --- F4: 슬라이드 분할 처리 ---
-SLIDES_MAX_PER_BATCH = 10
+SLIDES_MAX_PER_BATCH = 1
 
 SLIDES_BATCH_USER_PROMPT_TEMPLATE = (
     "다음 아웃라인의 슬라이드를 생성해주세요. "
@@ -171,4 +175,15 @@ SLIDES_MODIFY_USER_PROMPT_TEMPLATE = (
     "다음 HTML 슬라이드를 수정 요청에 따라 수정해주세요.\n\n"
     "현재 HTML 슬라이드:\n{current_html}\n\n"
     "수정 요청:\n{modification_request}"
+)
+
+SLIDES_MODIFY_SINGLE_USER_PROMPT_TEMPLATE = (
+    "다음은 슬라이드 {slide_index}번의 HTML 코드입니다. "
+    "이 슬라이드만 수정 요청에 따라 수정해주세요.\n\n"
+    "현재 슬라이드 HTML:\n{current_slide_html}\n\n"
+    "수정 요청:\n{modification_request}\n\n"
+    "출력 규칙:\n"
+    "- <div class=\"slide\" ...> 요소 하나만 출력하세요.\n"
+    "- 완전한 HTML 문서를 출력하지 마세요.\n"
+    "- 마크다운 코드블록(```)으로 감싸지 마세요."
 )
