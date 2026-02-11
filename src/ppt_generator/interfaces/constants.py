@@ -113,3 +113,45 @@ SLIDES_USER_PROMPT_TEMPLATE = (
     "슬라이드 아웃라인:\n{outline_json}\n\n"
     "이미지 정보:\n{image_data}"
 )
+
+# --- F4: 슬라이드 분할 처리 ---
+SLIDES_MAX_PER_BATCH = 10
+
+SLIDES_BATCH_USER_PROMPT_TEMPLATE = (
+    "다음 아웃라인의 슬라이드를 생성해주세요. "
+    "이전 배치에서 사용된 디자인 테마를 반드시 동일하게 유지하세요.\n\n"
+    "이전 배치의 디자인 요약:\n{design_summary}\n\n"
+    "슬라이드 아웃라인:\n{outline_json}\n\n"
+    "이미지 정보:\n{image_data}\n\n"
+    "출력 규칙:\n"
+    "- 완전한 HTML 문서를 출력하지 말고, <div class=\"slide\" ...> 요소들만 출력하세요.\n"
+    "- <html>, <head>, <body> 태그 없이 슬라이드 div들만 출력하세요.\n"
+    "- 이전 배치와 동일한 폰트, 색상, 배경, 스타일을 사용하세요."
+)
+
+SLIDES_DESIGN_SUMMARY_PROMPT = (
+    "다음 HTML 슬라이드 코드에서 사용된 디자인 테마를 요약해주세요.\n"
+    "배경색, 텍스트 색상, 폰트, 제목 스타일, 본문 스타일, 전체적인 색상 팔레트를 포함하세요.\n"
+    "간결하게 3~5줄로 요약하세요. HTML 코드는 출력하지 마세요.\n\n"
+    "HTML:\n{html}"
+)
+
+# --- F5: 슬라이드 수정 ---
+SLIDES_MODIFY_SYSTEM_PROMPT = (
+    "당신은 프레젠테이션 HTML/CSS 수정 전문가입니다. "
+    "사용자의 수정 요청에 따라 기존 HTML 슬라이드를 정확하게 수정하세요.\n\n"
+    "수정 규칙:\n"
+    "- 수정 요청에 해당하는 부분만 변경하고, 나머지는 그대로 유지하세요.\n"
+    "- 슬라이드 크기(960px × 540px)와 기본 구조를 유지하세요.\n"
+    "- 인라인 CSS 스타일을 사용하세요.\n"
+    "- 이미지 src 속성(data URI)은 변경하지 마세요.\n\n"
+    "출력 규칙:\n"
+    "- 완전한 HTML 문서를 출력하세요 (<!DOCTYPE html> 포함).\n"
+    "- 마크다운 코드블록(```)으로 감싸지 마세요. HTML 코드만 출력하세요."
+)
+
+SLIDES_MODIFY_USER_PROMPT_TEMPLATE = (
+    "다음 HTML 슬라이드를 수정 요청에 따라 수정해주세요.\n\n"
+    "현재 HTML 슬라이드:\n{current_html}\n\n"
+    "수정 요청:\n{modification_request}"
+)

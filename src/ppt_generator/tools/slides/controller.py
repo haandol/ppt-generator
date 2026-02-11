@@ -59,3 +59,24 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService) -> None:
             {"session_id": response.session_id, "html": response.html},
             ensure_ascii=False,
         )
+
+    @mcp.tool()
+    def modify_slides(session_id: str, modification_request: str) -> str:
+        """세션의 HTML 슬라이드를 자연어 수정 요청에 따라 수정합니다.
+
+        generate_slides로 생성된 세션의 슬라이드를 수정 요청에 따라 변경합니다.
+        색상 변경, 텍스트 수정, 레이아웃 조정 등 다양한 수정이 가능합니다.
+        동일한 session_id로 여러 번 호출하여 누적 수정할 수 있습니다.
+
+        Args:
+            session_id: generate_slides에서 반환된 세션 ID
+            modification_request: 자연어 수정 요청 (예: "배경색을 파란색으로 변경해주세요")
+
+        Returns:
+            session_id와 수정된 html을 포함하는 JSON 문자열
+        """
+        response = slides_service.modify(session_id, modification_request)
+        return json.dumps(
+            {"session_id": response.session_id, "html": response.html},
+            ensure_ascii=False,
+        )
