@@ -31,16 +31,30 @@ F2: generate_script    → 아웃라인 기반 발표 스크립트 생성 (speak
     ↓
 F3: generate_images    → 슬라이드별 이미지 생성 (Titan Image v2)
     ↓
-F4: generate_slides    → 아웃라인 + 이미지 → HTML/CSS 슬라이드 생성 (세션 기반)
+F4: generate_slides    → 아웃라인 + 이미지 → HTML/CSS 슬라이드 생성 (1장씩 개별 생성)
     ↓ (선택)
-F5: modify_slides      → 사용자 수정 요청 반영 (반복 가능)
+F5: modify_slides      → 사용자 수정 요청 반영 (슬라이드 단위 또는 전체, 반복 가능)
     ↓
 F6: export_pptx        → 편집 가능한 PPTX 파일 내보내기
     ↓
 출력: .pptx 파일 경로
 ```
 
-모든 generate 도구에 `project_dir` 파라미터를 지정하면 각 단계의 결과물이 자동 저장됩니다. `load_*` 도구로 저장된 결과물을 불러와 중간 단계부터 재개할 수 있습니다.
+모든 도구는 `project_id`를 자동 생성하여 `~/.ppt-generator/<UUID>/`에 결과물을 저장합니다. `load_*` 도구에 `project_id`를 전달하면 저장된 결과물을 불러와 중간 단계부터 재개할 수 있습니다.
+
+### 프로젝트 디렉토리 구조
+
+```
+~/.ppt-generator/<UUID>/
+  project.json         # 메타데이터 (주제, 슬라이드 수, 단계 완료 상태)
+  outline.json         # F1 출력
+  script.json          # F2 출력
+  images/              # F3 출력 (이미지 파일)
+  images.json          # F3 메타 (이미지 경로 목록)
+  slides.html          # F4/F5 출력
+  slides_meta.json     # 세션 메타 (session_id, image_paths)
+  presentation.pptx    # F6 출력
+```
 
 ## 요구사항
 
@@ -88,22 +102,22 @@ uv run pytest
 
 | 도구 | 설명 | 입력 | 출력 |
 |------|------|------|------|
-| `generate_outline` | 슬라이드 아웃라인 생성 | 주제, 슬라이드 수, [project_dir] | 아웃라인 JSON |
-| `generate_script` | 발표 스크립트 생성 | 아웃라인 JSON, [project_dir] | speaker_notes 포함 아웃라인 JSON |
-| `generate_images` | 슬라이드별 이미지 생성 | 아웃라인 JSON, [project_dir] | 이미지 경로 목록 JSON |
-| `generate_slides` | HTML/CSS 슬라이드 생성 | 아웃라인 JSON, 이미지 경로 JSON, [project_dir] | session_id + HTML |
-| `modify_slides` | 슬라이드 수정 | 세션 ID, 수정 요청 (자연어), [project_dir] | session_id + 수정된 HTML |
-| `export_pptx` | PPTX 내보내기 | 세션 ID, [project_dir] | .pptx 파일 경로 |
+| `generate_outline` | 슬라이드 아웃라인 생성 | 주제, 슬라이드 수, [project_id] | 아웃라인 JSON + project_id |
+| `generate_script` | 발표 스크립트 생성 | 아웃라인 JSON, [project_id] | speaker_notes 포함 아웃라인 JSON + project_id |
+| `generate_images` | 슬라이드별 이미지 생성 | 아웃라인 JSON, [project_id] | 이미지 경로 목록 JSON + project_id |
+| `generate_slides` | HTML/CSS 슬라이드 생성 | 아웃라인 JSON, 이미지 경로 JSON, [project_id] | session_id + HTML + project_id |
+| `modify_slides` | 슬라이드 수정 | 세션 ID, 수정 요청, [slide_index], [project_id] | session_id + 수정된 HTML + project_id |
+| `export_pptx` | PPTX 내보내기 | 세션 ID, [project_id] | project_id + .pptx 파일 경로 |
 
 ### 로드 도구
 
 | 도구 | 설명 | 입력 | 출력 |
 |------|------|------|------|
-| `load_project_status` | 프로젝트 상태 로드 | project_dir | 메타데이터 JSON |
-| `load_outline` | 저장된 아웃라인 로드 | project_dir | 아웃라인 JSON |
-| `load_script` | 저장된 스크립트 로드 | project_dir | speaker_notes 포함 아웃라인 JSON |
-| `load_images` | 저장된 이미지 메타 로드 | project_dir | 이미지 경로 목록 JSON |
-| `load_slides_html` | 저장된 슬라이드 로드 + 세션 복원 | project_dir | session_id + HTML |
+| `load_project_status` | 프로젝트 상태 로드 | project_id | 메타데이터 JSON |
+| `load_outline` | 저장된 아웃라인 로드 | project_id | 아웃라인 JSON |
+| `load_script` | 저장된 스크립트 로드 | project_id | speaker_notes 포함 아웃라인 JSON |
+| `load_images` | 저장된 이미지 메타 로드 | project_id | 이미지 경로 목록 JSON |
+| `load_slides_html` | 저장된 슬라이드 로드 + 세션 복원 | project_id | session_id + HTML |
 
 ## 프로젝트 구조
 
