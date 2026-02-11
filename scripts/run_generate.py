@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 """note.md 기반 PPT 생성 스크립트.
 
-프로젝트의 서비스 레이어를 직접 호출하여 4단계 파이프라인을 실행합니다.
+프로젝트의 서비스 레이어를 직접 호출하여 5단계 파이프라인을 실행합니다.
 1. generate_outline - 아웃라인 생성
 2. generate_script - 스크립트 생성 (아웃라인 기반 speaker_notes 채우기)
 3. generate_images - 이미지 생성
-4. generate_pptx - PPTX 파일 생성
+4. generate_slides - HTML 슬라이드 생성 (F4)
+5. export_pptx - PPTX 내보내기 (F6)
 """
 
-import json
 import logging
 import sys
-from dataclasses import asdict
 from pathlib import Path
 
 # 프로젝트 소스를 임포트 경로에 추가
@@ -19,11 +18,11 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from ppt_generator.di.container import DIContainer
 from ppt_generator.interfaces.schemas import (
+    ExportPptxRequest,
     ImageRequest,
     OutlineRequest,
-    PptxRequest,
     ScriptRequest,
-    SlideOutline,
+    SlidesRequest,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -96,18 +95,23 @@ def main() -> None:
     logger.info("=== Step 3: 이미지 생성 시작 ===")
     image_request = ImageRequest(slides=slides)
     image_response = container.image_service.generate(image_request)
-    images_json = json.dumps(asdict(image_response), ensure_ascii=False, indent=2)
     logger.info("이미지 생성 완료 (%d개)", len(image_response.images))
 
-    # Step 4: PPTX 생성
-    logger.info("=== Step 4: PPTX 생성 시작 ===")
+    # Step 4: HTML 슬라이드 생성 (F4)
+    logger.info("=== Step 4: HTML 슬라이드 생성 시작 ===")
     image_paths: dict[int, str] = {}
     for img in image_response.images:
         image_paths[img.slide_index] = img.image_path
-    pptx_request = PptxRequest(slides=slides, image_paths=image_paths)
-    pptx_response = container.pptx_service.generate(pptx_request)
-    logger.info("=== PPTX 생성 완료! ===")
-    print(f"\n생성된 파일: {pptx_response.pptx_path}")
+    slides_request = SlidesRequest(slides=slides, image_paths=image_paths)
+    slides_response = container.slides_service.generate(slides_request)
+    logger.info("HTML 슬라이드 생성 완료: session_id=%s", slides_response.session_id)
+
+    # Step 5: PPTX 내보내기 (F6)
+    logger.info("=== Step 5: PPTX 내보내기 시작 ===")
+    export_request = ExportPptxRequest(session_id=slides_response.session_id)
+    export_response = container.export_service.export(export_request)
+    logger.info("=== PPTX 내보내기 완료! ===")
+    print(f"\n생성된 파일: {export_response.pptx_path}")
 
 
 if __name__ == "__main__":

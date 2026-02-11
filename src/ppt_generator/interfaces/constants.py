@@ -1,6 +1,10 @@
-BEDROCK_MODEL_ID = "us.anthropic.claude-opus-4-20250514-v1:0"
+BEDROCK_MODEL_ID = "us.anthropic.claude-opus-4-6-v1"
+BEDROCK_OUTLINE_MODEL_ID = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 BEDROCK_REGION = "us-east-1"
 BEDROCK_TEMPERATURE = 0.7
+BEDROCK_MAX_TOKENS = 16_000
+BEDROCK_OUTLINE_MAX_TOKENS = 4_000
+BEDROCK_SCRIPT_MAX_TOKENS = 8_000
 
 DEFAULT_NUM_SLIDES = 5
 MIN_NUM_SLIDES = 3
@@ -77,6 +81,10 @@ PPTX_TITLE_FONT_SIZE_PT = 28
 SLIDES_WIDTH_PX = 960
 SLIDES_HEIGHT_PX = 540
 
+# HTML→PPTX 좌표 변환 (960x540px → 13.333x7.5인치)
+EXPORT_PX_TO_INCHES_X = 13.333 / 960  # ~0.01389
+EXPORT_PX_TO_INCHES_Y = 7.5 / 540     # ~0.01389
+
 SLIDES_SYSTEM_PROMPT = (
     "당신은 프레젠테이션 HTML/CSS 디자인 전문가입니다. "
     "주어진 슬라이드 아웃라인을 기반으로 시각적으로 완성도 높은 HTML/CSS 슬라이드를 생성하세요.\n\n"
@@ -140,11 +148,20 @@ SLIDES_DESIGN_SUMMARY_PROMPT = (
 SLIDES_MODIFY_SYSTEM_PROMPT = (
     "당신은 프레젠테이션 HTML/CSS 수정 전문가입니다. "
     "사용자의 수정 요청에 따라 기존 HTML 슬라이드를 정확하게 수정하세요.\n\n"
+    "지원하는 수정 유형:\n"
+    "- 텍스트 변경: 제목, 본문 내용, 불릿 포인트의 수정/추가/삭제\n"
+    "- 레이아웃 조정: 요소 위치(left, top), 크기(width, height), 간격 변경\n"
+    "- 스타일 변경: 색상, 폰트, 배경색, 테두리 등 CSS 속성 변경\n"
+    "- 이미지 교체: 기존 이미지 제거, 위치/크기 변경 (src 속성의 data URI 자체는 유지)\n"
+    "- 슬라이드 추가: 새로운 <div class=\"slide\"> 요소 추가\n"
+    "- 슬라이드 삭제: 특정 슬라이드 <div class=\"slide\"> 요소 제거\n"
+    "- 슬라이드 순서 변경: <div class=\"slide\"> 요소의 순서 재배치\n"
+    "- 발표자 노트 수정: data-speaker-notes 속성 값 변경\n\n"
     "수정 규칙:\n"
     "- 수정 요청에 해당하는 부분만 변경하고, 나머지는 그대로 유지하세요.\n"
     "- 슬라이드 크기(960px × 540px)와 기본 구조를 유지하세요.\n"
     "- 인라인 CSS 스타일을 사용하세요.\n"
-    "- 이미지 src 속성(data URI)은 변경하지 마세요.\n\n"
+    "- 이미지의 data URI(src 속성 값)는 변경하지 마세요. 위치나 크기만 변경 가능합니다.\n\n"
     "출력 규칙:\n"
     "- 완전한 HTML 문서를 출력하세요 (<!DOCTYPE html> 포함).\n"
     "- 마크다운 코드블록(```)으로 감싸지 마세요. HTML 코드만 출력하세요."

@@ -33,7 +33,10 @@ ppt-generator/
 │   │   ├── images/                # 이미지 생성 도구 (F3)
 │   │   │   ├── controller.py
 │   │   │   └── service.py
-│   │   └── pptx/                  # PPTX 생성 도구 (F4)
+│   │   ├── pptx/                  # PPTX 내보내기 도구 (F6)
+│   │   │   ├── controller.py
+│   │   │   └── service.py
+│   │   └── slides/                # HTML 슬라이드 생성/수정 도구 (F4/F5)
 │   │       ├── controller.py
 │   │       └── service.py
 │   ├── interfaces/
@@ -60,7 +63,8 @@ ppt-generator/
 - **Agent Framework**: AWS Strands SDK (`strands-agents`)
 - **LLM**: Amazon Bedrock - Claude Opus 4 (`us.anthropic.claude-opus-4-20250514-v1:0`)
 - **Image Generation**: Amazon Bedrock - Titan Image Generator v2 (`amazon.titan-image-generator-v2:0`)
-- **PPTX Export**: python-pptx (아웃라인 → PPTX 직접 변환)
+- **HTML Parsing**: BeautifulSoup4 (HTML → PPTX 변환용 파싱)
+- **PPTX Export**: python-pptx (HTML 세션 → PPTX 변환)
 
 ## Prerequisites
 
@@ -102,7 +106,11 @@ F2: generate_script    → 아웃라인 기반 슬라이드별 스크립트 생�
     ↓
 F3: generate_images    → 슬라이드별 이미지 생성 (Titan Image Generator v2)
     ↓
-F4: generate_pptx      → 아웃라인 + 이미지 → 편집 가능한 PPTX 파일 생성
+F4: generate_slides    → 아웃라인 + 이미지 → HTML/CSS 슬라이드 생성 (세션 기반)
+    ↓ (선택)
+F5: modify_slides      → HTML 슬라이드 수정 (사용자 요청 반영)
+    ↓
+F6: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보내기
     ↓
 출력: 편집 가능한 .pptx 파일
 ```
@@ -114,7 +122,9 @@ F4: generate_pptx      → 아웃라인 + 이미지 → 편집 가능한 PPTX �
 | `generate_outline` | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (기본 freeform 모드, speaker_notes 비어있음) |
 | `generate_script` | `tools/script/` | 아웃라인 JSON을 기반으로 슬라이드별 발표자 노트(speaker_notes) 생성 |
 | `generate_images` | `tools/images/` | 아웃라인의 image_idea를 기반으로 Titan Image v2로 슬라이드별 이미지 생성 |
-| `generate_pptx` | `tools/pptx/` | 아웃라인과 이미지를 결합하여 편집 가능한 PPTX 파일 생성 |
+| `generate_slides` | `tools/slides/` | 아웃라인과 이미지를 결합하여 HTML/CSS 슬라이드 생성 (세션 반환) |
+| `modify_slides` | `tools/slides/` | 기존 HTML 슬라이드를 사용자 요청에 따라 수정 |
+| `export_pptx` | `tools/pptx/` | 세션의 HTML 슬라이드를 편집 가능한 PPTX 파일로 내보내기 |
 
 ## Key Data Schemas
 
@@ -127,7 +137,8 @@ F4: generate_pptx      → 아웃라인 + 이미지 → 편집 가능한 PPTX �
 | `SlideOutline` | 개별 슬라이드 아웃라인 (title, bullets, image_idea, layout_type, speaker_notes, elements) |
 | `SlideElement` | freeform 레이아웃의 개별 요소 (type, left, top, width, height, content, font_size_pt, bold) |
 | `ImageRequest` / `ImageResult` / `ImageResponse` | 이미지 생성 입출력 |
-| `PptxRequest` / `PptxResponse` | PPTX 생성 입출력 |
+| `SlidesRequest` / `SlidesResponse` | HTML 슬라이드 생성 입출력 (slides, image_paths → session_id, html) |
+| `ExportPptxRequest` / `ExportPptxResponse` | PPTX 내보내기 입출력 (session_id → pptx_path) |
 
 ### 슬라이드 아웃라인 JSON
 

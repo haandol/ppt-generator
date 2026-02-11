@@ -5,7 +5,11 @@ from strands import Agent
 from strands.models.bedrock import BedrockModel
 
 from ppt_generator.interfaces.constants import (
+    BEDROCK_MAX_TOKENS,
     BEDROCK_MODEL_ID,
+    BEDROCK_OUTLINE_MAX_TOKENS,
+    BEDROCK_OUTLINE_MODEL_ID,
+    BEDROCK_SCRIPT_MAX_TOKENS,
     BEDROCK_REGION,
     BEDROCK_TEMPERATURE,
     OUTLINE_FREEFORM_SYSTEM_PROMPT,
@@ -17,7 +21,7 @@ from ppt_generator.interfaces.constants import (
 )
 from ppt_generator.tools.images.service import ImageService
 from ppt_generator.tools.outline.service import OutlineService
-from ppt_generator.tools.pptx.service import PptxService
+from ppt_generator.tools.pptx.service import ExportService
 from ppt_generator.tools.script.service import ScriptService
 from ppt_generator.tools.slides.service import SlidesService
 
@@ -28,7 +32,7 @@ class DIContainer:
         self._script_service: ScriptService | None = None
         self._outline_service: OutlineService | None = None
         self._image_service: ImageService | None = None
-        self._pptx_service: PptxService | None = None
+        self._export_service: ExportService | None = None
         self._slides_service: SlidesService | None = None
 
     def _create_bedrock_model(self) -> BedrockModel:
@@ -36,14 +40,25 @@ class DIContainer:
             model_id=BEDROCK_MODEL_ID,
             region_name=BEDROCK_REGION,
             temperature=BEDROCK_TEMPERATURE,
+            max_tokens=BEDROCK_MAX_TOKENS,
         )
 
     def _create_script_agent(self) -> Agent:
-        model = self._create_bedrock_model()
+        model = BedrockModel(
+            model_id=BEDROCK_OUTLINE_MODEL_ID,
+            region_name=BEDROCK_REGION,
+            temperature=BEDROCK_TEMPERATURE,
+            max_tokens=BEDROCK_SCRIPT_MAX_TOKENS,
+        )
         return Agent(model=model, system_prompt=SCRIPT_SYSTEM_PROMPT, callback_handler=None, tools=[])
 
     def _create_outline_agent(self) -> Agent:
-        model = self._create_bedrock_model()
+        model = BedrockModel(
+            model_id=BEDROCK_OUTLINE_MODEL_ID,
+            region_name=BEDROCK_REGION,
+            temperature=BEDROCK_TEMPERATURE,
+            max_tokens=BEDROCK_OUTLINE_MAX_TOKENS,
+        )
         return Agent(model=model, system_prompt=OUTLINE_FREEFORM_SYSTEM_PROMPT, callback_handler=None, tools=[])
 
     def _create_slides_agent(self) -> Agent:
@@ -76,11 +91,14 @@ class DIContainer:
         return self._image_service
 
     @property
-    def pptx_service(self) -> PptxService:
-        if self._pptx_service is None:
+    def export_service(self) -> ExportService:
+        if self._export_service is None:
             template_path = self._project_root / PPTX_TEMPLATE_PATH
-            self._pptx_service = PptxService(template_path=template_path)
-        return self._pptx_service
+            self._export_service = ExportService(
+                slides_service=self.slides_service,
+                template_path=template_path,
+            )
+        return self._export_service
 
     @property
     def slides_service(self) -> SlidesService:

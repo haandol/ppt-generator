@@ -18,7 +18,7 @@ def create_server() -> FastMCP:
     register_script_tools(mcp, container.script_service)
     register_outline_tools(mcp, container.outline_service)
     register_image_tools(mcp, container.image_service)
-    register_pptx_tools(mcp, container.pptx_service)
+    register_pptx_tools(mcp, container.export_service)
     register_slides_tools(mcp, container.slides_service)
     return mcp
 

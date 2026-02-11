@@ -904,6 +904,7 @@ name = "ppt-generator"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "beautifulsoup4" },
     { name = "mcp" },
     { name = "python-pptx" },
     { name = "strands-agents" },
@@ -917,6 +918,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "beautifulsoup4", specifier = ">=4.12" },
     { name = "mcp" },
     { name = "python-pptx", specifier = ">=1.0.2" },
     { name = "strands-agents" },

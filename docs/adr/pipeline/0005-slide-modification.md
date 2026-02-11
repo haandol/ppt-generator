@@ -4,7 +4,7 @@ Date: 2026-02-11
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -72,6 +72,9 @@ sequenceDiagram
 
 ## References
 
-- 의존: `src/ppt_generator/tools/slides/service.py` — `SlidesService.get_session_html()`, `update_session_html()`
+- 구현: `src/ppt_generator/tools/slides/service.py` — `SlidesService.modify()`
+- 컨트롤러: `src/ppt_generator/tools/slides/controller.py` — `modify_slides` MCP 도구
+- 프롬프트: `src/ppt_generator/interfaces/constants.py` — `SLIDES_MODIFY_SYSTEM_PROMPT`, `SLIDES_MODIFY_USER_PROMPT_TEMPLATE`
+- 테스트: `tests/test_slides_service.py` — `TestModify` 클래스
 - 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md)
 - ALPS: Section 7.5
