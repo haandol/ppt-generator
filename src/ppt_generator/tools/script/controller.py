@@ -1,26 +1,66 @@
+import json
+from dataclasses import asdict
+
 from mcp.server.fastmcp import FastMCP
 
-from ppt_generator.interfaces.constants import DEFAULT_NUM_SLIDES, MAX_NUM_SLIDES, MIN_NUM_SLIDES
-from ppt_generator.interfaces.schemas import ScriptRequest
+from ppt_generator.interfaces.schemas import (
+    OutlineResponse,
+    ScriptRequest,
+    SlideElement,
+    SlideOutline,
+)
 from ppt_generator.tools.script.service import ScriptService
 
 
 def register_script_tools(mcp: FastMCP, script_service: ScriptService) -> None:
     @mcp.tool()
-    def generate_script(topic: str, num_slides: int = DEFAULT_NUM_SLIDES) -> str:
-        """주제와 슬라이드 수를 기반으로 자연스러운 발표 스크립트를 생성합니다.
+    def generate_script(outline_json: str) -> str:
+        """아웃라인을 기반으로 슬라이드별 발표자 노트(스크립트)를 생성합니다.
 
-        주어진 주제에 대해 도입-본론-결론 흐름을 갖춘 한국어 발표 스크립트를 생성합니다.
-        슬라이드 구분 없이 연속적인 발표 스크립트가 반환됩니다.
+        generate_outline로 생성된 아웃라인 JSON을 입력받아, 각 슬라이드에 대한
+        자연스러운 발표 스크립트를 생성하여 speaker_notes를 채운 아웃라인 JSON을 반환합니다.
 
         Args:
-            topic: 발표 주제 (예: "2024년 클라우드 컴퓨팅 트렌드")
-            num_slides: 슬라이드 수 (3~20, 기본값 5)
+            outline_json: generate_outline로 생성된 슬라이드 아웃라인 JSON 문자열
 
         Returns:
-            생성된 발표 스크립트 텍스트
+            speaker_notes가 채워진 슬라이드 아웃라인 JSON 문자열
         """
-        num_slides = max(MIN_NUM_SLIDES, min(MAX_NUM_SLIDES, num_slides))
-        request = ScriptRequest(topic=topic, num_slides=num_slides)
+        outline = _parse_outline(outline_json)
+        request = ScriptRequest(outline=outline)
         response = script_service.generate(request)
-        return response.script
+        return json.dumps(
+            {"slides": [asdict(s) for s in response.slides]},
+            ensure_ascii=False,
+            indent=2,
+        )
+
+
+def _parse_outline(outline_json: str) -> OutlineResponse:
+    data = json.loads(outline_json)
+    slides: list[SlideOutline] = []
+    for item in data["slides"]:
+        elements = [
+            SlideElement(
+                type=e.get("type", "textbox"),
+                left=float(e.get("left", 0)),
+                top=float(e.get("top", 0)),
+                width=float(e.get("width", 1)),
+                height=float(e.get("height", 1)),
+                content=e.get("content", ""),
+                font_size_pt=int(e.get("font_size_pt", 16)),
+                bold=bool(e.get("bold", False)),
+            )
+            for e in item.get("elements", [])
+        ]
+        slides.append(
+            SlideOutline(
+                title=item.get("title", ""),
+                bullets=item.get("bullets", []),
+                image_idea=item.get("image_idea", ""),
+                layout_type=item.get("layout_type", "text_only"),
+                speaker_notes=item.get("speaker_notes", ""),
+                elements=elements,
+            )
+        )
+    return OutlineResponse(slides=slides)

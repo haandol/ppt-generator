@@ -3,15 +3,12 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class ScriptRequest:
-    topic: str
-    num_slides: int
+    outline: "OutlineResponse"
 
 
 @dataclass(frozen=True)
 class ScriptResponse:
-    script: str
-    topic: str
-    num_slides: int
+    slides: list["SlideOutline"]
 
 
 @dataclass(frozen=True)
@@ -40,7 +37,8 @@ class SlideOutline:
 
 @dataclass(frozen=True)
 class OutlineRequest:
-    script: str
+    topic: str
+    num_slides: int
 
 
 @dataclass(frozen=True)
@@ -73,3 +71,15 @@ class PptxRequest:
 @dataclass(frozen=True)
 class PptxResponse:
     pptx_path: str
+
+
+@dataclass(frozen=True)
+class SlidesRequest:
+    slides: list[SlideOutline]
+    image_paths: dict[int, str]  # slide_index -> file path
+
+
+@dataclass(frozen=True)
+class SlidesResponse:
+    session_id: str
+    html: str
