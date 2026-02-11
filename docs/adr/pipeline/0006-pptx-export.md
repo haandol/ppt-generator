@@ -4,7 +4,7 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted
+Accepted (Updated: data-region 기반 요소 추출 추가)
 
 ## Context
 
@@ -12,7 +12,7 @@ F4/F5를 거쳐 확정된 HTML 슬라이드를 편집 가능한 .pptx 파일로 
 
 ## Decision
 
-MCP 도구 `export_pptx`를 구현하여, 세션의 최종 HTML을 파싱하고 python-pptx로 변환한다. HTML 요소를 PPTX 객체로 매핑하고, px 좌표를 EMU 좌표로 변환한다.
+MCP 도구 `export_pptx`를 구현하여, 세션의 최종 HTML을 파싱하고 python-pptx로 변환한다. `data-wrapper`/`data-region` div가 있는 경우 region 좌표를 직접 사용하여 정확한 위치에 PPTX 요소를 배치하고, 레거시 HTML은 인라인 style 기반으로 처리한다.
 
 ### Technical Details
 
@@ -34,6 +34,18 @@ MCP 도구 `export_pptx`를 구현하여, 세션의 최종 HTML을 파싱하고 
 | 배경색/이미지 | `slide.background` 설정 |
 | 도형 | `slide.shapes.add_shape()` (사각형, 원 등) |
 | `data-speaker-notes` | PPTX 발표자 노트 |
+
+### data-region 기반 요소 추출 (신규)
+
+`data-wrapper="true"` div가 있는 section은 region 기반 로직으로 처리하고, 없으면 레거시 로직으로 폴백한다.
+
+**Region 기반 처리 흐름:**
+1. `data-wrapper` div에서 인라인 `background-color` 추출 → 슬라이드 배경 설정
+2. `data-region` div를 순회하며, 각 region의 `position:absolute` style에서 좌표 추출
+3. region 내부에 `<img>`가 있으면 `_add_picture()` (region 좌표 사용)
+4. 텍스트만 있으면 `_add_textbox_at()` (region 좌표 사용, title/subtitle은 bold)
+
+**장점:** LLM이 TailwindCSS로 자유 배치하더라도, `data-region` div의 `position:absolute` 좌표가 LAYOUT_REGIONS 원본으로 보장되므로 PPTX에서 정확한 위치에 요소가 배치된다.
 
 ### MCP Tool Interface
 
@@ -84,5 +96,5 @@ sequenceDiagram
 - 컨트롤러: `src/ppt_generator/tools/pptx/controller.py` — `export_pptx` MCP 도구
 - 의존: `src/ppt_generator/tools/slides/service.py` — `SlidesService.get_session_html()`
 - 테스트: `tests/test_pptx_service.py`
-- 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0005-slide-modification](./0005-slide-modification.md)
+- 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0005-slide-modification](./0005-slide-modification.md), [0012-layout-skeleton-enforcement](./0012-layout-skeleton-enforcement.md)
 - ALPS: Section 7.6

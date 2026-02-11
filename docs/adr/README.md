@@ -31,6 +31,7 @@ adr/
 - [0009: 이미지 파일 참조 방식 전환](./pipeline/0009-image-file-reference.md)
 - [0010: 워킹 디렉토리 통합 및 슬라이드 개별 생성/수정](./pipeline/0010-workspace-and-per-slide.md)
 - [0011: 점진적 구체화 파이프라인 설계](./pipeline/0011-progressive-refinement-pipeline.md)
+- [0012: 레이아웃 골격(Skeleton) 기반 위치 강제](./pipeline/0012-layout-skeleton-enforcement.md)
 
 ## ADR 작성 가이드
 

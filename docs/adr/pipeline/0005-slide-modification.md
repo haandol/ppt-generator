@@ -27,6 +27,8 @@ MCP 도구 `modify_slides`를 구현하여, 세션 ID로 현재 HTML을 로드�
   - 발표자 노트 수정
 - 세션 상태: F4의 `SlidesService._sessions` dict 활용
 - 세션 상태 이력: 수정 이력을 유지하여 이전 상태로 되돌리기 가능 (선택적)
+- **data-region 좌표 보호**: 수정 후에도 `_validate_region_styles()`로 `data-region` div의 `position:absolute` 좌표를 `LAYOUT_REGIONS` 원본으로 복원. `_detect_layout_type_from_html()`로 region 이름 집합에서 layout_type을 자동 감지
+- **프롬프트 보호 규칙**: `SLIDES_MODIFY_SYSTEM_PROMPT`와 `SLIDES_MODIFY_SINGLE_USER_PROMPT_TEMPLATE`에 "data-region div의 style 속성 변경 금지, 영역 내부 콘텐츠만 수정 가능" 지시 포함
 
 ### MCP Tool Interface
 
@@ -76,5 +78,6 @@ sequenceDiagram
 - 컨트롤러: `src/ppt_generator/tools/slides/controller.py` — `modify_slides` MCP 도구
 - 프롬프트: `src/ppt_generator/interfaces/constants.py` — `SLIDES_MODIFY_SYSTEM_PROMPT`, `SLIDES_MODIFY_USER_PROMPT_TEMPLATE`
 - 테스트: `tests/test_slides_service.py` — `TestModify` 클래스
-- 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md)
+- 좌표 검증: `src/ppt_generator/tools/slides/service.py` — `_validate_region_styles()`, `_detect_layout_type_from_html()`
+- 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0012-layout-skeleton-enforcement](./0012-layout-skeleton-enforcement.md)
 - ALPS: Section 7.5

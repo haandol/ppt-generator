@@ -319,22 +319,27 @@ sequenceDiagram
 
 #### 7.4.2 흐름
 1. MCP 클라이언트에서 `generate_slides(outline, image_paths)` 호출
-2. Bedrock LLM에 아웃라인 JSON과 이미지 정보를 전달하여 HTML/CSS 슬라이드 코드 생성 요청
-3. LLM이 각 슬라이드의 layout_type, 제목, 본문, 이미지를 반영한 HTML/CSS 코드 생성
-4. 세션 ID를 부여하고 HTML 슬라이드 상태를 서버에 저장
-5. HTML 슬라이드와 세션 ID 반환
+2. 슬라이드마다 `LAYOUT_REGIONS` 좌표를 사용하여 `position:absolute` div 골격(skeleton) HTML을 코드로 생성
+3. Bedrock LLM에 골격 HTML과 아웃라인 JSON을 전달하여, 각 `data-region` div 내부의 `<!-- CONTENT:xxx -->` 마커를 실제 HTML 컨텐츠로 교체하도록 요청
+4. LLM 응답에서 section을 추출하고, `_validate_region_styles()`로 좌표를 검증/복원
+5. 모든 슬라이드의 section을 합산하여 HTML 템플릿에 삽입
+6. 세션 ID를 부여하고 HTML 슬라이드 상태를 서버에 저장
+7. HTML 슬라이드와 세션 ID 반환
 
 #### 7.4.3 기술 설명
 - Bedrock Claude Opus 4.6 호출 (Strands SDK 경유)
-- 프롬프트: 아웃라인 JSON과 이미지를 기반으로 프레젠테이션용 HTML/CSS 코드 생성 요청
-- 슬라이드 규격: 16:9 비율 (960×540px 또는 1920×1080px)
+- **레이아웃 골격 기반 생성**: `build_layout_skeleton()` 함수가 `LAYOUT_REGIONS` 좌표로 `position:absolute` div 골격을 생성. LLM은 `SLIDES_REGION_SYSTEM_PROMPT`를 사용하여 각 `data-region` div 내부 컨텐츠만 채움
+- **좌표 검증/복원**: `_validate_region_styles()`가 LLM이 변경한 좌표를 `LAYOUT_REGIONS` 원본으로 복원
+- 슬라이드 규격: 16:9 비율 (1280×720px)
 - HTML 구조:
-  - 각 슬라이드를 `<section>` 또는 `<div class="slide">` 태그로 구분
-  - 인라인 CSS로 자유로운 위치, 크기, 색상, 폰트 스타일링
-  - 이미지는 base64 data URI 또는 로컬 파일 경로로 삽입
-  - 발표자 노트는 `data-speaker-notes` 속성 또는 별도 `<aside>` 태그에 포함
-- 세션 관리: 세션 ID로 현재 HTML 슬라이드 상태를 서버 메모리/파일에 유지 (수정 루프 지원)
-- 출력: HTML 문자열 또는 HTML 파일 경로
+  - 각 슬라이드를 `<section id="slide-{N}" data-speaker-notes="...">` 태그로 구분
+  - `data-wrapper="true"` 래퍼 div에 배경색 (Tailwind 클래스 + 인라인 background-color)
+  - `data-region` div들이 `position:absolute`로 고정 좌표에 배치 (title, subtitle, body, image)
+  - 영역 내부에서 TailwindCSS 유틸리티로 자유 디자인
+  - 이미지는 `{IMAGE_N}` placeholder → 후처리로 `file://` 경로 치환
+  - 발표자 노트는 `data-speaker-notes` 속성에 포함
+- 세션 관리: 세션 ID로 현재 HTML 슬라이드 상태를 서버 메모리에 유지 (수정 루프 지원)
+- 출력: HTML 문자열 (세션 ID 포함)
 
 #### 7.4.4 엣지 케이스
 - 이미지 파일이 누락된 경우 → 해당 슬라이드는 텍스트만으로 구성
@@ -402,17 +407,23 @@ sequenceDiagram
 5. 완성된 .pptx 파일 경로 반환
 
 #### 7.6.3 기술 설명
-- HTML 파싱: BeautifulSoup 또는 lxml로 HTML 슬라이드 DOM 파싱
-- CSS 스타일 추출: 인라인 스타일에서 position, width, height, color, font-size, background 등 추출
+- HTML 파싱: BeautifulSoup로 HTML 슬라이드 DOM 파싱
+- **data-region 기반 요소 추출 (우선)**: `data-wrapper="true"` div가 있으면 region 기반 로직 사용
+  - `data-region` div의 `position:absolute` style에서 좌표 직접 추출
+  - region 좌표를 px → inches → EMU 변환하여 PPTX 요소 정확한 위치에 배치
+  - `data-wrapper` div에서 인라인 `background-color` 추출하여 슬라이드 배경 설정
+  - title/subtitle 영역은 bold 처리
+- **레거시 폴백**: `data-wrapper` 없으면 인라인 style 기반 기존 로직으로 처리
 - 좌표 변환: HTML px 좌표를 PPTX EMU(English Metric Units) 좌표로 변환
-  - 슬라이드 크기: 10인치 × 7.5인치 (표준 16:9 비율은 13.333 × 7.5인치)
-  - 변환 비율: HTML 슬라이드 크기 기준으로 비례 매핑
+  - 슬라이드 크기: 13.333 × 7.5인치 (표준 16:9)
+  - 변환 비율: 1280×720px 기준으로 비례 매핑
 - python-pptx 객체 매핑:
-  - `<div>`, `<p>`, `<h1>`~`<h6>` → `slide.shapes.add_textbox()` with 폰트 스타일
-  - `<img>` → `slide.shapes.add_picture()` with alt-text
-  - 배경색/이미지 → `slide.background` 설정
-  - 도형 → `slide.shapes.add_shape()` (사각형, 원 등)
-- 폰트: 한글 호환 폰트 사용 (예: 맑은 고딕)
+  - `data-region` 텍스트 → `_add_textbox_at()` (region 좌표 사용)
+  - `data-region` 이미지 → `_add_picture()` (region 좌표 사용)
+  - `data-wrapper` 배경 → `slide.background` 설정
+  - 레거시 `<div>`, `<p>`, `<h1>`~`<h6>` → `slide.shapes.add_textbox()` (인라인 style)
+  - 레거시 `<img>` → `slide.shapes.add_picture()` (인라인 style)
+- 폰트: 한글 호환 폰트 사용 (맑은 고딕)
 - 발표자 노트: 각 슬라이드의 notes 영역에 스크립트 삽입
 - 출력: 로컬 파일 시스템에 .pptx 저장
 
