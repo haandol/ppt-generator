@@ -116,6 +116,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 
 - **아웃라인 → 스크립트 분리**: 아웃라인은 슬라이드의 뼈대(구조)이고, 스크립트는 살(발표 내용)입니다. 분리하면 구조를 먼저 확정한 뒤 내용을 채울 수 있고, LLM이 각 단계에 집중할 수 있습니다.
 - **HTML을 중간 표현으로 사용**: python-pptx로 직접 생성하면 고정 플레이스홀더와 제한된 스타일링으로 디자인 자유도가 크게 떨어집니다. HTML/CSS + TailwindCSS를 사용하면 LLM이 `<section>` 요소만 생성하고, 서비스가 템플릿(`slides.html`)에 삽입하여 일관된 구조의 슬라이드를 만들 수 있습니다. 브라우저에서 수직 스크롤로 디자인을 확인할 수 있습니다.
+- **레이아웃 골격(Skeleton) 기반 위치 강제**: `LAYOUT_REGIONS` 좌표를 사용하여 `position:absolute` div 골격을 코드로 생성하고, LLM은 각 `data-region` div 내부 컨텐츠만 채웁니다. 후처리에서 `_validate_region_styles()`로 좌표를 검증/복원하여, LLM이 좌표를 변경하더라도 원래 위치가 보장됩니다. PPTX 변환 시 `data-region` div의 좌표를 직접 사용하여 정확한 위치에 요소를 배치합니다.
 - **HTML → PPTX 변환**: `<section>` 태그 내 HTML 요소를 PPTX의 개별 편집 가능한 객체(텍스트박스, 이미지, 도형)로 매핑하여, 디자인 자유도를 최대한 유지하면서도 실무에서 편집할 수 있는 최종 산출물을 제공합니다.
 
 > 관련 ADR: [0011-progressive-refinement-pipeline](../docs/adr/pipeline/0011-progressive-refinement-pipeline.md)
@@ -131,7 +132,7 @@ F2: generate_script    → 아웃라인 기반 슬라이드별 스크립트 생�
     ↓
 F3: generate_images    → 슬라이드별 이미지 생성 (Gemini 2.5 Flash)
     ↓
-F4: generate_slides    → 아웃라인 + 이미지 → HTML 슬라이드 생성 (LLM이 section 생성 → 템플릿 삽입)
+F4: generate_slides    → 아웃라인 + 이미지 → HTML 슬라이드 생성 (레이아웃 골격 생성 → LLM이 영역 내부 컨텐츠 생성 → 좌표 검증 → 템플릿 삽입)
     ↓ (선택)
 F5: modify_slides      → HTML 슬라이드 수정 (사용자 요청 반영)
     ↓
@@ -195,12 +196,12 @@ F6: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
 
 | layout_type  | 설명                      | 비고                     |
 | ------------ | ------------------------- | ------------------------ |
-| `title`      | 제목 슬라이드             | 첫 번째 슬라이드         |
-| `text_image` | 좌측 텍스트 + 우측 이미지 | -                        |
-| `text_only`  | 전체 텍스트               | 알 수 없는 타입의 폴백   |
-| `chart`      | 차트 중심                 | -                        |
-| `closing`    | 마무리 슬라이드           | 마지막 슬라이드          |
-| `freeform`   | 자유 배치 (좌표 기반)     | **기본 모드**, elements 배열 사용 |
+| `title`      | 제목 슬라이드             | 첫 번째 슬라이드, 위치 구조적 강제 |
+| `text_image` | 좌측 텍스트 + 우측 이미지 | 위치 구조적 강제         |
+| `text_only`  | 전체 텍스트               | 알 수 없는 타입의 폴백, 위치 구조적 강제 |
+| `chart`      | 차트 중심                 | 위치 구조적 강제         |
+| `closing`    | 마무리 슬라이드           | 마지막 슬라이드, 위치 구조적 강제 |
+| `freeform`   | 자유 배치 (좌표 기반)     | **기본 모드**, elements 배열 사용, 위치 구조적 강제 |
 
 ## Coding Conventions
 
