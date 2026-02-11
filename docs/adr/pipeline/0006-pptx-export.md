@@ -4,7 +4,7 @@ Date: 2026-02-11
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -80,7 +80,9 @@ sequenceDiagram
 
 ## References
 
+- 구현: `src/ppt_generator/tools/pptx/service.py` — `ExportService`
+- 컨트롤러: `src/ppt_generator/tools/pptx/controller.py` — `export_pptx` MCP 도구
 - 의존: `src/ppt_generator/tools/slides/service.py` — `SlidesService.get_session_html()`
-- 기존 PPTX 생성: `src/ppt_generator/tools/pptx/` (참고용 — 아웃라인 직접 변환 방식)
+- 테스트: `tests/test_pptx_service.py`
 - 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0005-slide-modification](./0005-slide-modification.md)
 - ALPS: Section 7.6

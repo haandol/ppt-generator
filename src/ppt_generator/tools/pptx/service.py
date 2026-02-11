@@ -1,32 +1,42 @@
 from __future__ import annotations
 
+import base64
+import io
 import logging
+import re
 import tempfile
 from pathlib import Path
 
+from bs4 import BeautifulSoup, Tag
 from pptx import Presentation
+from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.oxml.ns import qn
 from pptx.util import Inches, Pt
 
 from ppt_generator.interfaces.constants import (
-    PPTX_BODY_FONT_SIZE_PT,
+    EXPORT_PX_TO_INCHES_X,
+    EXPORT_PX_TO_INCHES_Y,
     PPTX_FONT_NAME,
-    PPTX_TITLE_FONT_SIZE_PT,
 )
-from ppt_generator.interfaces.schemas import PptxRequest, PptxResponse, SlideElement, SlideOutline
-from ppt_generator.templates.layout_mapping import find_blank_layout_index, get_layout_info
+from ppt_generator.interfaces.schemas import ExportPptxRequest, ExportPptxResponse
+from ppt_generator.templates.layout_mapping import find_blank_layout_index
+from ppt_generator.tools.slides.service import SlidesService
 
 logger = logging.getLogger(__name__)
 
 
-class PptxService:
-    def __init__(self, template_path: Path) -> None:
+class ExportService:
+    def __init__(self, slides_service: SlidesService, template_path: Path) -> None:
+        self._slides_service = slides_service
         self._template_path = template_path
 
-    def generate(self, request: PptxRequest) -> PptxResponse:
-        if not request.slides:
-            raise ValueError("슬라이드 목록이 비어있습니다.")
+    def export(self, request: ExportPptxRequest) -> ExportPptxResponse:
+        html = self._slides_service.get_session_html(request.session_id)
+        slide_divs = self._parse_slides(html)
+
+        if not slide_divs:
+            raise ValueError("슬라이드를 찾을 수 없습니다")
 
         if self._template_path.exists():
             prs = Presentation(str(self._template_path))
@@ -35,16 +45,62 @@ class PptxService:
             logger.warning("템플릿 파일 없음: %s, 기본 프레젠테이션으로 폴백", self._template_path)
             prs = Presentation()
 
-        for i, slide_outline in enumerate(request.slides):
-            if slide_outline.elements:
-                self._add_freeform_slide(prs, slide_outline, i, request.image_paths)
-            else:
-                self._add_placeholder_slide(prs, slide_outline, i, request.image_paths)
+        for div in slide_divs:
+            blank_idx = find_blank_layout_index(prs)
+            try:
+                slide_layout = prs.slide_layouts[blank_idx]
+            except IndexError:
+                slide_layout = prs.slide_layouts[0]
 
-        output_path = Path(tempfile.mkdtemp(prefix="ppt_output_")) / "presentation.pptx"
+            slide = prs.slides.add_slide(slide_layout)
+
+            bg_color = self._extract_background(div)
+            if bg_color:
+                self._set_slide_background(slide, bg_color)
+
+            self._extract_elements(slide, div)
+
+            notes = div.get("data-speaker-notes", "")
+            if notes:
+                self._set_speaker_notes(slide, notes)
+
+        output_path = Path(tempfile.mkdtemp(prefix="ppt_export_")) / "presentation.pptx"
         prs.save(str(output_path))
-        logger.info("PPTX 생성 완료: %s", output_path)
-        return PptxResponse(pptx_path=str(output_path))
+        logger.info("PPTX 내보내기 완료: %s", output_path)
+        return ExportPptxResponse(pptx_path=str(output_path))
+
+    # --- HTML 파싱 ---
+
+    def _parse_slides(self, html: str) -> list[Tag]:
+        soup = BeautifulSoup(html, "html.parser")
+        return soup.find_all("div", class_="slide")
+
+    def _parse_inline_style(self, style_str: str | None) -> dict[str, str]:
+        if not style_str:
+            return {}
+        result: dict[str, str] = {}
+        for part in style_str.split(";"):
+            part = part.strip()
+            if ":" not in part:
+                continue
+            key, _, value = part.partition(":")
+            result[key.strip().lower()] = value.strip()
+        return result
+
+    def _px_to_inches(self, value: str, axis: str) -> float | None:
+        match = re.match(r"(-?\d+(?:\.\d+)?)\s*px", value.strip())
+        if not match:
+            if re.match(r"-?\d+(?:\.\d+)?$", value.strip()):
+                px = float(value.strip())
+            else:
+                logger.warning("px이 아닌 단위 무시: %s", value)
+                return None
+        else:
+            px = float(match.group(1))
+        factor = EXPORT_PX_TO_INCHES_X if axis == "x" else EXPORT_PX_TO_INCHES_Y
+        return px * factor
+
+    # --- 슬라이드 기본 설정 ---
 
     def _remove_existing_slides(self, prs: Presentation) -> None:
         sldIdLst = prs.part._element.find(qn("p:sldIdLst"))
@@ -55,172 +111,14 @@ class PptxService:
             prs.part.drop_rel(rId)
             sldIdLst.remove(sldId)
 
-    def _add_placeholder_slide(
-        self,
-        prs: Presentation,
-        slide_outline: SlideOutline,
-        slide_index: int,
-        image_paths: dict[int, str],
-    ) -> None:
-        layout_info = get_layout_info(slide_outline.layout_type)
-        try:
-            slide_layout = prs.slide_layouts[layout_info.layout_index]
-        except IndexError:
-            logger.warning(
-                "레이아웃 인덱스 %d 없음, 첫 번째 레이아웃 사용", layout_info.layout_index
-            )
-            slide_layout = prs.slide_layouts[0]
-
-        slide = prs.slides.add_slide(slide_layout)
-
-        self._set_title(slide, slide_outline.title, layout_info.title_ph)
-        self._set_subtitle(slide, slide_outline.bullets, layout_info.subtitle_ph)
-        self._set_body(slide, slide_outline.bullets, layout_info.body_ph)
-        self._set_image(slide, slide_index, image_paths, layout_info.picture_ph, slide_outline.image_idea)
-        self._set_speaker_notes(slide, slide_outline.speaker_notes)
-
-    def _add_freeform_slide(
-        self,
-        prs: Presentation,
-        slide_outline: SlideOutline,
-        slide_index: int,
-        image_paths: dict[int, str],
-    ) -> None:
-        blank_idx = find_blank_layout_index(prs)
-        try:
-            slide_layout = prs.slide_layouts[blank_idx]
-        except IndexError:
-            logger.warning("Blank 레이아웃 인덱스 %d 없음, 첫 번째 레이아웃 사용", blank_idx)
-            slide_layout = prs.slide_layouts[0]
-
-        slide = prs.slides.add_slide(slide_layout)
-        self._populate_freeform(slide, slide_outline, slide_index, image_paths)
-        self._set_speaker_notes(slide, slide_outline.speaker_notes)
-
-    def _populate_freeform(
-        self,
-        slide,
-        slide_outline: SlideOutline,
-        slide_index: int,
-        image_paths: dict[int, str],
-    ) -> None:
-        for element in slide_outline.elements:
-            left = Inches(element.left)
-            top = Inches(element.top)
-            width = Inches(element.width)
-            height = Inches(element.height)
-
-            if element.type == "textbox":
-                self._add_freeform_textbox(slide, left, top, width, height, element)
-            elif element.type == "image":
-                self._add_freeform_image(slide, left, top, width, height, slide_index, image_paths, element)
-            elif element.type == "shape":
-                self._add_freeform_shape(slide, left, top, width, height, element)
-            else:
-                logger.warning("알 수 없는 freeform 요소 타입: %s", element.type)
-
-    def _add_freeform_textbox(self, slide, left, top, width, height, element: SlideElement) -> None:
-        txbox = slide.shapes.add_textbox(left, top, width, height)
-        tf = txbox.text_frame
-        tf.word_wrap = True
-        p = tf.paragraphs[0]
-        p.text = element.content
-        for run in p.runs:
-            run.font.name = PPTX_FONT_NAME
-            run.font.size = Pt(element.font_size_pt)
-            run.font.bold = element.bold
-
-    def _add_freeform_image(
-        self, slide, left, top, width, height, slide_index: int, image_paths: dict[int, str], element: SlideElement
-    ) -> None:
-        image_path = image_paths.get(slide_index)
-        if not image_path or not Path(image_path).exists():
-            if image_path:
-                logger.warning("Freeform 이미지 파일 누락: %s", image_path)
+    def _set_slide_background(self, slide, color: str) -> None:
+        rgb = self._parse_color(color)
+        if rgb is None:
             return
-        slide.shapes.add_picture(image_path, left, top, width, height)
-
-    def _add_freeform_shape(self, slide, left, top, width, height, element: SlideElement) -> None:
-        shape = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, left, top, width, height)
-        tf = shape.text_frame
-        tf.word_wrap = True
-        p = tf.paragraphs[0]
-        p.text = element.content
-        for run in p.runs:
-            run.font.name = PPTX_FONT_NAME
-            run.font.size = Pt(element.font_size_pt)
-            run.font.bold = element.bold
-
-    def _set_title(self, slide, title: str, ph_idx: int | None) -> None:
-        if ph_idx is None or not title:
-            return
-        try:
-            ph = slide.placeholders[ph_idx]
-            ph.text = title
-            for paragraph in ph.text_frame.paragraphs:
-                for run in paragraph.runs:
-                    run.font.name = PPTX_FONT_NAME
-                    run.font.size = Pt(PPTX_TITLE_FONT_SIZE_PT)
-        except KeyError:
-            logger.warning("제목 placeholder[%d] 없음", ph_idx)
-
-    def _set_subtitle(self, slide, bullets: list[str], ph_idx: int | None) -> None:
-        if ph_idx is None or not bullets:
-            return
-        try:
-            ph = slide.placeholders[ph_idx]
-            ph.text = " | ".join(bullets)
-            for paragraph in ph.text_frame.paragraphs:
-                for run in paragraph.runs:
-                    run.font.name = PPTX_FONT_NAME
-        except KeyError:
-            logger.warning("부제목 placeholder[%d] 없음", ph_idx)
-
-    def _set_body(self, slide, bullets: list[str], ph_idx: int | None) -> None:
-        if ph_idx is None or not bullets:
-            return
-        try:
-            ph = slide.placeholders[ph_idx]
-            tf = ph.text_frame
-            tf.clear()
-            for j, bullet in enumerate(bullets):
-                if j == 0:
-                    p = tf.paragraphs[0]
-                else:
-                    p = tf.add_paragraph()
-                p.text = bullet
-                p.level = 0
-                for run in p.runs:
-                    run.font.name = PPTX_FONT_NAME
-                    run.font.size = Pt(PPTX_BODY_FONT_SIZE_PT)
-        except KeyError:
-            logger.warning("본문 placeholder[%d] 없음", ph_idx)
-
-    def _set_image(
-        self,
-        slide,
-        slide_index: int,
-        image_paths: dict[int, str],
-        ph_idx: int | None,
-        alt_text: str,
-    ) -> None:
-        if ph_idx is None:
-            return
-        image_path = image_paths.get(slide_index)
-        if not image_path or not Path(image_path).exists():
-            if image_path:
-                logger.warning("이미지 파일 누락: %s", image_path)
-            return
-        try:
-            ph = slide.placeholders[ph_idx]
-            ph.insert_picture(image_path)
-            pic = ph._element
-            nsmap = {"p": "http://schemas.openxmlformats.org/presentationml/2006/main"}
-            cNvPr = pic.find(".//p:cNvPr", nsmap)
-            if cNvPr is not None:
-                cNvPr.set("descr", alt_text or "")
-        except (KeyError, Exception):
-            logger.warning("이미지 placeholder[%d] 삽입 실패 (슬라이드 %d)", ph_idx, slide_index)
+        background = slide.background
+        fill = background.fill
+        fill.solid()
+        fill.fore_color.rgb = rgb
 
     def _set_speaker_notes(self, slide, notes: str) -> None:
         if not notes:
@@ -228,3 +126,181 @@ class PptxService:
         notes_slide = slide.notes_slide
         tf = notes_slide.notes_text_frame
         tf.text = notes
+
+    # --- 배경 추출 ---
+
+    def _extract_background(self, div: Tag) -> str | None:
+        style = self._parse_inline_style(div.get("style", ""))
+        bg = style.get("background-color") or style.get("background")
+        if not bg:
+            return None
+        # gradient 등 복합 배경에서 첫 번째 색상 추출 시도
+        color_match = re.search(r"#[0-9a-fA-F]{3,8}", bg)
+        if color_match:
+            return color_match.group(0)
+        rgb_match = re.search(r"rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", bg)
+        if rgb_match:
+            return bg
+        return bg
+
+    # --- 요소 추출 ---
+
+    def _extract_elements(self, slide, div: Tag) -> None:
+        for child in div.children:
+            if not isinstance(child, Tag):
+                continue
+            style = self._parse_inline_style(child.get("style", ""))
+            if style.get("position") != "absolute":
+                # position:absolute가 아닌 자식 중 텍스트 콘텐츠가 있는 경우도 처리
+                if child.name in ("h1", "h2", "h3", "h4", "h5", "h6", "p", "div", "span") and child.get_text(strip=True):
+                    self._add_textbox(slide, child, style)
+                continue
+
+            if child.name == "img":
+                self._add_picture(slide, child, style)
+            elif child.name in ("h1", "h2", "h3", "h4", "h5", "h6", "p", "div", "span"):
+                self._add_textbox(slide, child, style)
+            else:
+                # 기타 요소도 텍스트가 있으면 텍스트박스로 처리
+                text = child.get_text(strip=True)
+                if text:
+                    self._add_textbox(slide, child, style)
+
+    def _get_position_and_size(self, style: dict[str, str]) -> tuple[float, float, float, float]:
+        left = self._px_to_inches(style.get("left", "0"), "x") or 0.0
+        top = self._px_to_inches(style.get("top", "0"), "y") or 0.0
+        width = self._px_to_inches(style.get("width", "72"), "x") or 1.0
+        height = self._px_to_inches(style.get("height", "72"), "y") or 1.0
+        return left, top, width, height
+
+    def _add_textbox(self, slide, element: Tag, style: dict[str, str]) -> None:
+        left, top, width, height = self._get_position_and_size(style)
+        txbox = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
+        tf = txbox.text_frame
+        tf.word_wrap = True
+
+        # 텍스트 추출 및 서식 적용
+        font_size = self._extract_font_size(style)
+        is_bold = self._is_bold(element, style)
+        color = self._extract_color(style)
+
+        # 단락별로 텍스트 추출
+        text = element.get_text(separator="\n", strip=True)
+        lines = text.split("\n")
+
+        for i, line in enumerate(lines):
+            if not line.strip():
+                continue
+            if i == 0:
+                p = tf.paragraphs[0]
+            else:
+                p = tf.add_paragraph()
+            p.text = line.strip()
+            for run in p.runs:
+                run.font.name = PPTX_FONT_NAME
+                if font_size:
+                    run.font.size = Pt(font_size)
+                run.font.bold = is_bold
+                if color:
+                    run.font.color.rgb = color
+
+    def _add_picture(self, slide, element: Tag, style: dict[str, str]) -> None:
+        src = element.get("src", "")
+        if not src or not src.startswith("data:"):
+            logger.warning("data URI가 아닌 이미지 소스 건너뜀: %s", src[:50] if src else "(없음)")
+            return
+
+        image_data = self._decode_base64_image(src)
+        if image_data is None:
+            return
+
+        image_bytes, _ = image_data
+        left, top, width, height = self._get_position_and_size(style)
+
+        try:
+            image_stream = io.BytesIO(image_bytes)
+            pic = slide.shapes.add_picture(image_stream, Inches(left), Inches(top), Inches(width), Inches(height))
+            # alt-text 설정
+            alt_text = element.get("alt", "")
+            if alt_text:
+                nvPicPr = pic._element.find(qn("p:nvPicPr"))
+                if nvPicPr is not None:
+                    cNvPr = nvPicPr.find(qn("p:cNvPr"))
+                    if cNvPr is not None:
+                        cNvPr.set("descr", alt_text)
+        except Exception:
+            logger.warning("이미지 삽입 실패", exc_info=True)
+
+    def _add_shape(self, slide, element: Tag, style: dict[str, str]) -> None:
+        left, top, width, height = self._get_position_and_size(style)
+        shape = slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE, Inches(left), Inches(top), Inches(width), Inches(height)
+        )
+        text = element.get_text(strip=True)
+        if text:
+            tf = shape.text_frame
+            tf.word_wrap = True
+            p = tf.paragraphs[0]
+            p.text = text
+            for run in p.runs:
+                run.font.name = PPTX_FONT_NAME
+
+    # --- 스타일 추출 유틸리티 ---
+
+    def _extract_font_size(self, style: dict[str, str]) -> int | None:
+        fs = style.get("font-size", "")
+        match = re.match(r"(\d+(?:\.\d+)?)\s*px", fs)
+        if match:
+            # CSS px ≈ PPTX pt (72dpi 기준 1:1)
+            return int(float(match.group(1)))
+        match = re.match(r"(\d+(?:\.\d+)?)\s*pt", fs)
+        if match:
+            return int(float(match.group(1)))
+        return None
+
+    def _is_bold(self, element: Tag, style: dict[str, str]) -> bool:
+        if element.name in ("h1", "h2", "h3", "h4", "h5", "h6"):
+            return True
+        if element.find(("strong", "b")):
+            return True
+        fw = style.get("font-weight", "")
+        if fw in ("bold", "bolder") or (fw.isdigit() and int(fw) >= 700):
+            return True
+        return False
+
+    def _extract_color(self, style: dict[str, str]) -> RGBColor | None:
+        color_str = style.get("color", "")
+        return self._parse_color(color_str)
+
+    def _parse_color(self, color_str: str) -> RGBColor | None:
+        if not color_str:
+            return None
+        # #RRGGBB or #RGB
+        hex_match = re.match(r"#([0-9a-fA-F]{6})", color_str)
+        if hex_match:
+            hex_val = hex_match.group(1)
+            return RGBColor(int(hex_val[0:2], 16), int(hex_val[2:4], 16), int(hex_val[4:6], 16))
+        short_hex = re.match(r"#([0-9a-fA-F]{3})(?:\s|;|$)", color_str)
+        if short_hex:
+            h = short_hex.group(1)
+            return RGBColor(int(h[0] * 2, 16), int(h[1] * 2, 16), int(h[2] * 2, 16))
+        # rgb(r, g, b)
+        rgb_match = re.match(r"rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", color_str)
+        if rgb_match:
+            return RGBColor(int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3)))
+        return None
+
+    def _decode_base64_image(self, data_uri: str) -> tuple[bytes, str] | None:
+        # data:image/png;base64,xxxxx
+        match = re.match(r"data:image/(\w+);base64,(.+)", data_uri, re.DOTALL)
+        if not match:
+            logger.warning("data URI 형식 인식 실패")
+            return None
+        fmt = match.group(1)
+        b64_data = match.group(2)
+        try:
+            image_bytes = base64.b64decode(b64_data)
+            return image_bytes, fmt
+        except Exception:
+            logger.warning("base64 이미지 디코딩 실패", exc_info=True)
+            return None

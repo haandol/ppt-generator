@@ -63,13 +63,12 @@ class ImageResponse:
 
 
 @dataclass(frozen=True)
-class PptxRequest:
-    slides: list[SlideOutline]
-    image_paths: dict[int, str]
+class ExportPptxRequest:
+    session_id: str
 
 
 @dataclass(frozen=True)
-class PptxResponse:
+class ExportPptxResponse:
     pptx_path: str
 
 
