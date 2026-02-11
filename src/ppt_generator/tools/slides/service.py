@@ -11,13 +11,15 @@ from strands import Agent
 from bs4 import BeautifulSoup
 
 from ppt_generator.interfaces.constants import (
+    LAYOUT_REGIONS,
     SLIDES_TEMPLATE_PATH,
-    SLIDES_BATCH_USER_PROMPT_TEMPLATE,
     SLIDES_DESIGN_SUMMARY_PROMPT,
     SLIDES_MAX_PER_BATCH,
     SLIDES_MODIFY_SINGLE_USER_PROMPT_TEMPLATE,
     SLIDES_MODIFY_USER_PROMPT_TEMPLATE,
-    SLIDES_USER_PROMPT_TEMPLATE,
+    SLIDES_REGION_BATCH_USER_PROMPT_TEMPLATE,
+    SLIDES_REGION_USER_PROMPT_TEMPLATE,
+    build_layout_skeleton,
 )
 from ppt_generator.interfaces.schemas import SlidesRequest, SlidesResponse, SlideOutline
 
@@ -83,6 +85,10 @@ class SlidesService:
         result = str(self._modify_agent(prompt))
         modified_section_html = self._extract_sections(result)
 
+        # region 기반 좌표 검증
+        layout_type = self._detect_layout_type_from_html(modified_section_html)
+        modified_section_html = self._validate_region_styles(modified_section_html, layout_type)
+
         modified_section = BeautifulSoup(modified_section_html, "html.parser").find("section")
         if modified_section is None:
             raise ValueError("수정된 슬라이드 section을 파싱할 수 없습니다.")
@@ -110,23 +116,38 @@ class SlidesService:
 
     # --- 생성 내부 메서드 ---
 
-    def _generate_single(self, slides: list[SlideOutline], image_paths: dict[int, str]) -> str:
-        outline_json = json.dumps(
-            {"slides": [self._slide_to_dict(s) for s in slides]},
-            ensure_ascii=False,
-            indent=2,
-        )
-        image_data = self._build_image_data(slides, image_paths, start_index=0)
+    def _generate_single(self, slides: list[SlideOutline], image_paths: dict[int, str], start_index: int = 0) -> str:
+        all_sections: list[str] = []
+        for i, slide in enumerate(slides):
+            global_idx = start_index + i
+            image_placeholder = f"{{IMAGE_{global_idx}}}" if global_idx in image_paths else None
+            skeleton = build_layout_skeleton(
+                layout_type=slide.layout_type,
+                slide_index=global_idx,
+                speaker_notes=slide.speaker_notes,
+                image_placeholder=image_placeholder,
+            )
+            outline_json = json.dumps(
+                {"slides": [self._slide_to_dict(slide)]},
+                ensure_ascii=False,
+                indent=2,
+            )
+            image_data = self._build_image_data([slide], image_paths, start_index=global_idx)
 
-        prompt = SLIDES_USER_PROMPT_TEMPLATE.format(
-            outline_json=outline_json,
-            image_data=image_data,
-        )
-        result = str(self._agent(prompt))
+            prompt = SLIDES_REGION_USER_PROMPT_TEMPLATE.format(
+                outline_json=outline_json,
+                image_data=image_data,
+                skeleton_html=skeleton,
+            )
+            result = str(self._agent(prompt))
 
-        sections_html = self._extract_sections(result)
-        sections_html = self._replace_image_placeholders(sections_html, image_paths)
-        html = self._wrap_with_template(sections_html)
+            section = self._extract_sections(result)
+            section = self._validate_region_styles(section, slide.layout_type)
+            all_sections.append(section)
+
+        combined = "\n".join(all_sections)
+        combined = self._replace_image_placeholders(combined, image_paths)
+        html = self._wrap_with_template(combined)
         return html
 
     def _generate_batched(self, slides: list[SlideOutline], image_paths: dict[int, str]) -> str:
@@ -165,24 +186,38 @@ class SlidesService:
         design_summary: str,
         offset: int,
     ) -> str:
-        outline_json = json.dumps(
-            {"slides": [self._slide_to_dict(s) for s in slides]},
-            ensure_ascii=False,
-            indent=2,
-        )
-        image_data = self._build_image_data(slides, image_paths, start_index=offset)
+        all_sections: list[str] = []
+        for i, slide in enumerate(slides):
+            global_idx = offset + i
+            image_placeholder = f"{{IMAGE_{global_idx}}}" if global_idx in image_paths else None
+            skeleton = build_layout_skeleton(
+                layout_type=slide.layout_type,
+                slide_index=global_idx,
+                speaker_notes=slide.speaker_notes,
+                image_placeholder=image_placeholder,
+            )
+            outline_json = json.dumps(
+                {"slides": [self._slide_to_dict(slide)]},
+                ensure_ascii=False,
+                indent=2,
+            )
+            image_data = self._build_image_data([slide], image_paths, start_index=global_idx)
 
-        prompt = SLIDES_BATCH_USER_PROMPT_TEMPLATE.format(
-            design_summary=design_summary,
-            outline_json=outline_json,
-            image_data=image_data,
-        )
-        result = str(self._agent(prompt))
+            prompt = SLIDES_REGION_BATCH_USER_PROMPT_TEMPLATE.format(
+                design_summary=design_summary,
+                outline_json=outline_json,
+                image_data=image_data,
+                skeleton_html=skeleton,
+            )
+            result = str(self._agent(prompt))
 
-        # 후속 배치는 section만 반환되므로 코드블록 추출 후 placeholder 치환
-        sections = self._extract_sections(result)
-        sections = self._replace_image_placeholders(sections, image_paths)
-        return sections
+            section = self._extract_sections(result)
+            section = self._validate_region_styles(section, slide.layout_type)
+            all_sections.append(section)
+
+        combined = "\n".join(all_sections)
+        combined = self._replace_image_placeholders(combined, image_paths)
+        return combined
 
     @staticmethod
     def _chunk_slides(slides: list[SlideOutline], chunk_size: int) -> list[list[SlideOutline]]:
@@ -209,6 +244,43 @@ class SlidesService:
             pos = match.start()
             return first_html[:pos] + "\n" + insertion + "\n" + first_html[pos:]
         return first_html + "\n" + insertion
+
+    # --- 좌표 검증 ---
+
+    @staticmethod
+    def _validate_region_styles(section_html: str, layout_type: str) -> str:
+        """LLM이 region div의 좌표를 변경했을 경우 LAYOUT_REGIONS 원본 좌표로 복원."""
+        regions = LAYOUT_REGIONS.get(layout_type, LAYOUT_REGIONS["text_only"])
+        soup = BeautifulSoup(section_html, "html.parser")
+
+        for region_div in soup.find_all("div", attrs={"data-region": True}):
+            region_name = region_div["data-region"]
+            if region_name not in regions:
+                continue
+            coords = regions[region_name]
+            correct_style = (
+                f"position:absolute; left:{coords['left']}px; top:{coords['top']}px; "
+                f"width:{coords['width']}px; height:{coords['height']}px; overflow:hidden;"
+            )
+            region_div["style"] = correct_style
+
+        return str(soup)
+
+    @staticmethod
+    def _detect_layout_type_from_html(section_html: str) -> str:
+        """section HTML의 data-region 이름들로 layout_type을 추정."""
+        soup = BeautifulSoup(section_html, "html.parser")
+        region_names = {
+            div["data-region"]
+            for div in soup.find_all("div", attrs={"data-region": True})
+        }
+        if not region_names:
+            return "text_only"
+
+        for layout_type, regions in LAYOUT_REGIONS.items():
+            if set(regions.keys()) == region_names:
+                return layout_type
+        return "text_only"
 
     # --- 유틸리티 ---
 

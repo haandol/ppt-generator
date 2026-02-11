@@ -226,3 +226,128 @@ class TestExportService:
 
         assert nested_dir.exists()
         assert Path(response.pptx_path).exists()
+
+
+def _make_region_html(png_path: Path | None = None) -> str:
+    """region 기반 HTML 구조를 생성."""
+    img_tag = ""
+    if png_path:
+        img_tag = (
+            f'      <img src="file://{png_path}" class="w-full h-full object-cover" />'
+        )
+    image_region = ""
+    if png_path:
+        image_region = (
+            '    <div data-region="image" style="position:absolute; left:702px; top:36px; '
+            'width:542px; height:616px; overflow:hidden;">\n'
+            f'{img_tag}\n'
+            '    </div>\n'
+        )
+    return (
+        '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
+        '<section id="slide-0" data-speaker-notes="발표자 노트">\n'
+        '  <div data-wrapper="true" class="absolute inset-0 bg-slate-900" '
+        'style="background-color:#0f172a;">\n'
+        '    <div data-region="title" style="position:absolute; left:57px; top:96px; '
+        'width:1152px; height:56px; overflow:hidden;">\n'
+        '      <h2 class="text-white text-3xl font-bold">제목 텍스트</h2>\n'
+        '    </div>\n'
+        '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
+        'width:1152px; height:472px; overflow:hidden;">\n'
+        '      <p class="text-white text-lg">본문 텍스트</p>\n'
+        '    </div>\n'
+        f'{image_region}'
+        '  </div>\n'
+        '</section>\n'
+        '</body></html>'
+    )
+
+
+class TestRegionBasedExport:
+    """data-wrapper/data-region 기반 HTML 내보내기 테스트."""
+
+    def test_export_region_html_creates_pptx(self, service_with_html):
+        svc = service_with_html(_make_region_html())
+        request = ExportPptxRequest(session_id="test-session")
+        response = svc.export(request)
+
+        path = Path(response.pptx_path)
+        assert path.exists()
+        assert path.suffix == ".pptx"
+
+    def test_export_region_extracts_text(self, service_with_html):
+        svc = service_with_html(_make_region_html())
+        request = ExportPptxRequest(session_id="test-session")
+        response = svc.export(request)
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        all_text = " ".join(s.text_frame.text for s in slide.shapes if s.has_text_frame)
+        assert "제목 텍스트" in all_text
+        assert "본문 텍스트" in all_text
+
+    def test_export_region_extracts_images(self, service_with_html, png_file):
+        svc = service_with_html(_make_region_html(png_file))
+        request = ExportPptxRequest(session_id="test-session")
+        response = svc.export(request)
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        picture_shapes = [s for s in slide.shapes if s.shape_type == 13]
+        assert len(picture_shapes) >= 1
+
+    def test_export_region_preserves_speaker_notes(self, service_with_html):
+        svc = service_with_html(_make_region_html())
+        request = ExportPptxRequest(session_id="test-session")
+        response = svc.export(request)
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        assert slide.notes_slide.notes_text_frame.text == "발표자 노트"
+
+    def test_export_region_extracts_background(self, service_with_html):
+        svc = service_with_html(_make_region_html())
+        request = ExportPptxRequest(session_id="test-session")
+        response = svc.export(request)
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        fill = slide.background.fill
+        assert fill.fore_color.rgb is not None
+        assert str(fill.fore_color.rgb) == "0F172A"
+
+    def test_export_region_title_position(self, service_with_html):
+        """title region 좌표가 PPTX에서도 유지되는지 확인."""
+        svc = service_with_html(_make_region_html())
+        request = ExportPptxRequest(session_id="test-session")
+        response = svc.export(request)
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        textboxes = [s for s in slide.shapes if s.has_text_frame and "제목" in s.text_frame.text]
+        assert len(textboxes) >= 1
+        tb = textboxes[0]
+        left_inches = tb.left / 914400
+        top_inches = tb.top / 914400
+        # 57px * (13.333/1280) ≈ 0.594in
+        assert abs(left_inches - 0.594) < 0.1
+        # 96px * (7.5/720) ≈ 1.0in
+        assert abs(top_inches - 1.0) < 0.1
+
+    def test_legacy_html_still_works(self, service_with_html):
+        """data-wrapper가 없는 레거시 HTML도 정상 동작."""
+        legacy_html = (
+            '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
+            '<section>\n'
+            '  <h1 style="position:absolute;left:50px;top:30px;width:860px;height:80px;">레거시 제목</h1>\n'
+            '</section>\n'
+            '</body></html>'
+        )
+        svc = service_with_html(legacy_html)
+        request = ExportPptxRequest(session_id="test-session")
+        response = svc.export(request)
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        all_text = " ".join(s.text_frame.text for s in slide.shapes if s.has_text_frame)
+        assert "레거시 제목" in all_text

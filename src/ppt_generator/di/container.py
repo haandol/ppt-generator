@@ -18,7 +18,7 @@ from ppt_generator.interfaces.constants import (
     PPTX_TEMPLATE_PATH,
     SCRIPT_SYSTEM_PROMPT,
     SLIDES_MODIFY_SYSTEM_PROMPT,
-    SLIDES_SYSTEM_PROMPT,
+    SLIDES_REGION_SYSTEM_PROMPT,
 )
 from ppt_generator.tools.images.service import ImageService
 from ppt_generator.tools.outline.service import OutlineService
@@ -66,7 +66,7 @@ class DIContainer:
 
     def _create_slides_agent(self) -> Agent:
         model = self._create_bedrock_model()
-        return Agent(model=model, system_prompt=SLIDES_SYSTEM_PROMPT, callback_handler=None, tools=[])
+        return Agent(model=model, system_prompt=SLIDES_REGION_SYSTEM_PROMPT, callback_handler=None, tools=[])
 
     def _create_slides_modify_agent(self) -> Agent:
         model = self._create_bedrock_model()

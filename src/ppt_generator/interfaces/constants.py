@@ -131,6 +131,43 @@ LAYOUT_REGIONS: dict[str, dict[str, dict[str, int]]] = {
 
 SLIDES_TEMPLATE_PATH = Path(__file__).parent.parent / "templates" / "slides.html"
 
+def build_layout_skeleton(
+    layout_type: str,
+    slide_index: int,
+    speaker_notes: str = "",
+    image_placeholder: str | None = None,
+) -> str:
+    """LAYOUT_REGIONS 좌표를 기반으로 <section> 골격 HTML을 생성한다.
+
+    각 region div에 data-region 속성과 position:absolute 스타일을 부여하여
+    LLM이 내부 컨텐츠만 채우도록 구조를 강제한다.
+    """
+    regions = LAYOUT_REGIONS.get(layout_type, LAYOUT_REGIONS["text_only"])
+    parts: list[str] = []
+    notes_attr = f' data-speaker-notes="{speaker_notes}"' if speaker_notes else ' data-speaker-notes=""'
+    parts.append(f'<section id="slide-{slide_index}"{notes_attr}>')
+    parts.append('  <div data-wrapper="true" class="absolute inset-0">')
+
+    for region_name, coords in regions.items():
+        style = (
+            f"position:absolute; left:{coords['left']}px; top:{coords['top']}px; "
+            f"width:{coords['width']}px; height:{coords['height']}px; overflow:hidden;"
+        )
+        parts.append(f'    <div data-region="{region_name}" style="{style}">')
+        if region_name == "image" and image_placeholder:
+            parts.append(
+                f'      <img src="{image_placeholder}" '
+                f'class="w-full h-full object-cover" />'
+            )
+        else:
+            parts.append(f"      <!-- CONTENT:{region_name} -->")
+        parts.append("    </div>")
+
+    parts.append("  </div>")
+    parts.append("</section>")
+    return "\n".join(parts)
+
+
 SLIDES_SYSTEM_PROMPT = (
     "당신은 프레젠테이션 HTML/CSS 디자인 전문가입니다. "
     "주어진 슬라이드 아웃라인을 기반으로 슬라이드 <section> 요소들을 생성하세요.\n\n"
@@ -202,6 +239,56 @@ SLIDES_SYSTEM_PROMPT = (
     "- 마크다운 코드블록(```)으로 감싸지 마세요. HTML 코드만 출력하세요."
 )
 
+SLIDES_REGION_SYSTEM_PROMPT = (
+    "당신은 프레젠테이션 HTML/CSS 디자인 전문가입니다. "
+    "제공된 레이아웃 골격(skeleton)의 각 영역 안에 콘텐츠를 채워 슬라이드를 완성하세요.\n\n"
+    "규격:\n"
+    "- 골격 HTML의 <!-- CONTENT:xxx --> 마커를 실제 HTML 콘텐츠로 교체하세요.\n"
+    "- data-region div의 style 속성(position, left, top, width, height)은 절대 변경하지 마세요.\n"
+    "- data-wrapper div에 배경색 Tailwind 클래스(bg-slate-900, bg-gray-800 등)를 추가하세요.\n"
+    "- data-wrapper div에 인라인 style=\"background-color:#hex\" 도 병기하세요 (PPTX 변환용).\n"
+    "- 영역 내부에서는 TailwindCSS 유틸리티 클래스로 자유롭게 디자인하세요.\n"
+    "- 커스텀 CSS 클래스를 절대 만들지 마세요.\n"
+    "- <style> 태그를 출력하지 마세요.\n\n"
+    "영역별 콘텐츠 가이드:\n"
+    "- title 영역: 제목 텍스트. text-3xl 이상, font-bold. 구분선 등 장식 요소 포함 가능.\n"
+    "- subtitle 영역: 부제목/설명 텍스트.\n"
+    "- body 영역: 불릿 포인트, 텍스트, 차트 등. text-base~text-lg.\n"
+    "- image 영역: 이미지가 이미 삽입되어 있으면 그대로 유지. 추가 장식 불필요.\n\n"
+    "overflow 방지 규칙:\n"
+    "- 각 영역의 width/height 안에 콘텐츠가 완전히 들어와야 합니다.\n"
+    "- 콘텐츠가 많으면 텍스트 크기를 줄이거나 항목 수를 줄이세요. 스크롤은 허용하지 않습니다.\n"
+    "- 장식용 배경 요소(원, 도형 등)를 영역 내부에 사용하지 마세요.\n\n"
+    "디자인 원칙:\n"
+    "- 폰트는 템플릿에서 전역 설정되므로 별도 지정하지 마세요.\n"
+    "- 슬라이드 간 일관된 디자인 테마를 유지하세요.\n"
+    "- 텍스트 색상은 배경색에 맞는 대비를 유지하세요.\n\n"
+    "출력 규칙:\n"
+    "- 완성된 <section> 요소 하나만 출력하세요.\n"
+    "- JavaScript 코드를 포함하지 마세요.\n"
+    "- 마크다운 코드블록(```)으로 감싸지 마세요. HTML 코드만 출력하세요."
+)
+
+SLIDES_REGION_USER_PROMPT_TEMPLATE = (
+    "다음 아웃라인을 기반으로 레이아웃 골격의 각 영역에 콘텐츠를 채워주세요.\n\n"
+    "슬라이드 아웃라인:\n{outline_json}\n\n"
+    "이미지 정보:\n{image_data}\n\n"
+    "레이아웃 골격:\n{skeleton_html}"
+)
+
+SLIDES_REGION_BATCH_USER_PROMPT_TEMPLATE = (
+    "다음 아웃라인의 슬라이드 골격에 콘텐츠를 채워주세요. "
+    "이전 배치에서 사용된 디자인 테마를 반드시 동일하게 유지하세요.\n\n"
+    "이전 배치의 디자인 요약:\n{design_summary}\n\n"
+    "슬라이드 아웃라인:\n{outline_json}\n\n"
+    "이미지 정보:\n{image_data}\n\n"
+    "레이아웃 골격:\n{skeleton_html}\n\n"
+    "출력 규칙:\n"
+    "- 완성된 <section> 요소 하나만 출력하세요.\n"
+    "- data-region div의 style 속성은 절대 변경하지 마세요.\n"
+    "- 이전 배치와 동일한 배경색과 텍스트 색상을 사용하세요."
+)
+
 SLIDES_USER_PROMPT_TEMPLATE = (
     "다음 아웃라인을 기반으로 HTML/CSS 슬라이드를 생성해주세요.\n\n"
     "슬라이드 아웃라인:\n{outline_json}\n\n"
@@ -249,6 +336,8 @@ SLIDES_MODIFY_SYSTEM_PROMPT = (
     "- 스타일 변경 시 인라인 style 대신 TailwindCSS 유틸리티 클래스를 사용하세요.\n"
     "- 커스텀 CSS 클래스를 절대 만들지 마세요. 모든 스타일은 TailwindCSS 유틸리티 클래스만 사용하세요.\n"
     "- Tailwind로 불가능한 스타일만 인라인 style 속성을 허용합니다.\n"
+    "- data-region 속성이 있는 div의 style 속성(position, left, top, width, height)은 절대 변경하지 마세요.\n"
+    "- data-region div 내부의 콘텐츠만 수정 가능합니다.\n"
     "- 기존 슬라이드의 레이아웃 영역(제목/본문/이미지 위치 비율)을 유지하세요. "
     "레이아웃 변경이 명시적으로 요청되지 않는 한 제목과 본문의 위치를 바꾸지 마세요.\n\n"
     "출력 규칙:\n"
@@ -272,5 +361,7 @@ SLIDES_MODIFY_SINGLE_USER_PROMPT_TEMPLATE = (
     "- <section ...> 요소 하나만 출력하세요.\n"
     "- 완전한 HTML 문서를 출력하지 마세요.\n"
     "- 마크다운 코드블록(```)으로 감싸지 마세요.\n"
-    "- 커스텀 CSS 클래스를 만들지 말고 TailwindCSS 유틸리티 클래스만 사용하세요."
+    "- 커스텀 CSS 클래스를 만들지 말고 TailwindCSS 유틸리티 클래스만 사용하세요.\n"
+    "- data-region 속성이 있는 div의 style 속성(position, left, top, width, height)은 절대 변경하지 마세요.\n"
+    "- data-region div 내부의 콘텐츠만 수정 가능합니다."
 )

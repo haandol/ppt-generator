@@ -137,6 +137,21 @@ class ExportService:
     # --- 배경 추출 ---
 
     def _extract_background(self, div: Tag) -> str | None:
+        # data-wrapper div에서 먼저 배경색 추출 시도
+        wrapper = div.find("div", attrs={"data-wrapper": "true"})
+        if wrapper:
+            wrapper_style = self._parse_inline_style(wrapper.get("style", ""))
+            bg = wrapper_style.get("background-color") or wrapper_style.get("background")
+            if bg:
+                color_match = re.search(r"#[0-9a-fA-F]{3,8}", bg)
+                if color_match:
+                    return color_match.group(0)
+                rgb_match = re.search(r"rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", bg)
+                if rgb_match:
+                    return bg
+                return bg
+
+        # 폴백: section 자체의 style에서 추출
         style = self._parse_inline_style(div.get("style", ""))
         bg = style.get("background-color") or style.get("background")
         if not bg:
@@ -153,6 +168,14 @@ class ExportService:
     # --- 요소 추출 ---
 
     def _extract_elements(self, slide, section: Tag) -> None:
+        wrapper = section.find("div", attrs={"data-wrapper": "true"})
+        if wrapper:
+            self._extract_region_elements(slide, wrapper)
+            return
+        # 레거시: data-wrapper가 없는 기존 HTML
+        self._extract_legacy_elements(slide, section)
+
+    def _extract_legacy_elements(self, slide, section: Tag) -> None:
         for child in section.children:
             if not isinstance(child, Tag):
                 continue
@@ -167,6 +190,28 @@ class ExportService:
                 text = child.get_text(strip=True)
                 if text:
                     self._add_textbox(slide, child, style)
+
+    def _extract_region_elements(self, slide, wrapper: Tag) -> None:
+        """data-region div를 순회하며, region 좌표를 사용하여 PPTX 요소 배치."""
+        for region_div in wrapper.find_all("div", attrs={"data-region": True}, recursive=False):
+            region_style = self._parse_inline_style(region_div.get("style", ""))
+            left, top, width, height = self._get_position_and_size(region_style)
+            region_name = region_div["data-region"]
+            is_title = region_name in ("title", "subtitle")
+
+            # region 내부에서 img와 텍스트 요소를 추출
+            has_img = False
+            for child in region_div.descendants:
+                if not isinstance(child, Tag):
+                    continue
+                if child.name == "img":
+                    self._add_picture(slide, child, region_style)
+                    has_img = True
+
+            if not has_img:
+                text = region_div.get_text(strip=True)
+                if text:
+                    self._add_textbox_at(slide, region_div, left, top, width, height, is_title=is_title)
 
     def _get_position_and_size(self, style: dict[str, str]) -> tuple[float, float, float, float]:
         left = self._px_to_inches(style.get("left", "0"), "x") or 0.0
@@ -203,6 +248,39 @@ class ExportService:
                 if font_size:
                     run.font.size = Pt(font_size)
                 run.font.bold = is_bold
+                if color:
+                    run.font.color.rgb = color
+
+    def _add_textbox_at(
+        self, slide, element: Tag,
+        left: float, top: float, width: float, height: float,
+        is_title: bool = False,
+    ) -> None:
+        """region 좌표를 직접 사용하여 텍스트박스를 배치."""
+        txbox = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
+        tf = txbox.text_frame
+        tf.word_wrap = True
+
+        style = self._parse_inline_style(element.get("style", ""))
+        font_size = self._extract_font_size(style)
+        color = self._extract_color(style)
+
+        text = element.get_text(separator="\n", strip=True)
+        lines = text.split("\n")
+
+        for i, line in enumerate(lines):
+            if not line.strip():
+                continue
+            if i == 0:
+                p = tf.paragraphs[0]
+            else:
+                p = tf.add_paragraph()
+            p.text = line.strip()
+            for run in p.runs:
+                run.font.name = PPTX_FONT_NAME
+                if font_size:
+                    run.font.size = Pt(font_size)
+                run.font.bold = is_title
                 if color:
                     run.font.color.rgb = color
 
