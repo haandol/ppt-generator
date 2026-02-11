@@ -75,7 +75,12 @@ class ExportService:
 
     def _parse_slides(self, html: str) -> list[Tag]:
         soup = BeautifulSoup(html, "html.parser")
-        return soup.find_all("div", class_="slide")
+        # reveal.js 구조: <div class="slides"> 안의 <section> 태그들
+        slides_container = soup.find("div", class_="slides")
+        if slides_container:
+            return slides_container.find_all("section", recursive=False)
+        # 폴백: 전체에서 section 태그 검색
+        return soup.find_all("section")
 
     def _parse_inline_style(self, style_str: str | None) -> dict[str, str]:
         if not style_str:
@@ -147,23 +152,18 @@ class ExportService:
 
     # --- 요소 추출 ---
 
-    def _extract_elements(self, slide, div: Tag) -> None:
-        for child in div.children:
+    def _extract_elements(self, slide, section: Tag) -> None:
+        for child in section.children:
             if not isinstance(child, Tag):
                 continue
             style = self._parse_inline_style(child.get("style", ""))
-            if style.get("position") != "absolute":
-                # position:absolute가 아닌 자식 중 텍스트 콘텐츠가 있는 경우도 처리
-                if child.name in ("h1", "h2", "h3", "h4", "h5", "h6", "p", "div", "span") and child.get_text(strip=True):
-                    self._add_textbox(slide, child, style)
-                continue
 
             if child.name == "img":
                 self._add_picture(slide, child, style)
-            elif child.name in ("h1", "h2", "h3", "h4", "h5", "h6", "p", "div", "span"):
-                self._add_textbox(slide, child, style)
+            elif child.name in ("h1", "h2", "h3", "h4", "h5", "h6", "p", "div", "span", "ul", "ol"):
+                if child.get_text(strip=True):
+                    self._add_textbox(slide, child, style)
             else:
-                # 기타 요소도 텍스트가 있으면 텍스트박스로 처리
                 text = child.get_text(strip=True)
                 if text:
                     self._add_textbox(slide, child, style)

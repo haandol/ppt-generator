@@ -1,6 +1,8 @@
+import os
 from pathlib import Path
 
 import boto3
+from google import genai
 from strands import Agent
 from strands.models.bedrock import BedrockModel
 
@@ -17,7 +19,6 @@ from ppt_generator.interfaces.constants import (
     SCRIPT_SYSTEM_PROMPT,
     SLIDES_MODIFY_SYSTEM_PROMPT,
     SLIDES_SYSTEM_PROMPT,
-    TITAN_IMAGE_REGION,
 )
 from ppt_generator.tools.images.service import ImageService
 from ppt_generator.tools.outline.service import OutlineService
@@ -88,8 +89,8 @@ class DIContainer:
     @property
     def image_service(self) -> ImageService:
         if self._image_service is None:
-            client = boto3.client("bedrock-runtime", region_name=TITAN_IMAGE_REGION)
-            self._image_service = ImageService(bedrock_runtime=client)
+            client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+            self._image_service = ImageService(client=client)
         return self._image_service
 
     @property

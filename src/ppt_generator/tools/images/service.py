@@ -1,30 +1,25 @@
 from __future__ import annotations
 
-import base64
-import json
 import logging
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+
+from google import genai
+from google.genai import types
 
 from ppt_generator.interfaces.constants import (
+    GEMINI_IMAGE_ASPECT_RATIO,
+    GEMINI_IMAGE_MODEL_ID,
     SKIP_IMAGE_LAYOUT_TYPES,
-    TITAN_IMAGE_CFG_SCALE,
-    TITAN_IMAGE_HEIGHT,
-    TITAN_IMAGE_MODEL_ID,
-    TITAN_IMAGE_WIDTH,
 )
 from ppt_generator.interfaces.schemas import ImageRequest, ImageResponse, ImageResult
-
-if TYPE_CHECKING:
-    from mypy_boto3_bedrock_runtime import BedrockRuntimeClient
 
 logger = logging.getLogger(__name__)
 
 
 class ImageService:
-    def __init__(self, bedrock_runtime: BedrockRuntimeClient) -> None:
-        self._client = bedrock_runtime
+    def __init__(self, client: genai.Client) -> None:
+        self._client = client
 
     def generate(self, request: ImageRequest, output_dir: Path | None = None) -> ImageResponse:
         if not request.slides:
@@ -53,34 +48,23 @@ class ImageService:
         return ImageResponse(images=results)
 
     def _generate_single(self, prompt: str, output_path: Path) -> Path:
-        body = json.dumps(
-            {
-                "taskType": "TEXT_IMAGE",
-                "textToImageParams": {"text": prompt},
-                "imageGenerationConfig": {
-                    "numberOfImages": 1,
-                    "width": TITAN_IMAGE_WIDTH,
-                    "height": TITAN_IMAGE_HEIGHT,
-                    "cfgScale": TITAN_IMAGE_CFG_SCALE,
-                },
-            }
+        response = self._client.models.generate_content(
+            model=GEMINI_IMAGE_MODEL_ID,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE"],
+                image_config=types.ImageConfig(
+                    aspect_ratio=GEMINI_IMAGE_ASPECT_RATIO,
+                ),
+            ),
         )
 
-        response = self._client.invoke_model(
-            modelId=TITAN_IMAGE_MODEL_ID,
-            accept="application/json",
-            contentType="application/json",
-            body=body,
-        )
+        for part in response.candidates[0].content.parts:
+            if part.inline_data is not None:
+                image = part.as_image()
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                image.save(output_path)
+                logger.info("이미지 생성 완료: %s", output_path)
+                return output_path
 
-        result = json.loads(response["body"].read())
-
-        if not result.get("images"):
-            raise RuntimeError(f"이미지 생성 결과 없음: {result.get('error', 'unknown')}")
-
-        image_data = base64.b64decode(result["images"][0])
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_bytes(image_data)
-
-        logger.info("이미지 생성 완료: %s", output_path)
-        return output_path
+        raise RuntimeError("이미지 생성 결과 없음: 응답에 이미지 데이터가 없습니다.")

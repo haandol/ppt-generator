@@ -156,6 +156,50 @@ class ProjectService:
 
         return session_id, html
 
+    # --- 프로젝트 목록 ---
+
+    def list_projects(self) -> list[dict]:
+        """PPT_GENERATOR_HOME 아래 모든 프로젝트 디렉토리를 조회한다.
+
+        Returns:
+            project.json이 존재하는 프로젝트 목록. 각 항목은
+            project_id, topic, num_slides, steps_completed, created_at 키를 포함한다.
+            created_at 기준 내림차순(최신 순) 정렬.
+        """
+        home = PPT_GENERATOR_HOME
+        if not home.exists():
+            home.mkdir(parents=True, exist_ok=True)
+            return []
+
+        projects: list[dict] = []
+        for child in home.iterdir():
+            if not child.is_dir():
+                continue
+            meta_path = child / "project.json"
+            if not meta_path.exists():
+                continue
+            try:
+                data = json.loads(meta_path.read_text(encoding="utf-8"))
+                # 디렉토리의 생성 시간을 created_at으로 사용 (Linux fallback: mtime)
+                stat = child.stat()
+                created_ts = getattr(stat, "st_birthtime", stat.st_mtime)
+                created_at = datetime.fromtimestamp(created_ts, tz=timezone.utc).isoformat()
+            except Exception:
+                logger.warning("프로젝트 메타데이터 로드 실패, 건너뜀: %s", child)
+                continue
+
+            projects.append({
+                "project_id": child.name,
+                "topic": data.get("topic", ""),
+                "num_slides": data.get("num_slides", 0),
+                "steps_completed": data.get("steps_completed", {}),
+                "created_at": created_at,
+            })
+
+        # 최신 순 정렬
+        projects.sort(key=lambda p: p["created_at"], reverse=True)
+        return projects
+
     # --- 유틸 ---
 
     @staticmethod

@@ -2,8 +2,8 @@
 
 ## Overview
 
-사용자가 주제를 입력하면 AI가 자동으로 HTML 기반 프레젠테이션을 생성하고, 사용자의 수정 요청을 반영한 뒤 최종적으로 편집 가능한 PPTX로 내보내는 Python MCP 서버입니다.
-Amazon Bedrock LLM으로 콘텐츠를 생성하고, Titan Image Generator v2로 시각 자료를 생성하여, HTML/CSS 기반 슬라이드로 자유로운 디자인을 구현한 뒤 최종 PPTX로 변환합니다.
+사용자가 주제를 입력하면 AI가 자동으로 reveal.js 기반 프레젠테이션을 생성하고, 사용자의 수정 요청을 반영한 뒤 최종적으로 편집 가능한 PPTX로 내보내는 Python MCP 서버입니다.
+Amazon Bedrock LLM으로 콘텐츠를 생성하고, Gemini로 시각 자료를 생성하여, reveal.js 프레임워크 기반 슬라이드로 자유로운 디자인을 구현한 뒤 최종 PPTX로 변환합니다.
 Claude Desktop, Kiro 등 MCP 호환 클라이언트에서 사용할 수 있습니다.
 
 > 📄 **ALPS 설계 문서**: 피쳐 목록, 기능 명세, 인수 기준 등 구현에 필요한 세부 사항은 [`docs/ppt-generator.alps.md`](docs/ppt-generator.alps.md) (또는 원본 [`docs/ppt-generator.alps.xml`](docs/ppt-generator.alps.xml))를 반드시 확인하세요.
@@ -39,13 +39,14 @@ ppt-generator/
 │   │   ├── project/               # 프로젝트 저장/로드 도구 (F7)
 │   │   │   ├── controller.py
 │   │   │   └── service.py
-│   │   └── slides/                # HTML 슬라이드 생성/수정 도구 (F4/F5)
+│   │   └── slides/                # reveal.js 슬라이드 생성/수정 도구 (F4/F5)
 │   │       ├── controller.py
 │   │       └── service.py
 │   ├── interfaces/
 │   │   ├── constants.py           # 모델 설정, 프롬프트, 상수
 │   │   └── schemas.py             # 데이터클래스 (Request/Response)
 │   └── templates/
+│       ├── slides_reveal.html     # reveal.js HTML 템플릿 (CDN, 초기화 코드 포함)
 │       └── layout_mapping.py      # 레이아웃 타입 → 슬라이드 레이아웃 매핑
 ├── docs/
 │   ├── adr/                       # Architecture Decision Records
@@ -62,17 +63,20 @@ ppt-generator/
 - **Package Manager**: uv
 - **Build System**: hatchling
 - **Agent Framework**: AWS Strands SDK (`strands-agents`)
-- **LLM**: Amazon Bedrock - Claude Opus 4 (`us.anthropic.claude-opus-4-20250514-v1:0`)
-- **Image Generation**: Amazon Bedrock - Titan Image Generator v2 (`amazon.titan-image-generator-v2:0`)
-- **HTML Parsing**: BeautifulSoup4 (HTML → PPTX 변환용 파싱)
-- **PPTX Export**: python-pptx (HTML 세션 → PPTX 변환)
+- **LLM**: Amazon Bedrock - Claude Opus 4.6 (`us.anthropic.claude-opus-4-6-v1`)
+- **Outline LLM**: Amazon Bedrock - Claude Sonnet 4.5 (`us.anthropic.claude-sonnet-4-5-20250929-v1:0`)
+- **Image Generation**: Google Gemini 2.5 Flash (`gemini-2.5-flash-image`)
+- **Slide Framework**: reveal.js 5 (CDN 기반, `templates/slides_reveal.html` 템플릿)
+- **HTML Parsing**: BeautifulSoup4 (reveal.js HTML → PPTX 변환용 파싱)
+- **PPTX Export**: python-pptx (reveal.js 세션 → PPTX 변환)
 
 ## Prerequisites
 
 - Python 3.13+
 - [uv](https://docs.astral.sh/uv/) 패키지 매니저
 - AWS 자격 증명 (`~/.aws/credentials` 또는 환경 변수)
-  - Amazon Bedrock 모델 접근 권한 필요 (Claude Opus 4, Titan Image Generator v2)
+  - Amazon Bedrock 모델 접근 권한 필요 (Claude Opus 4.6, Claude Sonnet 4.5)
+  - Google Gemini API 접근 권한 필요 (이미지 생성용)
   - 리전: `us-east-1`
 
 ## Development Commands
@@ -104,15 +108,15 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 텍스트 (가장 추상적)
   → 아웃라인 (구조화된 JSON — 슬라이드 구성, 요점, 레이아웃)
     → 스크립트 (구체적 — 발표 내용이 채워진 아웃라인)
-      → HTML 슬라이드 (코드로 디자인 자유도 최대화 — CSS position:absolute 자유 배치)
+      → reveal.js 슬라이드 (LLM이 <section> 요소 생성 → 템플릿에 삽입)
         → PPTX (디자인 자유도를 최대한 유지하면서 편집 가능한 포맷으로 변환)
 ```
 
 **왜 이런 구조인가?**
 
 - **아웃라인 → 스크립트 분리**: 아웃라인은 슬라이드의 뼈대(구조)이고, 스크립트는 살(발표 내용)입니다. 분리하면 구조를 먼저 확정한 뒤 내용을 채울 수 있고, LLM이 각 단계에 집중할 수 있습니다.
-- **HTML을 중간 표현으로 사용**: python-pptx로 직접 생성하면 고정 플레이스홀더와 제한된 스타일링으로 디자인 자유도가 크게 떨어집니다. HTML/CSS는 LLM이 코드로 자유롭게 디자인할 수 있는 최적의 중간 표현입니다.
-- **HTML → PPTX 변환**: HTML의 자유로운 디자인을 PPTX의 개별 편집 가능한 객체(텍스트박스, 이미지, 도형)로 매핑하여, 디자인 자유도를 최대한 유지하면서도 실무에서 편집할 수 있는 최종 산출물을 제공합니다.
+- **reveal.js를 중간 표현으로 사용**: python-pptx로 직접 생성하면 고정 플레이스홀더와 제한된 스타일링으로 디자인 자유도가 크게 떨어집니다. reveal.js 프레임워크를 사용하면 LLM이 `<section>` 요소만 생성하고, 서비스가 템플릿(`slides_reveal.html`)에 삽입하여 일관된 구조의 프레젠테이션을 만들 수 있습니다. 브라우저에서 바로 프레젠테이션으로 열람도 가능합니다.
+- **reveal.js HTML → PPTX 변환**: `<section>` 태그 내 HTML 요소를 PPTX의 개별 편집 가능한 객체(텍스트박스, 이미지, 도형)로 매핑하여, 디자인 자유도를 최대한 유지하면서도 실무에서 편집할 수 있는 최종 산출물을 제공합니다.
 
 > 관련 ADR: [0011-progressive-refinement-pipeline](../docs/adr/pipeline/0011-progressive-refinement-pipeline.md)
 
@@ -125,11 +129,11 @@ F1: generate_outline   → 슬라이드 아웃라인 JSON 생성 (Bedrock LLM, f
     ↓
 F2: generate_script    → 아웃라인 기반 슬라이드별 스크립트 생성 (speaker_notes 채움)
     ↓
-F3: generate_images    → 슬라이드별 이미지 생성 (Titan Image Generator v2)
+F3: generate_images    → 슬라이드별 이미지 생성 (Gemini 2.5 Flash)
     ↓
-F4: generate_slides    → 아웃라인 + 이미지 → HTML/CSS 슬라이드 생성 (세션 기반)
+F4: generate_slides    → 아웃라인 + 이미지 → reveal.js 슬라이드 생성 (LLM이 section 생성 → 템플릿 삽입)
     ↓ (선택)
-F5: modify_slides      → HTML 슬라이드 수정 (사용자 요청 반영)
+F5: modify_slides      → reveal.js 슬라이드 수정 (사용자 요청 반영)
     ↓
 F6: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보내기
     ↓
@@ -145,10 +149,10 @@ F6: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
 |------|--------|-------------|
 | `generate_outline` | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (기본 freeform 모드, speaker_notes 비어있음) |
 | `generate_script` | `tools/script/` | 아웃라인 JSON을 기반으로 슬라이드별 발표자 노트(speaker_notes) 생성 |
-| `generate_images` | `tools/images/` | 아웃라인의 image_idea를 기반으로 Titan Image v2로 슬라이드별 이미지 생성 |
-| `generate_slides` | `tools/slides/` | 아웃라인과 이미지를 결합하여 HTML/CSS 슬라이드 생성 (세션 반환) |
-| `modify_slides` | `tools/slides/` | 기존 HTML 슬라이드를 사용자 요청에 따라 수정 |
-| `export_pptx` | `tools/pptx/` | 세션의 HTML 슬라이드를 편집 가능한 PPTX 파일로 내보내기 |
+| `generate_images` | `tools/images/` | 아웃라인의 image_idea를 기반으로 Gemini 2.5 Flash로 슬라이드별 이미지 생성 |
+| `generate_slides` | `tools/slides/` | 아웃라인과 이미지를 결합하여 reveal.js 슬라이드 생성 (LLM이 section 생성 → 템플릿 삽입, 세션 반환) |
+| `modify_slides` | `tools/slides/` | 기존 reveal.js 슬라이드를 사용자 요청에 따라 수정 |
+| `export_pptx` | `tools/pptx/` | 세션의 reveal.js 슬라이드를 편집 가능한 PPTX 파일로 내보내기 |
 | `load_project_status` | `tools/project/` | 프로젝트 상태 및 메타데이터 로드 |
 | `load_outline` | `tools/project/` | 저장된 아웃라인 JSON 로드 |
 | `load_script` | `tools/project/` | 저장된 스크립트 JSON 로드 |
@@ -166,7 +170,7 @@ F6: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
 | `SlideOutline` | 개별 슬라이드 아웃라인 (title, bullets, image_idea, layout_type, speaker_notes, elements) |
 | `SlideElement` | freeform 레이아웃의 개별 요소 (type, left, top, width, height, content, font_size_pt, bold) |
 | `ImageRequest` / `ImageResult` / `ImageResponse` | 이미지 생성 입출력 |
-| `SlidesRequest` / `SlidesResponse` | HTML 슬라이드 생성 입출력 (slides, image_paths → session_id, html) |
+| `SlidesRequest` / `SlidesResponse` | reveal.js 슬라이드 생성 입출력 (slides, image_paths → session_id, html) |
 | `ExportPptxRequest` / `ExportPptxResponse` | PPTX 내보내기 입출력 (session_id → pptx_path) |
 | `ProjectMetadata` | 프로젝트 메타데이터 (topic, num_slides, steps_completed) |
 
@@ -254,7 +258,7 @@ uv run pytest tests/test_xxx.py  # 개별 테스트
 
 ### Safe to Modify
 
-- `src/ppt_generator/templates/` - 레이아웃 매핑 로직 수정
+- `src/ppt_generator/templates/` - 레이아웃 매핑 로직 수정, reveal.js 템플릿 수정
 - `src/ppt_generator/interfaces/` - 상수, 스키마 수정
 - 새로운 도구 추가 (`tools/` 하위에 새 모듈 생성)
 
@@ -264,4 +268,5 @@ uv run pytest tests/test_xxx.py  # 개별 테스트
 - `di/container.py` - 의존성 주입 설정
 - 기존 도구 시그니처 변경 (MCP 클라이언트 호환성에 영향)
 - Bedrock API 호출 파라미터 변경 (비용 및 품질에 영향)
-- PPTX 변환 로직 (`tools/pptx/service.py` - 좌표 변환, 스타일 매핑)
+- PPTX 변환 로직 (`tools/pptx/service.py` - section 파싱, 좌표 변환, 스타일 매핑)
+- reveal.js 템플릿 구조 (`templates/slides_reveal.html` - CDN 버전, placeholder 구조)
