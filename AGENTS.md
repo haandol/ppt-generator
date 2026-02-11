@@ -12,7 +12,7 @@ Claude Desktop, Kiro 등 MCP 호환 클라이언트에서 사용할 수 있습�
 > - **Section 1~3**: 프로젝트 개요, MVP 목표, 데모 시나리오
 > - **Section 4~5**: 아키텍처, 설계 명세
 > - **Section 6**: 요구사항 요약
-> - **Section 7**: 피쳐별 상세 명세 (F1~F6) — 사용자 스토리, 흐름, 기술 설명, 엣지 케이스, 인수 기준
+> - **Section 7**: 피쳐별 상세 명세 (F1~F7) — 사용자 스토리, 흐름, 기술 설명, 엣지 케이스, 인수 기준
 > - **Section 8~9**: MVP 메트릭, 범위 외 항목
 
 ## Directory Structure
@@ -47,9 +47,8 @@ ppt-generator/
 │   │   └── schemas.py             # 데이터클래스 (Request/Response)
 │   └── templates/
 │       └── layout_mapping.py      # 레이아웃 타입 → 슬라이드 레이아웃 매핑
-├── scripts/
-│   └── run_generate.py            # 전체 파이프라인 실행 스크립트 (--project-dir 지원)
 ├── docs/
+│   ├── adr/                       # Architecture Decision Records
 │   ├── ppt-generator.alps.xml     # ALPS 설계 문서
 │   └── ppt-generator.alps.md      # ALPS 마크다운 내보내기
 ├── tests/
@@ -93,7 +92,7 @@ uv run pytest
 
 Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 
-- **Controller** (`controller.py`): MCP 도구 인터페이스. `register_*_tools(mcp, service)` 함수로 도구를 등록하며, 내부에 `@mcp.tool()` 데코레이터가 적용된 함수를 정의합니다. docstring이 MCP 클라이언트에 도구 설명으로 노출됩니다.
+- **Controller** (`controller.py`): MCP 도구 인터페이스. `register_*_tools(mcp, service, project_service)` 함수로 도구를 등록하며, 내부에 `@mcp.tool()` 데코레이터가 적용된 함수를 정의합니다. docstring이 MCP 클라이언트에 도구 설명으로 노출됩니다.
 - **Service** (`service.py`): 비즈니스 로직. Request 데이터클래스를 받아 Response 데이터클래스를 반환합니다.
 - **DIContainer** (`di/container.py`): Bedrock 모델, Agent, Service 인스턴스를 생성하고 연결합니다. 지연 초기화(lazy init) 패턴을 사용합니다.
 
@@ -115,6 +114,9 @@ F5: modify_slides      → HTML 슬라이드 수정 (사용자 요청 반영)
 F6: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보내기
     ↓
 출력: 편집 가능한 .pptx 파일
+
+* 모든 generate 도구에 project_dir 파라미터를 지정하면 결과물이 자동 저장됨
+* F7: load_* 도구로 저장된 결과물을 로드하여 중간 단계부터 재개 가능
 ```
 
 ## Available Tools
@@ -182,7 +184,7 @@ F6: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
 
 1. `tools/` 하위에 새 디렉토리 생성 (`__init__.py`, `controller.py`, `service.py`)
 2. `service.py`: Request를 받아 Response를 반환하는 클래스 작성
-3. `controller.py`: `register_*_tools(mcp: FastMCP, service: XxxService)` 함수 작성. 내부에 `@mcp.tool()` 함수 정의
+3. `controller.py`: `register_*_tools(mcp: FastMCP, service: XxxService, project_service: ProjectService)` 함수 작성. 내부에 `@mcp.tool()` 함수 정의
 4. `schemas.py`에 Request/Response 데이터클래스 추가
 5. `di/container.py`에 Service 생성 프로퍼티 추가 (지연 초기화)
 6. `server.py`의 `create_server()`에서 `register_*_tools()` 호출 추가
