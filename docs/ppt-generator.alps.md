@@ -81,14 +81,15 @@
 
 **사용자 여정**:
 1. 사용자가 주제와 슬라이드 수를 자연어로 입력
-2. MCP 서버가 Bedrock LLM을 호출하여 발표 스크립트 생성
-3. 발표 스크립트를 기반으로 슬라이드 아웃라인(제목, 본문 요점, 이미지 아이디어) 생성
-4. Titan Image Generator v2로 각 슬라이드에 필요한 이미지 생성
-5. 아웃라인과 이미지를 결합하여 HTML/CSS 기반 슬라이드 생성 및 반환
-6. 사용자가 HTML 슬라이드를 확인하고 수정 요청 ("3번 슬라이드 제목 변경해줘", "배경색을 파란색으로 바꿔줘" 등)
-7. MCP 서버가 수정 요청을 반영하여 HTML 슬라이드 업데이트 (6~7 반복)
-8. 사용자가 최종 확정 후 PPTX 내보내기 요청
-9. HTML 슬라이드를 python-pptx로 변환하여 편집 가능한 PPTX 반환
+2. MCP 서버가 Bedrock LLM을 호출하여 슬라이드 아웃라인 생성 (speaker_notes 비어있음)
+3. 사용자가 아웃라인을 확인하고 확정
+4. 아웃라인을 기반으로 슬라이드별 발표자 노트(스크립트) 생성
+5. Titan Image Generator v2로 각 슬라이드에 필요한 이미지 생성
+6. 아웃라인과 이미지를 결합하여 HTML/CSS 기반 슬라이드 생성 및 반환
+7. 사용자가 HTML 슬라이드를 확인하고 수정 요청 ("3번 슬라이드 제목 변경해줘", "배경색을 파란색으로 바꿔줘" 등)
+8. MCP 서버가 수정 요청을 반영하여 HTML 슬라이드 업데이트 (7~8 반복)
+9. 사용자가 최종 확정 후 PPTX 내보내기 요청
+10. HTML 슬라이드를 python-pptx로 변환하여 편집 가능한 PPTX 반환
 
 **끝점**: 편집 가능한 .pptx 파일 (발표자 노트에 스크립트 포함)
 
@@ -116,9 +117,9 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    A[사용자 입력: 주제 + 슬라이드 수] --> B[Bedrock LLM: 발표 스크립트 생성]
-    B --> C[Bedrock LLM: 스크립트 → 슬라이드 아웃라인 변환]
-    C --> D[Titan Image v2: 슬라이드별 이미지 생성]
+    A[사용자 입력: 주제 + 슬라이드 수] --> B[Bedrock LLM: 슬라이드 아웃라인 생성]
+    B --> B1[Bedrock LLM: 아웃라인 기반 슬라이드별 스크립트 생성]
+    B1 --> D[Titan Image v2: 슬라이드별 이미지 생성]
     D --> E[HTML/CSS 슬라이드 생성]
     E --> F{사용자 확인}
     F -- "수정 요청" --> G[Bedrock LLM: 수정 사항 반영]
@@ -148,8 +149,8 @@ flowchart TD
 
 | Tool 이름 | 매핑 기능 | 입력 | 출력 |
 |-----------|-----------|------|------|
-| `generate_script` | F1 | 주제, 슬라이드 수 | 발표 스크립트 (텍스트) |
-| `generate_outline` | F2 | 발표 스크립트 | 슬라이드 아웃라인 JSON (제목, 본문, 이미지 아이디어, 레이아웃 타입) |
+| `generate_outline` | F1 | 주제, 슬라이드 수 | 아웃라인 JSON (제목, 본문, 이미지 아이디어, 레이아웃 타입, speaker_notes 비어있음) |
+| `generate_script` | F2 | 아웃라인 JSON | 아웃라인 JSON (speaker_notes 채워짐) |
 | `generate_images` | F3 | 슬라이드 아웃라인 | 생성된 이미지 파일 경로 목록 |
 | `generate_slides` | F4 | 슬라이드 아웃라인, 이미지 경로 | HTML 슬라이드 (파일 경로 또는 HTML 문자열) |
 | `modify_slides` | F5 | 세션 ID, 수정 요청 (자연어) | 수정된 HTML 슬라이드 |
@@ -166,15 +167,15 @@ sequenceDiagram
     participant Titan as Titan Image v2
 
     User->>MCPClient: "클라우드 트렌드 5장 발표자료"
-    MCPClient->>MCPServer: generate_script(주제, 5)
-    MCPServer->>Bedrock: 스크립트 생성 요청
-    Bedrock-->>MCPServer: 발표 스크립트
-    MCPServer-->>MCPClient: 스크립트 반환
-
-    MCPClient->>MCPServer: generate_outline(스크립트)
+    MCPClient->>MCPServer: generate_outline(주제, 5)
     MCPServer->>Bedrock: 아웃라인 생성 요청
-    Bedrock-->>MCPServer: 슬라이드 아웃라인 JSON
+    Bedrock-->>MCPServer: 슬라이드 아웃라인 JSON (speaker_notes 비어있음)
     MCPServer-->>MCPClient: 아웃라인 반환
+
+    MCPClient->>MCPServer: generate_script(아웃라인 JSON)
+    MCPServer->>Bedrock: 슬라이드별 스크립트 생성 요청
+    Bedrock-->>MCPServer: 슬라이드별 speaker_notes
+    MCPServer-->>MCPClient: speaker_notes가 채워진 아웃라인 JSON
 
     MCPClient->>MCPServer: generate_images(아웃라인)
     MCPServer->>Titan: 슬라이드별 이미지 생성
@@ -206,8 +207,8 @@ sequenceDiagram
 
 | ID | 기능 | 설명 | 우선순위 |
 |----|------|------|----------|
-| F1 | 발표 스크립트 생성 | 사용자가 입력한 주제와 슬라이드 수를 기반으로 Bedrock LLM이 발표 스크립트 생성 | Must-Have |
-| F2 | 슬라이드 아웃라인 생성 | 발표 스크립트를 기반으로 슬라이드별 제목, 본문 요점, 이미지 아이디어를 구조화된 형태로 생성 | Must-Have |
+| F1 | 슬라이드 아웃라인 생성 | 사용자가 입력한 주제와 슬라이드 수를 기반으로 Bedrock LLM이 슬라이드 아웃라인 JSON 생성 (speaker_notes 비어있음) | Must-Have |
+| F2 | 발표 스크립트 생성 | 아웃라인 JSON을 기반으로 슬라이드별 발표자 노트(speaker_notes) 생성 | Must-Have |
 | F3 | 이미지 생성 | Titan Image Generator v2로 각 슬라이드에 필요한 이미지를 일관된 스타일로 생성 | Must-Have |
 | F4 | HTML 슬라이드 생성 | 아웃라인과 이미지를 결합하여 HTML/CSS 기반의 자유 레이아웃 슬라이드 생성. 발표자 노트 포함 | Must-Have |
 | F5 | 슬라이드 수정 | 사용자의 자연어 수정 요청을 받아 HTML 슬라이드를 업데이트하는 인터랙티브 수정 루프 | Must-Have |
@@ -226,58 +227,60 @@ sequenceDiagram
 
 ## Section 7. Feature-Level Specification
 
-### 7.1. F1: 발표 스크립트 생성
+### 7.1. F1: 슬라이드 아웃라인 생성
 
 #### 7.1.1 사용자 스토리
-- As a 사내 직원, I want to 주제를 입력하면 자연스러운 발표용 스크립트가 자동 생성되길 원한다, so that 발표 내용을 처음부터 구성하는 시간을 절약할 수 있다.
+- As a 사내 직원, I want to 주제를 입력하면 슬라이드 아웃라인이 자동 생성되길 원한다, so that 주제에 맞는 최적의 슬라이드 구성을 빠르게 얻을 수 있다.
 
 #### 7.1.2 흐름
-1. MCP 클라이언트에서 `generate_script(topic)` 호출
-2. Strands 에이전트가 Bedrock Claude Opus 4.6에 프롬프트 전달
-3. LLM이 주제에 대한 자연스러운 발표용 스크립트 생성 (슬라이드 구분 없이 흐름 중심)
-4. 스크립트 텍스트 반환
+1. MCP 클라이언트에서 `generate_outline(topic, num_slides)` 호출
+2. Strands 에이전트가 Bedrock LLM에 주제와 슬라이드 수 전달
+3. LLM이 주제를 분석하여 슬라이드별 제목/본문 요점/이미지 아이디어/레이아웃 타입을 JSON으로 생성 (speaker_notes는 빈 문자열)
+4. 아웃라인 JSON 반환
 
 #### 7.1.3 기술 설명
 - Bedrock Claude Opus 4.6 호출 (Strands SDK 경유)
-- 프롬프트: 주제를 기반으로 청중 앞에서 발표하는 자연스러운 스크립트 생성 요청
-- 출력: 슬라이드 구분 없는 연속적인 발표 스크립트 텍스트
+- 프롬프트: 주제를 기반으로 구조화된 JSON 아웃라인 생성 요청
+- 출력 JSON 스키마: `{ slides: [{ title, bullets: [], image_idea, layout_type, speaker_notes: "" }] }`
+- layout_type: `title`, `text_image`, `text_only`, `chart`, `closing` 등 (HTML 슬라이드 생성 시 디자인 힌트로 활용)
+- speaker_notes는 빈 문자열로 생성되며, 이후 generate_script에서 채워짐
 
 #### 7.1.4 엣지 케이스
 - 주제가 너무 모호한 경우 → LLM이 합리적으로 해석하여 생성
 - 빈 주제 입력 → 입력 검증 후 에러 반환
+- LLM이 유효하지 않은 JSON 반환 → 재시도 또는 에러 반환
 
 #### 7.1.5 인수 기준
-- 주제를 입력하면 자연스러운 발표용 스크립트가 반환된다
-- 스크립트가 입력 주제를 정확히 반영한다
-- 스크립트가 도입-본론-결론의 자연스러운 흐름을 갖는다
+- 주제를 입력하면 구조화된 슬라이드 아웃라인 JSON이 반환된다
+- 각 슬라이드에 제목, 본문 요점, 이미지 아이디어, 레이아웃 타입이 포함된다
+- speaker_notes는 빈 문자열이다
 
-### 7.2. F2: 슬라이드 아웃라인 생성
+### 7.2. F2: 발표 스크립트 생성
 
 #### 7.2.1 사용자 스토리
-- As a 사내 직원, I want to 발표 스크립트를 기반으로 슬라이드 아웃라인이 자동 생성되길 원한다, so that 스크립트 내용에 맞는 최적의 슬라이드 구성을 얻을 수 있다.
+- As a 사내 직원, I want to 아웃라인을 기반으로 슬라이드별 발표 스크립트가 자동 생성되길 원한다, so that 각 슬라이드에 맞는 자연스러운 발표자 노트를 얻을 수 있다.
 
 #### 7.2.2 흐름
-1. MCP 클라이언트에서 `generate_outline(script)` 호출
-2. Strands 에이전트가 Bedrock LLM에 스크립트 전달
-3. LLM이 스크립트를 분석하여 슬라이드 수를 자동 결정하고, 슬라이드별 제목/본문 요점/이미지 아이디어/레이아웃 타입을 JSON으로 생성
-4. 아웃라인 JSON 반환
+1. MCP 클라이언트에서 `generate_script(outline_json)` 호출
+2. Strands 에이전트가 Bedrock Claude Opus 4.6에 아웃라인 JSON 전달
+3. LLM이 각 슬라이드의 제목과 본문 요점을 기반으로 슬라이드별 발표자 노트 생성
+4. speaker_notes가 채워진 아웃라인 JSON 반환
 
 #### 7.2.3 기술 설명
 - Bedrock Claude Opus 4.6 호출 (Strands SDK 경유)
-- 프롬프트: 스크립트를 분석하여 구조화된 JSON 아웃라인 생성 요청
-- 출력 JSON 스키마: `{ slides: [{ title, bullets: [], image_idea, layout_type, speaker_notes }] }`
-- layout_type: `title`, `text_image`, `text_only`, `chart`, `closing` 등 (HTML 슬라이드 생성 시 디자인 힌트로 활용)
-- 슬라이드 수는 스크립트 내용의 논리적 구분에 따라 LLM이 자동 결정
+- 프롬프트: 아웃라인 JSON을 기반으로 슬라이드별 발표자 노트(speaker_notes) 생성 요청
+- 출력 JSON 스키마: `{ scripts: [{ slide_index, speaker_notes }] }`
+- 출력의 speaker_notes를 원본 아웃라인의 각 슬라이드에 적용하여 반환
 
 #### 7.2.4 엣지 케이스
-- 스크립트가 너무 짧은 경우 → 최소 3장(제목/본문/마무리)으로 생성
+- 아웃라인이 비어있는 경우 → 입력 검증 후 에러 반환
 - LLM이 유효하지 않은 JSON 반환 → 재시도 또는 에러 반환
+- 일부 슬라이드의 speaker_notes가 누락된 경우 → 기존 값(빈 문자열) 유지
 
 #### 7.2.5 인수 기준
-- 스크립트를 입력하면 구조화된 슬라이드 아웃라인 JSON이 반환된다
-- 각 슬라이드에 제목, 본문 요점, 이미지 아이디어, 레이아웃 타입이 포함된다
-- 슬라이드 수가 스크립트 내용에 적합하게 자동 결정된다
-- speaker_notes에 해당 슬라이드에 대응하는 스크립트 내용이 포함된다
+- 아웃라인 JSON을 입력하면 speaker_notes가 채워진 아웃라인 JSON이 반환된다
+- 각 슬라이드의 speaker_notes가 해당 슬라이드 내용에 맞는 자연스러운 발표 스크립트를 포함한다
+- 슬라이드 간 자연스러운 전환이 반영된다
 
 ### 7.3. F3: 이미지 생성
 
