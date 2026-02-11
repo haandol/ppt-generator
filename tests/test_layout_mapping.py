@@ -2,15 +2,15 @@ from ppt_generator.templates.layout_mapping import (
     DEFAULT_LAYOUT_INDEX,
     LAYOUT_MAP,
     LayoutInfo,
-    find_blank_layout_index,
     get_layout_info,
 )
 
 
 class TestLayoutMapping:
     def test_all_layout_indices_defined(self):
-        expected_indices = {0, 22, 28, 21, 87, 88}
-        assert set(LAYOUT_MAP.keys()) == expected_indices
+        # 템플릿 97종 중 Do Not Use(95) 제외한 96종 등록
+        assert len(LAYOUT_MAP) == 96
+        assert 95 not in LAYOUT_MAP  # Do Not Use 레이아웃 제외
 
     def test_get_layout_info_title(self):
         info = get_layout_info(0)
@@ -46,10 +46,21 @@ class TestLayoutMapping:
 
     def test_get_layout_info_freeform(self):
         info = get_layout_info(88)
+        assert info.layout_name == "1_Thank You Option 1 Alt"
+        assert info.body_ph == 10
+        assert info.picture_ph == 14
+
+    def test_get_layout_info_blank(self):
+        info = get_layout_info(20)
         assert info.layout_name == "Blank"
         assert info.title_ph is None
         assert info.body_ph is None
-        assert info.picture_ph is None
+
+    def test_layout_info_has_theme(self):
+        assert get_layout_info(0).theme == "light"
+        assert get_layout_info(28).theme == "dark"
+        assert get_layout_info(96).theme == "dark"
+        assert get_layout_info(22).theme == "light"
 
     def test_layout_info_is_frozen(self):
         info = get_layout_info(0)
@@ -58,13 +69,3 @@ class TestLayoutMapping:
             assert False, "Should raise FrozenInstanceError"
         except AttributeError:
             pass
-
-
-class TestFindBlankLayoutIndex:
-    def test_find_blank_returns_default_for_basic_presentation(self):
-        from pptx import Presentation
-
-        prs = Presentation()
-        idx = find_blank_layout_index(prs)
-        # 기본 프레젠테이션에서 blank 레이아웃을 찾거나, 기본값 반환
-        assert isinstance(idx, int)

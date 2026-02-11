@@ -245,8 +245,22 @@ class SlidesService:
 
     @staticmethod
     def _detect_layout_index_from_html(section_html: str) -> int:
-        """section HTML의 data-region 이름들로 layout_index를 추정."""
+        """section HTML에서 layout_index를 추출.
+
+        1순위: data-layout-index 속성
+        2순위: data-region 이름 매칭 (LAYOUT_REGIONS)
+        """
         soup = BeautifulSoup(section_html, "html.parser")
+
+        # 1순위: data-layout-index 속성
+        section = soup.find("section")
+        if section and section.get("data-layout-index"):
+            try:
+                return int(section["data-layout-index"])
+            except (ValueError, TypeError):
+                pass
+
+        # 2순위: data-region 매칭
         region_names = {
             div["data-region"]
             for div in soup.find_all("div", attrs={"data-region": True})

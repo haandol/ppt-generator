@@ -30,6 +30,8 @@ from ppt_generator.interfaces.constants import (
     PPTX_CONVERT_SYSTEM_PROMPT,
     PPTX_CONVERT_USER_PROMPT_TEMPLATE,
     PPTX_FONT_NAME,
+    PPTX_SLIDE_HEIGHT_EMU,
+    PPTX_SLIDE_WIDTH_EMU,
     REM_TO_PX,
 )
 from ppt_generator.interfaces.schemas import (
@@ -41,7 +43,6 @@ from ppt_generator.interfaces.schemas import (
     PptxTextBox,
     PptxTextRun,
 )
-from ppt_generator.templates.layout_mapping import find_blank_layout_index
 from ppt_generator.tools.slides.service import SlidesService
 
 logger = logging.getLogger(__name__)
@@ -64,11 +65,9 @@ class ExportService:
     def __init__(
         self,
         slides_service: SlidesService,
-        template_path: Path,
         use_llm_convert: bool = True,
     ) -> None:
         self._slides_service = slides_service
-        self._template_path = template_path
         self._use_llm_convert = use_llm_convert
 
     def export(self, request: ExportPptxRequest, output_dir: Path | None = None) -> ExportPptxResponse:
@@ -78,26 +77,19 @@ class ExportService:
         if not slide_divs:
             raise ValueError("슬라이드를 찾을 수 없습니다")
 
-        if self._template_path.exists():
-            prs = Presentation(str(self._template_path))
-            self._remove_existing_slides(prs)
-        else:
-            logger.warning("템플릿 파일 없음: %s, 기본 프레젠테이션으로 폴백", self._template_path)
-            prs = Presentation()
+        prs = Presentation()
+        prs.slide_width = PPTX_SLIDE_WIDTH_EMU
+        prs.slide_height = PPTX_SLIDE_HEIGHT_EMU
 
         # LLM 변환: 모든 section을 병렬로 변환
         llm_specs: dict[int, PptxSlideSpec | None] = {}
         if self._use_llm_convert:
             llm_specs = self._convert_all_sections_with_llm(slide_divs)
 
-        for idx, div in enumerate(slide_divs):
-            blank_idx = find_blank_layout_index(prs)
-            try:
-                slide_layout = prs.slide_layouts[blank_idx]
-            except IndexError:
-                slide_layout = prs.slide_layouts[0]
+        blank_layout = prs.slide_layouts[6]
 
-            slide = prs.slides.add_slide(slide_layout)
+        for idx, div in enumerate(slide_divs):
+            slide = prs.slides.add_slide(blank_layout)
             self._remove_placeholders(slide)
 
             spec = llm_specs.get(idx)
@@ -358,15 +350,6 @@ class ExportService:
         return px * factor
 
     # --- 슬라이드 기본 설정 ---
-
-    def _remove_existing_slides(self, prs: Presentation) -> None:
-        sldIdLst = prs.part._element.find(qn("p:sldIdLst"))
-        if sldIdLst is None:
-            return
-        for sldId in list(sldIdLst):
-            rId = sldId.get(qn("r:id"))
-            prs.part.drop_rel(rId)
-            sldIdLst.remove(sldId)
 
     def _set_slide_background(self, slide, color: str) -> None:
         rgb = self._parse_color(color)

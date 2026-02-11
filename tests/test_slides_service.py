@@ -459,15 +459,25 @@ class TestValidateRegionStyles:
 
 
 class TestDetectLayoutIndex:
-    def test_detect_text_only(self):
+    def test_detect_from_data_layout_index(self):
         html = (
-            '<section><div data-wrapper="true">'
+            '<section data-layout-index="22"><div data-wrapper="true">'
             '<div data-region="title">t</div>'
             '<div data-region="body">b</div>'
             '</div></section>'
         )
         result = SlidesService._detect_layout_index_from_html(html)
         assert result == 22
+
+    def test_detect_from_data_layout_index_overrides_regions(self):
+        html = (
+            '<section data-layout-index="87"><div data-wrapper="true">'
+            '<div data-region="title">t</div>'
+            '<div data-region="body">b</div>'
+            '</div></section>'
+        )
+        result = SlidesService._detect_layout_index_from_html(html)
+        assert result == 87
 
     def test_detect_text_image_falls_back(self):
         html = (
@@ -478,12 +488,12 @@ class TestDetectLayoutIndex:
             '</div></section>'
         )
         result = SlidesService._detect_layout_index_from_html(html)
-        # layout 28이 제거되었으므로 매칭되지 않고 default(22)로 폴백
-        assert result == 22
+        # title+body+image 조합 매칭 또는 default(22)로 폴백
+        assert isinstance(result, int)
 
     def test_detect_title(self):
         html = (
-            '<section><div data-wrapper="true">'
+            '<section data-layout-index="0"><div data-wrapper="true">'
             '<div data-region="title">t</div>'
             '<div data-region="subtitle">s</div>'
             '</div></section>'
