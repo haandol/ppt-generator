@@ -4,7 +4,7 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted (Updated: reveal.js 제거, 정적 HTML 수직 스크롤 방식으로 전환)
+Accepted (Updated: reveal.js 제거 → 정적 HTML 수직 스크롤 → 레이아웃 골격 기반 위치 강제)
 
 ## Context
 
@@ -16,7 +16,7 @@ HTML/CSS 기반으로 슬라이드를 생성하면 LLM의 코드 생성 능력�
 
 ## Decision
 
-MCP 도구 `generate_slides`를 구현하여, Bedrock LLM이 HTML/CSS 슬라이드를 생성한다. LLM은 `<section>` 요소들만 생성하고, 서비스 레이어에서 HTML 템플릿(`slides.html`)에 삽입하여 완전한 HTML 문서를 구성한다. JavaScript 없이 순수 HTML/CSS + TailwindCSS만으로 슬라이드를 렌더링한다.
+MCP 도구 `generate_slides`를 구현하여, Bedrock LLM이 HTML/CSS 슬라이드를 생성한다. `LAYOUT_REGIONS` 좌표를 기반으로 `position:absolute` div 골격(skeleton)을 코드로 생성하고, LLM은 각 `data-region` div 내부 컨텐츠만 채운다. 후처리로 좌표를 검증/복원한 뒤, HTML 템플릿(`slides.html`)에 삽입하여 완전한 HTML 문서를 구성한다. JavaScript 없이 순수 HTML/CSS + TailwindCSS만으로 슬라이드를 렌더링한다.
 
 ### Technical Details
 
@@ -25,7 +25,10 @@ MCP 도구 `generate_slides`를 구현하여, Bedrock LLM이 HTML/CSS 슬라이�
 - 슬라이드 규격: 1280 x 720px (16:9)
 - HTML 구조: `<body>` 안에 `<section id="slide-{N}" data-speaker-notes="...">` 요소들이 수직으로 나열
 - 각 section은 `position: relative; width: 1280px; height: 720px; overflow: hidden` 고정
-- 래퍼 div에 `absolute inset-0`을 사용하여 슬라이드 영역 전체를 커버
+- 래퍼 div(`data-wrapper="true"`)에 `absolute inset-0`을 사용하여 슬라이드 영역 전체를 커버
+- 래퍼 div 안에 `data-region` div들이 `position:absolute`로 고정 좌표에 배치
+- `data-region` div: `title`, `subtitle`, `body`, `image` 등 영역별 마커
+- LLM은 각 `data-region` div 내부의 `<!-- CONTENT:xxx -->` 마커를 실제 HTML로 교체
 - 이미지는 `{IMAGE_N}` placeholder → 후처리로 `file://` 경로 치환
 - 발표자 노트는 `data-speaker-notes` 속성에 포함
 - 세션 관리: 세션 ID로 현재 HTML 슬라이드 상태를 서버 메모리에 유지 (수정 루프 지원)
@@ -39,27 +42,54 @@ MCP 도구 `generate_slides`를 구현하여, Bedrock LLM이 HTML/CSS 슬라이�
   - section 기본 스타일 (1280x720px, 둥근 모서리, 그림자)
   - `{slides_content}` placeholder: LLM이 생성한 `<section>` 요소들 삽입
   - 슬라이드 번호 표시: JavaScript로 각 section을 `.slide-wrapper`로 감싸고 "N / 총수" 라벨 자동 생성
-- **LLM 역할**: `<section>` 요소들만 생성 (레이아웃 영역 좌표를 가이드라인으로 참조)
-- **서비스 역할**: LLM 응답에서 section을 추출하여 템플릿에 삽입
+- **서비스 역할**: (1) `build_layout_skeleton()`으로 골격 HTML 생성 → (2) LLM에 골격과 아웃라인 전달 → (3) LLM 응답에서 section 추출 → (4) `_validate_region_styles()`로 좌표 검증/복원 → (5) 템플릿에 삽입
+- **LLM 역할**: 골격의 `<!-- CONTENT:xxx -->` 마커를 실제 HTML 콘텐츠로 교체. `data-region` div의 style 속성은 변경 금지
 
-### Layout Region Constraints
+### Layout Region Constraints — 골격(Skeleton) 기반 위치 강제
 
-PPTX 템플릿의 placeholder 위치를 python-pptx로 추출하여 1280x720px HTML 좌표로 변환한 뒤, `SLIDES_SYSTEM_PROMPT`에 구체적 px 값으로 반영한다. 이를 통해 LLM이 생성하는 HTML 슬라이드의 제목/본문 위치가 일관되도록 보장한다.
+PPTX 템플릿의 placeholder 위치를 python-pptx로 추출하여 1280x720px HTML 좌표로 변환한 뒤, `LAYOUT_REGIONS` 딕셔너리에 저장한다. 이 좌표를 사용하여 `build_layout_skeleton()` 함수가 `position:absolute` div 골격을 코드로 생성하고, LLM은 각 `data-region` div 내부 컨텐츠만 채운다.
 
 - **추출 도구**: `scripts/extract_layout_positions.py` — 1회성 스크립트로 AWS 템플릿의 6개 레이아웃에서 placeholder 위치 추출
 - **변환 공식**: `px_x = inches * (1280/13.333)`, `px_y = inches * (720/7.5)`
-- **적용 위치**: `constants.py`의 `LAYOUT_REGIONS` 딕셔너리 + `SLIDES_SYSTEM_PROMPT` 내 "layout_type별 레이아웃 영역" 섹션
-- **적용 방식**: LLM에게 구체적 px 좌표를 가이드라인으로 제시하되, 실제 구현은 flex/grid 레이아웃으로 자연스럽게 처리
+- **적용 위치**: `constants.py`의 `LAYOUT_REGIONS` 딕셔너리 + `build_layout_skeleton()` 함수
+- **적용 방식**: 코드로 골격 HTML을 생성하여 좌표를 구조적으로 강제. LLM이 좌표를 변경하더라도 `_validate_region_styles()`가 원본 좌표로 복원
+
+**골격 생성 → LLM 컨텐츠 채우기 → 좌표 검증 흐름:**
+
+```
+build_layout_skeleton()          → <section> 골격 HTML (data-region div + position:absolute)
+    ↓
+LLM (SLIDES_REGION_SYSTEM_PROMPT) → <!-- CONTENT:xxx --> 마커를 실제 HTML로 교체
+    ↓
+_validate_region_styles()         → data-region div의 좌표를 LAYOUT_REGIONS 원본으로 복원
+    ↓
+_wrap_with_template()             → HTML 템플릿에 삽입
+```
+
+**골격 HTML 구조 예시:**
+
+```html
+<section id="slide-0" data-speaker-notes="...">
+  <div data-wrapper="true" class="absolute inset-0 bg-slate-900" style="background-color:#0f172a;">
+    <div data-region="title" style="position:absolute; left:57px; top:96px; width:1152px; height:56px; overflow:hidden;">
+      <h2 class="text-white text-3xl font-bold">제목 텍스트</h2>
+    </div>
+    <div data-region="body" style="position:absolute; left:64px; top:180px; width:1152px; height:472px; overflow:hidden;">
+      <p class="text-white text-lg">본문 컨텐츠</p>
+    </div>
+  </div>
+</section>
+```
 
 대상 레이아웃 및 주요 영역:
-| layout_type | 제목 top | 본문 top | 본문 height | 특징 |
-|-------------|----------|----------|-------------|------|
-| title | 359px | - | - | 중앙 정렬, 부제목 458px |
-| text_image | 96px | 228px | 424px | 좌측 44% 텍스트, 우측 42% 이미지 |
-| text_only | 96px | 180px | 472px | 전체폭 본문 |
-| chart | 96px | 180px | 472px | 전체폭 데이터 시각화 |
-| closing | 240px | 370px | 214px | 중앙 정렬 마무리 |
-| freeform | 96px | 180px | 472px | elements 좌표 참고 |
+| layout_type | 영역(data-region) | 제목 top | 본문 top | 본문 height | 특징 |
+|-------------|-------------------|----------|----------|-------------|------|
+| title | title, subtitle | 359px | - | - | 중앙 정렬, 부제목 458px |
+| text_image | title, body, image | 96px | 228px | 424px | 좌측 44% 텍스트, 우측 42% 이미지 |
+| text_only | title, body | 96px | 180px | 472px | 전체폭 본문 |
+| chart | title, body | 96px | 180px | 472px | 전체폭 데이터 시각화 |
+| closing | title, body | 240px | 370px | 214px | 중앙 정렬 마무리 |
+| freeform | title, body | 96px | 180px | 472px | elements 좌표 참고 |
 
 ### Alternatives Considered
 
@@ -105,10 +135,16 @@ sequenceDiagram
     participant LLM as Bedrock Claude
 
     Client->>Server: generate_slides(outline_json, images_json)
-    Server->>Server: 아웃라인 파싱 + 이미지 가용 여부 텍스트 생성
-    Server->>LLM: section 생성 프롬프트 ({IMAGE_N} placeholder 포함)
-    LLM-->>Server: <section> 요소들 (+ 선택적 <style>)
-    Server->>Server: section/style 추출 (3단계 fallback)
+    Server->>Server: 아웃라인 파싱
+
+    loop 슬라이드마다 (SLIDES_MAX_PER_BATCH=1)
+        Server->>Server: build_layout_skeleton() — 골격 HTML 생성
+        Server->>LLM: 골격 + 아웃라인 → CONTENT 마커 채우기 요청
+        LLM-->>Server: <section> (data-region 내부 컨텐츠 채워진 상태)
+        Server->>Server: _validate_region_styles() — 좌표 검증/복원
+    end
+
+    Server->>Server: section 합산
     Server->>Server: {IMAGE_N} → file:// 경로 치환
     Server->>Server: HTML 템플릿에 삽입
     Server->>Server: 세션 저장 (UUID → HTML)
@@ -131,6 +167,8 @@ sequenceDiagram
 - 구현: `src/ppt_generator/tools/slides/` (controller.py, service.py)
 - 템플릿: `src/ppt_generator/templates/slides.html`
 - 스키마: `src/ppt_generator/interfaces/schemas.py` — `SlidesRequest`, `SlidesResponse`
-- 프롬프트: `src/ppt_generator/interfaces/constants.py` — `SLIDES_SYSTEM_PROMPT`, `SLIDES_USER_PROMPT_TEMPLATE`
-- 관련 ADR: [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md)
+- 골격 생성: `src/ppt_generator/interfaces/constants.py` — `build_layout_skeleton()`, `LAYOUT_REGIONS`
+- 프롬프트: `src/ppt_generator/interfaces/constants.py` — `SLIDES_REGION_SYSTEM_PROMPT`, `SLIDES_REGION_USER_PROMPT_TEMPLATE`
+- 좌표 검증: `src/ppt_generator/tools/slides/service.py` — `_validate_region_styles()`
+- 관련 ADR: [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md), [0012-layout-skeleton-enforcement](./0012-layout-skeleton-enforcement.md)
 - ALPS: Section 7.4
