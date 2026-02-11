@@ -45,7 +45,6 @@ OUTLINE_SYSTEM_PROMPT = (
     "사용 가능한 layout_index:\n"
     "- 0: 제목 슬라이드 (타이틀 + 부제목, 첫 번째 슬라이드에 사용)\n"
     "- 22: 텍스트 전용 (제목 + 본문 불릿, 가장 범용적)\n"
-    "- 28: 텍스트 + 이미지 (좌측 텍스트 + 우측 이미지, 시각 자료가 도움되는 경우)\n"
     "- 21: 차트/데이터 (제목 + 데이터 시각화 영역)\n"
     "- 87: 마무리 슬라이드 (감사/Q&A, 마지막 슬라이드에 사용)\n"
     "- 88: 자유 배치 (Blank, 특수한 레이아웃이 필요한 경우)\n\n"
@@ -64,11 +63,6 @@ OUTLINE_USER_PROMPT_TEMPLATE = (
     "주제: {topic}\n"
     "슬라이드 수: {num_slides}장"
 )
-
-GEMINI_IMAGE_MODEL_ID = "gemini-2.5-flash-image"
-GEMINI_IMAGE_ASPECT_RATIO = "16:9"
-
-SKIP_IMAGE_LAYOUT_INDICES = {0, 22, 21, 87, 88}  # title, text_only, chart, closing, freeform
 
 PPTX_TEMPLATE_PATH = "2026 Confidential AWS Powerpoint Template Light & Dark Themes.pptx"
 PPTX_FONT_NAME = "맑은 고딕"
@@ -89,11 +83,6 @@ LAYOUT_REGIONS: dict[int, dict[str, dict[str, int]]] = {
     0: {  # title
         "title": {"left": 50, "top": 359, "width": 678, "height": 97},
         "subtitle": {"left": 64, "top": 458, "width": 678, "height": 56},
-    },
-    28: {  # text_image
-        "title": {"left": 57, "top": 96, "width": 560, "height": 103},
-        "body": {"left": 64, "top": 228, "width": 560, "height": 424},
-        "image": {"left": 702, "top": 36, "width": 542, "height": 616},
     },
     22: {  # text_only
         "title": {"left": 57, "top": 96, "width": 1152, "height": 56},
@@ -122,7 +111,6 @@ def build_layout_skeleton(
     layout_index: int,
     slide_index: int,
     speaker_notes: str = "",
-    image_placeholder: str | None = None,
 ) -> str:
     """LAYOUT_REGIONS 좌표를 기반으로 <section> 골격 HTML을 생성한다.
 
@@ -141,13 +129,7 @@ def build_layout_skeleton(
             f"width:{coords['width']}px; height:{coords['height']}px; overflow:hidden;"
         )
         parts.append(f'    <div data-region="{region_name}" style="{style}">')
-        if region_name == "image" and image_placeholder:
-            parts.append(
-                f'      <img src="{image_placeholder}" '
-                f'style="width:100%; height:100%; object-fit:cover;" />'
-            )
-        else:
-            parts.append(f"      <!-- CONTENT:{region_name} -->")
+        parts.append(f"      <!-- CONTENT:{region_name} -->")
         parts.append("    </div>")
 
     parts.append("  </div>")
@@ -185,17 +167,9 @@ SLIDES_SYSTEM_PROMPT = (
     "- 좌우 분할 시 각 영역에 width:50%와 overflow:hidden을 적용하세요.\n"
     "- flex:1과 min-height:0을 함께 사용하여 flex 자식이 부모를 넘지 않게 하세요.\n"
     "- 콘텐츠가 많으면 텍스트 크기를 줄이거나 항목 수를 줄이세요. 스크롤은 허용하지 않습니다.\n\n"
-    "이미지 처리:\n"
-    "- 이미지가 있는 슬라이드에는 {IMAGE_N} placeholder를 사용하세요 (N은 0부터 시작하는 슬라이드 인덱스).\n"
-    "- 예: <img src=\"{IMAGE_0}\" style=\"width:100%; height:auto; border-radius:8px; object-fit:cover;\" />\n"
-    "- 이미지가 없는 슬라이드에는 이미지 태그를 절대 사용하지 마세요.\n"
-    "- layout_index 0(title), 22(text_only), 87(closing) 슬라이드는 이미지가 생성되지 않으므로 이미지 태그를 넣지 마세요. "
-    "텍스트와 인라인 style만으로 디자인하세요.\n\n"
     "layout_index별 레이아웃 영역 (AWS 템플릿 기준 px 좌표, 1280x720 슬라이드):\n"
     "- 0 (title): 제목 left=50 top=359 w=678 h=97, 부제목 left=64 top=458 w=678 h=56. "
     "래퍼에 align-items:center; justify-content:center로 수직·수평 중앙 정렬. 큰 제목 + 구분선 + 부제목. 하단에 발표자 정보. 이미지 없이 텍스트만.\n"
-    "- 28 (text_image): 제목 left=57 top=96 w=560 h=103, 본문 left=64 top=228 w=560 h=424, 이미지 left=702 top=36 w=542 h=616. "
-    "상단에 제목, 아래에 좌우 분할. 좌측(약 44%) 텍스트, 우측(약 42%) 이미지. 이미지 영역은 슬라이드 상단부터 시작.\n"
     "- 22 (text_only): 제목 left=57 top=96 w=1152 h=56, 본문 left=64 top=180 w=1152 h=472. "
     "상단에 제목 + 구분선, 아래에 전체폭 본문 영역에 불릿/텍스트 배치. 이미지 없이 텍스트만.\n"
     "- 21 (chart): 제목 left=57 top=96 w=1152 h=56, 본문 left=64 top=180 w=1152 h=472. "
@@ -209,7 +183,6 @@ SLIDES_SYSTEM_PROMPT = (
     "- 래퍼 div의 padding으로 좌우 여백(약 56~64px)과 상단 여백(약 96px)을 맞추세요.\n"
     "- 제목은 top 좌표 위치에서 시작하도록 배치하세요.\n"
     "- 본문은 제목 아래 top 좌표에서 시작하여 height만큼의 영역 안에 들어오도록 하세요.\n"
-    "- text_image(28)의 좌우 분할 비율: 좌측 텍스트 약 44%, 우측 이미지 약 42%, gap 포함.\n"
     "- 본문 영역 하단(top+height)을 넘지 않도록 콘텐츠 양을 조절하세요.\n"
     "- 이 좌표는 가이드라인이며, display:flex/display:grid 레이아웃으로 자연스럽게 구현하세요.\n\n"
     "디자인 원칙:\n"
@@ -237,7 +210,7 @@ SLIDES_REGION_SYSTEM_PROMPT = (
     "- title 영역: 제목 텍스트. font-size:1.875rem 이상, font-weight:bold. 구분선 등 장식 요소 포함 가능.\n"
     "- subtitle 영역: 부제목/설명 텍스트.\n"
     "- body 영역: 불릿 포인트, 텍스트, 차트 등. font-size:1rem~1.125rem.\n"
-    "- image 영역: 이미지가 이미 삽입되어 있으면 그대로 유지. 추가 장식 불필요.\n\n"
+    "\n"
     "overflow 방지 규칙:\n"
     "- 각 영역의 width/height 안에 콘텐츠가 완전히 들어와야 합니다.\n"
     "- 콘텐츠가 많으면 텍스트 크기를 줄이거나 항목 수를 줄이세요. 스크롤은 허용하지 않습니다.\n"
@@ -255,7 +228,6 @@ SLIDES_REGION_SYSTEM_PROMPT = (
 SLIDES_REGION_USER_PROMPT_TEMPLATE = (
     "다음 아웃라인을 기반으로 레이아웃 골격의 각 영역에 콘텐츠를 채워주세요.\n\n"
     "슬라이드 아웃라인:\n{outline_json}\n\n"
-    "이미지 정보:\n{image_data}\n\n"
     "레이아웃 골격:\n{skeleton_html}"
 )
 
@@ -264,7 +236,6 @@ SLIDES_REGION_BATCH_USER_PROMPT_TEMPLATE = (
     "이전 배치에서 사용된 디자인 테마를 반드시 동일하게 유지하세요.\n\n"
     "이전 배치의 디자인 요약:\n{design_summary}\n\n"
     "슬라이드 아웃라인:\n{outline_json}\n\n"
-    "이미지 정보:\n{image_data}\n\n"
     "레이아웃 골격:\n{skeleton_html}\n\n"
     "출력 규칙:\n"
     "- 완성된 <section> 요소 하나만 출력하세요.\n"
@@ -274,8 +245,7 @@ SLIDES_REGION_BATCH_USER_PROMPT_TEMPLATE = (
 
 SLIDES_USER_PROMPT_TEMPLATE = (
     "다음 아웃라인을 기반으로 HTML/CSS 슬라이드를 생성해주세요.\n\n"
-    "슬라이드 아웃라인:\n{outline_json}\n\n"
-    "이미지 정보:\n{image_data}"
+    "슬라이드 아웃라인:\n{outline_json}"
 )
 
 # --- F4: 슬라이드 분할 처리 ---
@@ -286,7 +256,6 @@ SLIDES_BATCH_USER_PROMPT_TEMPLATE = (
     "이전 배치에서 사용된 디자인 테마를 반드시 동일하게 유지하세요.\n\n"
     "이전 배치의 디자인 요약:\n{design_summary}\n\n"
     "슬라이드 아웃라인:\n{outline_json}\n\n"
-    "이미지 정보:\n{image_data}\n\n"
     "출력 규칙:\n"
     "- 완전한 HTML 문서를 출력하지 말고, <section ...> 요소들만 출력하세요.\n"
     "- <html>, <head>, <body> 태그 없이 <section> 요소들만 출력하세요.\n"
@@ -308,14 +277,12 @@ SLIDES_MODIFY_SYSTEM_PROMPT = (
     "- 텍스트 변경: 제목, 본문 내용, 불릿 포인트의 수정/추가/삭제\n"
     "- 레이아웃 조정: 요소 위치, 크기, 간격 변경 (인라인 style 사용)\n"
     "- 스타일 변경: 색상, 배경색, 테두리 등 인라인 style 변경\n"
-    "- 이미지 교체: 기존 이미지 제거, 위치/크기 변경 (src 속성의 file:// 경로 자체는 유지)\n"
     "- 슬라이드 추가: 새로운 <section> 요소 추가\n"
     "- 슬라이드 삭제: 특정 <section> 요소 제거\n"
     "- 슬라이드 순서 변경: <section> 요소의 순서 재배치\n"
     "- 발표자 노트 수정: data-speaker-notes 속성 값 변경\n\n"
     "수정 규칙:\n"
     "- 수정 요청에 해당하는 부분만 변경하고, 나머지는 그대로 유지하세요.\n"
-    "- 이미지의 file:// 경로(src 속성 값)는 변경하지 마세요. 위치나 크기만 변경 가능합니다.\n"
     "- 모든 스타일은 인라인 style 속성으로 지정하세요. class 속성 대신 인라인 style을 사용하세요.\n"
     "- 커스텀 CSS 클래스를 절대 만들지 마세요. <style> 태그를 출력하지 마세요.\n"
     "- data-region 속성이 있는 div의 style 속성(position, left, top, width, height)은 절대 변경하지 마세요.\n"

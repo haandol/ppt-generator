@@ -58,7 +58,7 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         """저장된 아웃라인 JSON을 로드합니다.
 
         프로젝트 디렉토리에서 이전에 생성된 슬라이드 아웃라인을 불러옵니다.
-        불러온 결과를 generate_script, generate_images, generate_slides의 입력으로
+        불러온 결과를 generate_script, generate_slides의 입력으로
         바로 사용할 수 있습니다.
 
         Args:
@@ -75,7 +75,7 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         """저장된 스크립트 JSON을 로드합니다.
 
         프로젝트 디렉토리에서 이전에 생성된 스크립트(speaker_notes 포함 아웃라인)를
-        불러옵니다. 불러온 결과를 generate_images, generate_slides의 입력으로
+        불러옵니다. 불러온 결과를 generate_slides의 입력으로
         바로 사용할 수 있습니다.
 
         Args:
@@ -86,22 +86,6 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         """
         _, project_dir = project_service.resolve_project_dir(project_id)
         return project_service.load_script(project_dir)
-
-    @mcp.tool()
-    def load_images(project_id: str) -> str:
-        """저장된 이미지 메타 JSON을 로드합니다.
-
-        프로젝트 디렉토리에서 이전에 생성된 이미지 경로 정보를 불러옵니다.
-        불러온 결과를 generate_slides의 images_json 입력으로 바로 사용할 수 있습니다.
-
-        Args:
-            project_id: 프로젝트 ID
-
-        Returns:
-            이미지 경로 목록 JSON 문자열
-        """
-        _, project_dir = project_service.resolve_project_dir(project_id)
-        return project_service.load_images(project_dir)
 
     @mcp.tool()
     def load_slides_html(project_id: str) -> str:

@@ -112,15 +112,6 @@ class TestExportService:
         assert "제목" in all_text
         assert "본문 텍스트" in all_text
 
-    def test_export_extracts_images(self, service):
-        request = ExportPptxRequest(session_id="test-session")
-        response = service.export(request)
-
-        prs = Presentation(response.pptx_path)
-        slide = prs.slides[0]
-        picture_shapes = [s for s in slide.shapes if s.shape_type == 13]  # MSO_SHAPE_TYPE.PICTURE
-        assert len(picture_shapes) >= 1
-
     def test_export_preserves_speaker_notes(self, service):
         request = ExportPptxRequest(session_id="test-session")
         response = service.export(request)
@@ -145,21 +136,6 @@ class TestExportService:
         assert abs(left_inches - 0.521) < 0.1
         # 30px * (7.5/720) ≈ 0.3125in
         assert abs(top_inches - 0.3125) < 0.1
-
-    def test_export_sets_image_alt_text(self, service):
-        request = ExportPptxRequest(session_id="test-session")
-        response = service.export(request)
-
-        prs = Presentation(response.pptx_path)
-        slide = prs.slides[0]
-        picture_shapes = [s for s in slide.shapes if s.shape_type == 13]
-        assert len(picture_shapes) >= 1
-        from pptx.oxml.ns import qn
-        nvPicPr = picture_shapes[0]._element.find(qn("p:nvPicPr"))
-        assert nvPicPr is not None
-        cNvPr = nvPicPr.find(qn("p:cNvPr"))
-        assert cNvPr is not None
-        assert cNvPr.get("descr") == "이미지 설명"
 
     def test_export_handles_missing_image_file(self, service_with_html):
         html = (
@@ -285,16 +261,6 @@ class TestRegionBasedExport:
         all_text = " ".join(s.text_frame.text for s in slide.shapes if s.has_text_frame)
         assert "제목 텍스트" in all_text
         assert "본문 텍스트" in all_text
-
-    def test_export_region_extracts_images(self, service_with_html, png_file):
-        svc = service_with_html(_make_region_html(png_file))
-        request = ExportPptxRequest(session_id="test-session")
-        response = svc.export(request)
-
-        prs = Presentation(response.pptx_path)
-        slide = prs.slides[0]
-        picture_shapes = [s for s in slide.shapes if s.shape_type == 13]
-        assert len(picture_shapes) >= 1
 
     def test_export_region_preserves_speaker_notes(self, service_with_html):
         svc = service_with_html(_make_region_html())
