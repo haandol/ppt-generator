@@ -2,8 +2,8 @@
 """note.md 기반 PPT 생성 스크립트.
 
 프로젝트의 서비스 레이어를 직접 호출하여 4단계 파이프라인을 실행합니다.
-1. generate_script - 스크립트 생성
-2. generate_outline - 아웃라인 생성
+1. generate_outline - 아웃라인 생성
+2. generate_script - 스크립트 생성 (아웃라인 기반 speaker_notes 채우기)
 3. generate_images - 이미지 생성
 4. generate_pptx - PPTX 파일 생성
 """
@@ -77,25 +77,24 @@ NUM_SLIDES = 9
 def main() -> None:
     container = DIContainer(project_root=Path(__file__).parent)
 
-    # Step 1: 스크립트 생성
-    logger.info("=== Step 1: 스크립트 생성 시작 ===")
-    request = ScriptRequest(topic=NOTE_TOPIC, num_slides=NUM_SLIDES)
-    script_response = container.script_service.generate(request)
-    script = script_response.script
-    logger.info("스크립트 생성 완료 (길이: %d자)", len(script))
-    print("\n--- 생성된 스크립트 ---")
-    print(script[:500] + "..." if len(script) > 500 else script)
-
-    # Step 2: 아웃라인 생성
-    logger.info("=== Step 2: 아웃라인 생성 시작 ===")
-    outline_request = OutlineRequest(script=script)
+    # Step 1: 아웃라인 생성
+    logger.info("=== Step 1: 아웃라인 생성 시작 ===")
+    outline_request = OutlineRequest(topic=NOTE_TOPIC, num_slides=NUM_SLIDES)
     outline_response = container.outline_service.generate(outline_request)
-    outline_json = json.dumps(asdict(outline_response), ensure_ascii=False, indent=2)
     logger.info("아웃라인 생성 완료 (슬라이드 %d장)", len(outline_response.slides))
+
+    # Step 2: 스크립트 생성 (아웃라인 기반 speaker_notes 채우기)
+    logger.info("=== Step 2: 스크립트 생성 시작 ===")
+    script_request = ScriptRequest(outline=outline_response)
+    script_response = container.script_service.generate(script_request)
+    logger.info("스크립트 생성 완료 (슬라이드 %d장)", len(script_response.slides))
+
+    # speaker_notes가 채워진 슬라이드 목록 사용
+    slides = script_response.slides
 
     # Step 3: 이미지 생성
     logger.info("=== Step 3: 이미지 생성 시작 ===")
-    image_request = ImageRequest(slides=outline_response.slides)
+    image_request = ImageRequest(slides=slides)
     image_response = container.image_service.generate(image_request)
     images_json = json.dumps(asdict(image_response), ensure_ascii=False, indent=2)
     logger.info("이미지 생성 완료 (%d개)", len(image_response.images))
@@ -105,7 +104,7 @@ def main() -> None:
     image_paths: dict[int, str] = {}
     for img in image_response.images:
         image_paths[img.slide_index] = img.image_path
-    pptx_request = PptxRequest(slides=outline_response.slides, image_paths=image_paths)
+    pptx_request = PptxRequest(slides=slides, image_paths=image_paths)
     pptx_response = container.pptx_service.generate(pptx_request)
     logger.info("=== PPTX 생성 완료! ===")
     print(f"\n생성된 파일: {pptx_response.pptx_path}")
