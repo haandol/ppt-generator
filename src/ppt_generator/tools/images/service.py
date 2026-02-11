@@ -10,7 +10,7 @@ from google.genai import types
 from ppt_generator.interfaces.constants import (
     GEMINI_IMAGE_ASPECT_RATIO,
     GEMINI_IMAGE_MODEL_ID,
-    SKIP_IMAGE_LAYOUT_TYPES,
+    SKIP_IMAGE_LAYOUT_INDICES,
 )
 from ppt_generator.interfaces.schemas import ImageRequest, ImageResponse, ImageResult
 
@@ -31,16 +31,16 @@ class ImageService:
         results: list[ImageResult] = []
 
         for i, slide in enumerate(request.slides):
-            if not slide.image_idea or not slide.image_idea.strip():
-                logger.info("슬라이드 %d: image_idea 없음, 건너뜀", i)
+            if slide.layout_index in SKIP_IMAGE_LAYOUT_INDICES:
+                logger.info("슬라이드 %d: layout_index=%d, 이미지 생성 건너뜀", i, slide.layout_index)
                 continue
 
-            if slide.layout_type in SKIP_IMAGE_LAYOUT_TYPES:
-                logger.info("슬라이드 %d: layout_type=%s, 이미지 생성 건너뜀", i, slide.layout_type)
+            if not slide.content_summary or not slide.content_summary.strip():
+                logger.info("슬라이드 %d: content_summary 없음, 건너뜀", i)
                 continue
 
             try:
-                image_path = self._generate_single(slide.image_idea, output_dir / f"slide_{i}.png")
+                image_path = self._generate_single(slide.content_summary, output_dir / f"slide_{i}.png")
                 results.append(ImageResult(slide_index=i, image_path=str(image_path)))
             except Exception:
                 logger.exception("슬라이드 %d 이미지 생성 실패", i)

@@ -4,7 +4,9 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted
+Superseded by [0013-image-generation-integration](./0013-image-generation-integration.md)
+
+> **Note**: 이미지 생성이 HTML 슬라이드 생성(F3)에 통합되었습니다. [ADR 0013](./0013-image-generation-integration.md) 참조.
 
 ## Context
 

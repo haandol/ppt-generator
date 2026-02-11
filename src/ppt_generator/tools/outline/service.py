@@ -4,10 +4,10 @@ import re
 
 from strands import Agent
 
-from ppt_generator.interfaces.constants import OUTLINE_FREEFORM_USER_PROMPT_TEMPLATE
-from ppt_generator.interfaces.schemas import OutlineRequest, OutlineResponse, SlideElement, SlideOutline
+from ppt_generator.interfaces.constants import OUTLINE_USER_PROMPT_TEMPLATE
+from ppt_generator.interfaces.schemas import OutlineRequest, OutlineResponse, SlideOutline
 
-VALID_LAYOUT_TYPES = {"title", "text_image", "text_only", "chart", "closing", "freeform"}
+VALID_LAYOUT_INDICES = {0, 22, 28, 21, 87, 88}
 MAX_RETRIES = 3
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ class OutlineService:
         if not request.topic.strip():
             raise ValueError("주제가 비어있습니다.")
 
-        prompt = OUTLINE_FREEFORM_USER_PROMPT_TEMPLATE.format(
+        prompt = OUTLINE_USER_PROMPT_TEMPLATE.format(
             topic=request.topic, num_slides=request.num_slides
         )
 
@@ -56,32 +56,15 @@ class OutlineService:
     def _build_slides(self, data: dict) -> list[SlideOutline]:
         slides: list[SlideOutline] = []
         for item in data["slides"]:
-            layout_type = item.get("layout_type", "text_only")
-            if layout_type not in VALID_LAYOUT_TYPES:
-                layout_type = "text_only"
-
-            elements = [
-                SlideElement(
-                    type=e.get("type", "textbox"),
-                    left=float(e.get("left", 0)),
-                    top=float(e.get("top", 0)),
-                    width=float(e.get("width", 1)),
-                    height=float(e.get("height", 1)),
-                    content=e.get("content", ""),
-                    font_size_pt=int(e.get("font_size_pt", 16)),
-                    bold=bool(e.get("bold", False)),
-                )
-                for e in item.get("elements", [])
-            ]
+            layout_index = item.get("layout_index", 22)
+            if not isinstance(layout_index, int) or layout_index not in VALID_LAYOUT_INDICES:
+                layout_index = 22
 
             slides.append(
                 SlideOutline(
                     title=item.get("title", ""),
-                    bullets=item.get("bullets", []),
-                    image_idea=item.get("image_idea", ""),
-                    layout_type=layout_type,
-                    speaker_notes=item.get("speaker_notes", ""),
-                    elements=elements,
+                    content_summary=item.get("content_summary", ""),
+                    layout_index=layout_index,
                 )
             )
         return slides

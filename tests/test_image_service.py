@@ -6,13 +6,11 @@ from ppt_generator.interfaces.schemas import ImageRequest, SlideOutline
 from ppt_generator.tools.images.service import ImageService
 
 
-def _make_slide(image_idea: str = "a cloud diagram", layout_type: str = "text_image") -> SlideOutline:
+def _make_slide(content_summary: str = "a cloud diagram", layout_index: int = 28) -> SlideOutline:
     return SlideOutline(
         title="테스트",
-        bullets=[],
-        image_idea=image_idea,
-        layout_type=layout_type,
-        speaker_notes="",
+        content_summary=content_summary,
+        layout_index=layout_index,
     )
 
 
@@ -67,36 +65,36 @@ class TestImageService:
         assert len(response.images) == 1
         mock_client._mock_image.save.assert_called_once()
 
-    def test_generate_skips_empty_image_idea(self, service, mock_client):
-        request = ImageRequest(slides=[_make_slide(image_idea="")])
+    def test_generate_skips_empty_content_summary(self, service, mock_client):
+        request = ImageRequest(slides=[_make_slide(content_summary="")])
         response = service.generate(request)
 
         assert len(response.images) == 0
         mock_client.models.generate_content.assert_not_called()
 
-    def test_generate_skips_whitespace_image_idea(self, service, mock_client):
-        request = ImageRequest(slides=[_make_slide(image_idea="   ")])
+    def test_generate_skips_whitespace_content_summary(self, service, mock_client):
+        request = ImageRequest(slides=[_make_slide(content_summary="   ")])
         response = service.generate(request)
 
         assert len(response.images) == 0
         mock_client.models.generate_content.assert_not_called()
 
     def test_generate_skips_text_only_layout(self, service, mock_client):
-        request = ImageRequest(slides=[_make_slide(layout_type="text_only")])
+        request = ImageRequest(slides=[_make_slide(layout_index=22)])
         response = service.generate(request)
 
         assert len(response.images) == 0
         mock_client.models.generate_content.assert_not_called()
 
     def test_generate_skips_title_layout(self, service, mock_client):
-        request = ImageRequest(slides=[_make_slide(layout_type="title")])
+        request = ImageRequest(slides=[_make_slide(layout_index=0)])
         response = service.generate(request)
 
         assert len(response.images) == 0
         mock_client.models.generate_content.assert_not_called()
 
     def test_generate_skips_closing_layout(self, service, mock_client):
-        request = ImageRequest(slides=[_make_slide(layout_type="closing")])
+        request = ImageRequest(slides=[_make_slide(layout_index=87)])
         response = service.generate(request)
 
         assert len(response.images) == 0
@@ -122,9 +120,9 @@ class TestImageService:
 
     def test_generate_tracks_slide_index(self, service):
         slides = [
-            _make_slide(image_idea=""),
+            _make_slide(content_summary=""),
             _make_slide(),
-            _make_slide(layout_type="text_only"),
+            _make_slide(layout_index=22),
             _make_slide(),
         ]
         request = ImageRequest(slides=slides)
@@ -135,7 +133,7 @@ class TestImageService:
         assert response.images[1].slide_index == 3
 
     def test_generate_sends_correct_model_params(self, service, mock_client):
-        request = ImageRequest(slides=[_make_slide(image_idea="a futuristic city")])
+        request = ImageRequest(slides=[_make_slide(content_summary="a futuristic city")])
         service.generate(request)
 
         call_kwargs = mock_client.models.generate_content.call_args[1]
@@ -164,10 +162,10 @@ class TestImageService:
     def test_generate_skips_all_text_heavy_layouts(self, service, mock_client):
         """title, text_only, closing 모두 스킵되는지 통합 테스트."""
         slides = [
-            _make_slide(layout_type="title"),
-            _make_slide(layout_type="text_only"),
-            _make_slide(layout_type="closing"),
-            _make_slide(layout_type="text_image"),
+            _make_slide(layout_index=0),    # title
+            _make_slide(layout_index=22),   # text_only
+            _make_slide(layout_index=87),   # closing
+            _make_slide(layout_index=28),   # text_image
         ]
         request = ImageRequest(slides=slides)
         response = service.generate(request)

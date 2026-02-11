@@ -38,11 +38,11 @@ Accepted
   project.json         # 메타데이터
   outline.json         # F1 출력
   script.json          # F2 출력
-  images/              # F3 출력 (직접 생성)
-  images.json          # F3 메타
-  slides.html          # F4/F5 출력
+  images/              # F3에서 내부 생성 (직접 생성)
+  images.json          # F3에서 내부 생성 메타
+  slides.html          # F3/F4 출력
   slides_meta.json     # 세션 메타
-  presentation.pptx    # F6 출력 (직접 생성)
+  presentation.pptx    # F5 출력 (직접 생성)
 ```
 
 ### Alternatives Considered

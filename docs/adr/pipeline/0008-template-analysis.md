@@ -23,7 +23,7 @@ Proposed
 
 ## Decision
 
-새로운 MCP 도구 `analyze_template`을 구현하여 python-pptx로 PPTX 파일을 분석하고, 규칙 기반으로 레이아웃을 자동 매핑한다. 분석 결과는 구조화된 JSON(`TemplateAnalysis`)으로 반환하며, 이를 기존 파이프라인(F4 HTML 슬라이드, F6 PPTX 내보내기)에 동적으로 주입한다.
+새로운 MCP 도구 `analyze_template`을 구현하여 python-pptx로 PPTX 파일을 분석하고, 규칙 기반으로 레이아웃을 자동 매핑한다. 분석 결과는 구조화된 JSON(`TemplateAnalysis`)으로 반환하며, 이를 기존 파이프라인(F3 HTML 슬라이드, F5 PPTX 내보내기)에 동적으로 주입한다.
 
 ### Technical Details
 

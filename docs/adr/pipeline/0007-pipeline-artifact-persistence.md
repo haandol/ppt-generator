@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-현재 파이프라인(F1→F2→F3→F4/F5)의 각 단계 결과물은 메모리(`SlidesService._sessions`)나 OS 임시 디렉토리(`tempfile.mkdtemp`)에만 존재하여, 서버 재시작 시 모두 소실된다.
+현재 파이프라인(F1→F2→F3/F4)의 각 단계 결과물은 메모리(`SlidesService._sessions`)나 OS 임시 디렉토리(`tempfile.mkdtemp`)에만 존재하여, 서버 재시작 시 모두 소실된다.
 
 사용자는 각 단계의 결과물을 지정된 디렉토리에 저장하고, 나중에 불러와서 원하는 단계부터 수정/재진행하고 싶어한다.
 
@@ -32,10 +32,10 @@ Accepted
   project.json        # 메타데이터 (topic, num_slides, 각 단계 완료 상태/타임스탬프)
   script.txt          # F1 출력
   outline.json        # F2 출력
-  images/             # F3 출력 (PNG 파일들 복사)
-  images.json         # F3 출력 (프로젝트 경로로 리매핑된 메타데이터)
-  slides.html         # F4/F5 출력
-  presentation.pptx   # F6 출력
+  images/             # F3에서 내부 생성 (PNG 파일들 복사)
+  images.json         # F3에서 내부 생성 (프로젝트 경로로 리매핑된 메타데이터)
+  slides.html         # F3/F4 출력
+  presentation.pptx   # F5 출력
 ```
 
 새로운 load MCP 도구:

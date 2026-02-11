@@ -1,16 +1,16 @@
-# 4. HTML 슬라이드 생성 (F4)
+# 4. HTML 슬라이드 생성 (F3)
 
 Date: 2026-02-11
 
 ## Status
 
-Accepted (Updated: reveal.js 제거 → 정적 HTML 수직 스크롤 → 레이아웃 골격 기반 위치 강제)
+Accepted (Updated: reveal.js 제거 → 정적 HTML 수직 스크롤 → 레이아웃 골격 기반 위치 강제 → 이미지 생성을 독립 단계에서 슬라이드 생성 내부로 통합)
 
 ## Context
 
-아웃라인(F1/F2)과 이미지(F3)를 결합하여 전문적인 디자인의 슬라이드를 생성해야 한다. python-pptx로 직접 생성하면 레이아웃 제약(고정 플레이스홀더, 제한된 CSS 스타일링)이 있어 자유로운 디자인이 어렵다.
+아웃라인(F1/F2)을 기반으로 전문적인 디자인의 슬라이드를 생성해야 한다. 이미지는 필요한 경우 내부에서 생성한다. python-pptx로 직접 생성하면 레이아웃 제약(고정 플레이스홀더, 제한된 CSS 스타일링)이 있어 자유로운 디자인이 어렵다.
 
-HTML/CSS 기반으로 슬라이드를 생성하면 LLM의 코드 생성 능력을 활용하여 자유로운 레이아웃과 고품질 디자인을 달성할 수 있다. 세션 ID를 부여하여 이후 수정(F5)과 PPTX 내보내기(F6)에서 활용한다.
+HTML/CSS 기반으로 슬라이드를 생성하면 LLM의 코드 생성 능력을 활용하여 자유로운 레이아웃과 고품질 디자인을 달성할 수 있다. 세션 ID를 부여하여 이후 수정(F4)과 PPTX 내보내기(F5)에서 활용한다.
 
 기존 reveal.js 방식은 프레임워크의 내부 레이아웃 엔진(`display: flex`, 자동 센터링, 스케일링)이 LLM이 생성한 Tailwind CSS 레이아웃과 충돌하여 배경색 누락, 콘텐츠 오버플로우 등 레이아웃이 깨지는 문제가 있었다. reveal.js를 제거하고 JavaScript 없는 순수 HTML/CSS 방식으로 전환하여, 각 슬라이드를 1280x720px 고정 크기 `<section>`으로 수직 스크롤 형태로 표시한다.
 
@@ -111,7 +111,7 @@ LLM 응답에서 `<section>` 요소를 추출하는 3단계 fallback:
 | 항목 | 값 |
 |------|-----|
 | Tool | `generate_slides` |
-| 입력 | `outline_json: str` (슬라이드 아웃라인), `images_json: str` (이미지 경로) |
+| 입력 | `outline_json: str` (슬라이드 아웃라인) |
 | 출력 | reveal.js HTML 슬라이드 (파일 경로 또는 HTML 문자열), 세션 ID 포함 |
 
 ### Acceptance Criteria
@@ -134,8 +134,8 @@ sequenceDiagram
     participant Server as MCP Server
     participant LLM as Bedrock Claude
 
-    Client->>Server: generate_slides(outline_json, images_json)
-    Server->>Server: 아웃라인 파싱
+    Client->>Server: generate_slides(outline_json)
+    Server->>Server: 아웃라인 파싱 + 필요시 이미지 내부 생성
 
     loop 슬라이드마다 (SLIDES_MAX_PER_BATCH=1)
         Server->>Server: build_layout_skeleton() — 골격 HTML 생성
@@ -153,8 +153,8 @@ sequenceDiagram
 
 ## Consequences
 
-- F5(수정)에서 세션 ID로 HTML 상태 접근/갱신 가능
-- F6(PPTX 내보내기)에서 세션의 최종 HTML을 파싱하여 변환 가능 (`<section>` 태그 기반 파싱)
+- F4(수정)에서 세션 ID로 HTML 상태 접근/갱신 가능
+- F5(PPTX 내보내기)에서 세션의 최종 HTML을 파싱하여 변환 가능 (`<section>` 태그 기반 파싱)
 - 이미지 파일이 누락된 경우 해당 슬라이드는 텍스트만으로 구성
 - LLM이 유효하지 않은 section 반환 시 fallback으로 텍스트 반환
 - 세션은 메모리 기반이므로 서버 재시작 시 소실된다 (영속화는 별도 ADR 참조)
@@ -171,4 +171,5 @@ sequenceDiagram
 - 프롬프트: `src/ppt_generator/interfaces/constants.py` — `SLIDES_REGION_SYSTEM_PROMPT`, `SLIDES_REGION_USER_PROMPT_TEMPLATE`
 - 좌표 검증: `src/ppt_generator/tools/slides/service.py` — `_validate_region_styles()`
 - 관련 ADR: [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md), [0012-layout-skeleton-enforcement](./0012-layout-skeleton-enforcement.md)
-- ALPS: Section 7.4
+- 관련 ADR: [0013-image-generation-integration](./0013-image-generation-integration.md)
+- ALPS: Section 7.3

@@ -10,7 +10,7 @@ Accepted
 
 F1에서 생성한 아웃라인 JSON의 speaker_notes는 비어있다. 각 슬라이드의 제목과 본문 요점을 기반으로 자연스러운 발표자 노트를 생성하여 speaker_notes를 채워야 한다.
 
-이 단계를 거치면 아웃라인에 발표자 노트가 포함되어, F4에서 HTML 슬라이드 생성 시 `data-speaker-notes` 속성에 반영할 수 있다.
+이 단계를 거치면 아웃라인에 발표자 노트가 포함되어, F3(HTML 슬라이드 생성)에서 `data-speaker-notes` 속성에 반영할 수 있다.
 
 ## Decision
 
@@ -57,7 +57,7 @@ sequenceDiagram
 ## Consequences
 
 - 반환되는 아웃라인 JSON은 F1의 출력과 동일한 스키마이며, speaker_notes만 채워져 있다
-- 이후 F3, F4에서 이 아웃라인 JSON을 그대로 사용할 수 있다
+- 이후 F3(HTML 슬라이드 생성)에서 이 아웃라인 JSON을 그대로 사용할 수 있다
 - 아웃라인이 비어있는 경우 입력 검증 후 에러 반환한다
 - LLM이 유효하지 않은 JSON 반환 시 재시도 또는 에러 반환한다
 - 일부 슬라이드의 speaker_notes가 누락된 경우 기존 값(빈 문자열) 유지한다

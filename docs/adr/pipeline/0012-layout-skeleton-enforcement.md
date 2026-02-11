@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-F4(HTML 슬라이드 생성)에서 LLM이 TailwindCSS로 자유롭게 슬라이드를 배치하면, `LAYOUT_REGIONS`에 정의된 제목/본문/이미지의 정확한 좌표를 따르지 않는 문제가 있었다. 프롬프트에 px 좌표를 가이드라인으로 제시해도, LLM이 flex/grid 레이아웃으로 "자연스럽게" 구현하면서 실제 위치가 AWS PPTX 템플릿의 placeholder 좌표와 크게 벗어났다.
+F3(HTML 슬라이드 생성)에서 LLM이 TailwindCSS로 자유롭게 슬라이드를 배치하면, `LAYOUT_REGIONS`에 정의된 제목/본문/이미지의 정확한 좌표를 따르지 않는 문제가 있었다. 프롬프트에 px 좌표를 가이드라인으로 제시해도, LLM이 flex/grid 레이아웃으로 "자연스럽게" 구현하면서 실제 위치가 AWS PPTX 템플릿의 placeholder 좌표와 크게 벗어났다.
 
 이로 인해 발생하는 문제:
 - **PPTX 변환 부정확**: HTML에서 인라인 style 없이 Tailwind 클래스만 사용하면, PPTX 변환 시 정확한 좌표를 추출할 수 없음
@@ -112,4 +112,4 @@ LLM이 region div의 좌표를 변경했을 경우 `LAYOUT_REGIONS`에서 원래
 - 테스트: `tests/test_slides_service.py` — `TestBuildLayoutSkeleton`, `TestValidateRegionStyles`, `TestDetectLayoutType`
 - 테스트: `tests/test_pptx_service.py` — `TestRegionBasedExport`
 - 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0006-pptx-export](./0006-pptx-export.md), [0005-slide-modification](./0005-slide-modification.md)
-- ALPS: Section 7.4, Section 7.6
+- ALPS: Section 7.3, Section 7.5
