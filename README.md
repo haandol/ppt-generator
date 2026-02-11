@@ -1,8 +1,8 @@
 # PPT Generator
 
-주제를 입력하면 AI가 자동으로 편집 가능한 PPTX 프레젠테이션을 생성하는 MCP 서버입니다.
+주제를 입력하면 AI가 자동으로 HTML 기반 프레젠테이션을 생성하고, 사용자의 수정 요청을 반영한 뒤 편집 가능한 PPTX로 내보내는 MCP 서버입니다.
 
-Amazon Bedrock Claude로 콘텐츠를 생성하고, Titan Image Generator v2로 시각 자료를 만들어, python-pptx로 편집 가능한 PPTX 파일을 조립합니다. Claude Desktop, Kiro 등 MCP 호환 클라이언트에서 사용할 수 있습니다.
+Amazon Bedrock Claude로 콘텐츠를 생성하고, Titan Image Generator v2로 시각 자료를 만들어, HTML/CSS 기반 슬라이드로 자유로운 디자인을 구현합니다. 최종 확정 후 python-pptx로 편집 가능한 PPTX 파일로 내보냅니다. Claude Desktop, Kiro 등 MCP 호환 클라이언트에서 사용할 수 있습니다.
 
 ## 처리 파이프라인
 
@@ -11,11 +11,15 @@ Amazon Bedrock Claude로 콘텐츠를 생성하고, Titan Image Generator v2로 
     ↓
 F1: generate_script    → 발표 스크립트 생성 (Bedrock Claude)
     ↓
-F2: generate_outline   → 슬라이드 아웃라인 JSON 생성 + 레이아웃 매핑
+F2: generate_outline   → 슬라이드 아웃라인 JSON 생성
     ↓
-F4: generate_images    → 슬라이드별 이미지 생성 (Titan Image v2)
+F3: generate_images    → 슬라이드별 이미지 생성 (Titan Image v2)
     ↓
-F5: generate_pptx      → 편집 가능한 PPTX 파일 조립
+F4: generate_slides    → HTML/CSS 슬라이드 생성 (Bedrock LLM)
+    ↓
+F5: modify_slides      → 사용자 수정 요청 반영 (반복 가능)
+    ↓
+F6: export_pptx        → 편집 가능한 PPTX 파일 내보내기
     ↓
 출력: .pptx 파일 경로
 ```
@@ -64,10 +68,12 @@ uv run pytest
 
 | 도구 | 설명 | 입력 | 출력 |
 |------|------|------|------|
-| `generate_script` | 발표 스크립트 생성 | 주제, 슬라이드 수 (3~20) | 스크립트 텍스트 |
+| `generate_script` | 발표 스크립트 생성 | 주제, 슬라이드 수 | 스크립트 텍스트 |
 | `generate_outline` | 슬라이드 아웃라인 생성 | 스크립트 텍스트 | 아웃라인 JSON |
 | `generate_images` | 슬라이드별 이미지 생성 | 아웃라인 JSON | 이미지 경로 목록 JSON |
-| `generate_pptx` | PPTX 파일 조립 | 아웃라인 JSON, 이미지 경로 JSON | .pptx 파일 경로 |
+| `generate_slides` | HTML/CSS 슬라이드 생성 | 아웃라인 JSON, 이미지 경로 JSON | HTML 슬라이드, 세션 ID |
+| `modify_slides` | 슬라이드 수정 | 세션 ID, 수정 요청 (자연어) | 수정된 HTML 슬라이드 |
+| `export_pptx` | PPTX 내보내기 | 세션 ID | .pptx 파일 경로 |
 
 ## 프로젝트 구조
 
@@ -84,12 +90,12 @@ ppt-generator/
 │   │   └── layout_mapping.py      # layout_type → 슬라이드 레이아웃 매핑
 │   └── tools/
 │       ├── script/                # F1: 발표 스크립트 생성
-│       ├── outline/               # F2/F3: 아웃라인 생성 + 레이아웃 매핑
-│       ├── images/                # F4: 이미지 생성
-│       └── pptx/                  # F5: PPTX 조립
-├── tests/                         # 단위 테스트 (43개)
-├── *.pptx                         # AWS PPTX 마스터 템플릿
-├── ppt-generator.alps.md          # ALPS 설계 문서
+│       ├── outline/               # F2: 아웃라인 생성
+│       ├── images/                # F3: 이미지 생성
+│       ├── slides/                # F4/F5: HTML 슬라이드 생성 + 수정
+│       └── export/                # F6: PPTX 내보내기
+├── tests/
+├── ppt-generator.alps.xml         # ALPS 설계 문서
 └── pyproject.toml
 ```
 
@@ -101,7 +107,9 @@ ppt-generator/
 | 에이전트 프레임워크 | AWS Strands SDK |
 | LLM | Amazon Bedrock - Claude Opus 4 |
 | 이미지 생성 | Amazon Bedrock - Titan Image Generator v2 |
-| PPTX 생성 | python-pptx |
+| 슬라이드 렌더링 | HTML/CSS (자유 레이아웃) |
+| PPTX 내보내기 | python-pptx (HTML → PPTX 변환) |
+| HTML 파싱 | BeautifulSoup / lxml |
 | 패키지 관리 | uv + hatchling |
 
 ## 아키텍처
@@ -109,7 +117,7 @@ ppt-generator/
 Controller-Service 패턴 + 의존성 주입(DI):
 
 - **Controller** (`controller.py`): MCP 도구 인터페이스, 입력 검증
-- **Service** (`service.py`): 비즈니스 로직 (API 호출, 파일 조립)
+- **Service** (`service.py`): 비즈니스 로직 (API 호출, HTML 생성/수정, PPTX 변환)
 - **DIContainer** (`container.py`): Bedrock 모델, Agent, Service 생성 및 연결
 
 ## 슬라이드 아웃라인 JSON 스키마
