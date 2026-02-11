@@ -157,10 +157,22 @@ class TestSaveAndLoadSlidesHtml:
 class TestLoadSlidesRestoresSession:
     def test_session_restored(self, project_service: ProjectService, slides_service: MagicMock, project_dir: Path) -> None:
         session_id = "restore-test-456"
+        image_paths = {0: "/tmp/img0.png", 2: "/tmp/img2.png"}
+        project_service.save_slides_html(project_dir, session_id, SAMPLE_HTML, image_paths)
+
+        project_service.load_slides_html(project_dir)
+        html, restored_paths = slides_service._sessions[session_id]
+        assert html == SAMPLE_HTML
+        assert restored_paths == image_paths
+
+    def test_session_restored_without_image_paths(self, project_service: ProjectService, slides_service: MagicMock, project_dir: Path) -> None:
+        session_id = "restore-no-images"
         project_service.save_slides_html(project_dir, session_id, SAMPLE_HTML)
 
         project_service.load_slides_html(project_dir)
-        assert slides_service._sessions[session_id] == SAMPLE_HTML
+        html, restored_paths = slides_service._sessions[session_id]
+        assert html == SAMPLE_HTML
+        assert restored_paths == {}
 
 
 class TestSavePptxCopiesFile:
