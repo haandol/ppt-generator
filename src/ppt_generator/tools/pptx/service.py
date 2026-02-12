@@ -5,7 +5,7 @@ import logging
 import re
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import boto3
@@ -43,6 +43,9 @@ from ppt_generator.interfaces.constants import (
     PPTX_FONT_SCALE_FACTOR,
     PPTX_SLIDE_HEIGHT_EMU,
     PPTX_SLIDE_WIDTH_EMU,
+    PPTX_VALIDATE_FONT_MAX_PT,
+    PPTX_VALIDATE_FONT_MIN_PT,
+    PPTX_VALIDATE_LINE_HEIGHT_FACTOR,
     REM_TO_PX,
     SLIDES_WIDTH_PX,
     SLIDES_HEIGHT_PX,
@@ -270,7 +273,8 @@ class ExportService:
         json_text = re.sub(r"^```(?:json)?\s*", "", raw_text.strip())
         json_text = re.sub(r"\s*```$", "", json_text.strip())
         data = json.loads(json_text)
-        return self._parse_slide_spec(data)
+        spec = self._parse_slide_spec(data)
+        return self._validate_slide_spec(spec)
 
     @staticmethod
     def _parse_slide_spec(data: dict) -> PptxSlideSpec:
@@ -324,12 +328,113 @@ class ExportService:
             shapes=shapes,
         )
 
-    def _build_slide_from_spec(self, slide, spec: PptxSlideSpec) -> None:
-        """PptxSlideSpec을 python-pptx 슬라이드 요소로 배치."""
+    @staticmethod
+    def _validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
+        """LLM 출력 PptxSlideSpec을 검증하고 보정한다.
+
+        - 폰트 크기 클램핑: [PPTX_VALIDATE_FONT_MIN_PT, PPTX_VALIDATE_FONT_MAX_PT]
+        - 좌표 경계 체크: 모든 요소를 1280x720 영역 내로 클리핑
+        - 높이-폰트 정합성: height_px >= 줄수 × max_font_pt × LINE_HEIGHT_FACTOR
+        - 빈 텍스트박스 제거
+        """
+        canvas_w = SLIDES_WIDTH_PX
+        canvas_h = SLIDES_HEIGHT_PX
+        font_min = PPTX_VALIDATE_FONT_MIN_PT
+        font_max = PPTX_VALIDATE_FONT_MAX_PT
+        lh_factor = PPTX_VALIDATE_LINE_HEIGHT_FACTOR
+
+        def _clamp_font(pt: int | None) -> int | None:
+            if pt is None:
+                return None
+            return max(font_min, min(font_max, pt))
+
+        def _clip_rect(left: float, top: float, width: float, height: float) -> tuple[float, float, float, float]:
+            left = max(0, min(left, canvas_w - 10))
+            top = max(0, min(top, canvas_h - 10))
+            width = max(10, min(width, canvas_w - left))
+            height = max(10, min(height, canvas_h - top))
+            return left, top, width, height
+
+        # --- 텍스트박스 검증 ---
+        validated_textboxes: list[PptxTextBox] = []
         for tb in spec.textboxes:
-            self._add_textbox_from_spec(slide, tb)
+            # 빈 텍스트박스 필터링
+            has_text = any(
+                run.text.strip()
+                for para in tb.paragraphs
+                for run in para.runs
+            )
+            if not has_text:
+                continue
+
+            # 폰트 클램핑
+            new_paragraphs: list[PptxParagraph] = []
+            max_font_in_tb = font_min
+            num_lines = 0
+            for para in tb.paragraphs:
+                new_runs: list[PptxTextRun] = []
+                for run in para.runs:
+                    clamped_size = _clamp_font(run.font_size_pt)
+                    new_runs.append(replace(run, font_size_pt=clamped_size))
+                    if clamped_size and clamped_size > max_font_in_tb:
+                        max_font_in_tb = clamped_size
+                new_paragraphs.append(replace(para, runs=new_runs))
+                num_lines += 1
+
+            # 좌표 경계 클리핑
+            left, top, width, height = _clip_rect(tb.left_px, tb.top_px, tb.width_px, tb.height_px)
+
+            # 높이-폰트 정합성 보정
+            min_required_height = num_lines * max_font_in_tb * lh_factor
+            if height < min_required_height:
+                height = min(min_required_height, canvas_h - top)
+
+            validated_textboxes.append(PptxTextBox(
+                left_px=left,
+                top_px=top,
+                width_px=width,
+                height_px=height,
+                paragraphs=new_paragraphs,
+            ))
+
+        # --- 도형 검증 ---
+        validated_shapes: list[PptxShape] = []
+        for s in spec.shapes:
+            left, top, width, height = _clip_rect(s.left_px, s.top_px, s.width_px, s.height_px)
+            clamped_text_size = _clamp_font(s.text_size_pt)
+
+            # 텍스트 있는 shape의 높이-폰트 정합성
+            if s.text and clamped_text_size:
+                line_count = s.text.count("\n") + 1
+                min_h = line_count * clamped_text_size * lh_factor
+                if height < min_h:
+                    height = min(min_h, canvas_h - top)
+
+            validated_shapes.append(replace(
+                s,
+                left_px=left,
+                top_px=top,
+                width_px=width,
+                height_px=height,
+                text_size_pt=clamped_text_size,
+            ))
+
+        return PptxSlideSpec(
+            background_color=spec.background_color,
+            textboxes=validated_textboxes,
+            shapes=validated_shapes,
+        )
+
+    def _build_slide_from_spec(self, slide, spec: PptxSlideSpec) -> None:
+        """PptxSlideSpec을 python-pptx 슬라이드 요소로 배치.
+
+        Shape(카드 배경, 구분선 등)을 먼저 배치하고 textbox를 나중에 추가하여
+        텍스트가 항상 도형 위에 보이도록 z-order를 보장한다.
+        """
         for shape in spec.shapes:
             self._add_shape_from_spec(slide, shape)
+        for tb in spec.textboxes:
+            self._add_textbox_from_spec(slide, tb)
 
     def _add_textbox_from_spec(self, slide, tb: PptxTextBox) -> None:
         """PptxTextBox spec으로 텍스트박스를 생성."""
@@ -341,7 +446,14 @@ class ExportService:
         txbox = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
         tf = txbox.text_frame
         tf.word_wrap = True
-        tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        tf.auto_size = MSO_AUTO_SIZE.NONE
+
+        # 기본 마진 축소 (python-pptx 기본값 ~0.05in이 크므로 줄임)
+        from pptx.util import Emu
+        tf.margin_left = Emu(45720)   # ~0.05in
+        tf.margin_right = Emu(45720)
+        tf.margin_top = Emu(0)
+        tf.margin_bottom = Emu(0)
 
         for p_idx, para_spec in enumerate(tb.paragraphs):
             if p_idx == 0:
@@ -409,6 +521,21 @@ class ExportService:
         if shape_spec.text:
             tf = shape.text_frame
             tf.word_wrap = True
+            tf.auto_size = MSO_AUTO_SIZE.NONE
+
+            # 내부 마진 추가 (텍스트가 shape 테두리에 붙지 않도록)
+            from pptx.util import Emu
+            tf.margin_left = Emu(91440)   # ~0.1in
+            tf.margin_right = Emu(91440)
+            tf.margin_top = Emu(45720)    # ~0.05in
+            tf.margin_bottom = Emu(45720)
+
+            # 수직 중앙 정렬 (XML bodyPr anchor='ctr')
+            txBody = tf._txBody
+            bodyPr = txBody.find(qn("a:bodyPr"))
+            if bodyPr is not None:
+                bodyPr.set("anchor", "ctr")
+
             p = tf.paragraphs[0]
             run = p.add_run()
             run.text = shape_spec.text
