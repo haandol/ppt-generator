@@ -60,11 +60,14 @@ class OutlineService:
             if not isinstance(layout_index, int) or layout_index not in VALID_LAYOUT_INDICES:
                 layout_index = 22
 
+            component_hint = item.get("component_hint", "bullets")
+
             slides.append(
                 SlideOutline(
                     title=item.get("title", ""),
                     content_summary=item.get("content_summary", ""),
                     layout_index=layout_index,
+                    component_hint=component_hint,
                 )
             )
         return slides

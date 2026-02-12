@@ -281,6 +281,7 @@ class SlidesService:
             "title": slide.title,
             "content_summary": slide.content_summary,
             "layout_index": slide.layout_index,
+            "component_hint": slide.component_hint,
         }
 
     @staticmethod
