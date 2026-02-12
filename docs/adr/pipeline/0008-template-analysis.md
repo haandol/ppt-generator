@@ -7,8 +7,10 @@ Date: 2026-02-11
 Proposed
 
 > **Note (2026-02-11)**: AWS 기본 템플릿에 대해서는 정적 추출을 먼저 적용하였다.
-> `scripts/extract_layout_positions.py`로 placeholder 위치를 추출하여 `constants.py`의 `LAYOUT_REGIONS` 상수와
-> `SLIDES_SYSTEM_PROMPT`에 구체적 px 좌표로 반영함. 동적 `analyze_template` 도구 구현은 추후 진행 예정.
+> `scripts/extract_layout_positions.py`로 placeholder 위치를 추출하여 `template/layout.json`에 저장하고,
+> `constants.py`의 `_load_layout_regions()`로 `LAYOUT_REGIONS` 딕셔너리에 로드하여 `build_layout_skeleton()`에서 사용.
+> 또한 `scripts/extract_layout_json.py`로 전체 97종 레이아웃 정보를 JSON으로 추출함.
+> 동적 `analyze_template` 도구 구현은 추후 진행 예정.
 
 ## Context
 

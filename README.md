@@ -25,7 +25,9 @@ HTML을 중간 표현으로 사용하는 이유는, python-pptx 직접 생성 �
 ```
 사용자 입력 (주제 + 슬라이드 수)
     ↓
-F1: generate_outline   → 슬라이드 아웃라인 JSON 생성 (freeform 좌표 기반)
+F1: generate_outline   → 슬라이드 아웃라인 JSON 생성
+    ↓
+    ⏸ 사용자 확인       → 아웃라인 구조 검토 및 승인 (수정 시 F1 재호출)
     ↓
 F2: generate_script    → 아웃라인 기반 발표 스크립트 생성 (speaker_notes 채움)
     ↓
@@ -104,10 +106,11 @@ uv run pytest
 | `modify_slides` | 슬라이드 수정 | 세션 ID, 수정 요청, [slide_index], [project_id] | session_id + 수정된 HTML + project_id |
 | `export_pptx` | PPTX 내보내기 | 세션 ID, [project_id] | project_id + .pptx 파일 경로 |
 
-### 로드 도구
+### 프로젝트 관리 도구
 
 | 도구 | 설명 | 입력 | 출력 |
 |------|------|------|------|
+| `list_projects` | 프로젝트 목록 조회 | (없음) | 프로젝트 목록 JSON |
 | `load_project_status` | 프로젝트 상태 로드 | project_id | 메타데이터 JSON |
 | `load_outline` | 저장된 아웃라인 로드 | project_id | 아웃라인 JSON |
 | `load_script` | 저장된 스크립트 로드 | project_id | speaker_notes 포함 아웃라인 JSON |
@@ -126,13 +129,13 @@ ppt-generator/
 │   │   └── schemas.py             # 데이터클래스 (Request/Response)
 │   ├── templates/
 │   │   ├── slides.html            # HTML 슬라이드 템플릿 (TailwindCSS, 수직 스크롤)
-│   │   └── layout_mapping.py      # layout_type → 슬라이드 레이아웃 매핑
+│   │   └── layout_mapping.py      # layout_index → 슬라이드 레이아웃 매핑
 │   └── tools/
 │       ├── outline/               # F1: 아웃라인 생성
 │       ├── script/                # F2: 발표 스크립트 생성
-│       ├── slides/                # F3/F4: HTML 슬라이드 생성 + 수정
+│       ├── slides/                # F3/F4: HTML 슬라이드 생성 + 수정 (css_inliner.py 포함)
 │       ├── pptx/                  # F5: PPTX 내보내기
-│       └── project/               # F6: 프로젝트 저장/로드
+│       └── project/               # F6: 프로젝트 목록/저장/로드
 ├── docs/
 │   ├── adr/                       # Architecture Decision Records
 │   ├── ppt-generator.alps.xml     # ALPS 설계 문서
@@ -147,10 +150,11 @@ ppt-generator/
 |-----------|------|
 | 프로토콜 | Model Context Protocol (MCP) |
 | 에이전트 프레임워크 | AWS Strands SDK |
-| LLM | Amazon Bedrock - Claude Opus 4.6, Sonnet 4.5 (아웃라인) |
-| 슬라이드 프레임워크 | 순수 HTML/CSS (인라인 스타일, JavaScript 없음, 수직 스크롤) |
-| PPTX 내보내기 | python-pptx (HTML → PPTX 변환) |
+| LLM | Amazon Bedrock - Claude Opus 4.6 (슬라이드), Sonnet 4.5 (아웃라인/스크립트/PPTX 변환) |
+| 슬라이드 프레임워크 | 순수 HTML/CSS (TailwindCSS + 인라인 스타일, JavaScript 없음, 수직 스크롤) |
+| PPTX 내보내기 | python-pptx (HTML → PPTX 변환, LLM 기반 좌표 추출) |
 | HTML 파싱 | BeautifulSoup (`<section>` 기반 슬라이드 파싱) |
+| 스크린샷 | Playwright (HTML → 이미지 캡처, PPTX 변환 시 활용) |
 | 패키지 관리 | uv + hatchling |
 
 ## 아키텍처
@@ -161,12 +165,13 @@ Controller-Service 패턴 + 의존성 주입(DI):
 - **Service** (`service.py`): 비즈니스 로직 (API 호출, HTML 생성/수정, PPTX 변환)
 - **DIContainer** (`container.py`): Bedrock 모델, Agent, Service 생성 및 연결
 
-## 레이아웃 타입
+## 레이아웃 인덱스
 
-| layout_type | 설명 | 비고 |
-|-------------|------|------|
-| `title` | 제목 슬라이드 | 첫 번째 슬라이드 |
-| `text_only` | 텍스트 전용 | 기본 폴백 레이아웃 |
-| `chart` | 차트/콘텐츠 중심 | 데이터 시각화 |
-| `closing` | 마무리 슬라이드 | 마지막 슬라이드 |
-| `freeform` | 자유 배치 (좌표 기반) | **기본 모드**, elements 배열 사용 |
+| layout_index | 설명                      | 비고                     |
+| ------------ | ------------------------- | ------------------------ |
+| `0`          | 제목 슬라이드             | 첫 번째 슬라이드         |
+| `22`         | 범용 콘텐츠               | **기본 폴백**, 제목 + 본문 |
+| `21`         | 차트/데이터 중심          | 제목 + 데이터 시각화     |
+| `87`         | 마무리 슬라이드           | 마지막 슬라이드, 짧은 텍스트만 |
+
+> 전체 레이아웃 목록(97종)은 `src/ppt_generator/templates/layout_mapping.py`의 `LAYOUT_MAP`을 참고하세요.

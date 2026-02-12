@@ -23,16 +23,14 @@ adr/
 
 - [0001: 슬라이드 아웃라인 생성 (F1)](./pipeline/0001-outline-generation.md)
 - [0002: 발표 스크립트 생성 (F2)](./pipeline/0002-script-generation.md)
-- [0003: 이미지 생성 (Superseded)](./pipeline/0003-image-generation.md)
 - [0004: HTML 슬라이드 생성 (F3)](./pipeline/0004-html-slide-generation.md)
 - [0005: 슬라이드 수정 (F4)](./pipeline/0005-slide-modification.md)
 - [0006: PPTX 내보내기 (F5)](./pipeline/0006-pptx-export.md)
 - [0007: 파이프라인 결과물 저장/로드](./pipeline/0007-pipeline-artifact-persistence.md)
-- [0009: 이미지 파일 참조 방식 전환](./pipeline/0009-image-file-reference.md)
+- [0008: 템플릿 분석](./pipeline/0008-template-analysis.md)
 - [0010: 워킹 디렉토리 통합 및 슬라이드 개별 생성/수정](./pipeline/0010-workspace-and-per-slide.md)
 - [0011: 점진적 구체화 파이프라인 설계](./pipeline/0011-progressive-refinement-pipeline.md)
 - [0012: 레이아웃 골격(Skeleton) 기반 위치 강제](./pipeline/0012-layout-skeleton-enforcement.md)
-- [0013: 이미지 생성을 HTML 슬라이드 생성에 통합](./pipeline/0013-image-generation-integration.md)
 
 ## ADR 작성 가이드
 

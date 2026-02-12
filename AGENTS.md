@@ -38,13 +38,14 @@ ppt-generator/
 │   │   │   └── service.py
 │   │   └── slides/                # HTML 슬라이드 생성/수정 도구 (F3/F4)
 │   │       ├── controller.py
+│   │       ├── css_inliner.py     # CSS 클래스 → inline style 병합 유틸리티
 │   │       └── service.py
 │   ├── interfaces/
 │   │   ├── constants.py           # 모델 설정, 프롬프트, 상수
 │   │   └── schemas.py             # 데이터클래스 (Request/Response)
 │   └── templates/
-│       ├── slides.html     # HTML 슬라이드 템플릿 (인라인 CSS, 수직 스크롤)
-│       └── layout_mapping.py      # 레이아웃 인덱스 → 슬라이드 레이아웃 매핑
+│       ├── slides.html            # HTML 슬라이드 템플릿 (TailwindCSS + 인라인 CSS, 수직 스크롤)
+│       └── layout_mapping.py      # layout_index → 슬라이드 레이아웃 매핑 (97종)
 ├── docs/
 │   ├── adr/                       # Architecture Decision Records
 │   ├── ppt-generator.alps.xml     # ALPS 설계 문서
@@ -60,11 +61,13 @@ ppt-generator/
 - **Package Manager**: uv
 - **Build System**: hatchling
 - **Agent Framework**: AWS Strands SDK (`strands-agents`)
-- **LLM**: Amazon Bedrock - Claude Opus 4.6 (`us.anthropic.claude-opus-4-6-v1`)
-- **Outline LLM**: Amazon Bedrock - Claude Sonnet 4.5 (`us.anthropic.claude-sonnet-4-5-20250929-v1:0`)
-- **Slide Framework**: 순수 HTML/CSS (인라인 스타일, JavaScript 없음, `templates/slides.html` 템플릿)
+- **LLM (슬라이드 생성/수정)**: Amazon Bedrock - Claude Opus 4.6 (`us.anthropic.claude-opus-4-6-v1`, 32K tokens)
+- **LLM (아웃라인/스크립트)**: Amazon Bedrock - Claude Sonnet 4.5 (`us.anthropic.claude-sonnet-4-5-20250929-v1:0`, 16K tokens)
+- **LLM (PPTX 변환)**: Amazon Bedrock - Claude Sonnet 4.5 (`us.anthropic.claude-sonnet-4-5-20250929-v1:0`, 8K tokens)
+- **Slide Framework**: 순수 HTML/CSS (TailwindCSS + 인라인 스타일, JavaScript 없음, `templates/slides.html` 템플릿)
 - **HTML Parsing**: BeautifulSoup4 (HTML → PPTX 변환용 파싱)
-- **PPTX Export**: python-pptx (HTML 세션 → PPTX 변환)
+- **Screenshot**: Playwright (HTML → 이미지 캡처, PPTX 변환 시 활용)
+- **PPTX Export**: python-pptx (HTML 세션 → PPTX 변환, LLM 기반 좌표 추출)
 
 ## Prerequisites
 
@@ -123,6 +126,8 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
     ↓
 F1: generate_outline   → 슬라이드 아웃라인 JSON 생성 (Bedrock LLM, title/content_summary/layout_index)
     ↓
+    ⏸ 사용자 확인       → 아웃라인 구조 검토 및 승인 (수정 시 F1 재호출)
+    ↓
 F2: generate_script    → 아웃라인 기반 슬라이드별 발표 스크립트 생성
     ↓
 F3: generate_slides    → 아웃라인 → HTML 슬라이드 생성 (레이아웃 골격 생성 → LLM이 영역 내부 컨텐츠 생성 → 좌표 검증 → 템플릿 삽입)
@@ -146,6 +151,7 @@ F5: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
 | `generate_slides` | `tools/slides/` | 아웃라인 기반 HTML 슬라이드 생성 (LLM이 section 생성 → 템플릿 삽입, 세션 반환) |
 | `modify_slides` | `tools/slides/` | 기존 HTML 슬라이드를 사용자 요청에 따라 수정 |
 | `export_pptx` | `tools/pptx/` | 세션의 HTML 슬라이드를 편집 가능한 PPTX 파일로 내보내기 |
+| `list_projects` | `tools/project/` | 기존 프로젝트 목록 조회 (파이프라인 시작 전 호출 권장) |
 | `load_project_status` | `tools/project/` | 프로젝트 상태 및 메타데이터 로드 |
 | `load_outline` | `tools/project/` | 저장된 아웃라인 JSON 로드 |
 | `load_script` | `tools/project/` | 저장된 스크립트 JSON 로드 |
@@ -159,9 +165,11 @@ F5: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
 |--------|------|
 | `OutlineRequest` / `OutlineResponse` | 아웃라인 생성 입출력 (topic, num_slides → slides) |
 | `ScriptRequest` / `ScriptResponse` | 스크립트 생성 입출력 (outline → slides) |
-| `SlideOutline` | 개별 슬라이드 아웃라인 (title, content_summary, layout_index) |
+| `SlideOutline` | 개별 슬라이드 아웃라인 (title, content_summary, layout_index, component_hint, speaker_notes) |
 | `SlidesRequest` / `SlidesResponse` | HTML 슬라이드 생성 입출력 (slides → session_id, html) |
 | `ExportPptxRequest` / `ExportPptxResponse` | PPTX 내보내기 입출력 (session_id → pptx_path) |
+| `PptxTextRun` / `PptxParagraph` / `PptxTextBox` | PPTX 텍스트 요소 (LLM 변환용) |
+| `PptxShape` / `PptxSlideSpec` | PPTX 도형/슬라이드 스펙 (LLM 변환용) |
 | `ProjectMetadata` | 프로젝트 메타데이터 (topic, num_slides, steps_completed) |
 
 ### 슬라이드 아웃라인 JSON
@@ -172,7 +180,9 @@ F5: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
     {
       "title": "슬라이드 제목",
       "content_summary": "슬라이드에 담길 핵심 내용 요약",
-      "layout_index": 0
+      "layout_index": 0,
+      "component_hint": "bullets",
+      "speaker_notes": ""
     }
   ]
 }
@@ -180,13 +190,40 @@ F5: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
 
 ### 레이아웃 인덱스
 
+아웃라인 생성에서 사용하는 주요 layout_index:
+
 | layout_index | 설명                      | 비고                     |
 | ------------ | ------------------------- | ------------------------ |
-| `0`          | 제목 슬라이드             | 첫 번째 슬라이드, 위치 구조적 강제 |
-| `22`         | 전체 텍스트               | 알 수 없는 인덱스의 폴백, 위치 구조적 강제 |
-| `21`         | 차트 중심                 | 위치 구조적 강제         |
-| `87`         | 마무리 슬라이드           | 마지막 슬라이드, 위치 구조적 강제 |
-| `88`         | 자유 배치 (Blank)         | 특수 레이아웃, 위치 구조적 강제 |
+| `0`          | 제목 슬라이드             | 첫 번째 슬라이드, 골격 좌표 강제 |
+| `22`         | 범용 콘텐츠               | **기본 폴백**, 제목 + 본문, 골격 좌표 강제 |
+| `21`         | 차트/데이터 중심          | 골격 좌표 강제           |
+| `87`         | 마무리 슬라이드           | 마지막 슬라이드, 골격 좌표 강제 |
+
+> 전체 레이아웃 목록(97종)은 `templates/layout_mapping.py`의 `LAYOUT_MAP`을 참고하세요.
+> 알 수 없는 layout_index는 22 (범용 콘텐츠)로 폴백됩니다.
+
+### component_hint
+
+슬라이드 본문 영역의 시각적 구조를 결정하는 힌트:
+
+| component_hint | 설명 |
+|----------------|------|
+| `bullets` | 기본 불릿 포인트 (기본값) |
+| `two_column` | 2칼럼 레이아웃 |
+| `vs_comparison` | VS 비교 패널 (A vs B) |
+| `step_cards` | 단계별 카드 |
+| `code_block` | 코드 블록 포함 |
+| `arch_diagram` | 아키텍처 다이어그램 (흐름도) |
+| `pipeline` | 파이프라인 흐름 |
+| `quote` | 인용문 강조 |
+| `summary_grid` | 요약 그리드 (2x2) |
+| `agenda` | 목차/안건 리스트 |
+| `info_cards` | 정보 카드 그리드 |
+| `feature_list` | 기능/특징 리스트 |
+| `cta` | Call-to-Action 강조 |
+| `process_flow` | 프로세스 워크스루 |
+| `quote_code` | 인용문 + 코드 블록 조합 |
+| `concept_list` | 개념 설명 리스트 |
 
 ## Coding Conventions
 
@@ -234,7 +271,7 @@ uv run pytest tests/test_xxx.py  # 개별 테스트
 
 - **빈 주제 입력** → 입력 검증 후 `ValueError` 발생
 - **LLM이 유효하지 않은 JSON 반환** → 재시도 또는 에러 반환
-- **알 수 없는 layout_index** → `text_only`(22) 레이아웃으로 폴백
+- **알 수 없는 layout_index** → 범용 콘텐츠(22) 레이아웃으로 폴백
 
 ## Agent-specific Instructions
 
@@ -250,5 +287,6 @@ uv run pytest tests/test_xxx.py  # 개별 테스트
 - `di/container.py` - 의존성 주입 설정
 - 기존 도구 시그니처 변경 (MCP 클라이언트 호환성에 영향)
 - Bedrock API 호출 파라미터 변경 (비용 및 품질에 영향)
-- PPTX 변환 로직 (`tools/pptx/service.py` - section 파싱, 좌표 변환, 스타일 매핑)
-- HTML 템플릿 구조 (`templates/slides.html` - 인라인 CSS, placeholder 구조)
+- PPTX 변환 로직 (`tools/pptx/service.py` - section 파싱, 좌표 변환, 스타일 매핑, LLM 변환)
+- HTML 템플릿 구조 (`templates/slides.html` - TailwindCSS + 인라인 CSS, placeholder 구조)
+- CSS 인라이너 (`tools/slides/css_inliner.py` - 클래스 → 인라인 스타일 병합)

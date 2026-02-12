@@ -20,6 +20,9 @@ def register_script_tools(mcp: FastMCP, script_service: ScriptService, project_s
         generate_outline로 생성된 아웃라인 JSON을 입력받아, 각 슬라이드에 대한
         자연스러운 발표 스크립트를 생성하여 speaker_notes를 채운 아웃라인 JSON을 반환합니다.
 
+        **사전 조건: generate_outline 결과를 사용자에게 보여주고 확인을 받은 후에만 호출하세요.**
+        사용자가 아웃라인 구조에 만족한다고 확인한 경우에만 이 도구를 호출해야 합니다.
+
         Args:
             outline_json: generate_outline로 생성된 슬라이드 아웃라인 JSON 문자열
             project_id: 프로젝트 ID (미지정 시 자동 생성)
