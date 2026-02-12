@@ -114,7 +114,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 
 - **아웃라인 → 스크립트 분리**: 아웃라인은 슬라이드의 뼈대(구조)이고, 스크립트는 살(발표 내용)입니다. 분리하면 구조를 먼저 확정한 뒤 내용을 채울 수 있고, LLM이 각 단계에 집중할 수 있습니다.
 - **HTML을 중간 표현으로 사용**: python-pptx로 직접 생성하면 고정 플레이스홀더와 제한된 스타일링으로 디자인 자유도가 크게 떨어집니다. HTML/CSS (인라인 스타일)를 사용하면 LLM이 `<section>` 요소만 생성하고, 서비스가 템플릿(`slides.html`)에 삽입하여 일관된 구조의 슬라이드를 만들 수 있습니다. 브라우저에서 수직 스크롤로 디자인을 확인할 수 있습니다.
-- **레이아웃 골격(Skeleton) 기반 위치 강제**: `LAYOUT_REGIONS` 좌표를 사용하여 `position:absolute` div 골격을 코드로 생성하고, LLM은 각 `data-region` div 내부 컨텐츠만 채웁니다. 후처리에서 `_validate_region_styles()`로 좌표를 검증/복원하여, LLM이 좌표를 변경하더라도 원래 위치가 보장됩니다. PPTX 변환 시 `data-region` div의 좌표를 직접 사용하여 정확한 위치에 요소를 배치합니다.
+- **자유 형식 HTML 슬라이드 생성**: LLM이 아웃라인(title, content_summary, component_hint)을 기반으로 `<section>` 요소의 전체 HTML을 자유롭게 생성합니다. 스켈레톤이나 고정 좌표 제약 없이, 시스템 프롬프트의 디자인 가이드라인을 따라 1280x720px 규격의 슬라이드를 작성합니다.
 - **HTML → PPTX 변환**: `<section>` 태그 내 HTML 요소를 PPTX의 개별 편집 가능한 객체(텍스트박스, 이미지, 도형)로 매핑하여, 디자인 자유도를 최대한 유지하면서도 실무에서 편집할 수 있는 최종 산출물을 제공합니다.
 
 > 관련 ADR: [0011-progressive-refinement-pipeline](../docs/adr/pipeline/0011-progressive-refinement-pipeline.md)
@@ -124,13 +124,13 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 ```
 사용자 입력 (주제 + 슬라이드 수)
     ↓
-F1: generate_outline   → 슬라이드 아웃라인 JSON 생성 (Bedrock LLM, title/content_summary/layout_index)
+F1: generate_outline   → 슬라이드 아웃라인 JSON 생성 (Bedrock LLM, title/content_summary/component_hint)
     ↓
     ⏸ 사용자 확인       → 아웃라인 구조 검토 및 승인 (수정 시 F1 재호출)
     ↓
 F2: generate_script    → 아웃라인 기반 슬라이드별 발표 스크립트 생성
     ↓
-F3: generate_slides    → 아웃라인 → HTML 슬라이드 생성 (레이아웃 골격 생성 → LLM이 영역 내부 컨텐츠 생성 → 좌표 검증 → 템플릿 삽입)
+F3: generate_slides    → 아웃라인 → HTML 슬라이드 생성 (LLM이 자유 형식 HTML 생성 → 템플릿 삽입)
     ↓ (선택)
 F4: modify_slides      → HTML 슬라이드 수정 (사용자 요청 반영)
     ↓
@@ -146,7 +146,7 @@ F5: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
 
 | Tool | Module | Description |
 |------|--------|-------------|
-| `generate_outline` | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (title, content_summary, layout_index) |
+| `generate_outline` | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (title, content_summary, component_hint) |
 | `generate_script` | `tools/script/` | 아웃라인 JSON을 기반으로 슬라이드별 발표 스크립트 생성 |
 | `generate_slides` | `tools/slides/` | 아웃라인 기반 HTML 슬라이드 생성 (LLM이 section 생성 → 템플릿 삽입, 세션 반환) |
 | `modify_slides` | `tools/slides/` | 기존 HTML 슬라이드를 사용자 요청에 따라 수정 |
@@ -165,7 +165,7 @@ F5: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
 |--------|------|
 | `OutlineRequest` / `OutlineResponse` | 아웃라인 생성 입출력 (topic, num_slides → slides) |
 | `ScriptRequest` / `ScriptResponse` | 스크립트 생성 입출력 (outline → slides) |
-| `SlideOutline` | 개별 슬라이드 아웃라인 (title, content_summary, layout_index, component_hint, speaker_notes) |
+| `SlideOutline` | 개별 슬라이드 아웃라인 (title, content_summary, component_hint, speaker_notes) |
 | `SlidesRequest` / `SlidesResponse` | HTML 슬라이드 생성 입출력 (slides → session_id, html) |
 | `ExportPptxRequest` / `ExportPptxResponse` | PPTX 내보내기 입출력 (session_id → pptx_path) |
 | `PptxTextRun` / `PptxParagraph` / `PptxTextBox` | PPTX 텍스트 요소 (LLM 변환용) |
@@ -180,27 +180,12 @@ F5: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
     {
       "title": "슬라이드 제목",
       "content_summary": "슬라이드에 담길 핵심 내용 요약",
-      "layout_index": 0,
       "component_hint": "bullets",
       "speaker_notes": ""
     }
   ]
 }
 ```
-
-### 레이아웃 인덱스
-
-아웃라인 생성에서 사용하는 주요 layout_index:
-
-| layout_index | 설명                      | 비고                     |
-| ------------ | ------------------------- | ------------------------ |
-| `0`          | 제목 슬라이드             | 첫 번째 슬라이드, 골격 좌표 강제 |
-| `22`         | 범용 콘텐츠               | **기본 폴백**, 제목 + 본문, 골격 좌표 강제 |
-| `21`         | 차트/데이터 중심          | 골격 좌표 강제           |
-| `87`         | 마무리 슬라이드           | 마지막 슬라이드, 골격 좌표 강제 |
-
-> 전체 레이아웃 목록(97종)은 `templates/layout_mapping.py`의 `LAYOUT_MAP`을 참고하세요.
-> 알 수 없는 layout_index는 22 (범용 콘텐츠)로 폴백됩니다.
 
 ### component_hint
 
@@ -271,7 +256,7 @@ uv run pytest tests/test_xxx.py  # 개별 테스트
 
 - **빈 주제 입력** → 입력 검증 후 `ValueError` 발생
 - **LLM이 유효하지 않은 JSON 반환** → 재시도 또는 에러 반환
-- **알 수 없는 layout_index** → 범용 콘텐츠(22) 레이아웃으로 폴백
+- **알 수 없는 component_hint** → 기본값 "bullets"로 폴백
 
 ## Agent-specific Instructions
 

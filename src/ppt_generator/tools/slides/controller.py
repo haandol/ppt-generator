@@ -22,14 +22,13 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
             project_id: 프로젝트 ID (미지정 시 자동 생성)
 
         Returns:
-            session_id, html, project_id를 포함하는 JSON 문자열
+            session_id, slides_html_path, project_id를 포함하는 JSON 문자열
         """
         outline_data = json.loads(outline_json)
         slides = [
             SlideOutline(
                 title=s.get("title", ""),
                 content_summary=s.get("content_summary", ""),
-                layout_index=s.get("layout_index", 22),
                 component_hint=s.get("component_hint", "bullets"),
                 speaker_notes=s.get("speaker_notes", ""),
             )
@@ -45,7 +44,11 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
         project_service.update_step(project_dir, "slides")
 
         return json.dumps(
-            {"session_id": response.session_id, "html": response.html, "project_id": project_id},
+            {
+                "session_id": response.session_id,
+                "slides_html_path": str(project_dir / "slides.html"),
+                "project_id": project_id,
+            },
             ensure_ascii=False,
         )
 
@@ -67,7 +70,7 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
             project_id: 프로젝트 ID (미지정 시 자동 생성)
 
         Returns:
-            session_id, html, project_id를 포함하는 JSON 문자열
+            session_id, slides_html_path, project_id를 포함하는 JSON 문자열
         """
         response = slides_service.modify(session_id, modification_request, slide_index)
 
@@ -78,6 +81,10 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
         project_service.update_step(project_dir, "slides_modified")
 
         return json.dumps(
-            {"session_id": response.session_id, "html": response.html, "project_id": project_id},
+            {
+                "session_id": response.session_id,
+                "slides_html_path": str(project_dir / "slides.html"),
+                "project_id": project_id,
+            },
             ensure_ascii=False,
         )

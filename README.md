@@ -165,13 +165,7 @@ Controller-Service 패턴 + 의존성 주입(DI):
 - **Service** (`service.py`): 비즈니스 로직 (API 호출, HTML 생성/수정, PPTX 변환)
 - **DIContainer** (`container.py`): Bedrock 모델, Agent, Service 생성 및 연결
 
-## 레이아웃 인덱스
+## 슬라이드 생성 방식
 
-| layout_index | 설명                      | 비고                     |
-| ------------ | ------------------------- | ------------------------ |
-| `0`          | 제목 슬라이드             | 첫 번째 슬라이드         |
-| `22`         | 범용 콘텐츠               | **기본 폴백**, 제목 + 본문 |
-| `21`         | 차트/데이터 중심          | 제목 + 데이터 시각화     |
-| `87`         | 마무리 슬라이드           | 마지막 슬라이드, 짧은 텍스트만 |
-
-> 전체 레이아웃 목록(97종)은 `src/ppt_generator/templates/layout_mapping.py`의 `LAYOUT_MAP`을 참고하세요.
+LLM이 아웃라인(title, content_summary, component_hint)을 기반으로 자유 형식 HTML/CSS 슬라이드를 생성합니다.
+스켈레톤이나 고정 좌표 없이, LLM이 직접 `<section>` 요소의 전체 HTML을 작성합니다.

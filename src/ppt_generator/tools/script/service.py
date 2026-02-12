@@ -31,7 +31,6 @@ class ScriptService:
                     "slide_index": i,
                     "title": slide.title,
                     "content_summary": slide.content_summary,
-                    "layout_index": slide.layout_index,
                 }
             )
         return json.dumps({"slides": data}, ensure_ascii=False, indent=2)
@@ -45,7 +44,6 @@ class ScriptService:
                 SlideOutline(
                     title=slide.title,
                     content_summary=slide.content_summary,
-                    layout_index=slide.layout_index,
                     component_hint=slide.component_hint,
                     speaker_notes=notes,
                 )

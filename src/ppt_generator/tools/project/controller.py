@@ -65,10 +65,15 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
             project_id: 프로젝트 ID
 
         Returns:
-            슬라이드 아웃라인 JSON 문자열
+            outline_path를 포함하는 JSON 문자열
         """
         _, project_dir = project_service.resolve_project_dir(project_id)
-        return project_service.load_outline(project_dir)
+        # 파일 존재 확인 (없으면 예외 발생)
+        project_service.load_outline(project_dir)
+        return json.dumps(
+            {"outline_path": str(project_dir / "outline.json")},
+            ensure_ascii=False,
+        )
 
     @mcp.tool()
     def load_script(project_id: str) -> str:
@@ -82,10 +87,15 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
             project_id: 프로젝트 ID
 
         Returns:
-            speaker_notes가 채워진 슬라이드 아웃라인 JSON 문자열
+            script_path를 포함하는 JSON 문자열
         """
         _, project_dir = project_service.resolve_project_dir(project_id)
-        return project_service.load_script(project_dir)
+        # 파일 존재 확인 (없으면 예외 발생)
+        project_service.load_script(project_dir)
+        return json.dumps(
+            {"script_path": str(project_dir / "script.json")},
+            ensure_ascii=False,
+        )
 
     @mcp.tool()
     def load_slides_html(project_id: str) -> str:
@@ -99,11 +109,14 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
             project_id: 프로젝트 ID
 
         Returns:
-            session_id와 html을 포함하는 JSON 문자열
+            session_id와 slides_html_path를 포함하는 JSON 문자열
         """
         _, project_dir = project_service.resolve_project_dir(project_id)
-        session_id, html = project_service.load_slides_html(project_dir)
+        session_id, _ = project_service.load_slides_html(project_dir)
         return json.dumps(
-            {"session_id": session_id, "html": html},
+            {
+                "session_id": session_id,
+                "slides_html_path": str(project_dir / "slides.html"),
+            },
             ensure_ascii=False,
         )

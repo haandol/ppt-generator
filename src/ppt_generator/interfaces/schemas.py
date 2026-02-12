@@ -17,7 +17,6 @@ class ScriptResponse:
 class SlideOutline:
     title: str
     content_summary: str
-    layout_index: int
     component_hint: str = "bullets"
     speaker_notes: str = ""
 

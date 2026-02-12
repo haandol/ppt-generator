@@ -7,7 +7,6 @@ from strands import Agent
 from ppt_generator.interfaces.constants import OUTLINE_USER_PROMPT_TEMPLATE
 from ppt_generator.interfaces.schemas import OutlineRequest, OutlineResponse, SlideOutline
 
-VALID_LAYOUT_INDICES = {0, 22, 28, 21, 87, 88}
 MAX_RETRIES = 3
 
 logger = logging.getLogger(__name__)
@@ -56,17 +55,12 @@ class OutlineService:
     def _build_slides(self, data: dict) -> list[SlideOutline]:
         slides: list[SlideOutline] = []
         for item in data["slides"]:
-            layout_index = item.get("layout_index", 22)
-            if not isinstance(layout_index, int) or layout_index not in VALID_LAYOUT_INDICES:
-                layout_index = 22
-
             component_hint = item.get("component_hint", "bullets")
 
             slides.append(
                 SlideOutline(
                     title=item.get("title", ""),
                     content_summary=item.get("content_summary", ""),
-                    layout_index=layout_index,
                     component_hint=component_hint,
                 )
             )
