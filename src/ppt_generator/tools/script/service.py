@@ -1,10 +1,10 @@
 import json
-import re
 
 from strands import Agent
 
 from ppt_generator.interfaces.constants import SCRIPT_USER_PROMPT_TEMPLATE
 from ppt_generator.interfaces.schemas import ScriptRequest, ScriptResponse, SlideOutline
+from ppt_generator.interfaces.utils import extract_json_from_response
 
 
 class ScriptService:
@@ -51,13 +51,7 @@ class ScriptService:
         return merged
 
     def _parse_scripts(self, text: str) -> dict[int, str]:
-        match = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)
-        raw = match.group(1) if match else text
-
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"LLM이 유효하지 않은 JSON을 반환했습니다: {e}") from e
+        data = extract_json_from_response(text)
 
         if "scripts" not in data or not isinstance(data["scripts"], list):
             raise ValueError("JSON에 'scripts' 배열이 없습니다.")

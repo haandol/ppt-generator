@@ -481,7 +481,7 @@ class TestScreenshotCapture:
         mock_slides = _make_slides_service(MULTI_SLIDE_HTML)
         svc = ExportService(slides_service=mock_slides, use_llm_convert=False)
 
-        with patch("ppt_generator.tools.pptx.service._PLAYWRIGHT_AVAILABLE", False):
+        with patch("ppt_generator.tools.pptx.llm_converter._PLAYWRIGHT_AVAILABLE", False):
             result = svc._capture_slide_screenshots(MULTI_SLIDE_HTML, 3)
 
         assert result == {}
@@ -491,8 +491,8 @@ class TestScreenshotCapture:
         mock_slides = _make_slides_service(MULTI_SLIDE_HTML)
         svc = ExportService(slides_service=mock_slides, use_llm_convert=False)
 
-        with patch("ppt_generator.tools.pptx.service._PLAYWRIGHT_AVAILABLE", True), \
-             patch("ppt_generator.tools.pptx.service.sync_playwright", side_effect=Exception("Browser error")):
+        with patch("ppt_generator.tools.pptx.llm_converter._PLAYWRIGHT_AVAILABLE", True), \
+             patch("ppt_generator.tools.pptx.llm_converter.sync_playwright", side_effect=Exception("Browser error")):
             result = svc._capture_slide_screenshots(MULTI_SLIDE_HTML, 3)
 
         assert result == {}
@@ -526,7 +526,7 @@ class TestScreenshotCapture:
         soup = BeautifulSoup(MULTI_SLIDE_HTML, "html.parser")
         section = soup.find("section")
 
-        with patch("ppt_generator.tools.pptx.service.boto3") as mock_boto3:
+        with patch("ppt_generator.tools.pptx.llm_converter.boto3") as mock_boto3:
             mock_boto3.client.return_value = mock_client
             svc._convert_section_with_llm(section, screenshot=fake_screenshot)
 
@@ -558,7 +558,7 @@ class TestScreenshotCapture:
         soup = BeautifulSoup(MULTI_SLIDE_HTML, "html.parser")
         section = soup.find("section")
 
-        with patch("ppt_generator.tools.pptx.service.boto3") as mock_boto3:
+        with patch("ppt_generator.tools.pptx.llm_converter.boto3") as mock_boto3:
             mock_boto3.client.return_value = mock_client
             svc._convert_section_with_llm(section, screenshot=None)
 

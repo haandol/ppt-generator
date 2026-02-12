@@ -3,11 +3,8 @@ from dataclasses import asdict
 
 from mcp.server.fastmcp import FastMCP
 
-from ppt_generator.interfaces.schemas import (
-    OutlineResponse,
-    ScriptRequest,
-    SlideOutline,
-)
+from ppt_generator.interfaces.schemas import ScriptRequest
+from ppt_generator.interfaces.utils import parse_outline_json
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.script.service import ScriptService
 
@@ -30,7 +27,7 @@ def register_script_tools(mcp: FastMCP, script_service: ScriptService, project_s
         Returns:
             script_path, project_id를 포함하는 JSON 문자열
         """
-        outline = _parse_outline(outline_json)
+        outline = parse_outline_json(outline_json)
         request = ScriptRequest(outline=outline)
         response = script_service.generate(request)
         result = json.dumps(
@@ -52,16 +49,3 @@ def register_script_tools(mcp: FastMCP, script_service: ScriptService, project_s
         )
 
 
-def _parse_outline(outline_json: str) -> OutlineResponse:
-    data = json.loads(outline_json)
-    slides: list[SlideOutline] = []
-    for item in data["slides"]:
-        slides.append(
-            SlideOutline(
-                title=item.get("title", ""),
-                content_summary=item.get("content_summary", ""),
-                component_hint=item.get("component_hint", "bullets"),
-                speaker_notes=item.get("speaker_notes", ""),
-            )
-        )
-    return OutlineResponse(slides=slides)
