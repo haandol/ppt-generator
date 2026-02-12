@@ -192,12 +192,17 @@ def build_layout_skeleton(
         '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">')
 
     for region_name, coords in regions.items():
-        if region_name == "body":
-            # body region: absolute positioning 없이 margin으로 위치만 지정
-            # 컨텐츠에 맞게 높이 자동 조절
+        if region_name == "body" and coords.get("height", 0) >= 100:
+            # 본문 중심 body region: margin 기반 배치, 높이 자동 조절
             style = (
                 f"margin-left:{coords['left']}px; margin-top:{coords['top']}px; "
                 f"width:{coords['width']}px;"
+            )
+        elif region_name == "body":
+            # 작은 body region (title, closing 등): absolute 유지
+            style = (
+                f"position:absolute; left:{coords['left']}px; top:{coords['top']}px; "
+                f"width:{coords['width']}px; height:{coords['height']}px; overflow:hidden;"
             )
         else:
             style = (

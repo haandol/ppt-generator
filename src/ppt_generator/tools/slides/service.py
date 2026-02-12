@@ -241,11 +241,17 @@ class SlidesService:
             if region_name not in regions:
                 continue
             coords = regions[region_name]
-            if region_name == "body":
-                # body: absolute positioning 없이 margin으로 위치 지정, 높이 자동
+            if region_name == "body" and coords.get("height", 0) >= 100:
+                # 본문 중심 body: margin 기반, 높이 자동
                 correct_style = (
                     f"margin-left:{coords['left']}px; margin-top:{coords['top']}px; "
                     f"width:{coords['width']}px;"
+                )
+            elif region_name == "body":
+                # 작은 body (title, closing 등): absolute 유지
+                correct_style = (
+                    f"position:absolute; left:{coords['left']}px; top:{coords['top']}px; "
+                    f"width:{coords['width']}px; height:{coords['height']}px; overflow:hidden;"
                 )
             else:
                 correct_style = (
