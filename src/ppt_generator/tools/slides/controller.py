@@ -30,6 +30,8 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
                 title=s.get("title", ""),
                 content_summary=s.get("content_summary", ""),
                 layout_index=s.get("layout_index", 22),
+                component_hint=s.get("component_hint", "bullets"),
+                speaker_notes=s.get("speaker_notes", ""),
             )
             for s in outline_data["slides"]
         ]

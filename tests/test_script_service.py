@@ -98,6 +98,25 @@ class TestScriptService:
         with pytest.raises(ValueError, match="유효하지 않은 JSON"):
             service.generate(request)
 
+    def test_generate_returns_slides_with_speaker_notes(self, service):
+        outline = OutlineResponse(slides=SAMPLE_SLIDES)
+        request = ScriptRequest(outline=outline)
+        response = service.generate(request)
+
+        assert response.slides[0].speaker_notes == "안녕하세요, 오늘은 클라우드 컴퓨팅 트렌드에 대해 발표하겠습니다."
+        assert response.slides[1].speaker_notes == "첫 번째 트렌드는 멀티클라우드 전략입니다."
+        assert response.slides[2].speaker_notes == "이상으로 발표를 마치겠습니다."
+
+    def test_generate_preserves_component_hint(self, service):
+        slides_with_hint = [
+            SlideOutline(title="제목", content_summary="요약", layout_index=0, component_hint="agenda"),
+        ]
+        outline = OutlineResponse(slides=slides_with_hint)
+        request = ScriptRequest(outline=outline)
+        response = service.generate(request)
+
+        assert response.slides[0].component_hint == "agenda"
+
     def test_generate_raises_on_missing_scripts_key(self, mock_agent):
         mock_agent.return_value = '{"data": []}'
         service = ScriptService(agent=mock_agent)

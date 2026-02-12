@@ -260,9 +260,9 @@ class ExportService:
                 run = para.add_run()
                 run.text = run_spec.text
                 run.font.name = PPTX_FONT_NAME
-                scaled_size = self._scale_font_size(run_spec.font_size_pt)
-                if scaled_size:
-                    run.font.size = Pt(scaled_size)
+                # LLM이 이미 프레젠테이션용 pt 크기를 출력하므로 스케일링 없이 사용
+                if run_spec.font_size_pt:
+                    run.font.size = Pt(run_spec.font_size_pt)
                 run.font.bold = run_spec.bold
                 run.font.italic = run_spec.italic
                 if run_spec.color:
@@ -318,9 +318,9 @@ class ExportService:
             run = p.add_run()
             run.text = shape_spec.text
             run.font.name = PPTX_FONT_NAME
-            scaled_size = self._scale_font_size(shape_spec.text_size_pt)
-            if scaled_size:
-                run.font.size = Pt(scaled_size)
+            # LLM이 이미 프레젠테이션용 pt 크기를 출력하므로 스케일링 없이 사용
+            if shape_spec.text_size_pt:
+                run.font.size = Pt(shape_spec.text_size_pt)
             run.font.bold = shape_spec.text_bold
             if shape_spec.text_color:
                 rgb = self._parse_color(shape_spec.text_color)

@@ -115,6 +115,7 @@ class SlidesService:
             skeleton = build_layout_skeleton(
                 layout_index=slide.layout_index,
                 slide_index=global_idx,
+                speaker_notes=slide.speaker_notes,
             )
             outline_json = json.dumps(
                 {"slides": [self._slide_to_dict(slide)]},
@@ -176,6 +177,7 @@ class SlidesService:
             skeleton = build_layout_skeleton(
                 layout_index=slide.layout_index,
                 slide_index=global_idx,
+                speaker_notes=slide.speaker_notes,
             )
             outline_json = json.dumps(
                 {"slides": [self._slide_to_dict(slide)]},
@@ -277,12 +279,15 @@ class SlidesService:
 
     @staticmethod
     def _slide_to_dict(slide: SlideOutline) -> dict:
-        return {
+        d = {
             "title": slide.title,
             "content_summary": slide.content_summary,
             "layout_index": slide.layout_index,
             "component_hint": slide.component_hint,
         }
+        if slide.speaker_notes:
+            d["speaker_notes"] = slide.speaker_notes
+        return d
 
     @staticmethod
     def _extract_full_html(text: str) -> str:
