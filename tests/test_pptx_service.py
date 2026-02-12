@@ -653,6 +653,32 @@ class TestCssClassInlining:
 class TestScreenshotCapture:
     """Playwright 스크린샷 캡처 및 멀티모달 변환 테스트."""
 
+    def test_extract_head_html(self):
+        """HTML에서 <head> 블록을 정상 추출."""
+        result = ExportService._extract_head_html(MULTI_SLIDE_HTML)
+        assert "<head>" in result
+        assert "<meta" in result
+
+    def test_extract_head_html_missing(self):
+        """<head>가 없는 HTML에서 기본값 반환."""
+        result = ExportService._extract_head_html("<section>내용</section>")
+        assert result == "<head></head>"
+
+    def test_build_single_slide_html(self):
+        """단일 슬라이드 HTML 문서가 정상 구성."""
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(MULTI_SLIDE_HTML, "html.parser")
+        section = soup.find("section")
+        head_html = "<head><style>body{margin:0;}</style></head>"
+
+        result = ExportService._build_single_slide_html(head_html, section)
+        assert "<!DOCTYPE html>" in result
+        assert "<head>" in result
+        assert "<section>" in result
+        # section이 정확히 하나만 포함
+        result_soup = BeautifulSoup(result, "html.parser")
+        assert len(result_soup.find_all("section")) == 1
+
     def test_capture_returns_empty_when_playwright_unavailable(self):
         """_PLAYWRIGHT_AVAILABLE=False이면 빈 dict 반환."""
         mock_slides = _make_slides_service(MULTI_SLIDE_HTML)
@@ -672,6 +698,14 @@ class TestScreenshotCapture:
              patch("ppt_generator.tools.pptx.service.sync_playwright", side_effect=Exception("Browser error")):
             result = svc._capture_slide_screenshots(MULTI_SLIDE_HTML, 3)
 
+        assert result == {}
+
+    def test_capture_returns_empty_on_no_sections(self):
+        """<section>이 없는 HTML이면 빈 dict 반환."""
+        mock_slides = _make_slides_service("<html><body>빈 페이지</body></html>")
+        svc = ExportService(slides_service=mock_slides, use_llm_convert=False)
+
+        result = svc._capture_slide_screenshots("<html><body>빈 페이지</body></html>", 0)
         assert result == {}
 
     def test_convert_with_screenshot_sends_image_block(self):

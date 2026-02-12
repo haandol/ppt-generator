@@ -153,9 +153,38 @@ class ExportService:
 
     # --- LLM 변환 파이프라인 ---
 
+    @staticmethod
+    def _extract_head_html(html: str) -> str:
+        """HTML에서 <head> 블록을 추출한다. CSS 스타일 보존용."""
+        soup = BeautifulSoup(html, "html.parser")
+        head = soup.find("head")
+        return str(head) if head else "<head></head>"
+
+    @staticmethod
+    def _build_single_slide_html(head_html: str, section: Tag) -> str:
+        """<head>와 단일 <section>으로 최소 HTML 문서를 구성한다."""
+        return (
+            f"<!DOCTYPE html><html lang=\"ko\">{head_html}"
+            f"<body>{section}</body></html>"
+        )
+
     def _capture_slide_screenshots(self, html: str, num_slides: int) -> dict[int, bytes]:
-        """Playwright로 각 <section>을 1280x720 PNG로 캡처."""
+        """Playwright로 각 <section>을 개별 로드하여 1280x720 PNG로 캡처.
+
+        전체 HTML을 한 번에 로드하는 대신, <head>(CSS)만 추출하고
+        각 <section>을 개별 미니 HTML로 감싸 한 장씩 렌더링한다.
+        이를 통해 대용량 HTML에서도 안정적으로 캡처할 수 있다.
+        """
         if not _PLAYWRIGHT_AVAILABLE:
+            return {}
+
+        head_html = self._extract_head_html(html)
+        soup = BeautifulSoup(html, "html.parser")
+        body = soup.find("body")
+        sections = (body.find_all("section", recursive=False) if body
+                    else soup.find_all("section"))
+
+        if not sections:
             return {}
 
         screenshots: dict[int, bytes] = {}
@@ -165,14 +194,17 @@ class ExportService:
                 page = browser.new_page(
                     viewport={"width": SLIDES_WIDTH_PX, "height": SLIDES_HEIGHT_PX},
                 )
-                page.set_content(html, wait_until="networkidle")
-                sections = page.query_selector_all("section")
-                for idx, section_el in enumerate(sections):
+                for idx, section in enumerate(sections):
                     try:
-                        png_bytes = section_el.screenshot(type="png")
-                        screenshots[idx] = png_bytes
+                        slide_html = self._build_single_slide_html(head_html, section)
+                        page.set_content(slide_html, wait_until="load")
+                        section_el = page.query_selector("section")
+                        if section_el:
+                            screenshots[idx] = section_el.screenshot(type="png")
                     except Exception:
-                        logger.warning("슬라이드 %d 스크린샷 캡처 실패, 해당 슬라이드는 텍스트만으로 변환", idx)
+                        logger.warning(
+                            "슬라이드 %d 스크린샷 캡처 실패, 해당 슬라이드는 텍스트만으로 변환", idx,
+                        )
                 browser.close()
         except Exception:
             logger.warning("Playwright 브라우저 실행 실패, 스크린샷 없이 변환 진행")
