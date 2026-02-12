@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from pptx import Presentation
 
+from ppt_generator.interfaces.constants import PPTX_FONT_MIN_SIZE_PT, PPTX_FONT_SCALE_FACTOR
 from ppt_generator.interfaces.schemas import ExportPptxRequest
 from ppt_generator.tools.pptx.service import ExportService
 
@@ -322,12 +323,12 @@ class TestRegionBasedExport:
         textboxes = [s for s in slide.shapes if s.has_text_frame and "제목" in s.text_frame.text]
         assert len(textboxes) >= 1
         tb = textboxes[0]
-        # 1.875rem * 16 = 30px → Pt(30)
+        # 1.875rem * 16 = 30px → 30 * 1.5 = 45 → Pt(45) (스케일링 적용)
         for p in tb.text_frame.paragraphs:
             for run in p.runs:
                 if run.text.strip():
                     assert run.font.size is not None
-                    assert run.font.size.pt == 30
+                    assert run.font.size.pt == 45
 
     def test_export_region_preserves_child_color(self, service_with_html):
         """자식 요소의 color가 PPTX에 보존되는지 확인."""
@@ -472,3 +473,178 @@ class TestRegionBasedExport:
         slide = prs.slides[0]
         all_text = " ".join(s.text_frame.text for s in slide.shapes if s.has_text_frame)
         assert "레거시 제목" in all_text
+
+
+class TestFontSizeScaling:
+    """PPTX 폰트 크기 스케일링 테스트."""
+
+    def test_scale_font_size_applies_factor(self):
+        """스케일 팩터가 올바르게 적용되는지 확인."""
+        result = ExportService._scale_font_size(18)
+        assert result == int(18 * PPTX_FONT_SCALE_FACTOR)  # 21
+
+    def test_scale_font_size_enforces_minimum(self):
+        """최소 폰트 크기가 보장되는지 확인."""
+        result = ExportService._scale_font_size(11)
+        # 11 * 1.2 = 13.2 → int(13) < 14 → 14
+        assert result == PPTX_FONT_MIN_SIZE_PT
+
+    def test_scale_font_size_none_passthrough(self):
+        """None 입력은 None을 반환."""
+        assert ExportService._scale_font_size(None) is None
+
+    def test_scale_font_size_large_value(self):
+        """큰 폰트 크기는 스케일만 적용되고 최소값에 영향 없음."""
+        result = ExportService._scale_font_size(36)
+        assert result == int(36 * PPTX_FONT_SCALE_FACTOR)  # 43
+
+    def test_region_font_size_scaled_in_pptx(self, service_with_html):
+        """룰 기반 폴백에서 폰트 크기가 스케일링되어 PPTX에 반영되는지 확인."""
+        html = (
+            '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
+            '<section id="slide-0">\n'
+            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">\n'
+            '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
+            'width:1152px; height:472px; overflow:hidden;">\n'
+            '      <p style="color:#fff; font-size:11px;">작은 텍스트</p>\n'
+            '    </div>\n'
+            '  </div>\n'
+            '</section>\n'
+            '</body></html>'
+        )
+        svc = service_with_html(html)
+        response = svc.export(ExportPptxRequest(session_id="test-session"))
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        for shape in slide.shapes:
+            if shape.has_text_frame and "작은 텍스트" in shape.text_frame.text:
+                for p in shape.text_frame.paragraphs:
+                    for run in p.runs:
+                        if run.text.strip():
+                            # 11px → 11*1.2=13.2 → min 14pt
+                            assert run.font.size is not None
+                            assert run.font.size.pt == PPTX_FONT_MIN_SIZE_PT
+                            return
+        pytest.fail("작은 텍스트가 포함된 shape을 찾지 못했습니다")
+
+    def test_region_font_size_scaled_above_minimum(self, service_with_html):
+        """최소값보다 큰 폰트는 스케일만 적용되는지 확인."""
+        html = (
+            '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
+            '<section id="slide-0">\n'
+            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">\n'
+            '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
+            'width:1152px; height:472px; overflow:hidden;">\n'
+            '      <p style="color:#fff; font-size:18px;">본문 텍스트</p>\n'
+            '    </div>\n'
+            '  </div>\n'
+            '</section>\n'
+            '</body></html>'
+        )
+        svc = service_with_html(html)
+        response = svc.export(ExportPptxRequest(session_id="test-session"))
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        for shape in slide.shapes:
+            if shape.has_text_frame and "본문 텍스트" in shape.text_frame.text:
+                for p in shape.text_frame.paragraphs:
+                    for run in p.runs:
+                        if run.text.strip():
+                            # 18px → 18*1.2=21.6 → int(21) → 21pt
+                            assert run.font.size is not None
+                            assert run.font.size.pt == int(18 * PPTX_FONT_SCALE_FACTOR)
+                            return
+        pytest.fail("본문 텍스트가 포함된 shape을 찾지 못했습니다")
+
+
+class TestCssClassInlining:
+    """CSS 클래스가 PPTX export 시 인라이닝되어 정상 변환되는지 테스트."""
+
+    def test_css_class_inlined_in_export(self, service_with_html):
+        """CSS 클래스로 지정된 배경색이 PPTX 도형/텍스트에 반영되는지 확인."""
+        html = (
+            '<!DOCTYPE html>\n<html><head><meta charset="UTF-8">\n'
+            '<style>\n'
+            '.info-card { background-color: #162232; border-radius: 12px; padding: 24px; }\n'
+            '</style></head>\n<body>\n'
+            '<section id="slide-0">\n'
+            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0; '
+            'background-color:#0d1b2a;">\n'
+            '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
+            'width:1152px; height:472px; overflow:hidden;">\n'
+            '      <div class="info-card">\n'
+            '        <p style="color:#ffffff; font-size:20px;">카드 내용</p>\n'
+            '      </div>\n'
+            '    </div>\n'
+            '  </div>\n'
+            '</section>\n'
+            '</body></html>'
+        )
+        svc = service_with_html(html)
+        response = svc.export(ExportPptxRequest(session_id="test-session"))
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        all_text = " ".join(s.text_frame.text for s in slide.shapes if s.has_text_frame)
+        assert "카드 내용" in all_text
+
+    def test_css_class_two_col_layout(self, service_with_html):
+        """two-col CSS 클래스가 인라이닝되어 grid 레이아웃이 적용되는지 확인."""
+        html = (
+            '<!DOCTYPE html>\n<html><head><meta charset="UTF-8">\n'
+            '<style>\n'
+            '.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }\n'
+            '.info-card { background-color: #162232; padding: 24px; }\n'
+            '</style></head>\n<body>\n'
+            '<section id="slide-0">\n'
+            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0; '
+            'background-color:#0d1b2a;">\n'
+            '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
+            'width:1152px; height:472px; overflow:hidden;">\n'
+            '      <div class="two-col">\n'
+            '        <div class="info-card"><p style="color:#fff; font-size:20px;">왼쪽</p></div>\n'
+            '        <div class="info-card"><p style="color:#fff; font-size:20px;">오른쪽</p></div>\n'
+            '      </div>\n'
+            '    </div>\n'
+            '  </div>\n'
+            '</section>\n'
+            '</body></html>'
+        )
+        svc = service_with_html(html)
+        response = svc.export(ExportPptxRequest(session_id="test-session"))
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        all_text = " ".join(s.text_frame.text for s in slide.shapes if s.has_text_frame)
+        assert "왼쪽" in all_text
+        assert "오른쪽" in all_text
+
+    def test_inline_style_overrides_css_class(self, service_with_html):
+        """인라인 style이 CSS 클래스보다 우선하는지 확인."""
+        html = (
+            '<!DOCTYPE html>\n<html><head><meta charset="UTF-8">\n'
+            '<style>\n'
+            '.info-card { background-color: #162232; padding: 24px; }\n'
+            '</style></head>\n<body>\n'
+            '<section id="slide-0">\n'
+            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0; '
+            'background-color:#0d1b2a;">\n'
+            '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
+            'width:1152px; height:472px; overflow:hidden;">\n'
+            '      <div class="info-card" style="background-color: #ff0000;">\n'
+            '        <p style="color:#ffffff; font-size:20px;">커스텀 배경</p>\n'
+            '      </div>\n'
+            '    </div>\n'
+            '  </div>\n'
+            '</section>\n'
+            '</body></html>'
+        )
+        svc = service_with_html(html)
+        response = svc.export(ExportPptxRequest(session_id="test-session"))
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        all_text = " ".join(s.text_frame.text for s in slide.shapes if s.has_text_frame)
+        assert "커스텀 배경" in all_text

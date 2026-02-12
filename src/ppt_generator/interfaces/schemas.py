@@ -18,6 +18,7 @@ class SlideOutline:
     title: str
     content_summary: str
     layout_index: int
+    component_hint: str = "bullets"
 
 
 @dataclass(frozen=True)

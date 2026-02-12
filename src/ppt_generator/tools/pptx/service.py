@@ -29,7 +29,9 @@ from ppt_generator.interfaces.constants import (
     PPTX_CONVERT_MODEL_ID,
     PPTX_CONVERT_SYSTEM_PROMPT,
     PPTX_CONVERT_USER_PROMPT_TEMPLATE,
+    PPTX_FONT_MIN_SIZE_PT,
     PPTX_FONT_NAME,
+    PPTX_FONT_SCALE_FACTOR,
     PPTX_SLIDE_HEIGHT_EMU,
     PPTX_SLIDE_WIDTH_EMU,
     REM_TO_PX,
@@ -43,6 +45,7 @@ from ppt_generator.interfaces.schemas import (
     PptxTextBox,
     PptxTextRun,
 )
+from ppt_generator.tools.slides.css_inliner import inline_css_classes
 from ppt_generator.tools.slides.service import SlidesService
 
 logger = logging.getLogger(__name__)
@@ -72,6 +75,7 @@ class ExportService:
 
     def export(self, request: ExportPptxRequest, output_dir: Path | None = None) -> ExportPptxResponse:
         html = self._slides_service.get_session_html(request.session_id)
+        html = inline_css_classes(html)
         slide_divs = self._parse_slides(html)
 
         if not slide_divs:
@@ -116,6 +120,14 @@ class ExportService:
         prs.save(str(output_path))
         logger.info("PPTX 내보내기 완료: %s", output_path)
         return ExportPptxResponse(pptx_path=str(output_path))
+
+    @staticmethod
+    def _scale_font_size(raw_pt: int | None) -> int | None:
+        """HTML에서 추출한 폰트 크기를 프레젠테이션에 적합하게 스케일업한다."""
+        if raw_pt is None:
+            return None
+        scaled = int(raw_pt * PPTX_FONT_SCALE_FACTOR)
+        return max(scaled, PPTX_FONT_MIN_SIZE_PT)
 
     @staticmethod
     def _remove_placeholders(slide) -> None:
@@ -248,8 +260,9 @@ class ExportService:
                 run = para.add_run()
                 run.text = run_spec.text
                 run.font.name = PPTX_FONT_NAME
-                if run_spec.font_size_pt:
-                    run.font.size = Pt(run_spec.font_size_pt)
+                scaled_size = self._scale_font_size(run_spec.font_size_pt)
+                if scaled_size:
+                    run.font.size = Pt(scaled_size)
                 run.font.bold = run_spec.bold
                 run.font.italic = run_spec.italic
                 if run_spec.color:
@@ -305,8 +318,9 @@ class ExportService:
             run = p.add_run()
             run.text = shape_spec.text
             run.font.name = PPTX_FONT_NAME
-            if shape_spec.text_size_pt:
-                run.font.size = Pt(shape_spec.text_size_pt)
+            scaled_size = self._scale_font_size(shape_spec.text_size_pt)
+            if scaled_size:
+                run.font.size = Pt(scaled_size)
             run.font.bold = shape_spec.text_bold
             if shape_spec.text_color:
                 rgb = self._parse_color(shape_spec.text_color)
@@ -646,8 +660,9 @@ class ExportService:
             run = current_para.add_run()
             run.text = frag.text
             run.font.name = PPTX_FONT_NAME
-            if frag.font_size:
-                run.font.size = Pt(frag.font_size)
+            scaled_size = self._scale_font_size(frag.font_size)
+            if scaled_size:
+                run.font.size = Pt(scaled_size)
             run.font.bold = frag.bold
             run.font.italic = frag.italic
             if frag.color:

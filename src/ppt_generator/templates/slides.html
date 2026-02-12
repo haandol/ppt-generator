@@ -52,6 +52,205 @@
         img {
             display: block;
         }
+
+        /* ── Layout ── */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 32px;
+            height: 100%;
+        }
+        .two-col-wide {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 32px;
+            height: 100%;
+        }
+        .three-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 24px;
+            height: 100%;
+        }
+
+        /* ── Typography ── */
+        .tag {
+            display: inline-block;
+            font-family: monospace;
+            background-color: #1e3a5f;
+            color: #f59e0b;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 14px;
+        }
+        .subtitle {
+            font-size: 1.25rem;
+            color: #94a3b8;
+            margin-bottom: 16px;
+        }
+        .divider-bar {
+            width: 64px;
+            height: 4px;
+            background-color: #f59e0b;
+            border-radius: 9999px;
+            margin-bottom: 24px;
+        }
+
+        /* ── Cards ── */
+        .info-card {
+            background-color: #162232;
+            border-radius: 12px;
+            padding: 24px;
+        }
+        .step-card {
+            background-color: #162232;
+            border-radius: 12px;
+            padding: 24px;
+            border-left: 4px solid #f59e0b;
+        }
+        .summary-card {
+            background-color: #162232;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        /* ── Lists ── */
+        .agenda-list {
+            list-style: none;
+            padding: 0;
+        }
+        .agenda-list li {
+            padding: 12px 0;
+            border-bottom: 1px solid #1e3a5f;
+            font-size: 1.25rem;
+            color: #ffffff;
+        }
+        .feature-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            background-color: #162232;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        /* ── Comparison ── */
+        .vs-container {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 24px;
+            align-items: stretch;
+            height: 100%;
+        }
+        .vs-panel {
+            background-color: #162232;
+            border-radius: 12px;
+            padding: 24px;
+        }
+        .vs-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #f59e0b;
+        }
+
+        /* ── Code ── */
+        .code-block {
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .code-header {
+            background-color: #1e3a5f;
+            padding: 8px 16px;
+            font-family: monospace;
+            font-size: 14px;
+            color: #94a3b8;
+        }
+        .code-body {
+            background-color: #0a1628;
+            padding: 16px;
+            font-family: monospace;
+            font-size: 16px;
+            color: #e2e8f0;
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+
+        /* ── Diagrams ── */
+        .arch-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .arch-stage {
+            background-color: #162232;
+            border-radius: 12px;
+            padding: 16px 20px;
+            text-align: center;
+            color: #ffffff;
+            font-size: 1rem;
+        }
+        .arch-arrow {
+            font-size: 1.5rem;
+            color: #f59e0b;
+        }
+        .pipeline-flow {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .pipeline-stage {
+            flex: 1;
+            background-color: #162232;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            color: #ffffff;
+            font-size: 1rem;
+        }
+
+        /* ── Quote ── */
+        .quote-box {
+            border-left: 4px solid #f59e0b;
+            padding: 24px 32px;
+            background-color: #162232;
+            border-radius: 0 12px 12px 0;
+            font-size: 1.25rem;
+            font-style: italic;
+            color: #e2e8f0;
+        }
+
+        /* ── Grids ── */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .info-grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+        }
+
+        /* ── CTA ── */
+        .cta-box {
+            background-color: #162232;
+            border: 2px solid #f59e0b;
+            border-radius: 12px;
+            padding: 32px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
