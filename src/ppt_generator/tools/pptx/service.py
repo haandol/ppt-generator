@@ -13,6 +13,7 @@ from bs4 import BeautifulSoup, Tag
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
+from pptx.enum.text import MSO_AUTO_SIZE
 from pptx.oxml.ns import qn
 from pptx.util import Inches, Pt
 
@@ -340,6 +341,7 @@ class ExportService:
         txbox = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
         tf = txbox.text_frame
         tf.word_wrap = True
+        tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
 
         for p_idx, para_spec in enumerate(tb.paragraphs):
             if p_idx == 0:
