@@ -107,6 +107,7 @@ class DIContainer:
             self._export_service = ExportService(
                 slides_service=self.slides_service,
                 use_llm_convert=True,
+                use_dom_extract=True,
             )
         return self._export_service
 

@@ -21,6 +21,10 @@ from ppt_generator.interfaces.schemas import (
     ExportPptxResponse,
     PptxSlideSpec,
 )
+from ppt_generator.tools.pptx.dom_extractor import (
+    _PLAYWRIGHT_AVAILABLE as _DOM_PLAYWRIGHT_AVAILABLE,
+    extract_all_slides_via_dom,
+)
 from ppt_generator.tools.pptx.html_parser import extract_background, parse_slides
 from ppt_generator.tools.pptx.llm_converter import (
     _PLAYWRIGHT_AVAILABLE,
@@ -40,9 +44,11 @@ class ExportService:
         self,
         slides_service: SlidesService,
         use_llm_convert: bool = True,
+        use_dom_extract: bool = True,
     ) -> None:
         self._slides_service = slides_service
         self._use_llm_convert = use_llm_convert
+        self._use_dom_extract = use_dom_extract
         self._builder = SlideBuilder()
 
     def export(self, request: ExportPptxRequest, output_dir: Path | None = None) -> ExportPptxResponse:
@@ -57,14 +63,18 @@ class ExportService:
         prs.slide_width = PPTX_SLIDE_WIDTH_EMU
         prs.slide_height = PPTX_SLIDE_HEIGHT_EMU
 
-        # Playwright 스크린샷 캡처
-        screenshots: dict[int, bytes] = {}
-        if self._use_llm_convert and _PLAYWRIGHT_AVAILABLE:
-            screenshots = capture_slide_screenshots(html, len(slide_divs))
+        # 1단계: DOM 추출 시도
+        dom_specs: dict[int, PptxSlideSpec | None] = {}
+        if self._use_dom_extract and _DOM_PLAYWRIGHT_AVAILABLE:
+            dom_specs = extract_all_slides_via_dom(html, len(slide_divs))
 
-        # LLM 변환: 모든 section을 병렬로 변환
+        # 2단계: DOM 추출 실패한 슬라이드를 위한 LLM 변환
         llm_specs: dict[int, PptxSlideSpec | None] = {}
-        if self._use_llm_convert:
+        need_llm = [i for i in range(len(slide_divs)) if dom_specs.get(i) is None]
+        if need_llm and self._use_llm_convert:
+            screenshots: dict[int, bytes] = {}
+            if _PLAYWRIGHT_AVAILABLE:
+                screenshots = capture_slide_screenshots(html, len(slide_divs))
             llm_specs = convert_all_sections_with_llm(slide_divs, screenshots)
 
         blank_layout = prs.slide_layouts[6]
@@ -73,7 +83,8 @@ class ExportService:
             slide = prs.slides.add_slide(blank_layout)
             self._builder.remove_placeholders(slide)
 
-            spec = llm_specs.get(idx)
+            # DOM 추출 → LLM → 룰 기반 폴백 체인
+            spec = dom_specs.get(idx) or llm_specs.get(idx)
             if spec is not None:
                 if spec.background_color:
                     self._builder.set_slide_background(slide, spec.background_color)
