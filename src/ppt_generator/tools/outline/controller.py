@@ -20,6 +20,11 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
         포함한 구조화된 아웃라인을 생성합니다.
         아웃라인은 슬라이드의 구조만 결정하며, 디자인은 이후 HTML 슬라이드 생성 단계에서 결정됩니다.
 
+        **중요: 아웃라인 생성 후 반드시 사용자에게 결과를 보여주고 확인을 받으세요.**
+        사용자가 아웃라인 구조(슬라이드 수, 제목, 내용 구성 등)에 만족하는지 확인한 뒤
+        다음 단계(generate_script)로 진행해야 합니다.
+        사용자가 수정을 요청하면 수정 사항을 반영하여 generate_outline을 다시 호출하세요.
+
         Args:
             topic: 발표 주제 (예: "2024년 클라우드 컴퓨팅 트렌드")
             num_slides: 슬라이드 수 (3~20, 기본값 5)

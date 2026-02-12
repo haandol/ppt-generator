@@ -4,7 +4,7 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted
+Accepted (Updated: layout_type → layout_index, freeform/elements 제거, Claude Sonnet 4.5 사용, component_hint 추가)
 
 ## Context
 
@@ -14,30 +14,32 @@ Accepted
 
 ## Decision
 
-MCP 도구 `generate_outline`을 구현하여, 주제와 슬라이드 수를 입력받아 Bedrock Claude Opus 4.6이 구조화된 JSON 아웃라인을 생성한다. 기본적으로 `freeform` 모드(좌표 기반 자유 배치)로 동작하여, PPTX 변환 시 HTML로 표현한 디자인 자유도를 최대한 보장한다.
+MCP 도구 `generate_outline`을 구현하여, 주제와 슬라이드 수를 입력받아 Bedrock Claude Sonnet 4.5가 구조화된 JSON 아웃라인을 생성한다. 각 슬라이드에 `layout_index`(PPTX 템플릿 레이아웃 인덱스)와 `component_hint`(시각적 컴포넌트 유형)를 포함하여, HTML 슬라이드 생성 시 레이아웃 골격과 본문 구조를 결정한다.
 
 ### Technical Details
 
-- Bedrock Claude Opus 4.6 호출 (Strands SDK 경유)
+- Bedrock Claude Sonnet 4.5 호출 (Strands SDK 경유, 16K max tokens)
 - 프롬프트: 주제를 기반으로 구조화된 JSON 아웃라인 생성 요청
-- 출력 JSON 스키마: `{ slides: [{ title, bullets: [], image_idea, layout_type, speaker_notes: "", elements: [] }] }`
-- 기본 모드는 freeform: `elements[]` 배열로 요소별 좌표(인치 단위, 13.333 x 7.5인치 좌표계) 포함. PPTX 변환 시 HTML 디자인 자유도를 최대한 보장
-- layout_type: 기본값 `freeform` (좌표 기반 자유 배치). placeholder 모드 사용 시 `title`, `text_image`, `text_only`, `chart`, `closing`
+- 출력 JSON 스키마: `{ slides: [{ title, content_summary, layout_index, component_hint, speaker_notes: "" }] }`
+- `layout_index`: PPTX 템플릿 레이아웃 인덱스 (0=제목, 22=범용 콘텐츠, 21=차트, 87=마무리). 알 수 없는 인덱스는 22로 폴백
+- `component_hint`: 본문 영역의 시각적 구조 힌트 (bullets, two_column, vs_comparison, step_cards, code_block, arch_diagram, pipeline, quote, summary_grid, agenda, info_cards, feature_list, cta, process_flow, quote_code, concept_list)
 - speaker_notes는 빈 문자열로 생성되며, 이후 `generate_script`(F2)에서 채워짐
+- 슬라이드 수: 3~20장 (기본값 5)
 
 ### MCP Tool Interface
 
 | 항목 | 값 |
 |------|-----|
 | Tool | `generate_outline` |
-| 입력 | `topic: str`, `num_slides: int` |
-| 출력 | 아웃라인 JSON 문자열 (speaker_notes 비어있음) |
+| 입력 | `topic: str`, `num_slides: int` (기본값 5, 3~20), `project_id: str` (선택) |
+| 출력 | 아웃라인 JSON 문자열 (speaker_notes 비어있음, project_id 포함) |
 
 ### Acceptance Criteria
 
 1. 주제를 입력하면 구조화된 슬라이드 아웃라인 JSON이 반환된다
-2. 각 슬라이드에 제목, 본문 요점, 이미지 아이디어, 레이아웃 타입이 포함된다
+2. 각 슬라이드에 제목(title), 내용 요약(content_summary), 레이아웃 인덱스(layout_index), 컴포넌트 힌트(component_hint)가 포함된다
 3. speaker_notes는 빈 문자열이다
+4. project_id가 자동 생성되어 `~/.ppt-generator/<UUID>/`에 결과물이 저장된다
 
 ### Out of Scope
 
@@ -48,13 +50,14 @@ sequenceDiagram
     actor User
     participant Client as MCP Client
     participant Server as MCP Server
-    participant LLM as Bedrock Claude
+    participant LLM as Bedrock Claude Sonnet 4.5
 
     User->>Client: "클라우드 트렌드 5장 발표자료"
     Client->>Server: generate_outline(topic, 5)
     Server->>LLM: 아웃라인 생성 프롬프트
     LLM-->>Server: 슬라이드 아웃라인 JSON (speaker_notes 비어있음)
-    Server-->>Client: 아웃라인 반환
+    Server->>Server: ~/.ppt-generator/<UUID>/outline.json 저장
+    Server-->>Client: 아웃라인 반환 (project_id 포함)
 ```
 
 ## Consequences
@@ -67,6 +70,6 @@ sequenceDiagram
 ## References
 
 - 구현: `src/ppt_generator/tools/outline/` (controller.py, service.py)
-- 스키마: `src/ppt_generator/interfaces/schemas.py` — `OutlineRequest(topic, num_slides)`, `OutlineResponse`
-- 프롬프트: `src/ppt_generator/interfaces/constants.py` — `OUTLINE_FREEFORM_SYSTEM_PROMPT`
+- 스키마: `src/ppt_generator/interfaces/schemas.py` — `OutlineRequest(topic, num_slides)`, `OutlineResponse`, `SlideOutline(title, content_summary, layout_index, component_hint, speaker_notes)`
+- 프롬프트: `src/ppt_generator/interfaces/constants.py` — `OUTLINE_SYSTEM_PROMPT`, `OUTLINE_USER_PROMPT_TEMPLATE`
 - ALPS: Section 7.1

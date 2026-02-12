@@ -10,7 +10,7 @@ Accepted
 
 두 가지 문제가 있었다:
 
-1. **중간 파일이 OS 임시 디렉토리에 흩어짐**: `ImageService`와 `ExportService`가 각각 `tempfile.mkdtemp()`로 OS 임시 디렉토리에 파일을 생성하여, OS 정리 시 소실 가능하고 `project_dir`을 명시적으로 지정해야만 보존됨.
+1. **중간 파일이 OS 임시 디렉토리에 흩어짐**: `ExportService`가 `tempfile.mkdtemp()`로 OS 임시 디렉토리에 파일을 생성하여, OS 정리 시 소실 가능하고 `project_dir`을 명시적으로 지정해야만 보존됨.
 2. **전체 슬라이드 일괄 생성/수정 시 토큰 부족**: `generate_slides`가 최대 10장을 한 번에 생성하고, `modify_slides`가 전체 HTML을 LLM에 전달하여 토큰 한도 초과.
 
 ## Decision
@@ -21,8 +21,7 @@ Accepted
 - `PPT_GENERATOR_HOME = Path.home() / ".ppt-generator"` 상수 추가
 - `ProjectService.resolve_project_dir(project_id)` 메서드로 project_id → (project_id, project_dir) 변환. 빈 ID면 UUID 자동 생성
 - 6개 컨트롤러의 `project_dir: str` 파라미터를 `project_id: str`로 변경
-- `ImageService.generate()`와 `ExportService.export()`에 `output_dir` 파라미터 추가하여 이미지/PPTX를 프로젝트 디렉토리에 직접 생성
-- `ProjectService.save_images_meta()` 추가: 이미지가 이미 프로젝트 디렉토리에 있을 때 파일 복사 없이 메타만 저장
+- `ExportService.export()`에 `output_dir` 파라미터 추가하여 PPTX를 프로젝트 디렉토리에 직접 생성
 
 ### 슬라이드 개별 생성/수정
 
@@ -38,10 +37,8 @@ Accepted
   project.json         # 메타데이터
   outline.json         # F1 출력
   script.json          # F2 출력
-  images/              # F3에서 내부 생성 (직접 생성)
-  images.json          # F3에서 내부 생성 메타
   slides.html          # F3/F4 출력
-  slides_meta.json     # 세션 메타
+  slides_meta.json     # 세션 메타 (session_id)
   presentation.pptx    # F5 출력 (직접 생성)
 ```
 
@@ -57,7 +54,7 @@ Accepted
 - project_id 기반으로 프로젝트 식별이 단순화됨
 - 슬라이드 개별 생성으로 토큰 한도 초과 방지
 - 슬라이드 단위 수정으로 불필요한 토큰 소비 감소
-- 이미지/PPTX 파일이 프로젝트 디렉토리에 직접 생성되어 파일 복사 오버헤드 제거
+- PPTX 파일이 프로젝트 디렉토리에 직접 생성되어 파일 복사 오버헤드 제거
 
 **부정적:**
 - 슬라이드 개별 생성 시 LLM 호출 횟수 증가 (N장 → 1 + 1(디자인 요약) + (N-1) = N+1회)
@@ -68,5 +65,5 @@ Accepted
 
 - [ADR 0007: 파이프라인 결과물 저장/로드](./0007-pipeline-artifact-persistence.md)
 - `src/ppt_generator/interfaces/constants.py` - `PPT_GENERATOR_HOME`, `SLIDES_MAX_PER_BATCH`
-- `src/ppt_generator/tools/project/service.py` - `resolve_project_dir()`, `save_images_meta()`
+- `src/ppt_generator/tools/project/service.py` - `resolve_project_dir()`, `list_projects()`
 - `src/ppt_generator/tools/slides/service.py` - `_modify_single_slide()`

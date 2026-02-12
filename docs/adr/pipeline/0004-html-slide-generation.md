@@ -4,7 +4,7 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted (Updated: reveal.js 제거 → 정적 HTML 수직 스크롤 → 레이아웃 골격 기반 위치 강제 → 이미지 생성 기능 제거)
+Accepted (Updated: reveal.js 제거 → 정적 HTML 수직 스크롤 → 레이아웃 골격 기반 위치 강제 → 이미지 생성 기능 제거 → layout_index 기반 + component_hint + css_inliner)
 
 ## Context
 
@@ -80,14 +80,15 @@ _wrap_with_template()             → HTML 템플릿에 삽입
 </section>
 ```
 
-대상 레이아웃 및 주요 영역:
-| layout_type | 영역(data-region) | 제목 top | 본문 top | 본문 height | 특징 |
-|-------------|-------------------|----------|----------|-------------|------|
-| title | title, subtitle | 359px | - | - | 중앙 정렬, 부제목 458px |
-| text_only | title, body | 96px | 180px | 472px | 전체폭 본문 |
-| chart | title, body | 96px | 180px | 472px | 전체폭 데이터 시각화 |
-| closing | title, body | 240px | 370px | 214px | 중앙 정렬 마무리 |
-| freeform | title, body | 96px | 180px | 472px | elements 좌표 참고 |
+주요 레이아웃 및 영역 (LAYOUT_REGIONS에서 좌표 로드):
+| layout_index | 영역(data-region) | 특징 |
+|-------------|-------------------|------|
+| 0 (title) | title, subtitle, body | 중앙 정렬, 부제목 포함 |
+| 22 (범용 콘텐츠) | title, body | 전체폭 본문, 높이 자동 조절 |
+| 21 (차트) | title, body | 전체폭 데이터 시각화 |
+| 87 (마무리) | body | 작은 본문 영역, 중앙 텍스트 추가 가능 |
+
+> 전체 레이아웃 좌표는 `template/layout.json`에서 로드되며, `constants.py`의 `_load_layout_regions()`로 초기화됩니다.
 
 ### Alternatives Considered
 
@@ -113,7 +114,7 @@ LLM 응답에서 `<section>` 요소를 추출하는 3단계 fallback:
 ### Acceptance Criteria
 
 1. 아웃라인을 입력하면 HTML 슬라이드가 생성된다
-2. 각 슬라이드가 layout_type에 맞는 디자인을 갖는다
+2. 각 슬라이드가 layout_index에 맞는 골격 좌표와 component_hint에 맞는 시각적 구조를 갖는다
 3. 발표자 노트가 `data-speaker-notes` 속성에 포함되어 있다
 5. 세션 ID가 반환되어 이후 수정/내보내기에 사용할 수 있다
 6. 브라우저에서 HTML 파일을 열면 슬라이드가 수직으로 나열되어 스크롤로 확인 가능하다
@@ -157,7 +158,7 @@ sequenceDiagram
 
 ## References
 
-- 구현: `src/ppt_generator/tools/slides/` (controller.py, service.py)
+- 구현: `src/ppt_generator/tools/slides/` (controller.py, service.py, css_inliner.py)
 - 템플릿: `src/ppt_generator/templates/slides.html`
 - 스키마: `src/ppt_generator/interfaces/schemas.py` — `SlidesRequest`, `SlidesResponse`
 - 골격 생성: `src/ppt_generator/interfaces/constants.py` — `build_layout_skeleton()`, `LAYOUT_REGIONS`

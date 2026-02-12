@@ -22,12 +22,11 @@ MCP 도구 `modify_slides`를 구현하여, 세션 ID로 현재 HTML을 로드�
   - 텍스트 변경: 제목, 본문 내용, 불릿 포인트 수정/추가/삭제
   - 레이아웃 조정: 요소 위치, 크기, 간격 변경
   - 스타일 변경: 색상, 폰트, 배경 변경
-  - 이미지 교체: 새 이미지 아이디어로 Gemini 재생성 후 교체
   - 슬라이드 추가/삭제/순서 변경
   - 발표자 노트 수정
 - 세션 상태: F3의 `SlidesService._sessions` dict 활용
 - 세션 상태 이력: 수정 이력을 유지하여 이전 상태로 되돌리기 가능 (선택적)
-- **data-region 좌표 보호**: 수정 후에도 `_validate_region_styles()`로 `data-region` div의 `position:absolute` 좌표를 `LAYOUT_REGIONS` 원본으로 복원. `_detect_layout_type_from_html()`로 region 이름 집합에서 layout_type을 자동 감지
+- **data-region 좌표 보호**: 수정 후에도 `_validate_region_styles()`로 `data-region` div의 `position:absolute` 좌표를 `LAYOUT_REGIONS` 원본으로 복원. `_detect_layout_index_from_html()`로 section HTML에서 layout_index를 자동 감지
 - **프롬프트 보호 규칙**: `SLIDES_MODIFY_SYSTEM_PROMPT`와 `SLIDES_MODIFY_SINGLE_USER_PROMPT_TEMPLATE`에 "data-region div의 style 속성 변경 금지, 영역 내부 콘텐츠만 수정 가능" 지시 포함
 
 ### MCP Tool Interface
@@ -35,8 +34,8 @@ MCP 도구 `modify_slides`를 구현하여, 세션 ID로 현재 HTML을 로드�
 | 항목 | 값 |
 |------|-----|
 | Tool | `modify_slides` |
-| 입력 | `session_id: str`, `modification_request: str` (자연어) |
-| 출력 | 수정된 HTML 슬라이드 |
+| 입력 | `session_id: str`, `modification_request: str` (자연어), `slide_index: int` (선택, -1이면 전체), `project_id: str` (선택) |
+| 출력 | 수정된 HTML 슬라이드 (session_id, html, project_id 포함 JSON) |
 
 ### Acceptance Criteria
 
@@ -69,7 +68,6 @@ sequenceDiagram
 
 - 존재하지 않는 세션 ID에 대해 에러 반환이 필요하다
 - 모호한 수정 요청은 LLM이 합리적으로 해석하여 반영한다
-- 이미지 재생성이 필요한 수정은 Gemini API 추가 호출이 발생한다
 - 수정 요청이 전체 구조를 크게 변경하는 경우 LLM이 전체 HTML을 재생성한다
 
 ## References
@@ -78,6 +76,6 @@ sequenceDiagram
 - 컨트롤러: `src/ppt_generator/tools/slides/controller.py` — `modify_slides` MCP 도구
 - 프롬프트: `src/ppt_generator/interfaces/constants.py` — `SLIDES_MODIFY_SYSTEM_PROMPT`, `SLIDES_MODIFY_USER_PROMPT_TEMPLATE`
 - 테스트: `tests/test_slides_service.py` — `TestModify` 클래스
-- 좌표 검증: `src/ppt_generator/tools/slides/service.py` — `_validate_region_styles()`, `_detect_layout_type_from_html()`
+- 좌표 검증: `src/ppt_generator/tools/slides/service.py` — `_validate_region_styles()`, `_detect_layout_index_from_html()`
 - 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0012-layout-skeleton-enforcement](./0012-layout-skeleton-enforcement.md)
 - ALPS: Section 7.4

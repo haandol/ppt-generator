@@ -12,7 +12,7 @@ F3(HTML 슬라이드 생성)에서 LLM이 TailwindCSS로 자유롭게 슬라이�
 
 이로 인해 발생하는 문제:
 - **PPTX 변환 부정확**: HTML에서 인라인 style 없이 Tailwind 클래스만 사용하면, PPTX 변환 시 정확한 좌표를 추출할 수 없음
-- **슬라이드 간 레이아웃 불일치**: 동일 layout_type이라도 LLM이 매번 다른 위치에 요소를 배치
+- **슬라이드 간 레이아웃 불일치**: 동일 layout_index이라도 LLM이 매번 다른 위치에 요소를 배치
 - **템플릿 좌표와의 괴리**: AWS PPTX 템플릿에서 추출한 정밀한 좌표가 활용되지 않음
 
 ## Decision
@@ -27,10 +27,10 @@ F3(HTML 슬라이드 생성)에서 LLM이 TailwindCSS로 자유롭게 슬라이�
 
 ```python
 def build_layout_skeleton(
-    layout_type: str,
+    layout_index: int,
     slide_index: int,
     speaker_notes: str = "",
-    image_placeholder: str | None = None,
+    component_hint: str = "bullets",
 ) -> str:
 ```
 
@@ -52,7 +52,7 @@ def build_layout_skeleton(
 - `data-wrapper="true"`: 래퍼 div 마커. 배경색 적용 대상 (Tailwind 클래스 + 인라인 `background-color` 병기)
 - `data-region="xxx"`: 영역 마커. PPTX 변환 시 좌표 추출에 사용
 - `style="position:absolute; ..."`: LAYOUT_REGIONS 좌표로 고정
-- image region에 `image_placeholder`가 있으면 `<img>` 태그 미리 삽입
+- `component_hint`에 따라 본문 영역 내부의 시각적 구조 가이드 포함
 
 #### 2. LLM 프롬프트 — `SLIDES_REGION_SYSTEM_PROMPT`
 
@@ -80,7 +80,7 @@ LLM이 region div의 좌표를 변경했을 경우 `LAYOUT_REGIONS`에서 원래
 #### 5. 수정 시 좌표 보존
 
 `_modify_single_slide()` 수정 후에도 `_validate_region_styles()`로 좌표 보존:
-- `_detect_layout_type_from_html()`로 region 이름 집합에서 layout_type 자동 감지
+- `_detect_layout_index_from_html()`로 section HTML에서 layout_index를 자동 감지 (1순위: `data-layout-index` 속성, 2순위: region 이름 매칭)
 - 수정 프롬프트에도 "data-region div의 style 변경 금지" 규칙 포함
 
 ### Alternatives Considered
@@ -92,7 +92,7 @@ LLM이 region div의 좌표를 변경했을 경우 `LAYOUT_REGIONS`에서 원래
 ## Consequences
 
 **긍정적:**
-- 모든 layout_type에서 제목/본문/이미지의 위치가 LAYOUT_REGIONS 좌표로 구조적으로 보장됨
+- 모든 layout_index에서 제목/본문/이미지의 위치가 LAYOUT_REGIONS 좌표로 구조적으로 보장됨
 - PPTX 변환 시 정확한 좌표로 요소가 배치되어 HTML↔PPTX 간 레이아웃 일치도 향상
 - LLM은 영역 크기를 인지하므로 콘텐츠 양을 적절히 조절 가능
 - 슬라이드 간 레이아웃 일관성 보장
@@ -101,15 +101,15 @@ LLM이 region div의 좌표를 변경했을 경우 `LAYOUT_REGIONS`에서 원래
 **부정적:**
 - LLM의 레이아웃 자유도가 영역 내부로 제한됨 (의도된 제약)
 - 골격 HTML이 프롬프트에 포함되므로 입력 토큰이 약간 증가
-- 새로운 layout_type 추가 시 `LAYOUT_REGIONS`와 `build_layout_skeleton()` 업데이트 필요
+- 새로운 layout_index 추가 시 `LAYOUT_REGIONS`와 `build_layout_skeleton()` 업데이트 필요
 
 ## References
 
 - 골격 생성: `src/ppt_generator/interfaces/constants.py` — `build_layout_skeleton()`, `LAYOUT_REGIONS`
 - 프롬프트: `src/ppt_generator/interfaces/constants.py` — `SLIDES_REGION_SYSTEM_PROMPT`, `SLIDES_REGION_USER_PROMPT_TEMPLATE`
-- 좌표 검증: `src/ppt_generator/tools/slides/service.py` — `_validate_region_styles()`, `_detect_layout_type_from_html()`
-- PPTX 변환: `src/ppt_generator/tools/pptx/service.py` — `_extract_region_elements()`, `_add_textbox_at()`
-- 테스트: `tests/test_slides_service.py` — `TestBuildLayoutSkeleton`, `TestValidateRegionStyles`, `TestDetectLayoutType`
-- 테스트: `tests/test_pptx_service.py` — `TestRegionBasedExport`
+- 좌표 검증: `src/ppt_generator/tools/slides/service.py` — `_validate_region_styles()`, `_detect_layout_index_from_html()`
+- PPTX 변환: `src/ppt_generator/tools/pptx/service.py` — `_extract_region_elements()`
+- 테스트: `tests/test_slides_service.py`
+- 테스트: `tests/test_pptx_service.py`
 - 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0006-pptx-export](./0006-pptx-export.md), [0005-slide-modification](./0005-slide-modification.md)
 - ALPS: Section 7.3, Section 7.5

@@ -4,7 +4,7 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted
+Accepted (Updated: Claude Sonnet 4.5 사용, project_id 파라미터 추가)
 
 ## Context
 
@@ -14,11 +14,11 @@ F1에서 생성한 아웃라인 JSON의 speaker_notes는 비어있다. 각 슬�
 
 ## Decision
 
-MCP 도구 `generate_script`를 구현하여, 아웃라인 JSON을 입력받아 Bedrock Claude Opus 4.6이 슬라이드별 발표자 노트를 생성하고, speaker_notes가 채워진 아웃라인 JSON을 반환한다.
+MCP 도구 `generate_script`를 구현하여, 아웃라인 JSON을 입력받아 Bedrock Claude Sonnet 4.5가 슬라이드별 발표자 노트를 생성하고, speaker_notes가 채워진 아웃라인 JSON을 반환한다.
 
 ### Technical Details
 
-- Bedrock Claude Opus 4.6 호출 (Strands SDK 경유)
+- Bedrock Claude Sonnet 4.5 호출 (Strands SDK 경유, 16K max tokens)
 - 프롬프트: 아웃라인 JSON을 기반으로 슬라이드별 발표자 노트(speaker_notes) 생성 요청
 - LLM 출력 JSON 스키마: `{ scripts: [{ slide_index, speaker_notes }] }`
 - 출력의 speaker_notes를 원본 아웃라인의 각 슬라이드에 적용하여 최종 아웃라인 JSON 반환
@@ -28,14 +28,15 @@ MCP 도구 `generate_script`를 구현하여, 아웃라인 JSON을 입력받아 
 | 항목 | 값 |
 |------|-----|
 | Tool | `generate_script` |
-| 입력 | `outline_json: str` (speaker_notes 비어있는 아웃라인) |
-| 출력 | 아웃라인 JSON 문자열 (speaker_notes 채워짐) |
+| 입력 | `outline_json: str` (speaker_notes 비어있는 아웃라인), `project_id: str` (선택) |
+| 출력 | 아웃라인 JSON 문자열 (speaker_notes 채워짐, project_id 포함) |
 
 ### Acceptance Criteria
 
 1. 아웃라인 JSON을 입력하면 speaker_notes가 채워진 아웃라인 JSON이 반환된다
 2. 각 슬라이드의 speaker_notes가 해당 슬라이드 내용에 맞는 자연스러운 발표 스크립트를 포함한다
 3. 슬라이드 간 자연스러운 전환이 반영된다
+4. project_id가 자동 생성되어 `~/.ppt-generator/<UUID>/script.json`에 결과물이 저장된다
 
 ### Out of Scope
 
@@ -45,13 +46,14 @@ MCP 도구 `generate_script`를 구현하여, 아웃라인 JSON을 입력받아 
 sequenceDiagram
     participant Client as MCP Client
     participant Server as MCP Server
-    participant LLM as Bedrock Claude
+    participant LLM as Bedrock Claude Sonnet 4.5
 
-    Client->>Server: generate_script(outline_json)
+    Client->>Server: generate_script(outline_json, project_id)
     Server->>LLM: 슬라이드별 발표자 노트 생성 요청
     LLM-->>Server: { scripts: [{ slide_index, speaker_notes }] }
     Server->>Server: speaker_notes를 원본 아웃라인에 적용
-    Server-->>Client: speaker_notes가 채워진 아웃라인 JSON
+    Server->>Server: ~/.ppt-generator/<UUID>/script.json 저장
+    Server-->>Client: speaker_notes가 채워진 아웃라인 JSON (project_id 포함)
 ```
 
 ## Consequences
