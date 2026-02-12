@@ -16,6 +16,13 @@ from pptx.enum.shapes import MSO_SHAPE
 from pptx.oxml.ns import qn
 from pptx.util import Inches, Pt
 
+try:
+    from playwright.sync_api import sync_playwright
+
+    _PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    _PLAYWRIGHT_AVAILABLE = False
+
 from ppt_generator.interfaces.constants import (
     BEDROCK_REGION,
     EXPORT_PX_TO_INCHES_X,
@@ -29,12 +36,15 @@ from ppt_generator.interfaces.constants import (
     PPTX_CONVERT_MODEL_ID,
     PPTX_CONVERT_SYSTEM_PROMPT,
     PPTX_CONVERT_USER_PROMPT_TEMPLATE,
+    PPTX_CONVERT_USER_PROMPT_WITH_IMAGE_TEMPLATE,
     PPTX_FONT_MIN_SIZE_PT,
     PPTX_FONT_NAME,
     PPTX_FONT_SCALE_FACTOR,
     PPTX_SLIDE_HEIGHT_EMU,
     PPTX_SLIDE_WIDTH_EMU,
     REM_TO_PX,
+    SLIDES_WIDTH_PX,
+    SLIDES_HEIGHT_PX,
 )
 from ppt_generator.interfaces.schemas import (
     ExportPptxRequest,
@@ -85,10 +95,15 @@ class ExportService:
         prs.slide_width = PPTX_SLIDE_WIDTH_EMU
         prs.slide_height = PPTX_SLIDE_HEIGHT_EMU
 
+        # Playwright 스크린샷 캡처
+        screenshots: dict[int, bytes] = {}
+        if self._use_llm_convert and _PLAYWRIGHT_AVAILABLE:
+            screenshots = self._capture_slide_screenshots(html, len(slide_divs))
+
         # LLM 변환: 모든 section을 병렬로 변환
         llm_specs: dict[int, PptxSlideSpec | None] = {}
         if self._use_llm_convert:
-            llm_specs = self._convert_all_sections_with_llm(slide_divs)
+            llm_specs = self._convert_all_sections_with_llm(slide_divs, screenshots)
 
         blank_layout = prs.slide_layouts[6]
 
@@ -138,13 +153,46 @@ class ExportService:
 
     # --- LLM 변환 파이프라인 ---
 
-    def _convert_all_sections_with_llm(self, sections: list[Tag]) -> dict[int, PptxSlideSpec | None]:
+    def _capture_slide_screenshots(self, html: str, num_slides: int) -> dict[int, bytes]:
+        """Playwright로 각 <section>을 1280x720 PNG로 캡처."""
+        if not _PLAYWRIGHT_AVAILABLE:
+            return {}
+
+        screenshots: dict[int, bytes] = {}
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page(
+                    viewport={"width": SLIDES_WIDTH_PX, "height": SLIDES_HEIGHT_PX},
+                )
+                page.set_content(html, wait_until="networkidle")
+                sections = page.query_selector_all("section")
+                for idx, section_el in enumerate(sections):
+                    try:
+                        png_bytes = section_el.screenshot(type="png")
+                        screenshots[idx] = png_bytes
+                    except Exception:
+                        logger.warning("슬라이드 %d 스크린샷 캡처 실패, 해당 슬라이드는 텍스트만으로 변환", idx)
+                browser.close()
+        except Exception:
+            logger.warning("Playwright 브라우저 실행 실패, 스크린샷 없이 변환 진행")
+            return {}
+
+        logger.info("스크린샷 캡처 완료: %d/%d 슬라이드", len(screenshots), num_slides)
+        return screenshots
+
+    def _convert_all_sections_with_llm(
+        self, sections: list[Tag], screenshots: dict[int, bytes] | None = None,
+    ) -> dict[int, PptxSlideSpec | None]:
         """모든 section을 ThreadPoolExecutor로 병렬 LLM 변환."""
         results: dict[int, PptxSlideSpec | None] = {}
+        if screenshots is None:
+            screenshots = {}
 
         def _convert(idx: int, section: Tag) -> tuple[int, PptxSlideSpec | None]:
             try:
-                spec = self._convert_section_with_llm(section)
+                screenshot = screenshots.get(idx)
+                spec = self._convert_section_with_llm(section, screenshot=screenshot)
                 return idx, spec
             except Exception:
                 logger.exception("LLM 변환 실패 (슬라이드 %d), 룰 기반 폴백", idx)
@@ -158,16 +206,29 @@ class ExportService:
 
         return results
 
-    def _convert_section_with_llm(self, section: Tag) -> PptxSlideSpec:
+    def _convert_section_with_llm(
+        self, section: Tag, screenshot: bytes | None = None,
+    ) -> PptxSlideSpec:
         """단일 section HTML을 Bedrock Converse API로 LLM에 보내 PptxSlideSpec을 반환."""
         section_html = str(section)
-        user_prompt = PPTX_CONVERT_USER_PROMPT_TEMPLATE.format(section_html=section_html)
+
+        if screenshot:
+            user_prompt = PPTX_CONVERT_USER_PROMPT_WITH_IMAGE_TEMPLATE.format(
+                section_html=section_html,
+            )
+            content_blocks: list[dict] = [
+                {"image": {"format": "png", "source": {"bytes": screenshot}}},
+                {"text": user_prompt},
+            ]
+        else:
+            user_prompt = PPTX_CONVERT_USER_PROMPT_TEMPLATE.format(section_html=section_html)
+            content_blocks = [{"text": user_prompt}]
 
         client = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
         response = client.converse(
             modelId=PPTX_CONVERT_MODEL_ID,
             system=[{"text": PPTX_CONVERT_SYSTEM_PROMPT}],
-            messages=[{"role": "user", "content": [{"text": user_prompt}]}],
+            messages=[{"role": "user", "content": content_blocks}],
             inferenceConfig={"maxTokens": PPTX_CONVERT_MAX_TOKENS, "temperature": 0.2},
         )
 
