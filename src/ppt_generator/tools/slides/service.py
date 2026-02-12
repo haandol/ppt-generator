@@ -10,16 +10,13 @@ from strands import Agent
 from bs4 import BeautifulSoup
 
 from ppt_generator.interfaces.constants import (
-    DEFAULT_LAYOUT_INDEX,
-    LAYOUT_REGIONS,
     SLIDES_TEMPLATE_PATH,
     SLIDES_DESIGN_SUMMARY_PROMPT,
     SLIDES_MAX_PER_BATCH,
     SLIDES_MODIFY_SINGLE_USER_PROMPT_TEMPLATE,
     SLIDES_MODIFY_USER_PROMPT_TEMPLATE,
-    SLIDES_REGION_BATCH_USER_PROMPT_TEMPLATE,
-    SLIDES_REGION_USER_PROMPT_TEMPLATE,
-    build_layout_skeleton,
+    SLIDES_USER_PROMPT_TEMPLATE,
+    SLIDES_BATCH_USER_PROMPT_TEMPLATE,
 )
 from ppt_generator.interfaces.schemas import SlidesResponse, SlideOutline
 
@@ -84,10 +81,6 @@ class SlidesService:
         result = str(self._modify_agent(prompt))
         modified_section_html = self._extract_sections(result)
 
-        # region 기반 좌표 검증
-        layout_index = self._detect_layout_index_from_html(modified_section_html)
-        modified_section_html = self._validate_region_styles(modified_section_html, layout_index)
-
         modified_section = BeautifulSoup(modified_section_html, "html.parser").find("section")
         if modified_section is None:
             raise ValueError("수정된 슬라이드 section을 파싱할 수 없습니다.")
@@ -111,26 +104,18 @@ class SlidesService:
     def _generate_single(self, slides: list[SlideOutline], start_index: int = 0) -> str:
         all_sections: list[str] = []
         for i, slide in enumerate(slides):
-            global_idx = start_index + i
-            skeleton = build_layout_skeleton(
-                layout_index=slide.layout_index,
-                slide_index=global_idx,
-                speaker_notes=slide.speaker_notes,
-            )
             outline_json = json.dumps(
                 {"slides": [self._slide_to_dict(slide)]},
                 ensure_ascii=False,
                 indent=2,
             )
 
-            prompt = SLIDES_REGION_USER_PROMPT_TEMPLATE.format(
+            prompt = SLIDES_USER_PROMPT_TEMPLATE.format(
                 outline_json=outline_json,
-                skeleton_html=skeleton,
             )
             result = str(self._agent(prompt))
 
             section = self._extract_sections(result)
-            section = self._validate_region_styles(section, slide.layout_index)
             all_sections.append(section)
 
         combined = "\n".join(all_sections)
@@ -173,27 +158,19 @@ class SlidesService:
     ) -> str:
         all_sections: list[str] = []
         for i, slide in enumerate(slides):
-            global_idx = offset + i
-            skeleton = build_layout_skeleton(
-                layout_index=slide.layout_index,
-                slide_index=global_idx,
-                speaker_notes=slide.speaker_notes,
-            )
             outline_json = json.dumps(
                 {"slides": [self._slide_to_dict(slide)]},
                 ensure_ascii=False,
                 indent=2,
             )
 
-            prompt = SLIDES_REGION_BATCH_USER_PROMPT_TEMPLATE.format(
+            prompt = SLIDES_BATCH_USER_PROMPT_TEMPLATE.format(
                 design_summary=design_summary,
                 outline_json=outline_json,
-                skeleton_html=skeleton,
             )
             result = str(self._agent(prompt))
 
             section = self._extract_sections(result)
-            section = self._validate_region_styles(section, slide.layout_index)
             all_sections.append(section)
 
         return "\n".join(all_sections)
@@ -224,74 +201,6 @@ class SlidesService:
             return first_html[:pos] + "\n" + insertion + "\n" + first_html[pos:]
         return first_html + "\n" + insertion
 
-    # --- 좌표 검증 ---
-
-    @staticmethod
-    def _validate_region_styles(section_html: str, layout_index: int) -> str:
-        """LLM이 region div의 좌표를 변경했을 경우 LAYOUT_REGIONS 원본 좌표로 복원.
-
-        body region은 height를 고정하지 않고 bottom 기반으로 설정하여
-        컨텐츠가 잘리지 않도록 한다.
-        """
-        regions = LAYOUT_REGIONS.get(layout_index, LAYOUT_REGIONS[DEFAULT_LAYOUT_INDEX])
-        soup = BeautifulSoup(section_html, "html.parser")
-
-        for region_div in soup.find_all("div", attrs={"data-region": True}):
-            region_name = region_div["data-region"]
-            if region_name not in regions:
-                continue
-            coords = regions[region_name]
-            if region_name == "body" and coords.get("height", 0) >= 100:
-                # 본문 중심 body: margin 기반, 높이 자동
-                correct_style = (
-                    f"margin-left:{coords['left']}px; margin-top:{coords['top']}px; "
-                    f"width:{coords['width']}px;"
-                )
-            elif region_name == "body":
-                # 작은 body (title, closing 등): absolute 유지
-                correct_style = (
-                    f"position:absolute; left:{coords['left']}px; top:{coords['top']}px; "
-                    f"width:{coords['width']}px; height:{coords['height']}px; overflow:hidden;"
-                )
-            else:
-                correct_style = (
-                    f"position:absolute; left:{coords['left']}px; top:{coords['top']}px; "
-                    f"width:{coords['width']}px; height:{coords['height']}px; overflow:hidden;"
-                )
-            region_div["style"] = correct_style
-
-        return str(soup)
-
-    @staticmethod
-    def _detect_layout_index_from_html(section_html: str) -> int:
-        """section HTML에서 layout_index를 추출.
-
-        1순위: data-layout-index 속성
-        2순위: data-region 이름 매칭 (LAYOUT_REGIONS)
-        """
-        soup = BeautifulSoup(section_html, "html.parser")
-
-        # 1순위: data-layout-index 속성
-        section = soup.find("section")
-        if section and section.get("data-layout-index"):
-            try:
-                return int(section["data-layout-index"])
-            except (ValueError, TypeError):
-                pass
-
-        # 2순위: data-region 매칭
-        region_names = {
-            div["data-region"]
-            for div in soup.find_all("div", attrs={"data-region": True})
-        }
-        if not region_names:
-            return DEFAULT_LAYOUT_INDEX
-
-        for layout_index, regions in LAYOUT_REGIONS.items():
-            if set(regions.keys()) == region_names:
-                return layout_index
-        return DEFAULT_LAYOUT_INDEX
-
     # --- 유틸리티 ---
 
     @staticmethod
@@ -299,7 +208,6 @@ class SlidesService:
         d = {
             "title": slide.title,
             "content_summary": slide.content_summary,
-            "layout_index": slide.layout_index,
             "component_hint": slide.component_hint,
         }
         if slide.speaker_notes:

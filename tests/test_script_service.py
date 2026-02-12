@@ -10,17 +10,14 @@ SAMPLE_SLIDES = [
     SlideOutline(
         title="클라우드 컴퓨팅 트렌드",
         content_summary="핵심 트렌드 소개, 시장 현황 개요",
-        layout_index=0,
     ),
     SlideOutline(
         title="멀티클라우드 전략",
         content_summary="AWS, Azure, GCP 비교 및 하이브리드 접근 방식",
-        layout_index=28,
     ),
     SlideOutline(
         title="감사합니다",
         content_summary="Q&A 시간",
-        layout_index=87,
     ),
 ]
 
@@ -62,7 +59,6 @@ class TestScriptService:
         response = service.generate(request)
 
         assert response.slides[0].title == "클라우드 컴퓨팅 트렌드"
-        assert response.slides[0].layout_index == 0
         assert response.slides[1].content_summary == "AWS, Azure, GCP 비교 및 하이브리드 접근 방식"
 
     def test_generate_calls_agent_with_outline(self, service, mock_agent):
@@ -109,7 +105,7 @@ class TestScriptService:
 
     def test_generate_preserves_component_hint(self, service):
         slides_with_hint = [
-            SlideOutline(title="제목", content_summary="요약", layout_index=0, component_hint="agenda"),
+            SlideOutline(title="제목", content_summary="요약", component_hint="agenda"),
         ]
         outline = OutlineResponse(slides=slides_with_hint)
         request = ScriptRequest(outline=outline)

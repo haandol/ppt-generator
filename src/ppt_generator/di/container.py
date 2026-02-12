@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from strands import Agent
@@ -11,10 +12,12 @@ from ppt_generator.interfaces.constants import (
     BEDROCK_REGION,
     BEDROCK_SCRIPT_MAX_TOKENS,
     BEDROCK_TEMPERATURE,
+    OUTLINE_JSON_SCHEMA,
     OUTLINE_SYSTEM_PROMPT,
+    SCRIPT_JSON_SCHEMA,
     SCRIPT_SYSTEM_PROMPT,
     SLIDES_MODIFY_SYSTEM_PROMPT,
-    SLIDES_REGION_SYSTEM_PROMPT,
+    SLIDES_SYSTEM_PROMPT,
 )
 from ppt_generator.tools.outline.service import OutlineService
 from ppt_generator.tools.pptx.service import ExportService
@@ -40,12 +43,29 @@ class DIContainer:
             max_tokens=BEDROCK_MAX_TOKENS,
         )
 
+    @staticmethod
+    def _build_json_schema_args(schema: dict, name: str) -> dict:
+        return {
+            "outputConfig": {
+                "textFormat": {
+                    "type": "json_schema",
+                    "structure": {
+                        "jsonSchema": {
+                            "schema": json.dumps(schema),
+                            "name": name,
+                        },
+                    },
+                },
+            },
+        }
+
     def _create_script_agent(self) -> Agent:
         model = BedrockModel(
             model_id=BEDROCK_OUTLINE_MODEL_ID,
             region_name=BEDROCK_REGION,
             temperature=BEDROCK_TEMPERATURE,
             max_tokens=BEDROCK_SCRIPT_MAX_TOKENS,
+            additional_args=self._build_json_schema_args(SCRIPT_JSON_SCHEMA, "script_output"),
         )
         return Agent(model=model, system_prompt=SCRIPT_SYSTEM_PROMPT, callback_handler=None, tools=[])
 
@@ -55,12 +75,13 @@ class DIContainer:
             region_name=BEDROCK_REGION,
             temperature=BEDROCK_TEMPERATURE,
             max_tokens=BEDROCK_OUTLINE_MAX_TOKENS,
+            additional_args=self._build_json_schema_args(OUTLINE_JSON_SCHEMA, "outline_output"),
         )
         return Agent(model=model, system_prompt=OUTLINE_SYSTEM_PROMPT, callback_handler=None, tools=[])
 
     def _create_slides_agent(self) -> Agent:
         model = self._create_bedrock_model()
-        return Agent(model=model, system_prompt=SLIDES_REGION_SYSTEM_PROMPT, callback_handler=None, tools=[])
+        return Agent(model=model, system_prompt=SLIDES_SYSTEM_PROMPT, callback_handler=None, tools=[])
 
     def _create_slides_modify_agent(self) -> Agent:
         model = self._create_bedrock_model()

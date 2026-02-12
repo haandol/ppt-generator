@@ -16,7 +16,7 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
     ) -> str:
         """주제를 기반으로 슬라이드 아웃라인 JSON을 생성합니다.
 
-        주제의 핵심 내용을 분석하여 슬라이드별 제목, 내용 요약, 레이아웃 인덱스를
+        주제의 핵심 내용을 분석하여 슬라이드별 제목, 내용 요약, 컴포넌트 힌트를
         포함한 구조화된 아웃라인을 생성합니다.
         아웃라인은 슬라이드의 구조만 결정하며, 디자인은 이후 HTML 슬라이드 생성 단계에서 결정됩니다.
 
@@ -31,7 +31,7 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
             project_id: 프로젝트 ID (미지정 시 자동 생성)
 
         Returns:
-            슬라이드 아웃라인 JSON 문자열 (project_id 포함)
+            outline_path, project_id를 포함하는 JSON 문자열
         """
         num_slides = max(MIN_NUM_SLIDES, min(MAX_NUM_SLIDES, num_slides))
         request = OutlineRequest(topic=topic, num_slides=num_slides)
@@ -47,7 +47,9 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
         project_service.update_step(project_dir, "outline")
 
         return json.dumps(
-            {**json.loads(result), "project_id": project_id},
+            {
+                "outline_path": str(project_dir / "outline.json"),
+                "project_id": project_id,
+            },
             ensure_ascii=False,
-            indent=2,
         )

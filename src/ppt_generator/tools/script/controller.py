@@ -28,7 +28,7 @@ def register_script_tools(mcp: FastMCP, script_service: ScriptService, project_s
             project_id: 프로젝트 ID (미지정 시 자동 생성)
 
         Returns:
-            speaker_notes가 채워진 슬라이드 아웃라인 JSON 문자열 (project_id 포함)
+            script_path, project_id를 포함하는 JSON 문자열
         """
         outline = _parse_outline(outline_json)
         request = ScriptRequest(outline=outline)
@@ -44,9 +44,11 @@ def register_script_tools(mcp: FastMCP, script_service: ScriptService, project_s
         project_service.update_step(project_dir, "script")
 
         return json.dumps(
-            {**json.loads(result), "project_id": project_id},
+            {
+                "script_path": str(project_dir / "script.json"),
+                "project_id": project_id,
+            },
             ensure_ascii=False,
-            indent=2,
         )
 
 
@@ -58,7 +60,6 @@ def _parse_outline(outline_json: str) -> OutlineResponse:
             SlideOutline(
                 title=item.get("title", ""),
                 content_summary=item.get("content_summary", ""),
-                layout_index=item.get("layout_index", 22),
                 component_hint=item.get("component_hint", "bullets"),
                 speaker_notes=item.get("speaker_notes", ""),
             )

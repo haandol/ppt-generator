@@ -205,46 +205,26 @@ class TestExportService:
         assert Path(response.pptx_path).exists()
 
 
-def _make_region_html(png_path: Path | None = None) -> str:
-    """region 기반 HTML 구조를 생성."""
-    img_tag = ""
-    if png_path:
-        img_tag = (
-            f'      <img src="file://{png_path}" style="width:100%; height:100%; object-fit:cover;" />'
-        )
-    image_region = ""
-    if png_path:
-        image_region = (
-            '    <div data-region="image" style="position:absolute; left:702px; top:36px; '
-            'width:542px; height:616px; overflow:hidden;">\n'
-            f'{img_tag}\n'
-            '    </div>\n'
-        )
+def _make_freeform_html() -> str:
+    """자유 형식 HTML 구조를 생성."""
     return (
         '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
-        '<section id="slide-0" data-speaker-notes="발표자 노트">\n'
-        '  <div data-wrapper="true" '
-        'style="position:absolute; top:0; left:0; right:0; bottom:0; background-color:#0f172a;">\n'
-        '    <div data-region="title" style="position:absolute; left:57px; top:96px; '
-        'width:1152px; height:56px; overflow:hidden;">\n'
-        '      <h2 style="color:#fff; font-size:1.875rem; font-weight:bold;">제목 텍스트</h2>\n'
-        '    </div>\n'
-        '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
-        'width:1152px; height:472px; overflow:hidden;">\n'
-        '      <p style="color:#fff; font-size:1.125rem;">본문 텍스트</p>\n'
-        '    </div>\n'
-        f'{image_region}'
-        '  </div>\n'
+        '<section id="slide-0" data-speaker-notes="발표자 노트"\n'
+        '     style="background-color:#0f172a;">\n'
+        '  <h2 style="position:absolute; left:57px; top:96px; width:1152px; height:56px;'
+        ' color:#fff; font-size:30px; font-weight:bold;">제목 텍스트</h2>\n'
+        '  <p style="position:absolute; left:64px; top:180px; width:1152px; height:472px;'
+        ' color:#fff; font-size:18px;">본문 텍스트</p>\n'
         '</section>\n'
         '</body></html>'
     )
 
 
-class TestRegionBasedExport:
-    """data-wrapper/data-region 기반 HTML 내보내기 테스트."""
+class TestFreeformExport:
+    """자유 형식 HTML 내보내기 테스트."""
 
-    def test_export_region_html_creates_pptx(self, service_with_html):
-        svc = service_with_html(_make_region_html())
+    def test_export_freeform_html_creates_pptx(self, service_with_html):
+        svc = service_with_html(_make_freeform_html())
         request = ExportPptxRequest(session_id="test-session")
         response = svc.export(request)
 
@@ -252,8 +232,8 @@ class TestRegionBasedExport:
         assert path.exists()
         assert path.suffix == ".pptx"
 
-    def test_export_region_extracts_text(self, service_with_html):
-        svc = service_with_html(_make_region_html())
+    def test_export_freeform_extracts_text(self, service_with_html):
+        svc = service_with_html(_make_freeform_html())
         request = ExportPptxRequest(session_id="test-session")
         response = svc.export(request)
 
@@ -263,8 +243,8 @@ class TestRegionBasedExport:
         assert "제목 텍스트" in all_text
         assert "본문 텍스트" in all_text
 
-    def test_export_region_preserves_speaker_notes(self, service_with_html):
-        svc = service_with_html(_make_region_html())
+    def test_export_freeform_preserves_speaker_notes(self, service_with_html):
+        svc = service_with_html(_make_freeform_html())
         request = ExportPptxRequest(session_id="test-session")
         response = svc.export(request)
 
@@ -272,8 +252,8 @@ class TestRegionBasedExport:
         slide = prs.slides[0]
         assert slide.notes_slide.notes_text_frame.text == "발표자 노트"
 
-    def test_export_region_extracts_background(self, service_with_html):
-        svc = service_with_html(_make_region_html())
+    def test_export_freeform_extracts_background(self, service_with_html):
+        svc = service_with_html(_make_freeform_html())
         request = ExportPptxRequest(session_id="test-session")
         response = svc.export(request)
 
@@ -283,9 +263,9 @@ class TestRegionBasedExport:
         assert fill.fore_color.rgb is not None
         assert str(fill.fore_color.rgb) == "0F172A"
 
-    def test_export_region_title_position(self, service_with_html):
-        """title region 좌표가 PPTX에서도 유지되는지 확인."""
-        svc = service_with_html(_make_region_html())
+    def test_export_freeform_title_position(self, service_with_html):
+        """제목 좌표가 PPTX에서도 유지되는지 확인."""
+        svc = service_with_html(_make_freeform_html())
         request = ExportPptxRequest(session_id="test-session")
         response = svc.export(request)
 
@@ -300,161 +280,6 @@ class TestRegionBasedExport:
         assert abs(left_inches - 0.594) < 0.1
         # 96px * (7.5/720) ≈ 1.0in
         assert abs(top_inches - 1.0) < 0.1
-
-    def test_export_region_preserves_rem_font_size(self, service_with_html):
-        """rem 단위 글꼴 크기가 PPTX에 보존되는지 확인."""
-        html = (
-            '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
-            '<section id="slide-0">\n'
-            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">\n'
-            '    <div data-region="title" style="position:absolute; left:57px; top:96px; '
-            'width:1152px; height:56px; overflow:hidden;">\n'
-            '      <h2 style="color:#fff; font-size:1.875rem; font-weight:bold;">제목</h2>\n'
-            '    </div>\n'
-            '  </div>\n'
-            '</section>\n'
-            '</body></html>'
-        )
-        svc = service_with_html(html)
-        response = svc.export(ExportPptxRequest(session_id="test-session"))
-
-        prs = Presentation(response.pptx_path)
-        slide = prs.slides[0]
-        textboxes = [s for s in slide.shapes if s.has_text_frame and "제목" in s.text_frame.text]
-        assert len(textboxes) >= 1
-        tb = textboxes[0]
-        # 1.875rem * 16 = 30px → 30 * 1.5 = 45 → Pt(45) (스케일링 적용)
-        for p in tb.text_frame.paragraphs:
-            for run in p.runs:
-                if run.text.strip():
-                    assert run.font.size is not None
-                    assert run.font.size.pt == 45
-
-    def test_export_region_preserves_child_color(self, service_with_html):
-        """자식 요소의 color가 PPTX에 보존되는지 확인."""
-        html = (
-            '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
-            '<section id="slide-0">\n'
-            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">\n'
-            '    <div data-region="title" style="position:absolute; left:57px; top:96px; '
-            'width:1152px; height:56px; overflow:hidden;">\n'
-            '      <h2 style="color:#ff5500; font-size:28px; font-weight:bold;">색상 제목</h2>\n'
-            '    </div>\n'
-            '  </div>\n'
-            '</section>\n'
-            '</body></html>'
-        )
-        svc = service_with_html(html)
-        response = svc.export(ExportPptxRequest(session_id="test-session"))
-
-        prs = Presentation(response.pptx_path)
-        slide = prs.slides[0]
-        textboxes = [s for s in slide.shapes if s.has_text_frame and "색상 제목" in s.text_frame.text]
-        assert len(textboxes) >= 1
-        tb = textboxes[0]
-        for p in tb.text_frame.paragraphs:
-            for run in p.runs:
-                if run.text.strip():
-                    assert run.font.color.rgb is not None
-                    assert str(run.font.color.rgb) == "FF5500"
-
-    def test_export_region_bullet_points(self, service_with_html):
-        """ul/li 불릿 포인트가 PPTX 불릿으로 변환되는지 확인."""
-        html = (
-            '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
-            '<section id="slide-0">\n'
-            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">\n'
-            '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
-            'width:1152px; height:472px; overflow:hidden;">\n'
-            '      <ul>\n'
-            '        <li style="color:#fff; font-size:18px;">항목 1</li>\n'
-            '        <li style="color:#fff; font-size:18px;">항목 2</li>\n'
-            '        <li style="color:#fff; font-size:18px;">항목 3</li>\n'
-            '      </ul>\n'
-            '    </div>\n'
-            '  </div>\n'
-            '</section>\n'
-            '</body></html>'
-        )
-        svc = service_with_html(html)
-        response = svc.export(ExportPptxRequest(session_id="test-session"))
-
-        prs = Presentation(response.pptx_path)
-        slide = prs.slides[0]
-        from lxml import etree
-        from pptx.oxml.ns import qn
-        textboxes = [s for s in slide.shapes if s.has_text_frame]
-        bullet_count = 0
-        for tb in textboxes:
-            for p in tb.text_frame.paragraphs:
-                pPr = p._p.find(qn("a:pPr"))
-                if pPr is not None:
-                    buChar = pPr.find(qn("a:buChar"))
-                    if buChar is not None:
-                        bullet_count += 1
-        assert bullet_count == 3
-
-    def test_export_region_flex_columns(self, service_with_html):
-        """flex 멀티 컬럼 레이아웃이 개별 텍스트박스로 변환되는지 확인."""
-        html = (
-            '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
-            '<section id="slide-0">\n'
-            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">\n'
-            '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
-            'width:1152px; height:472px; overflow:hidden;">\n'
-            '      <div style="display:flex; gap:32px;">\n'
-            '        <div style="flex:1;"><p style="color:#fff;">왼쪽 컬럼</p></div>\n'
-            '        <div style="flex:1;"><p style="color:#fff;">오른쪽 컬럼</p></div>\n'
-            '      </div>\n'
-            '    </div>\n'
-            '  </div>\n'
-            '</section>\n'
-            '</body></html>'
-        )
-        svc = service_with_html(html)
-        response = svc.export(ExportPptxRequest(session_id="test-session"))
-
-        prs = Presentation(response.pptx_path)
-        slide = prs.slides[0]
-        textboxes = [s for s in slide.shapes if s.has_text_frame]
-        # flex 2컬럼 → 2개의 텍스트박스
-        assert len(textboxes) >= 2
-        all_text = " ".join(s.text_frame.text for s in textboxes)
-        assert "왼쪽 컬럼" in all_text
-        assert "오른쪽 컬럼" in all_text
-        # 두 텍스트박스의 left 값이 다른지 확인 (분할 배치)
-        lefts = sorted(set(s.left for s in textboxes))
-        assert len(lefts) >= 2
-
-    def test_export_region_bold_detection(self, service_with_html):
-        """h3 및 font-weight:bold가 PPTX에서 bold로 감지되는지 확인."""
-        html = (
-            '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
-            '<section id="slide-0">\n'
-            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">\n'
-            '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
-            'width:1152px; height:472px; overflow:hidden;">\n'
-            '      <h3 style="color:#fff; font-weight:bold;">볼드 제목</h3>\n'
-            '      <p style="color:#fff; font-weight:bold;">볼드 본문</p>\n'
-            '    </div>\n'
-            '  </div>\n'
-            '</section>\n'
-            '</body></html>'
-        )
-        svc = service_with_html(html)
-        response = svc.export(ExportPptxRequest(session_id="test-session"))
-
-        prs = Presentation(response.pptx_path)
-        slide = prs.slides[0]
-        textboxes = [s for s in slide.shapes if s.has_text_frame]
-        bold_texts = []
-        for tb in textboxes:
-            for p in tb.text_frame.paragraphs:
-                for run in p.runs:
-                    if run.font.bold and run.text.strip():
-                        bold_texts.append(run.text.strip())
-        assert "볼드 제목" in bold_texts
-        assert "볼드 본문" in bold_texts
 
     def test_legacy_html_still_works(self, service_with_html):
         """data-wrapper가 없는 레거시 HTML도 정상 동작."""
@@ -498,17 +323,13 @@ class TestFontSizeScaling:
         result = ExportService._scale_font_size(36)
         assert result == int(36 * PPTX_FONT_SCALE_FACTOR)  # 43
 
-    def test_region_font_size_scaled_in_pptx(self, service_with_html):
-        """룰 기반 폴백에서 폰트 크기가 스케일링되어 PPTX에 반영되는지 확인."""
+    def test_freeform_font_size_preserved_in_pptx(self, service_with_html):
+        """룰 기반 폴백에서 폰트 크기가 PPTX에 보존되는지 확인."""
         html = (
             '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
             '<section id="slide-0">\n'
-            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">\n'
-            '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
-            'width:1152px; height:472px; overflow:hidden;">\n'
-            '      <p style="color:#fff; font-size:11px;">작은 텍스트</p>\n'
-            '    </div>\n'
-            '  </div>\n'
+            '  <p style="position:absolute; left:64px; top:180px; width:1152px; height:472px;'
+            ' color:#fff; font-size:11px;">작은 텍스트</p>\n'
             '</section>\n'
             '</body></html>'
         )
@@ -522,23 +343,18 @@ class TestFontSizeScaling:
                 for p in shape.text_frame.paragraphs:
                     for run in p.runs:
                         if run.text.strip():
-                            # 11px → 11*1.2=13.2 → min 14pt
                             assert run.font.size is not None
-                            assert run.font.size.pt == PPTX_FONT_MIN_SIZE_PT
+                            assert run.font.size.pt == 11
                             return
         pytest.fail("작은 텍스트가 포함된 shape을 찾지 못했습니다")
 
-    def test_region_font_size_scaled_above_minimum(self, service_with_html):
-        """최소값보다 큰 폰트는 스케일만 적용되는지 확인."""
+    def test_freeform_font_size_preserved_above_minimum(self, service_with_html):
+        """폰트 크기가 PPTX에 보존되는지 확인."""
         html = (
             '<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head>\n<body>\n'
             '<section id="slide-0">\n'
-            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">\n'
-            '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
-            'width:1152px; height:472px; overflow:hidden;">\n'
-            '      <p style="color:#fff; font-size:18px;">본문 텍스트</p>\n'
-            '    </div>\n'
-            '  </div>\n'
+            '  <p style="position:absolute; left:64px; top:180px; width:1152px; height:472px;'
+            ' color:#fff; font-size:18px;">본문 텍스트</p>\n'
             '</section>\n'
             '</body></html>'
         )
@@ -552,9 +368,8 @@ class TestFontSizeScaling:
                 for p in shape.text_frame.paragraphs:
                     for run in p.runs:
                         if run.text.strip():
-                            # 18px → 18*1.2=21.6 → int(21) → 21pt
                             assert run.font.size is not None
-                            assert run.font.size.pt == int(18 * PPTX_FONT_SCALE_FACTOR)
+                            assert run.font.size.pt == 18
                             return
         pytest.fail("본문 텍스트가 포함된 shape을 찾지 못했습니다")
 
@@ -569,15 +384,9 @@ class TestCssClassInlining:
             '<style>\n'
             '.info-card { background-color: #162232; border-radius: 12px; padding: 24px; }\n'
             '</style></head>\n<body>\n'
-            '<section id="slide-0">\n'
-            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0; '
-            'background-color:#0d1b2a;">\n'
-            '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
-            'width:1152px; height:472px; overflow:hidden;">\n'
-            '      <div class="info-card">\n'
-            '        <p style="color:#ffffff; font-size:20px;">카드 내용</p>\n'
-            '      </div>\n'
-            '    </div>\n'
+            '<section id="slide-0" style="background-color:#0d1b2a;">\n'
+            '  <div class="info-card" style="position:absolute; left:64px; top:180px; width:1152px; height:472px;">\n'
+            '    <p style="color:#ffffff; font-size:20px;">카드 내용</p>\n'
             '  </div>\n'
             '</section>\n'
             '</body></html>'
@@ -598,16 +407,10 @@ class TestCssClassInlining:
             '.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }\n'
             '.info-card { background-color: #162232; padding: 24px; }\n'
             '</style></head>\n<body>\n'
-            '<section id="slide-0">\n'
-            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0; '
-            'background-color:#0d1b2a;">\n'
-            '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
-            'width:1152px; height:472px; overflow:hidden;">\n'
-            '      <div class="two-col">\n'
-            '        <div class="info-card"><p style="color:#fff; font-size:20px;">왼쪽</p></div>\n'
-            '        <div class="info-card"><p style="color:#fff; font-size:20px;">오른쪽</p></div>\n'
-            '      </div>\n'
-            '    </div>\n'
+            '<section id="slide-0" style="background-color:#0d1b2a;">\n'
+            '  <div class="two-col" style="position:absolute; left:64px; top:180px; width:1152px; height:472px;">\n'
+            '    <div class="info-card"><p style="color:#fff; font-size:20px;">왼쪽</p></div>\n'
+            '    <div class="info-card"><p style="color:#fff; font-size:20px;">오른쪽</p></div>\n'
             '  </div>\n'
             '</section>\n'
             '</body></html>'
@@ -628,15 +431,9 @@ class TestCssClassInlining:
             '<style>\n'
             '.info-card { background-color: #162232; padding: 24px; }\n'
             '</style></head>\n<body>\n'
-            '<section id="slide-0">\n'
-            '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0; '
-            'background-color:#0d1b2a;">\n'
-            '    <div data-region="body" style="position:absolute; left:64px; top:180px; '
-            'width:1152px; height:472px; overflow:hidden;">\n'
-            '      <div class="info-card" style="background-color: #ff0000;">\n'
-            '        <p style="color:#ffffff; font-size:20px;">커스텀 배경</p>\n'
-            '      </div>\n'
-            '    </div>\n'
+            '<section id="slide-0" style="background-color:#0d1b2a;">\n'
+            '  <div class="info-card" style="position:absolute; left:64px; top:180px; width:1152px; height:472px; background-color: #ff0000;">\n'
+            '    <p style="color:#ffffff; font-size:20px;">커스텀 배경</p>\n'
             '  </div>\n'
             '</section>\n'
             '</body></html>'

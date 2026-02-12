@@ -681,11 +681,6 @@ class ExportService:
     # --- 요소 추출 ---
 
     def _extract_elements(self, slide, section: Tag) -> None:
-        wrapper = section.find("div", attrs={"data-wrapper": "true"})
-        if wrapper:
-            self._extract_region_elements(slide, wrapper)
-            return
-        # 레거시: data-wrapper가 없는 기존 HTML
         self._extract_legacy_elements(slide, section)
 
     def _extract_legacy_elements(self, slide, section: Tag) -> None:
@@ -701,32 +696,6 @@ class ExportService:
                 text = child.get_text(strip=True)
                 if text:
                     self._add_textbox(slide, child, style)
-
-    def _extract_region_elements(self, slide, wrapper: Tag) -> None:
-        """data-region div를 순회하며, region 좌표를 사용하여 PPTX 요소 배치."""
-        for region_div in wrapper.find_all("div", attrs={"data-region": True}, recursive=False):
-            region_style = self._parse_inline_style(region_div.get("style", ""))
-            left, top, width, height = self._get_position_and_size(region_style)
-            region_name = region_div["data-region"]
-
-            # 이미지 체크 (기존 유지)
-            img = region_div.find("img")
-            if img and not region_div.get_text(strip=True):
-                continue  # 이미지 전용 region은 건너뜀
-
-            text = region_div.get_text(strip=True)
-            if not text:
-                continue
-
-            # flex 레이아웃 감지
-            if self._extract_flex_columns(slide, region_div, left, top, width, height):
-                continue
-
-            # 기본 경로: 리치 텍스트 파이프라인
-            is_title = region_name in ("title", "subtitle")
-            fragments = self._walk_region_content(region_div, parent_style={}, bullet_level=-1, is_title_region=is_title)
-            if fragments:
-                self._build_textbox_from_fragments(slide, fragments, left, top, width, height)
 
     # --- 리치 텍스트 파이프라인 ---
 

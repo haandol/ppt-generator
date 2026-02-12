@@ -2,7 +2,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ppt_generator.interfaces.constants import LAYOUT_REGIONS, build_layout_skeleton
 from ppt_generator.interfaces.schemas import SlidesResponse, SlideOutline
 from ppt_generator.tools.slides.service import SlidesService
 
@@ -11,21 +10,16 @@ def _make_slide(index: int, speaker_notes: str = "") -> SlideOutline:
     return SlideOutline(
         title=f"슬라이드 {index}",
         content_summary=f"슬라이드 {index} 내용 요약",
-        layout_index=22,
         speaker_notes=speaker_notes,
     )
 
 
-# LLM이 반환하는 region 기반 section 요소
+# LLM이 반환하는 자유 형식 section 요소
 SAMPLE_SECTIONS = (
     '<section id="slide-0" data-speaker-notes="">'
-    '<div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0; background-color:#0f172a;">'
-    '<div data-region="title" style="position:absolute; left:57px; top:96px; width:1152px; height:56px; overflow:hidden;">'
-    '<h2 style="color:#fff; font-size:1.875rem; font-weight:bold;">내용</h2>'
-    '</div>'
-    '<div data-region="body" style="position:absolute; left:64px; top:180px; width:1152px; height:472px; overflow:hidden;">'
-    '<p style="color:#fff; font-size:1.125rem;">본문</p>'
-    '</div>'
+    '<div class="flex flex-col" style="position:absolute; top:0; left:0; right:0; bottom:0; background-color:#0f172a; padding:40px 64px;">'
+    '<h2 class="text-4xl font-extrabold text-white mb-2">내용</h2>'
+    '<p class="text-lg text-white">본문</p>'
     '</div>'
     '</section>'
 )
@@ -49,13 +43,9 @@ MODIFIED_FULL_HTML = (
 
 CONTINUATION_SECTIONS = (
     '<section id="slide-1" data-speaker-notes="">'
-    '<div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0; background-color:#0f172a;">'
-    '<div data-region="title" style="position:absolute; left:57px; top:96px; width:1152px; height:56px; overflow:hidden;">'
-    '추가 슬라이드'
-    '</div>'
-    '<div data-region="body" style="position:absolute; left:64px; top:180px; width:1152px; height:472px; overflow:hidden;">'
-    '본문'
-    '</div>'
+    '<div class="flex flex-col" style="position:absolute; top:0; left:0; right:0; bottom:0; background-color:#0f172a; padding:40px 64px;">'
+    '<h2 class="text-4xl font-extrabold text-white mb-2">추가 슬라이드</h2>'
+    '<p class="text-lg text-white">본문</p>'
     '</div>'
     '</section>'
 )
@@ -322,26 +312,16 @@ class TestSpeakerNotes:
         prompt = mock_agent.call_args[0][0]
         assert "이 슬라이드에서는 개요를 설명합니다." in prompt
 
-    def test_skeleton_has_speaker_notes(self):
-        skeleton = build_layout_skeleton(22, 0, speaker_notes="테스트 발표 노트")
-        assert 'data-speaker-notes="테스트 발표 노트"' in skeleton
-
-    def test_skeleton_escapes_html_in_speaker_notes(self):
-        skeleton = build_layout_skeleton(22, 0, speaker_notes='He said "hello" & <bye>')
-        assert '&quot;' in skeleton
-        assert '&amp;' in skeleton
-        assert '&lt;' in skeleton
-
     def test_slide_to_dict_includes_speaker_notes(self):
         slide = SlideOutline(
-            title="제목", content_summary="요약", layout_index=22,
+            title="제목", content_summary="요약",
             speaker_notes="발표 노트 내용",
         )
         d = SlidesService._slide_to_dict(slide)
         assert d["speaker_notes"] == "발표 노트 내용"
 
     def test_slide_to_dict_omits_empty_speaker_notes(self):
-        slide = SlideOutline(title="제목", content_summary="요약", layout_index=22)
+        slide = SlideOutline(title="제목", content_summary="요약")
         d = SlidesService._slide_to_dict(slide)
         assert "speaker_notes" not in d
 
@@ -397,145 +377,3 @@ class TestExtractFullHtml:
         assert result == "그냥 텍스트입니다"
 
 
-class TestBuildLayoutSkeleton:
-    def test_text_only_skeleton_has_title_and_body(self):
-        skeleton = build_layout_skeleton(22, 0)
-        assert 'data-region="title"' in skeleton
-        assert 'data-region="body"' in skeleton
-        assert 'id="slide-0"' in skeleton
-        assert "<!-- CONTENT:title -->" in skeleton
-        assert "<!-- CONTENT:body -->" in skeleton
-
-    def test_title_skeleton_has_title_and_subtitle(self):
-        skeleton = build_layout_skeleton(0, 0)
-        assert 'data-region="title"' in skeleton
-        assert 'data-region="subtitle"' in skeleton
-
-    def test_text_image_layout_falls_back_to_text_only(self):
-        skeleton = build_layout_skeleton(28, 0)
-        assert 'data-region="title"' in skeleton
-        assert 'data-region="body"' in skeleton
-        # layout 28은 제거되었으므로 text_only(22)로 폴백
-        assert 'data-region="image"' not in skeleton
-
-    def test_speaker_notes_included(self):
-        skeleton = build_layout_skeleton(22, 0, speaker_notes="테스트 노트")
-        assert 'data-speaker-notes="테스트 노트"' in skeleton
-
-    def test_wrapper_div_present(self):
-        skeleton = build_layout_skeleton(22, 0)
-        assert 'data-wrapper="true"' in skeleton
-
-    def test_position_absolute_in_region_style(self):
-        skeleton = build_layout_skeleton(22, 0)
-        assert "position:absolute" in skeleton
-
-    def test_all_layout_indices_generate_skeleton(self):
-        for layout_index in LAYOUT_REGIONS:
-            skeleton = build_layout_skeleton(layout_index, 0)
-            assert 'data-wrapper="true"' in skeleton
-            assert "<section" in skeleton
-
-    def test_unknown_layout_falls_back_to_text_only(self):
-        skeleton = build_layout_skeleton(999, 0)
-        assert 'data-region="title"' in skeleton
-        assert 'data-region="body"' in skeleton
-
-    def test_coordinates_match_layout_regions(self):
-        regions = LAYOUT_REGIONS[22]
-        skeleton = build_layout_skeleton(22, 0)
-        assert f"left:{regions['title']['left']}px" in skeleton
-        assert f"top:{regions['title']['top']}px" in skeleton
-        assert f"width:{regions['title']['width']}px" in skeleton
-        assert f"height:{regions['title']['height']}px" in skeleton
-
-
-class TestValidateRegionStyles:
-    def test_restores_modified_coordinates(self):
-        """LLM이 좌표를 변경해도 원래 값으로 복원"""
-        html = (
-            '<section id="slide-0" data-speaker-notes="">'
-            '<div data-wrapper="true" class="absolute inset-0">'
-            '<div data-region="title" style="position:absolute; left:999px; top:999px; width:100px; height:100px; overflow:hidden;">'
-            '<h2>제목</h2></div>'
-            '<div data-region="body" style="position:absolute; left:0px; top:0px; width:50px; height:50px; overflow:hidden;">'
-            '<p>본문</p></div>'
-            '</div></section>'
-        )
-        result = SlidesService._validate_region_styles(html, 22)
-        regions = LAYOUT_REGIONS[22]
-        assert f"left:{regions['title']['left']}px" in result
-        assert f"top:{regions['title']['top']}px" in result
-        assert f"width:{regions['body']['width']}px" in result
-
-    def test_preserves_content(self):
-        """좌표 복원 시 콘텐츠는 보존"""
-        html = (
-            '<section id="slide-0" data-speaker-notes="">'
-            '<div data-wrapper="true">'
-            '<div data-region="title" style="position:absolute; left:0px; top:0px; width:100px; height:100px;">'
-            '<h2 style="color:#fff; font-size:1.875rem; font-weight:bold;">중요 제목</h2></div>'
-            '</div></section>'
-        )
-        result = SlidesService._validate_region_styles(html, 0)
-        assert "중요 제목" in result
-        assert 'style="color:#fff; font-size:1.875rem; font-weight:bold;"' in result
-
-    def test_skips_unknown_region(self):
-        """LAYOUT_REGIONS에 없는 region은 건드리지 않음"""
-        html = (
-            '<section><div data-wrapper="true">'
-            '<div data-region="custom" style="position:absolute; left:10px; top:10px; width:100px; height:100px;">'
-            'text</div></div></section>'
-        )
-        result = SlidesService._validate_region_styles(html, 22)
-        assert "left:10px" in result
-
-
-class TestDetectLayoutIndex:
-    def test_detect_from_data_layout_index(self):
-        html = (
-            '<section data-layout-index="22"><div data-wrapper="true">'
-            '<div data-region="title">t</div>'
-            '<div data-region="body">b</div>'
-            '</div></section>'
-        )
-        result = SlidesService._detect_layout_index_from_html(html)
-        assert result == 22
-
-    def test_detect_from_data_layout_index_overrides_regions(self):
-        html = (
-            '<section data-layout-index="87"><div data-wrapper="true">'
-            '<div data-region="title">t</div>'
-            '<div data-region="body">b</div>'
-            '</div></section>'
-        )
-        result = SlidesService._detect_layout_index_from_html(html)
-        assert result == 87
-
-    def test_detect_text_image_falls_back(self):
-        html = (
-            '<section><div data-wrapper="true">'
-            '<div data-region="title">t</div>'
-            '<div data-region="body">b</div>'
-            '<div data-region="image">i</div>'
-            '</div></section>'
-        )
-        result = SlidesService._detect_layout_index_from_html(html)
-        # title+body+image 조합 매칭 또는 default(22)로 폴백
-        assert isinstance(result, int)
-
-    def test_detect_title(self):
-        html = (
-            '<section data-layout-index="0"><div data-wrapper="true">'
-            '<div data-region="title">t</div>'
-            '<div data-region="subtitle">s</div>'
-            '</div></section>'
-        )
-        result = SlidesService._detect_layout_index_from_html(html)
-        assert result == 0
-
-    def test_fallback_no_regions(self):
-        html = '<section><div>no regions</div></section>'
-        result = SlidesService._detect_layout_index_from_html(html)
-        assert result == 22
