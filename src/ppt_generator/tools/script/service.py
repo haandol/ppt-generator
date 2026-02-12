@@ -20,7 +20,8 @@ class ScriptService:
         result = str(self._agent(prompt))
 
         scripts = self._parse_scripts(result)
-        return ScriptResponse(slides=request.outline.slides)
+        merged = self._merge_notes(request.outline.slides, scripts)
+        return ScriptResponse(slides=merged)
 
     def _build_outline_json(self, slides: list[SlideOutline]) -> str:
         data = []
@@ -34,6 +35,22 @@ class ScriptService:
                 }
             )
         return json.dumps({"slides": data}, ensure_ascii=False, indent=2)
+
+    @staticmethod
+    def _merge_notes(slides: list[SlideOutline], scripts: dict[int, str]) -> list[SlideOutline]:
+        merged: list[SlideOutline] = []
+        for i, slide in enumerate(slides):
+            notes = scripts.get(i, "")
+            merged.append(
+                SlideOutline(
+                    title=slide.title,
+                    content_summary=slide.content_summary,
+                    layout_index=slide.layout_index,
+                    component_hint=slide.component_hint,
+                    speaker_notes=notes,
+                )
+            )
+        return merged
 
     def _parse_scripts(self, text: str) -> dict[int, str]:
         match = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)

@@ -1,3 +1,4 @@
+import html
 import json
 from pathlib import Path
 
@@ -151,7 +152,8 @@ def build_layout_skeleton(
     """
     regions = LAYOUT_REGIONS.get(layout_index, LAYOUT_REGIONS[DEFAULT_LAYOUT_INDEX])
     parts: list[str] = []
-    notes_attr = f' data-speaker-notes="{speaker_notes}"' if speaker_notes else ' data-speaker-notes=""'
+    escaped_notes = html.escape(speaker_notes, quote=True) if speaker_notes else ""
+    notes_attr = f' data-speaker-notes="{escaped_notes}"' if speaker_notes else ' data-speaker-notes=""'
     parts.append(f'<section id="slide-{slide_index}" data-layout-index="{layout_index}"{notes_attr}>')
     parts.append('  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">')
 
@@ -287,14 +289,20 @@ SLIDES_REGION_SYSTEM_PROMPT = (
 )
 
 SLIDES_REGION_USER_PROMPT_TEMPLATE = (
-    "다음 아웃라인을 기반으로 레이아웃 골격의 각 영역에 콘텐츠를 채워주세요.\n\n"
+    "다음 아웃라인을 기반으로 레이아웃 골격의 각 영역에 콘텐츠를 채워주세요.\n"
+    "아웃라인에 speaker_notes가 포함되어 있다면 발표 스크립트의 맥락을 참고하여 "
+    "콘텐츠를 더 풍부하고 구체적으로 작성하세요. "
+    "speaker_notes 자체를 슬라이드에 표시하지는 마세요.\n\n"
     "슬라이드 아웃라인:\n{outline_json}\n\n"
     "레이아웃 골격:\n{skeleton_html}"
 )
 
 SLIDES_REGION_BATCH_USER_PROMPT_TEMPLATE = (
     "다음 아웃라인의 슬라이드 골격에 콘텐츠를 채워주세요. "
-    "이전 배치에서 사용된 디자인 테마를 반드시 동일하게 유지하세요.\n\n"
+    "이전 배치에서 사용된 디자인 테마를 반드시 동일하게 유지하세요.\n"
+    "아웃라인에 speaker_notes가 포함되어 있다면 발표 스크립트의 맥락을 참고하여 "
+    "콘텐츠를 더 풍부하고 구체적으로 작성하세요. "
+    "speaker_notes 자체를 슬라이드에 표시하지는 마세요.\n\n"
     "이전 배치의 디자인 요약:\n{design_summary}\n\n"
     "슬라이드 아웃라인:\n{outline_json}\n\n"
     "레이아웃 골격:\n{skeleton_html}\n\n"
@@ -423,12 +431,15 @@ PPTX_CONVERT_SYSTEM_PROMPT = (
     "- 배경색은 래퍼 div의 background-color에서 추출하세요.\n"
     "- 장식용 div(구분선, 컬러 바 등)는 shapes로 변환하세요.\n"
     "- CSS rem 단위는 1rem=16px로 변환하세요.\n"
-    "- flex/grid 레이아웃의 자식 요소는 각각 적절한 절대 좌표를 계산하여 배치하세요.\n"
+    "- flex/grid 레이아웃의 자식 요소는 각각 적절한 절대 좌표를 계산하여 배치하세요. "
+    "컬럼이 N개이면 각 컬럼의 너비 = (부모 width - gap*(N-1)) / N 으로 균등 분배하세요.\n"
     "- 텍스트 색상(color)은 가장 가까운 조상의 인라인 style에서 상속하세요. "
     "배경이 어두우면 텍스트는 밝은 색이어야 합니다.\n"
-    "- data-region div가 있으면 그 좌표(left, top, width, height)를 텍스트박스 좌표로 사용하세요.\n"
-    "- font_size_pt는 프레젠테이션에 적합한 크기로 설정하세요. "
-    "제목은 36pt 이상, 본문은 18~24pt, 보조 텍스트는 14pt 이상을 권장합니다.\n"
+    "- data-region div가 있으면 그 좌표(left, top, width, height)를 반드시 텍스트박스 좌표로 사용하세요. "
+    "data-region의 좌표를 임의로 변경하거나 무시하지 마세요.\n"
+    "- font_size_pt는 이 값이 python-pptx Pt()에 직접 전달됩니다. "
+    "제목은 28~32pt, 본문은 16~20pt, 보조 텍스트는 12~14pt를 권장합니다.\n"
+    "- 텍스트박스가 서로 겹치지 않도록 주의하세요.\n"
     "- 반드시 JSON만 출력하세요. 마크다운 코드블록으로 감싸지 마세요."
 )
 

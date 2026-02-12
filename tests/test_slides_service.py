@@ -7,11 +7,12 @@ from ppt_generator.interfaces.schemas import SlidesResponse, SlideOutline
 from ppt_generator.tools.slides.service import SlidesService
 
 
-def _make_slide(index: int) -> SlideOutline:
+def _make_slide(index: int, speaker_notes: str = "") -> SlideOutline:
     return SlideOutline(
         title=f"슬라이드 {index}",
         content_summary=f"슬라이드 {index} 내용 요약",
         layout_index=22,
+        speaker_notes=speaker_notes,
     )
 
 
@@ -310,6 +311,39 @@ class TestModifySingleSlide:
 
         response = service.modify(session_id, "전체 수정")
         assert response.html == MODIFIED_FULL_HTML
+
+
+class TestSpeakerNotes:
+    def test_generate_includes_speaker_notes_in_prompt(self, mock_agent, mock_modify_agent):
+        service = SlidesService(agent=mock_agent, modify_agent=mock_modify_agent)
+        slide = _make_slide(0, speaker_notes="이 슬라이드에서는 개요를 설명합니다.")
+        service.generate(slides=[slide])
+
+        prompt = mock_agent.call_args[0][0]
+        assert "이 슬라이드에서는 개요를 설명합니다." in prompt
+
+    def test_skeleton_has_speaker_notes(self):
+        skeleton = build_layout_skeleton(22, 0, speaker_notes="테스트 발표 노트")
+        assert 'data-speaker-notes="테스트 발표 노트"' in skeleton
+
+    def test_skeleton_escapes_html_in_speaker_notes(self):
+        skeleton = build_layout_skeleton(22, 0, speaker_notes='He said "hello" & <bye>')
+        assert '&quot;' in skeleton
+        assert '&amp;' in skeleton
+        assert '&lt;' in skeleton
+
+    def test_slide_to_dict_includes_speaker_notes(self):
+        slide = SlideOutline(
+            title="제목", content_summary="요약", layout_index=22,
+            speaker_notes="발표 노트 내용",
+        )
+        d = SlidesService._slide_to_dict(slide)
+        assert d["speaker_notes"] == "발표 노트 내용"
+
+    def test_slide_to_dict_omits_empty_speaker_notes(self):
+        slide = SlideOutline(title="제목", content_summary="요약", layout_index=22)
+        d = SlidesService._slide_to_dict(slide)
+        assert "speaker_notes" not in d
 
 
 class TestExtractSections:
