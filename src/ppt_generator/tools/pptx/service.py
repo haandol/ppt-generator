@@ -12,7 +12,7 @@ import boto3
 from bs4 import BeautifulSoup, Tag
 from pptx import Presentation
 from pptx.dml.color import RGBColor
-from pptx.enum.shapes import MSO_SHAPE
+from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE
 from pptx.enum.text import MSO_AUTO_SIZE
 from pptx.oxml.ns import qn
 from pptx.util import Inches, Pt
@@ -128,6 +128,9 @@ class ExportService:
                     self._set_slide_background(slide, bg_color)
                 self._extract_elements(slide, div)
 
+            # 텍스트박스가 항상 도형 위에 보이도록 z-order 재정렬
+            self._ensure_textboxes_on_top(slide)
+
             notes = div.get("data-speaker-notes", "")
             if notes:
                 self._set_speaker_notes(slide, notes)
@@ -154,6 +157,47 @@ class ExportService:
         sp_tree = slide.shapes._spTree
         for ph in list(slide.placeholders):
             sp_tree.remove(ph._element)
+
+    @staticmethod
+    def _ensure_textboxes_on_top(slide) -> None:
+        """spTree XML을 재정렬하여 텍스트박스가 항상 도형 위(z-order 최상위)에 오도록 보장.
+
+        PowerPoint에서 spTree 내 순서가 곧 z-order이므로,
+        도형(AUTO_SHAPE)을 앞에, 텍스트박스(TEXT_BOX)를 뒤에 배치한다.
+        """
+        sp_tree = slide.shapes._spTree
+        shape_elements = []
+        textbox_elements = []
+
+        # shape element ↔ shape object 매핑
+        shape_map = {}
+        for shape in slide.shapes:
+            shape_map[id(shape._element)] = shape
+
+        sp_tag = qn("p:sp")
+        for child in list(sp_tree):
+            if child.tag != sp_tag:
+                continue
+            shape_obj = shape_map.get(id(child))
+            if shape_obj is None:
+                continue
+            try:
+                is_textbox = shape_obj.shape_type == MSO_SHAPE_TYPE.TEXT_BOX
+            except Exception:
+                is_textbox = False
+
+            if is_textbox:
+                textbox_elements.append(child)
+            else:
+                shape_elements.append(child)
+
+        # 재정렬: 도형 먼저, 텍스트박스 나중에 (= 위에 보임)
+        for el in shape_elements + textbox_elements:
+            sp_tree.remove(el)
+        for el in shape_elements:
+            sp_tree.append(el)
+        for el in textbox_elements:
+            sp_tree.append(el)
 
     # --- LLM 변환 파이프라인 ---
 
