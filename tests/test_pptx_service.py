@@ -1,7 +1,7 @@
 import struct
 import zlib
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from pptx import Presentation
@@ -648,3 +648,94 @@ class TestCssClassInlining:
         slide = prs.slides[0]
         all_text = " ".join(s.text_frame.text for s in slide.shapes if s.has_text_frame)
         assert "커스텀 배경" in all_text
+
+
+class TestScreenshotCapture:
+    """Playwright 스크린샷 캡처 및 멀티모달 변환 테스트."""
+
+    def test_capture_returns_empty_when_playwright_unavailable(self):
+        """_PLAYWRIGHT_AVAILABLE=False이면 빈 dict 반환."""
+        mock_slides = _make_slides_service(MULTI_SLIDE_HTML)
+        svc = ExportService(slides_service=mock_slides, use_llm_convert=False)
+
+        with patch("ppt_generator.tools.pptx.service._PLAYWRIGHT_AVAILABLE", False):
+            result = svc._capture_slide_screenshots(MULTI_SLIDE_HTML, 3)
+
+        assert result == {}
+
+    def test_capture_returns_empty_on_browser_error(self):
+        """브라우저 실행 실패 시 빈 dict 반환, 에러 발생 없음."""
+        mock_slides = _make_slides_service(MULTI_SLIDE_HTML)
+        svc = ExportService(slides_service=mock_slides, use_llm_convert=False)
+
+        with patch("ppt_generator.tools.pptx.service._PLAYWRIGHT_AVAILABLE", True), \
+             patch("ppt_generator.tools.pptx.service.sync_playwright", side_effect=Exception("Browser error")):
+            result = svc._capture_slide_screenshots(MULTI_SLIDE_HTML, 3)
+
+        assert result == {}
+
+    def test_convert_with_screenshot_sends_image_block(self):
+        """screenshot이 있으면 Bedrock Converse에 image 블록이 포함."""
+        mock_slides = _make_slides_service(MULTI_SLIDE_HTML)
+        svc = ExportService(slides_service=mock_slides, use_llm_convert=True)
+
+        fake_screenshot = _make_minimal_png()
+        fake_response = {
+            "output": {
+                "message": {
+                    "content": [{"text": '{"background_color": null, "textboxes": [], "shapes": []}'}],
+                }
+            }
+        }
+
+        mock_client = MagicMock()
+        mock_client.converse.return_value = fake_response
+
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(MULTI_SLIDE_HTML, "html.parser")
+        section = soup.find("section")
+
+        with patch("ppt_generator.tools.pptx.service.boto3") as mock_boto3:
+            mock_boto3.client.return_value = mock_client
+            svc._convert_section_with_llm(section, screenshot=fake_screenshot)
+
+        call_kwargs = mock_client.converse.call_args
+        content = call_kwargs.kwargs["messages"][0]["content"]
+        # image 블록이 존재하는지 확인
+        image_blocks = [b for b in content if "image" in b]
+        assert len(image_blocks) == 1
+        assert image_blocks[0]["image"]["format"] == "png"
+        assert image_blocks[0]["image"]["source"]["bytes"] == fake_screenshot
+
+    def test_convert_without_screenshot_sends_text_only(self):
+        """screenshot=None이면 text 블록만 전송."""
+        mock_slides = _make_slides_service(MULTI_SLIDE_HTML)
+        svc = ExportService(slides_service=mock_slides, use_llm_convert=True)
+
+        fake_response = {
+            "output": {
+                "message": {
+                    "content": [{"text": '{"background_color": null, "textboxes": [], "shapes": []}'}],
+                }
+            }
+        }
+
+        mock_client = MagicMock()
+        mock_client.converse.return_value = fake_response
+
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(MULTI_SLIDE_HTML, "html.parser")
+        section = soup.find("section")
+
+        with patch("ppt_generator.tools.pptx.service.boto3") as mock_boto3:
+            mock_boto3.client.return_value = mock_client
+            svc._convert_section_with_llm(section, screenshot=None)
+
+        call_kwargs = mock_client.converse.call_args
+        content = call_kwargs.kwargs["messages"][0]["content"]
+        # image 블록이 없어야 함
+        image_blocks = [b for b in content if "image" in b]
+        assert len(image_blocks) == 0
+        # text 블록만 있어야 함
+        text_blocks = [b for b in content if "text" in b]
+        assert len(text_blocks) == 1
