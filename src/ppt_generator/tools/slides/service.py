@@ -228,7 +228,11 @@ class SlidesService:
 
     @staticmethod
     def _validate_region_styles(section_html: str, layout_index: int) -> str:
-        """LLM이 region div의 좌표를 변경했을 경우 LAYOUT_REGIONS 원본 좌표로 복원."""
+        """LLM이 region div의 좌표를 변경했을 경우 LAYOUT_REGIONS 원본 좌표로 복원.
+
+        body region은 height를 고정하지 않고 bottom 기반으로 설정하여
+        컨텐츠가 잘리지 않도록 한다.
+        """
         regions = LAYOUT_REGIONS.get(layout_index, LAYOUT_REGIONS[DEFAULT_LAYOUT_INDEX])
         soup = BeautifulSoup(section_html, "html.parser")
 
@@ -237,10 +241,17 @@ class SlidesService:
             if region_name not in regions:
                 continue
             coords = regions[region_name]
-            correct_style = (
-                f"position:absolute; left:{coords['left']}px; top:{coords['top']}px; "
-                f"width:{coords['width']}px; height:{coords['height']}px; overflow:hidden;"
-            )
+            if region_name == "body":
+                # body: absolute positioning 없이 margin으로 위치 지정, 높이 자동
+                correct_style = (
+                    f"margin-left:{coords['left']}px; margin-top:{coords['top']}px; "
+                    f"width:{coords['width']}px;"
+                )
+            else:
+                correct_style = (
+                    f"position:absolute; left:{coords['left']}px; top:{coords['top']}px; "
+                    f"width:{coords['width']}px; height:{coords['height']}px; overflow:hidden;"
+                )
             region_div["style"] = correct_style
 
         return str(soup)

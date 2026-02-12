@@ -129,9 +129,12 @@ EXPORT_PX_TO_INCHES_Y = 7.5 / 720      # ~0.01042
 # --- 레이아웃 영역 좌표 (template/layout.json에서 로드) ---
 # scripts/extract_layout_json.py로 template.pptx에서 추출.
 # 각 값은 {"left": px, "top": px, "width": px, "height": px} 형식 (1280x720px 기준).
+
+
 def _load_layout_regions() -> dict[int, dict[str, dict[str, int]]]:
     """layout.json에서 레이아웃별 region 좌표를 로드."""
-    layout_json = Path(__file__).resolve().parent.parent.parent.parent / "template" / "layout.json"
+    layout_json = Path(__file__).resolve(
+    ).parent.parent.parent.parent / "template" / "layout.json"
     if not layout_json.exists():
         # layout.json이 없으면 최소 폴백
         return {
@@ -155,7 +158,13 @@ LAYOUT_REGIONS: dict[int, dict[str, dict[str, int]]] = _load_layout_regions()
 
 DEFAULT_LAYOUT_INDEX = 22  # text_only
 
-SLIDES_TEMPLATE_PATH = Path(__file__).parent.parent / "templates" / "slides.html"
+SLIDES_TEMPLATE_PATH = Path(__file__).parent.parent / \
+    "templates" / "slides.html"
+
+
+SLIDE_WIDTH = 1280
+SLIDE_HEIGHT = 720
+SLIDE_FOOTER_HEIGHT = 48  # footer 영역 예약 높이
 
 
 def build_layout_skeleton(
@@ -167,19 +176,34 @@ def build_layout_skeleton(
 
     각 region div에 data-region 속성과 position:absolute 스타일을 부여하여
     LLM이 내부 컨텐츠만 채우도록 구조를 강제한다.
+
+    body region은 height를 고정하지 않고 슬라이드 하단(footer 제외)까지
+    자동 확장하여 컨텐츠가 잘리지 않도록 한다.
     """
-    regions = LAYOUT_REGIONS.get(layout_index, LAYOUT_REGIONS[DEFAULT_LAYOUT_INDEX])
+    regions = LAYOUT_REGIONS.get(
+        layout_index, LAYOUT_REGIONS[DEFAULT_LAYOUT_INDEX])
     parts: list[str] = []
-    escaped_notes = html.escape(speaker_notes, quote=True) if speaker_notes else ""
+    escaped_notes = html.escape(
+        speaker_notes, quote=True) if speaker_notes else ""
     notes_attr = f' data-speaker-notes="{escaped_notes}"' if speaker_notes else ' data-speaker-notes=""'
-    parts.append(f'<section id="slide-{slide_index}" data-layout-index="{layout_index}"{notes_attr}>')
-    parts.append('  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">')
+    parts.append(
+        f'<section id="slide-{slide_index}" data-layout-index="{layout_index}"{notes_attr}>')
+    parts.append(
+        '  <div data-wrapper="true" style="position:absolute; top:0; left:0; right:0; bottom:0;">')
 
     for region_name, coords in regions.items():
-        style = (
-            f"position:absolute; left:{coords['left']}px; top:{coords['top']}px; "
-            f"width:{coords['width']}px; height:{coords['height']}px; overflow:hidden;"
-        )
+        if region_name == "body":
+            # body region: absolute positioning 없이 margin으로 위치만 지정
+            # 컨텐츠에 맞게 높이 자동 조절
+            style = (
+                f"margin-left:{coords['left']}px; margin-top:{coords['top']}px; "
+                f"width:{coords['width']}px;"
+            )
+        else:
+            style = (
+                f"position:absolute; left:{coords['left']}px; top:{coords['top']}px; "
+                f"width:{coords['width']}px; height:{coords['height']}px; overflow:hidden;"
+            )
         parts.append(f'    <div data-region="{region_name}" style="{style}">')
         parts.append(f"      <!-- CONTENT:{region_name} -->")
         parts.append("    </div>")
@@ -486,8 +510,8 @@ SLIDES_MODIFY_SYSTEM_PROMPT = (
     "사용자의 수정 요청에 따라 기존 슬라이드를 정확하게 수정하세요.\n\n"
     "지원하는 수정 유형:\n"
     "- 텍스트 변경: 제목, 본문 내용, 불릿 포인트의 수정/추가/삭제\n"
-    "- 레이아웃 조정: 요소 위치, 크기, 간격 변경 (인라인 style 사용)\n"
-    "- 스타일 변경: 색상, 배경색, 테두리 등 인라인 style 변경\n"
+    "- 레이아웃 조정: 요소 위치, 크기, 간격 변경 (Tailwind 클래스 우선, 불가 시 인라인 style)\n"
+    "- 스타일 변경: 색상, 배경색, 테두리 등 변경 (Tailwind 클래스 우선, 커스텀 색상 등은 인라인 style)\n"
     "- 슬라이드 추가: 새로운 <section> 요소 추가\n"
     "- 슬라이드 삭제: 특정 <section> 요소 제거\n"
     "- 슬라이드 순서 변경: <section> 요소의 순서 재배치\n"
@@ -496,12 +520,34 @@ SLIDES_MODIFY_SYSTEM_PROMPT = (
     "- 수정 요청에 해당하는 부분만 변경하고, 나머지는 그대로 유지하세요.\n"
     "- 템플릿에 사전 정의된 CSS 클래스를 활용할 수 있습니다. 커스텀 CSS 클래스를 절대 만들지 마세요.\n"
     "- <style> 태그를 출력하지 마세요.\n"
-    "- 스타일링 시 가능한 한 Tailwind CSS 유틸리티 클래스를 사용하세요. "
-    "인라인 style은 Tailwind로 표현할 수 없는 커스텀 색상값, 그라데이션 등에만 사용하세요.\n"
     "- data-region 속성이 있는 div의 style 속성(position, left, top, width, height)은 절대 변경하지 마세요.\n"
     "- data-region div 내부의 콘텐츠만 수정 가능합니다.\n"
     "- 기존 슬라이드의 레이아웃 영역(제목/본문/이미지 위치 비율)을 유지하세요. "
     "레이아웃 변경이 명시적으로 요청되지 않는 한 제목과 본문의 위치를 바꾸지 마세요.\n\n"
+    "스타일링 우선순위 (매우 중요):\n"
+    "- 가능한 한 항상 Tailwind CSS 유틸리티 클래스를 사용하세요. 인라인 style은 최후의 수단입니다.\n"
+    "- Tailwind로 표현 가능한 속성은 반드시 클래스로 작성하세요:\n"
+    "  · 레이아웃: flex, flex-col, grid, items-center, justify-center, gap-4, gap-8 등\n"
+    "  · 간격: p-4, px-8, py-10, mt-2, mb-4 등\n"
+    "  · 크기: w-full, h-full, w-1/2, min-h-0 등\n"
+    "  · 타이포그래피: text-sm, text-base, text-lg, text-xl, text-2xl, text-4xl, font-bold, font-extrabold, leading-relaxed 등\n"
+    "  · 색상: text-white, text-gray-400, bg-gray-900, bg-slate-800 등\n"
+    "  · 테두리/모양: rounded-lg, rounded-xl, border, border-gray-700 등\n"
+    "  · 기타: overflow-hidden, z-10, opacity-80 등\n"
+    "- 인라인 style은 다음 경우에만 사용하세요:\n"
+    "  · Tailwind에 없는 정확한 커스텀 색상값 (예: style=\"color:#FF9900;\")\n"
+    "  · 정확한 px 좌표 지정이 필요한 position:absolute 요소\n"
+    "  · 그라데이션 (linear-gradient 등)\n"
+    "  · Tailwind로 표현할 수 없는 특수 속성\n"
+    "- 자주 사용하는 매핑 (반드시 인라인 대신 클래스 사용):\n"
+    "  · padding:12px → p-3, padding:16px → p-4, padding:20px → p-5, padding:24px → p-6\n"
+    "  · gap:12px → gap-3, gap:16px → gap-4, gap:20px → gap-5, gap:24px → gap-6, gap:32px → gap-8\n"
+    "  · display:flex → flex, display:grid → grid, flex-direction:column → flex-col\n"
+    "  · grid-template-columns:1fr 1fr → grid-cols-2, 1fr 1fr 1fr → grid-cols-3, 1fr 1fr 1fr 1fr → grid-cols-4\n"
+    "  · font-size:0.875rem → text-sm, 1rem → text-base, 1.125rem → text-lg, 1.25rem → text-xl, 1.5rem → text-2xl, 2.25rem → text-4xl\n"
+    "  · height:100% → h-full, width:100% → w-full\n"
+    "- 나쁜 예: <div style=\"display:flex; gap:32px; padding:16px;\"> → 좋은 예: <div class=\"flex gap-8 p-4\">\n"
+    "- 기존 코드에 인라인 style로 되어 있는 부분도, 수정 시 Tailwind 클래스로 대체할 수 있으면 대체하세요.\n\n"
     "출력 규칙:\n"
     "- 완전한 HTML 문서를 출력하세요 (<!DOCTYPE html> 포함).\n"
     "- JavaScript 코드를 포함하지 마세요.\n"
@@ -525,7 +571,9 @@ SLIDES_MODIFY_SINGLE_USER_PROMPT_TEMPLATE = (
     "- 마크다운 코드블록(```)으로 감싸지 마세요.\n"
     "- 템플릿에 사전 정의된 CSS 클래스를 활용할 수 있습니다. 커스텀 CSS 클래스를 절대 만들지 마세요.\n"
     "- data-region 속성이 있는 div의 style 속성(position, left, top, width, height)은 절대 변경하지 마세요.\n"
-    "- data-region div 내부의 콘텐츠만 수정 가능합니다."
+    "- data-region div 내부의 콘텐츠만 수정 가능합니다.\n"
+    "- Tailwind CSS 유틸리티 클래스를 인라인 style보다 우선 사용하세요. "
+    "인라인 style은 커스텀 색상값, position:absolute 좌표, 그라데이션 등 Tailwind로 표현할 수 없는 경우에만 사용하세요."
 )
 
 # --- F5-LLM: HTML→PPTX LLM 변환 ---
