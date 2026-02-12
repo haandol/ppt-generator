@@ -1,0 +1,43 @@
+"""공통 유틸리티 함수.
+
+LLM 응답에서 JSON 추출, SlideOutline 파싱 등
+여러 서비스/컨트롤러에서 중복 사용되는 로직을 통합한 모듈.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+
+from ppt_generator.interfaces.schemas import OutlineResponse, SlideOutline
+
+
+def extract_json_from_response(text: str) -> dict:
+    """LLM 응답에서 JSON 코드블록을 추출하여 dict로 반환.
+
+    마크다운 코드블록(```json ... ```)이 있으면 그 안의 JSON을 파싱하고,
+    없으면 전체 텍스트를 JSON으로 파싱 시도한다.
+    """
+    match = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)
+    raw = match.group(1) if match else text
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"LLM이 유효하지 않은 JSON을 반환했습니다: {e}") from e
+
+
+def parse_outline_json(outline_json: str) -> OutlineResponse:
+    """outline JSON 문자열을 OutlineResponse로 파싱."""
+    data = json.loads(outline_json)
+    slides: list[SlideOutline] = []
+    for item in data["slides"]:
+        slides.append(
+            SlideOutline(
+                title=item.get("title", ""),
+                content_summary=item.get("content_summary", ""),
+                component_hint=item.get("component_hint", "bullets"),
+                speaker_notes=item.get("speaker_notes", ""),
+            )
+        )
+    return OutlineResponse(slides=slides)

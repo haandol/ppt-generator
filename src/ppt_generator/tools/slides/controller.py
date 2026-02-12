@@ -2,7 +2,7 @@ import json
 
 from mcp.server.fastmcp import FastMCP
 
-from ppt_generator.interfaces.schemas import SlideOutline
+from ppt_generator.interfaces.utils import parse_outline_json
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
 
@@ -24,16 +24,8 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
         Returns:
             session_id, slides_html_path, project_id를 포함하는 JSON 문자열
         """
-        outline_data = json.loads(outline_json)
-        slides = [
-            SlideOutline(
-                title=s.get("title", ""),
-                content_summary=s.get("content_summary", ""),
-                component_hint=s.get("component_hint", "bullets"),
-                speaker_notes=s.get("speaker_notes", ""),
-            )
-            for s in outline_data["slides"]
-        ]
+        outline = parse_outline_json(outline_json)
+        slides = outline.slides
 
         response = slides_service.generate(slides)
 

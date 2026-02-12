@@ -1,11 +1,10 @@
-import json
 import logging
-import re
 
 from strands import Agent
 
 from ppt_generator.interfaces.constants import OUTLINE_USER_PROMPT_TEMPLATE
 from ppt_generator.interfaces.schemas import OutlineRequest, OutlineResponse, SlideOutline
+from ppt_generator.interfaces.utils import extract_json_from_response
 
 MAX_RETRIES = 3
 
@@ -39,13 +38,7 @@ class OutlineService:
         raise last_error  # type: ignore[misc]
 
     def _parse_json(self, text: str) -> dict:
-        match = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)
-        raw = match.group(1) if match else text
-
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"LLM이 유효하지 않은 JSON을 반환했습니다: {e}") from e
+        data = extract_json_from_response(text)
 
         if "slides" not in data or not isinstance(data["slides"], list):
             raise ValueError("JSON에 'slides' 배열이 없습니다.")
