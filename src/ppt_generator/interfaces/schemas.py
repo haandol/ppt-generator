@@ -97,7 +97,7 @@ class PptxTextBox:
     height_px: float
     paragraphs: list[PptxParagraph] = field(default_factory=list)
     line_spacing_pt: float | None = None  # pt 단위 줄간격
-    vertical_alignment: str | None = None  # "top", "middle", "bottom"
+    vertical_alignment: str = "top"  # "top", "middle", "bottom"
 
 
 @dataclass(frozen=True)
@@ -126,7 +126,7 @@ class PptxShape:
     padding_right_px: float | None = None
     padding_top_px: float | None = None
     padding_bottom_px: float | None = None
-    vertical_alignment: str | None = None  # "top", "middle", "bottom"
+    vertical_alignment: str = "top"  # "top", "middle", "bottom"
 
 
 @dataclass(frozen=True)
@@ -206,7 +206,7 @@ class TextBoxOutput(BaseModel):
     height_px: float
     paragraphs: list[ParagraphOutput] = Field(default_factory=list)
     line_spacing_pt: float | None = None
-    vertical_alignment: Literal["top", "middle", "bottom"] | None = None
+    vertical_alignment: Literal["top", "middle", "bottom"] = "top"
 
 
 class ShapeOutput(BaseModel):
@@ -231,7 +231,7 @@ class ShapeOutput(BaseModel):
     padding_right_px: float | None = None
     padding_top_px: float | None = None
     padding_bottom_px: float | None = None
-    vertical_alignment: Literal["top", "middle", "bottom"] | None = None
+    vertical_alignment: Literal["top", "middle", "bottom"] = "top"
 
 
 class SlideSpecOutput(BaseModel):

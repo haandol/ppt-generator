@@ -17,7 +17,7 @@ DESIGN_SPEC_SYSTEM_PROMPT = (
     "    {\n"
     '      "left_px": number, "top_px": number, "width_px": number, "height_px": number,\n'
     '      "line_spacing_pt": number|null,\n'
-    '      "vertical_alignment": "top"|"middle"|"bottom"|null,\n'
+    '      "vertical_alignment": "top"|"middle"|"bottom",  // 필수\n'
     '      "paragraphs": [\n'
     "        {\n"
     '          "runs": [\n'
@@ -48,7 +48,7 @@ DESIGN_SPEC_SYSTEM_PROMPT = (
     '      "padding_right_px": number|null,\n'
     '      "padding_top_px": number|null,\n'
     '      "padding_bottom_px": number|null,\n'
-    '      "vertical_alignment": "top"|"middle"|"bottom"|null\n'
+    '      "vertical_alignment": "top"|"middle"|"bottom"  // 필수\n'
     "    }\n"
     "  ]\n"
     "}\n"
@@ -58,11 +58,15 @@ DESIGN_SPEC_SYSTEM_PROMPT = (
     "1. **간단한 텍스트**: text, text_color, text_size_pt, text_bold 필드 사용 (한 줄 텍스트, 자동 중앙 정렬)\n"
     "2. **구조화된 텍스트**: paragraphs 배열 사용 (여러 줄, 불릿, 서식 혼합 시). paragraphs의 runs에서 font_family: \"monospace\"로 코드 폰트 지정 가능\n"
     "둘 다 사용하면 paragraphs가 우선됨. 카드형 shape에는 paragraphs를 적극 활용하세요.\n\n"
-    "=== vertical_alignment 가이드 ===\n"
-    "- textboxes와 shapes 모두 vertical_alignment 필드로 텍스트의 수직 정렬을 제어\n"
-    '- "top": 상단 정렬 (기본값), "middle": 수직 중앙, "bottom": 하단 정렬\n'
-    "- 카드/배너 shape에서 텍스트를 수직 중앙에 배치하려면 \"middle\" 사용\n"
-    "- 제목 텍스트박스: \"top\" 또는 \"middle\" 권장\n\n"
+    "=== vertical_alignment (필수) ===\n"
+    "- textboxes와 shapes 모두 vertical_alignment을 반드시 명시적으로 지정하세요. null 금지.\n"
+    '- "top": 상단 정렬, "middle": 수직 중앙, "bottom": 하단 정렬\n'
+    "- 용도별 권장값:\n"
+    '  - 제목/부제목 텍스트박스: "middle"\n'
+    '  - 본문/불릿 텍스트박스: "top"\n'
+    '  - 카드/배너/버튼 shape (text 또는 paragraphs 포함): "middle"\n'
+    '  - 바닥글/하단 라벨: "bottom"\n'
+    '  - 장식용 shape (텍스트 없음): "top"\n\n'
     "=== padding 가이드 ===\n"
     "- shapes의 padding_*_px 필드로 텍스트와 shape 경계 사이 여백을 제어\n"
     "- 미지정 시 기본값: 좌우 약 5px, 상하 약 2.5px\n"
@@ -93,12 +97,14 @@ DESIGN_SPEC_SYSTEM_PROMPT = (
     '  "textboxes": [\n'
     "    {\n"
     '      "left_px": 40, "top_px": 40, "width_px": 1200, "height_px": 60,\n'
+    '      "vertical_alignment": "middle",\n'
     '      "paragraphs": [\n'
     '        {"runs": [{"text": "슬라이드 제목", "font_size_pt": 32, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"}\n'
     "      ]\n"
     "    },\n"
     "    {\n"
     '      "left_px": 40, "top_px": 120, "width_px": 1200, "height_px": 540,\n'
+    '      "vertical_alignment": "top",\n'
     '      "line_spacing_pt": 28,\n'
     '      "paragraphs": [\n'
     '        {"runs": [{"text": "첫 번째 항목", "font_size_pt": 20, "color": "#e0e0e0", "bold": false, "italic": false}], "bullet_level": 0, "alignment": "left"},\n'
@@ -126,7 +132,8 @@ DESIGN_SPEC_SYSTEM_PROMPT = (
     "3. 높이 관계: height_px ≥ 줄수 × font_size_pt × 1.5 (텍스트 잘림 방지)\n"
     "4. 텍스트 누락 금지: content_summary의 모든 핵심 내용이 textbox 또는 shape에 포함되어야 함\n"
     "5. 요소 겹침 최소화: 텍스트박스끼리 겹치지 않도록 배치\n"
-    "6. 여백 확보: 슬라이드 가장자리에서 최소 40px 여백 (left ≥ 40, top ≥ 40, right ≤ 1240, bottom ≤ 680)\n\n"
+    "6. 여백 확보: 슬라이드 가장자리에서 최소 40px 여백 (left ≥ 40, top ≥ 40, right ≤ 1240, bottom ≤ 680)\n"
+    "7. vertical_alignment 필수: 모든 textbox와 shape에 vertical_alignment을 반드시 지정 (null 금지)\n\n"
     "=== 디자인 원칙 ===\n"
     "- 어두운 배경(#1a1a2e ~ #232F3E 계열) + 밝은 텍스트(#ffffff, #e0e0e0) 권장\n"
     "- 강조색: #FF9900 (주황), #00BFFF (시안), #4FC3F7 (하늘), #66BB6A (초록) 등\n"
