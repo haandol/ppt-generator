@@ -150,6 +150,7 @@ class DesignSpec:
 - LLM 출력 모델: `src/ppt_generator/interfaces/llm_output_models.py` — `SlideSpecOutput`
 - 도메인 스키마: `src/ppt_generator/interfaces/schemas.py` — `DesignSpec`, `PptxSlideSpec`
 - 유틸리티: `src/ppt_generator/interfaces/spec_utils.py` — `parse_slide_spec`, `validate_slide_spec`, `slide_spec_to_json`, `parse_slide_spec_json`, `design_spec_to_json`, `parse_design_spec_json`
+- 텍스트 측정: `src/ppt_generator/interfaces/text_measurement.py` — 폰트 메트릭 기반 줄바꿈/높이 계산 ([ADR-0017](./0017-font-metric-text-overflow-prevention.md))
 - 프롬프트: `src/ppt_generator/interfaces/prompts/design_prompts.py`
 - 슬라이드 서비스: `src/ppt_generator/tools/slides/service.py` — `generate_from_design_spec()`
 - HTML 렌더러: `src/ppt_generator/tools/slides/html_renderer.py` — `spec_to_html_section()`

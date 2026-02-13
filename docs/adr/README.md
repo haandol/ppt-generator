@@ -34,6 +34,8 @@ adr/
 - [0013: 디자인 스펙 기반 슬라이드 생성 파이프라인](./pipeline/0013-design-spec-pipeline.md)
 - [0014: 파일 기반 통신 및 슬라이드 단위 CRUD](./pipeline/0014-file-based-communication-and-per-slide-crud.md)
 - [0015: 디자인 스펙 슬라이드별 파일 분리](./pipeline/0015-per-slide-file-separation.md)
+- [0016: 슬라이드별 HTML 파일 분리 및 iframe 컨테이너](./pipeline/0016-per-slide-html-iframe.md)
+- [0017: 폰트 메트릭 기반 텍스트 오버플로우 방지](./pipeline/0017-font-metric-text-overflow-prevention.md)
 
 ## ADR 작성 가이드
 
