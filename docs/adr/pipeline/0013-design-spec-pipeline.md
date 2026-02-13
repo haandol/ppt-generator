@@ -62,7 +62,8 @@ class DesignSpecResponse:
 
 | 도구 | 설명 |
 |------|------|
-| `generate_design_spec` | 아웃라인 → PptxSlideSpec JSON 디자인 스펙 생성 (LLM) |
+| `generate_design_spec` | 아웃라인 → PptxSlideSpec JSON 디자인 스펙 일괄 생성 (LLM) |
+| `generate_slide_design_spec` | 단일 슬라이드 디자인 스펙 생성 (슬라이드별 검토/수정 가능) |
 | `load_design_spec` | 저장된 디자인 스펙 로드 |
 
 #### 기존 도구 변경
@@ -106,8 +107,10 @@ class DesignSpecResponse:
 #### 프로젝트 영속화
 
 - `~/.ppt-generator/<UUID>/design_spec/slide_NN.json` — 슬라이드별 개별 파일 저장 ([ADR-0015](./0015-per-slide-file-separation.md))
+- `~/.ppt-generator/<UUID>/design_spec/design_summary.txt` — 첫 슬라이드에서 추출한 디자인 테마 요약 (슬라이드별 생성 시 테마 일관성 유지용)
 - `ProjectService.save_design_spec(dir, DesignSpec)` / `load_design_spec(dir) -> DesignSpec`
-- 슬라이드별 CRUD: `save_design_spec_slide`, `load_design_spec_slide`, `delete_design_spec_slide`, `insert_design_spec_slide`
+- 슬라이드별 CRUD: `save_design_spec_slide`, `load_design_spec_slide`, `delete_design_spec_slide`, `insert_design_spec_slide`, `create_design_spec_slide`
+- 디자인 요약: `save_design_summary(dir, str)` / `load_design_summary(dir) -> str | None`
 
 ### Alternatives Considered
 
