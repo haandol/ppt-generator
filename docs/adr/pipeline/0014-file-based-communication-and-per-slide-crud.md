@@ -102,8 +102,9 @@ generate_outline → generate_script
 ## References
 
 - 구현: `src/ppt_generator/tools/design/controller.py` — `modify_design_spec`, `generate_slide_design_spec`
-- 서비스: `src/ppt_generator/tools/design/service.py` — `generate_single_slide(slide_outline, design_summary, slide_index, total_slides)`
-- 프로젝트 서비스: `src/ppt_generator/tools/project/service.py` — 슬라이드별 CRUD 메서드, `create_design_spec_slide()`, `save_design_summary()`, `load_design_summary()`
+- 디자인 서비스: `src/ppt_generator/tools/design/service.py` — `generate_single_slide()`, `extract_design_summary()`
+- 디자인 스펙 저장소: `src/ppt_generator/tools/project/design_spec_store.py` — 슬라이드별 파일 CRUD 전담
+- 프로젝트 서비스: `src/ppt_generator/tools/project/service.py` — `DesignSpecStore`에 위임하는 메서드 제공
 - 슬라이드 컨트롤러: `src/ppt_generator/tools/slides/controller.py` — project_id 자동 로드
 - PPTX 컨트롤러: `src/ppt_generator/tools/pptx/controller.py` — project_id 자동 로드
 - 관련 ADR: [0013-design-spec-pipeline](./0013-design-spec-pipeline.md), [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md), [0015-per-slide-file-separation](./0015-per-slide-file-separation.md)

@@ -68,25 +68,28 @@ class DesignSpec:
 
 - `tools/design/service.py` — `DesignService.generate_single_slide()`
 - 슬라이드별 개별 LLM 호출
-- 첫 슬라이드 생성 후 디자인 요약 추출 → 후속 슬라이드에 전달하여 일관성 유지
+- 첫 슬라이드 생성 후 `extract_design_summary()` → 후속 슬라이드에 전달하여 일관성 유지
 - `parse_slide_spec()` + `validate_slide_spec()` 재사용 (`interfaces/spec_utils.py`)
+- LLM structured_output용 Pydantic 모델: `interfaces/llm_output_models.py` — `SlideSpecOutput`
 - Bedrock Claude Opus 4.6 사용 (`us.anthropic.claude-opus-4-6-v1`, 32K tokens)
 - `_create_design_agent()`는 `DESIGN_SPEC_SYSTEM_PROMPT`를 시스템 프롬프트로 사용
 
 #### Design Spec → HTML 변환
 
-- `SlidesService.generate_from_design_spec()` — LLM 호출 없는 결정론적 변환
-- PptxSlideSpec → position:absolute HTML div로 직접 매핑:
-  - shapes → `<div>` (배경색, 테두리, border-radius)
-  - textboxes → `<div>` (text runs → `<span>` with inline font styles)
-  - paragraphs/bullets → `<p>`, `<ul>/<li>` 구조
-- `_wrap_with_template()`로 HTML 문서 래핑
+- `SlidesService.generate_from_design_spec()` — LLM 호출 없는 결정론적 변환 (오케스트레이션)
+- HTML 렌더링 로직은 `tools/slides/html_renderer.py`에 분리:
+  - `spec_to_html_section()` — PptxSlideSpec → `<section>` HTML 변환
+  - `shape_to_html()` — shapes → `<div>` (배경색, 테두리, border-radius)
+  - `textbox_to_html()` — textboxes → `<div>` (text runs → `<span>` with inline font styles)
+  - `paragraph_to_html()` — paragraphs/bullets → `<p>`, `<ul>/<li>` 구조
+- `SlidesService._spec_to_html_document()`가 렌더러 + 템플릿 조합
 
 #### Design Spec → PPTX 변환
 
 - `ExportService.export_from_design_spec()` — SlideBuilder 직접 사용
 - DOM 추출/LLM 변환/HTML 파싱 전혀 불필요
 - `DesignSpec.slides` 순회 → `SlideBuilder.build_slide_from_spec()` 직접 호출
+- run/paragraph 포매팅 공통 로직은 `tools/pptx/text_formatter.py`에 분리 (textbox/shape 간 중복 제거)
 - `speaker_notes`는 `PptxSlideSpec`에서 직접 읽어 설정
 
 #### 공유 유틸리티
@@ -99,9 +102,9 @@ class DesignSpec:
 
 - `~/.ppt-generator/<UUID>/design_spec/slide_NN.json` — 슬라이드별 개별 파일 저장 ([ADR-0015](./0015-per-slide-file-separation.md))
 - `~/.ppt-generator/<UUID>/design_spec/design_summary.json` — 첫 슬라이드에서 추출한 디자인 테마 요약 (슬라이드별 생성 시 테마 일관성 유지용)
-- `ProjectService.save_design_spec(dir, DesignSpec)` / `load_design_spec(dir) -> DesignSpec`
-- 슬라이드별 CRUD: `save_design_spec_slide`, `load_design_spec_slide`, `delete_design_spec_slide`, `insert_design_spec_slide`, `create_design_spec_slide`
-- 디자인 요약: `save_design_summary(dir, dict)` / `load_design_summary(dir) -> dict | None`
+- 디자인 스펙 파일 CRUD는 `DesignSpecStore` (`tools/project/design_spec_store.py`)에 전담:
+  - `save_design_spec`, `load_design_spec`, 슬라이드별 CRUD, 디자인 요약 관리
+- `ProjectService`는 `DesignSpecStore`에 위임 (composition)
 
 ### Alternatives Considered
 
@@ -143,13 +146,17 @@ class DesignSpec:
 
 ## References
 
-- 구현: `src/ppt_generator/tools/design/` (service.py, controller.py)
-- 스키마: `src/ppt_generator/interfaces/schemas.py` — `DesignSpec`
+- 디자인 서비스: `src/ppt_generator/tools/design/` (service.py, controller.py)
+- LLM 출력 모델: `src/ppt_generator/interfaces/llm_output_models.py` — `SlideSpecOutput`
+- 도메인 스키마: `src/ppt_generator/interfaces/schemas.py` — `DesignSpec`, `PptxSlideSpec`
 - 유틸리티: `src/ppt_generator/interfaces/spec_utils.py` — `parse_slide_spec`, `validate_slide_spec`, `slide_spec_to_json`, `parse_slide_spec_json`, `design_spec_to_json`, `parse_design_spec_json`
 - 프롬프트: `src/ppt_generator/interfaces/prompts/design_prompts.py`
 - 슬라이드 서비스: `src/ppt_generator/tools/slides/service.py` — `generate_from_design_spec()`
+- HTML 렌더러: `src/ppt_generator/tools/slides/html_renderer.py` — `spec_to_html_section()`
 - PPTX 서비스: `src/ppt_generator/tools/pptx/service.py` — `export_from_design_spec()`
-- 프로젝트 서비스: `src/ppt_generator/tools/project/service.py` — `save_design_spec()`, `load_design_spec()`
+- 텍스트 포매터: `src/ppt_generator/tools/pptx/text_formatter.py` — run/paragraph 공통 포매팅
+- 프로젝트 서비스: `src/ppt_generator/tools/project/service.py` — `save_design_spec()`, `load_design_spec()` (DesignSpecStore에 위임)
+- 디자인 스펙 저장소: `src/ppt_generator/tools/project/design_spec_store.py` — 디자인 스펙 파일 CRUD
 - DI 컨테이너: `src/ppt_generator/di/container.py` — `_create_design_agent()`, `design_service` 프로퍼티
 - MCP 서버: `src/ppt_generator/server.py` — `register_design_tools()` 호출
 - 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0006-pptx-export](./0006-pptx-export.md), [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md), [0011-progressive-refinement-pipeline](./0011-progressive-refinement-pipeline.md), [0016-per-slide-html-iframe](./0016-per-slide-html-iframe.md)

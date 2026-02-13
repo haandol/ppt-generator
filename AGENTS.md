@@ -36,16 +36,20 @@ ppt-generator/
 │   │   ├── pptx/                  # PPTX 내보내기 도구 (F5)
 │   │   │   ├── controller.py      # MCP 인터페이스
 │   │   │   ├── service.py         # ExportService (디자인 스펙 → PPTX)
-│   │   │   └── slide_builder.py   # PptxSlideSpec → python-pptx 변환
+│   │   │   ├── slide_builder.py   # PptxSlideSpec → python-pptx 변환
+│   │   │   └── text_formatter.py  # run/paragraph 포매팅 공통 함수
 │   │   ├── project/               # 프로젝트 저장/로드 도구 (F6)
 │   │   │   ├── controller.py
-│   │   │   └── service.py
+│   │   │   ├── service.py         # 프로젝트 코어 관리 (파일 I/O, 메타데이터)
+│   │   │   └── design_spec_store.py # 디자인 스펙 파일 CRUD 전담 저장소
 │   │   └── slides/                # HTML 슬라이드 생성 도구 (디자인 스펙 → HTML)
 │   │       ├── controller.py
-│   │       └── service.py
+│   │       ├── service.py         # 오케스트레이션 (세션 관리, 템플릿 조합)
+│   │       └── html_renderer.py   # PptxSlideSpec → HTML 변환 렌더러
 │   ├── interfaces/
 │   │   ├── constants.py           # 모델 설정, 수치 상수, 프롬프트 re-export
-│   │   ├── schemas.py             # 데이터클래스 (Request/Response)
+│   │   ├── schemas.py             # 내부 도메인 모델 (dataclass)
+│   │   ├── llm_output_models.py   # LLM structured_output용 Pydantic 모델
 │   │   ├── spec_utils.py          # PptxSlideSpec 파싱/검증/직렬화 공유 유틸리티
 │   │   ├── utils.py               # parse_outline_json 등 공용 파싱 유틸리티
 │   │   └── prompts/               # 프롬프트 템플릿 모듈
@@ -179,7 +183,9 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 
 ## Key Data Schemas
 
-`interfaces/schemas.py`에 `@dataclass`로 정의되어 있습니다.
+내부 도메인 모델은 `interfaces/schemas.py`에 `@dataclass`로, LLM 출력 모델은 `interfaces/llm_output_models.py`에 Pydantic `BaseModel`로 정의되어 있습니다.
+
+### 내부 도메인 모델 (`schemas.py`)
 
 | Schema | 용도 |
 |--------|------|
@@ -192,6 +198,14 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 | `PptxShape` / `PptxSlideSpec` | PPTX 도형/슬라이드 스펙 (speaker_notes 포함) |
 | `DesignSpec` | 프레젠테이션 전체 디자인 스펙 (PptxSlideSpec 리스트) |
 | `ProjectMetadata` | 프로젝트 메타데이터 (topic, num_slides, steps_completed) |
+
+### LLM 출력 모델 (`llm_output_models.py`)
+
+| Schema | 용도 |
+|--------|------|
+| `SlideSpecOutput` | strands `structured_output_model`용 Pydantic 모델. `to_dataclass()`로 `PptxSlideSpec`으로 변환 |
+| `TextRunOutput` / `ParagraphOutput` | LLM 출력용 텍스트 런/단락 |
+| `TextBoxOutput` / `ShapeOutput` | LLM 출력용 텍스트박스/도형 |
 
 ### 슬라이드 아웃라인 JSON
 
@@ -293,5 +307,6 @@ uv run pytest tests/test_xxx.py  # 개별 테스트
 - `di/container.py` - 의존성 주입 설정
 - 기존 도구 시그니처 변경 (MCP 클라이언트 호환성에 영향)
 - Bedrock API 호출 파라미터 변경 (비용 및 품질에 영향)
-- PPTX 변환 로직 (`tools/pptx/service.py`, `slide_builder.py` - 좌표 변환, 스타일 매핑)
+- PPTX 변환 로직 (`tools/pptx/service.py`, `slide_builder.py`, `text_formatter.py` - 좌표 변환, 스타일 매핑)
+- HTML 렌더링 로직 (`tools/slides/html_renderer.py` - PptxSlideSpec → HTML 변환)
 - HTML 템플릿 구조 (`templates/slide.html`, `templates/slides_container.html` - 인라인 CSS, placeholder 구조)

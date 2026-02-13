@@ -49,10 +49,15 @@ HTML 슬라이드를 슬라이드별 개별 파일로 분리하고, `slides.html
 | 메서드 | 변경 내용 |
 |--------|-----------|
 | `generate_from_design_spec()` | 반환타입 변경: `SlidesResponse(html=...)` → `SlidesResponse(slide_htmls=[...], container_html=...)`. 슬라이드별 개별 HTML 생성 + iframe 컨테이너 생성 |
-| `_spec_to_html_document()` | 신규: 단일 PptxSlideSpec → 완전한 HTML 문서 변환 (기존 `_spec_to_html_section()` + 개별 슬라이드용 템플릿 래핑) |
+| `_spec_to_html_document()` | 신규: 단일 PptxSlideSpec → 완전한 HTML 문서 변환 (`html_renderer.spec_to_html_section()` + 개별 슬라이드용 템플릿 래핑) |
 | `_build_container_html()` | 신규: iframe 컨테이너 HTML 생성 |
-| `_spec_to_html_section()` | 유지: 내부적으로 `_spec_to_html_document()`에서 사용 |
 | `_wrap_with_template()` | 제거: 단일 HTML 래핑 불필요 |
+
+#### HTML 렌더러 분리 (html_renderer.py)
+
+HTML 변환 로직은 `tools/slides/html_renderer.py`로 분리:
+- `spec_to_html_section()` — PptxSlideSpec → `<section>` HTML 변환 (SlidesService에서 호출)
+- `textbox_to_html()`, `shape_to_html()`, `paragraph_to_html()`, `run_to_html()`, `escape_html()` — 각 요소별 변환 함수
 
 #### SlidesResponse 변경
 
@@ -158,7 +163,8 @@ class SlidesResponse:
 
 ## References
 
-- 구현: `src/ppt_generator/tools/slides/service.py` — `generate_from_design_spec()`, `_spec_to_html_document()`, `_build_container_html()`
+- 슬라이드 서비스: `src/ppt_generator/tools/slides/service.py` — `generate_from_design_spec()`, `_spec_to_html_document()`, `_build_container_html()` (오케스트레이션)
+- HTML 렌더러: `src/ppt_generator/tools/slides/html_renderer.py` — `spec_to_html_section()` 등 HTML 변환 함수
 - 프로젝트 서비스: `src/ppt_generator/tools/project/service.py` — `save_slides_html()`
 - 컨트롤러: `src/ppt_generator/tools/slides/controller.py`
 - 스키마: `src/ppt_generator/interfaces/schemas.py` — `SlidesResponse`

@@ -148,20 +148,32 @@ ppt-generator/
 │   │   └── container.py           # 의존성 주입 컨테이너
 │   ├── interfaces/
 │   │   ├── constants.py           # 모델 설정, 수치 상수, 프롬프트 re-export
-│   │   ├── schemas.py             # 데이터클래스 (Request/Response)
+│   │   ├── schemas.py             # 내부 도메인 모델 (dataclass)
+│   │   ├── llm_output_models.py   # LLM structured_output용 Pydantic 모델
 │   │   ├── spec_utils.py          # PptxSlideSpec 파싱/검증/직렬화 유틸리티
 │   │   ├── utils.py               # parse_outline_json 등 공용 파싱 유틸리티
 │   │   └── prompts/               # 프롬프트 템플릿 모듈
 │   ├── templates/
-│   │   ├── slides.html            # HTML 슬라이드 템플릿 (TailwindCSS, 수직 스크롤)
+│   │   ├── slide.html             # 개별 슬라이드 HTML 템플릿
+│   │   ├── slides_container.html  # iframe 컨테이너 템플릿
 │   │   └── layout_mapping.py      # layout_index → 슬라이드 레이아웃 매핑
 │   └── tools/
 │       ├── outline/               # F1: 아웃라인 생성
 │       ├── script/                # F2: 발표 스크립트 생성
 │       ├── design/                # 디자인 스펙 생성 (PptxSlideSpec JSON)
 │       ├── slides/                # HTML 슬라이드 생성 (디자인 스펙 → HTML 결정론적 변환)
+│       │   ├── controller.py
+│       │   ├── service.py         # 오케스트레이션 (세션 관리, 템플릿 조합)
+│       │   └── html_renderer.py   # PptxSlideSpec → HTML 변환 렌더러
 │       ├── pptx/                  # PPTX 내보내기 (디자인 스펙 → SlideBuilder 직접 변환)
+│       │   ├── controller.py
+│       │   ├── service.py
+│       │   ├── slide_builder.py   # PptxSlideSpec → python-pptx 변환
+│       │   └── text_formatter.py  # run/paragraph 포매팅 공통 함수
 │       └── project/               # F6: 프로젝트 목록/저장/로드
+│           ├── controller.py
+│           ├── service.py         # 프로젝트 코어 관리
+│           └── design_spec_store.py # 디자인 스펙 파일 CRUD 전담 저장소
 ├── docs/
 │   ├── adr/                       # Architecture Decision Records
 │   ├── ppt-generator.alps.xml     # ALPS 설계 문서
@@ -186,7 +198,12 @@ ppt-generator/
 Controller-Service 패턴 + 의존성 주입(DI):
 
 - **Controller** (`controller.py`): MCP 도구 인터페이스, 입력 검증
-- **Service** (`service.py`): 비즈니스 로직 (API 호출, HTML 생성/수정, PPTX 변환)
+- **Service** (`service.py`): 비즈니스 로직 오케스트레이션
+- **전용 모듈**: 각 서비스의 핵심 로직을 단일 책임 모듈로 분리
+  - `html_renderer.py`: PptxSlideSpec → HTML 변환 렌더러
+  - `text_formatter.py`: python-pptx run/paragraph 포매팅 공통 함수
+  - `design_spec_store.py`: 디자인 스펙 파일 CRUD 전담 저장소
+  - `llm_output_models.py`: LLM structured_output용 Pydantic 모델
 - **DIContainer** (`container.py`): Bedrock 모델, Agent, Service 생성 및 연결
 
 ## 슬라이드 생성 방식

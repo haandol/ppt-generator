@@ -53,20 +53,22 @@ Accepted
 
 기존 `design_spec_to_json`, `parse_design_spec_json`은 인라인 파라미터 하위 호환용으로 유지.
 
-#### ProjectService 변경
+#### DesignSpecStore (design_spec_store.py) — 디자인 스펙 파일 CRUD 전담
 
-| 메서드 | 변경 내용 |
-|--------|-----------|
-| `save_design_spec(dir, DesignSpec)` | 시그니처 변경: `str` → `DesignSpec`. design_spec/ 디렉토리에 개별 파일 저장 |
-| `load_design_spec(dir) -> DesignSpec` | 반환타입 변경: `str` → `DesignSpec`. slide_*.json glob으로 읽기 |
-| `save_design_spec_slide(dir, index, slide)` | 신규: 개별 슬라이드 덮어쓰기 (파일 존재 필수) |
-| `create_design_spec_slide(dir, index, slide)` | 신규: 개별 슬라이드 저장 (파일 유무 무관, 디렉토리 자동 생성) |
-| `load_design_spec_slide(dir, index)` | 신규: 개별 슬라이드 로드 |
-| `delete_design_spec_slide(dir, index)` | 신규: 삭제 + 재번호 |
-| `insert_design_spec_slide(dir, index, slide)` | 신규: 삽입 + 재번호 |
-| `get_design_spec_slide_count(dir)` | 신규: 슬라이드 파일 수 반환 |
-| `save_design_summary(dir, dict)` | 신규: design_summary.json 저장 |
-| `load_design_summary(dir) -> dict \| None` | 신규: design_summary.json 로드 (없으면 None) |
+디자인 스펙 파일 I/O 로직은 `tools/project/design_spec_store.py`의 `DesignSpecStore` 클래스에 전담한다. `ProjectService`는 동일 시그니처의 위임 메서드를 제공하여 기존 호출자의 변경을 최소화한다.
+
+| 메서드 | 설명 |
+|--------|------|
+| `save_design_spec(dir, DesignSpec)` | design_spec/ 디렉토리에 개별 파일 저장 |
+| `load_design_spec(dir) -> DesignSpec` | slide_*.json glob으로 읽기 |
+| `save_design_spec_slide(dir, index, slide)` | 개별 슬라이드 덮어쓰기 (파일 존재 필수) |
+| `create_design_spec_slide(dir, index, slide)` | 개별 슬라이드 저장 (파일 유무 무관, 디렉토리 자동 생성) |
+| `load_design_spec_slide(dir, index)` | 개별 슬라이드 로드 |
+| `delete_design_spec_slide(dir, index)` | 삭제 + 재번호 |
+| `insert_design_spec_slide(dir, index, slide)` | 삽입 + 재번호 |
+| `get_design_spec_slide_count(dir)` | 슬라이드 파일 수 반환 |
+| `save_design_summary(dir, dict)` | design_summary.json 저장 |
+| `load_design_summary(dir) -> dict \| None` | design_summary.json 로드 (없으면 None) |
 
 #### 컨트롤러 반환값 변경
 
@@ -121,7 +123,8 @@ Accepted
 
 ## References
 
-- 구현: `src/ppt_generator/tools/project/service.py` — `save_design_spec()`, `load_design_spec()`, 슬라이드 CRUD 메서드
+- 디자인 스펙 저장소: `src/ppt_generator/tools/project/design_spec_store.py` — `DesignSpecStore` (파일 CRUD 전담)
+- 프로젝트 서비스: `src/ppt_generator/tools/project/service.py` — `DesignSpecStore`에 위임하는 메서드 제공
 - 유틸리티: `src/ppt_generator/interfaces/spec_utils.py` — `slide_spec_to_json()`, `parse_slide_spec_json()`
 - 컨트롤러: `src/ppt_generator/tools/design/controller.py`, `tools/slides/controller.py`, `tools/pptx/controller.py`, `tools/project/controller.py`
 - 테스트: `tests/test_project_service.py` — `TestSaveAndLoadDesignSpec`, `TestDesignSpecSlideCRUD`
