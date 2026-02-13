@@ -37,7 +37,11 @@ Accepted
   project.json         # 메타데이터
   outline.json         # F1 출력
   script.json          # F2 출력
-  design_spec.json     # 디자인 스펙 출력 (PptxSlideSpec JSON, ADR-0013)
+  design_spec/         # 디자인 스펙 출력 (ADR-0013, ADR-0015)
+    slide_01.json      # 슬라이드별 PptxSlideSpec JSON
+    slide_02.json
+    ...
+    design_summary.txt # 디자인 테마 요약 (슬라이드별 생성 시)
   slides.html          # F3/F4 출력
   slides_meta.json     # 세션 메타 (session_id)
   presentation.pptx    # F5 출력 (직접 생성)

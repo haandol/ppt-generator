@@ -138,7 +138,17 @@ F1: generate_outline       → 슬라이드 아웃라인 JSON 생성 (Bedrock LL
     ↓
 F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크립트 생성
     ↓
-    generate_design_spec   → 스크립트 아웃라인 → PptxSlideSpec JSON 디자인 스펙 생성 (LLM)
+    디자인 스펙 생성 (아래 A 또는 B 중 택 1)
+    ↓
+    ┌─ A) 일괄 생성 ─────────────────────────────────────────────────────┐
+    │  generate_design_spec   → 전체 슬라이드 디자인 스펙 한 번에 생성   │
+    └────────────────────────────────────────────────────────────────────┘
+    ┌─ B) 슬라이드별 생성 (권장) ────────────────────────────────────────┐
+    │  for i in 0..N-1:                                                  │
+    │    generate_slide_design_spec(slide[i], slide_index=i, total=N)    │
+    │    ⏸ 사용자 검토                                                   │
+    │    (선택) modify_design_spec(action="update", slide_index=i)       │
+    └────────────────────────────────────────────────────────────────────┘
     ↓
     ⏸ (선택) modify_design_spec → 개별 슬라이드 추가/수정/삭제 (project_id로 참조)
     ↓
@@ -151,6 +161,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 * project_id 기반 체이닝 (권장): generate_design_spec → generate_slides/export_pptx(project_id=...)
 * 모든 도구가 project_id를 자동 생성하여 ~/.ppt-generator/<UUID>/에 결과물을 저장
 * load_* 도구에 project_id를 전달하여 저장된 결과물을 로드, 중간 단계부터 재개 가능
+* generate_slide_design_spec은 첫 슬라이드에서 design_summary.txt를 생성하여 후속 슬라이드의 테마 일관성 유지
 ```
 
 ## Available Tools
@@ -159,7 +170,8 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 |------|--------|-------------|
 | `generate_outline` | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (title, content_summary, component_hint) |
 | `generate_script` | `tools/script/` | 아웃라인 JSON을 기반으로 슬라이드별 발표 스크립트 생성 |
-| `generate_design_spec` | `tools/design/` | 아웃라인 → PptxSlideSpec JSON 디자인 스펙 생성 (LLM) |
+| `generate_design_spec` | `tools/design/` | 아웃라인 → PptxSlideSpec JSON 디자인 스펙 일괄 생성 (LLM) |
+| `generate_slide_design_spec` | `tools/design/` | 단일 슬라이드 디자인 스펙 생성 (슬라이드별 검토/수정 가능) |
 | `modify_design_spec` | `tools/design/` | 디자인 스펙의 개별 슬라이드 추가/수정/삭제 (CRUD) |
 | `generate_slides` | `tools/slides/` | 디자인 스펙 또는 project_id 기반 HTML 슬라이드 생성 (결정론적 변환) |
 | `export_pptx` | `tools/pptx/` | 디자인 스펙 또는 project_id 기반 편집 가능한 PPTX 내보내기 (결정론적 변환) |

@@ -29,9 +29,10 @@ Accepted
 ```
 ~/.ppt-generator/<UUID>/
 ├── design_spec/
-│   ├── slide_01.json    # 단일 PptxSlideSpec
+│   ├── slide_01.json        # 단일 PptxSlideSpec
 │   ├── slide_02.json
-│   └── ...
+│   ├── ...
+│   └── design_summary.txt   # 첫 슬라이드에서 추출한 디자인 테마 요약 (슬라이드별 생성 시)
 ├── slides.html
 └── metadata.json
 ```
@@ -58,11 +59,14 @@ Accepted
 |--------|-----------|
 | `save_design_spec(dir, DesignSpec)` | 시그니처 변경: `str` → `DesignSpec`. design_spec/ 디렉토리에 개별 파일 저장 |
 | `load_design_spec(dir) -> DesignSpec` | 반환타입 변경: `str` → `DesignSpec`. slide_*.json glob으로 읽기 |
-| `save_design_spec_slide(dir, index, slide)` | 신규: 개별 슬라이드 덮어쓰기 |
+| `save_design_spec_slide(dir, index, slide)` | 신규: 개별 슬라이드 덮어쓰기 (파일 존재 필수) |
+| `create_design_spec_slide(dir, index, slide)` | 신규: 개별 슬라이드 저장 (파일 유무 무관, 디렉토리 자동 생성) |
 | `load_design_spec_slide(dir, index)` | 신규: 개별 슬라이드 로드 |
 | `delete_design_spec_slide(dir, index)` | 신규: 삭제 + 재번호 |
 | `insert_design_spec_slide(dir, index, slide)` | 신규: 삽입 + 재번호 |
 | `get_design_spec_slide_count(dir)` | 신규: 슬라이드 파일 수 반환 |
+| `save_design_summary(dir, summary)` | 신규: design_summary.txt 저장 |
+| `load_design_summary(dir) -> str \| None` | 신규: design_summary.txt 로드 (없으면 None) |
 
 #### 컨트롤러 반환값 변경
 
