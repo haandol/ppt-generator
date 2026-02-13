@@ -51,6 +51,7 @@ ppt-generator/
 │   │   ├── schemas.py             # 내부 도메인 모델 (dataclass)
 │   │   ├── llm_output_models.py   # LLM structured_output용 Pydantic 모델
 │   │   ├── spec_utils.py          # PptxSlideSpec 파싱/검증/직렬화 공유 유틸리티
+│   │   ├── text_measurement.py    # 폰트 메트릭 기반 텍스트 크기 추정 (줄바꿈/높이 계산)
 │   │   ├── utils.py               # parse_outline_json 등 공용 파싱 유틸리티
 │   │   └── prompts/               # 프롬프트 템플릿 모듈
 │   │       ├── __init__.py        # 전체 프롬프트 상수 re-export
