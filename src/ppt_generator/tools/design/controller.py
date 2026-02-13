@@ -47,6 +47,70 @@ def register_design_tools(
         )
 
     @mcp.tool()
+    def generate_slide_design_spec(
+        outline_json: str,
+        slide_index: int,
+        total_slides: int,
+        project_id: str = "",
+    ) -> str:
+        """단일 슬라이드의 디자인 스펙을 생성합니다.
+
+        슬라이드를 하나씩 생성하고 검토/수정한 뒤 다음 슬라이드로 진행할 수 있습니다.
+        첫 슬라이드(slide_index=0) 생성 시 디자인 테마를 추출하여 저장하고,
+        이후 슬라이드에서 자동으로 로드하여 시각적 일관성을 유지합니다.
+
+        Args:
+            outline_json: 단일 슬라이드 아웃라인 JSON (title, content_summary, component_hint, speaker_notes)
+            slide_index: 생성할 슬라이드 인덱스 (0-based)
+            total_slides: 전체 슬라이드 수
+            project_id: 프로젝트 ID (미지정 시 자동 생성)
+
+        Returns:
+            design_spec_dir, slide_file, slide_index, slide_count, total_slides, project_id를 포함하는 JSON 문자열
+        """
+        outline = parse_outline_json(outline_json)
+        slide_outline = outline.slides[0]
+
+        project_id, project_dir = project_service.resolve_project_dir(project_id)
+
+        # 디자인 요약 결정
+        design_summary = ""
+        if slide_index > 0:
+            design_summary = project_service.load_design_summary(project_dir) or ""
+
+        # 슬라이드 생성 (1-based index를 프롬프트에 전달)
+        spec = design_service.generate_single_slide(
+            slide_outline,
+            design_summary=design_summary,
+            slide_index=slide_index + 1,
+            total_slides=total_slides,
+        )
+
+        # 저장
+        project_service.create_design_spec_slide(project_dir, slide_index, spec)
+
+        # 첫 슬라이드인 경우 디자인 요약 추출 및 저장
+        if slide_index == 0:
+            summary = design_service._extract_design_summary(spec)
+            project_service.save_design_summary(project_dir, summary)
+
+        project_service.update_step(project_dir, "design_spec")
+        slide_count = project_service.get_design_spec_slide_count(project_dir)
+        slide_file = f"slide_{slide_index + 1:02d}.json"
+
+        return json.dumps(
+            {
+                "design_spec_dir": str(project_dir / "design_spec"),
+                "slide_file": slide_file,
+                "slide_index": slide_index,
+                "slide_count": slide_count,
+                "total_slides": total_slides,
+                "project_id": project_id,
+            },
+            ensure_ascii=False,
+        )
+
+    @mcp.tool()
     def modify_design_spec(
         project_id: str,
         action: str,

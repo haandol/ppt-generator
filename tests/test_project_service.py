@@ -301,6 +301,48 @@ class TestDesignSpecSlideCRUD:
         assert project_service.get_design_spec_slide_count(project_dir) == 4
 
 
+class TestCreateDesignSpecSlide:
+    def test_creates_slide_without_existing_file(self, project_service: ProjectService, project_dir: Path) -> None:
+        slide = _make_slide_spec("새 슬라이드")
+        project_service.create_design_spec_slide(project_dir, 0, slide)
+        loaded = project_service.load_design_spec_slide(project_dir, 0)
+        assert loaded.textboxes[0].paragraphs[0].runs[0].text == "새 슬라이드"
+
+    def test_overwrites_existing_file(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_design_spec(project_dir, _make_design_spec(3))
+        new_slide = _make_slide_spec("덮어쓴 슬라이드")
+        project_service.create_design_spec_slide(project_dir, 1, new_slide)
+        loaded = project_service.load_design_spec_slide(project_dir, 1)
+        assert loaded.textboxes[0].paragraphs[0].runs[0].text == "덮어쓴 슬라이드"
+
+    def test_creates_design_spec_dir_if_missing(self, project_service: ProjectService, project_dir: Path) -> None:
+        slide = _make_slide_spec("테스트")
+        project_service.create_design_spec_slide(project_dir, 0, slide)
+        assert (project_dir / "design_spec").is_dir()
+        assert (project_dir / "design_spec" / "slide_01.json").exists()
+
+
+class TestSaveAndLoadDesignSummary:
+    def test_roundtrip(self, project_service: ProjectService, project_dir: Path) -> None:
+        summary = "배경: #1a1a2e, 텍스트: 흰색"
+        project_service.save_design_summary(project_dir, summary)
+        loaded = project_service.load_design_summary(project_dir)
+        assert loaded == summary
+
+    def test_load_returns_none_when_missing(self, project_service: ProjectService, project_dir: Path) -> None:
+        result = project_service.load_design_summary(project_dir)
+        assert result is None
+
+    def test_creates_design_spec_dir_if_missing(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_design_summary(project_dir, "테스트 요약")
+        assert (project_dir / "design_spec" / "design_summary.txt").exists()
+
+    def test_not_counted_as_slide(self, project_service: ProjectService, project_dir: Path) -> None:
+        """design_summary.txt는 slide_*.json glob에 매칭되지 않는다."""
+        project_service.save_design_summary(project_dir, "요약")
+        assert project_service.get_design_spec_slide_count(project_dir) == 0
+
+
 class TestLoadNonexistentRaises:
     def test_outline(self, project_service: ProjectService, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):

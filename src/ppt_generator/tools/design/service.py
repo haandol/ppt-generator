@@ -82,12 +82,16 @@ class DesignService:
         self,
         slide_outline: SlideOutline,
         design_summary: str = "",
+        slide_index: int = 1,
+        total_slides: int = 1,
     ) -> PptxSlideSpec:
         """단일 슬라이드의 디자인 스펙을 생성한다.
 
         Args:
             slide_outline: 슬라이드 아웃라인
             design_summary: 기존 디자인 요약 (제공 시 일관성 유지)
+            slide_index: 슬라이드 번호 (1-based)
+            total_slides: 전체 슬라이드 수
 
         Returns:
             생성된 PptxSlideSpec
@@ -96,15 +100,15 @@ class DesignService:
 
         if design_summary:
             prompt = DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE.format(
-                slide_index=1,
-                total_slides=1,
+                slide_index=slide_index,
+                total_slides=total_slides,
                 design_summary=design_summary,
                 outline_json=outline_json,
             )
         else:
             prompt = DESIGN_SPEC_USER_PROMPT_TEMPLATE.format(
-                slide_index=1,
-                total_slides=1,
+                slide_index=slide_index,
+                total_slides=total_slides,
                 outline_json=outline_json,
             )
 

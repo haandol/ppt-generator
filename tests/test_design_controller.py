@@ -234,3 +234,96 @@ class TestModifyDesignSpec:
                 project_id=project_id,
                 action="add",
             )
+
+
+class TestGenerateSlideDesignSpec:
+    """generate_slide_design_spec 도구 테스트."""
+
+    def _setup_project(self, tmp_path: Path, monkeypatch) -> str:
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+        proj_dir = tmp_path / "slide-proj"
+        proj_dir.mkdir()
+        (proj_dir / "project.json").write_text(
+            json.dumps({"topic": "", "num_slides": 0, "steps_completed": {}}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        return "slide-proj"
+
+    def test_first_slide_creates_design_summary(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        project_id = self._setup_project(tmp_path, monkeypatch)
+
+        result = json.loads(mcp_tools["generate_slide_design_spec"](
+            outline_json=SAMPLE_OUTLINE_JSON,
+            slide_index=0,
+            total_slides=5,
+            project_id=project_id,
+        ))
+
+        assert result["slide_index"] == 0
+        assert result["total_slides"] == 5
+        assert result["slide_count"] == 1
+        assert result["project_id"] == project_id
+        assert result["slide_file"] == "slide_01.json"
+
+        # design_summary.txt가 생성되었는지 확인
+        summary_path = tmp_path / project_id / "design_spec" / "design_summary.txt"
+        assert summary_path.exists()
+
+    def test_subsequent_slide_loads_design_summary(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        project_id = self._setup_project(tmp_path, monkeypatch)
+
+        # 첫 슬라이드 생성
+        mcp_tools["generate_slide_design_spec"](
+            outline_json=SAMPLE_OUTLINE_JSON,
+            slide_index=0,
+            total_slides=3,
+            project_id=project_id,
+        )
+
+        # 두 번째 슬라이드 생성
+        result = json.loads(mcp_tools["generate_slide_design_spec"](
+            outline_json=SAMPLE_OUTLINE_JSON,
+            slide_index=1,
+            total_slides=3,
+            project_id=project_id,
+        ))
+
+        assert result["slide_index"] == 1
+        assert result["slide_count"] == 2
+        assert result["slide_file"] == "slide_02.json"
+
+        # design_service.generate_single_slide가 design_summary와 함께 호출되었는지 확인
+        design_service = mcp_tools["_design_service"]
+        last_call = design_service.generate_single_slide.call_args
+        assert last_call.kwargs.get("design_summary") or last_call[1].get("design_summary") or (len(last_call[0]) > 1 and last_call[0][1])
+
+    def test_return_structure(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        project_id = self._setup_project(tmp_path, monkeypatch)
+
+        result = json.loads(mcp_tools["generate_slide_design_spec"](
+            outline_json=SAMPLE_OUTLINE_JSON,
+            slide_index=0,
+            total_slides=10,
+            project_id=project_id,
+        ))
+
+        assert "design_spec_dir" in result
+        assert "slide_file" in result
+        assert "slide_index" in result
+        assert "slide_count" in result
+        assert "total_slides" in result
+        assert "project_id" in result
+
+    def test_auto_generates_project_id(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        result = json.loads(mcp_tools["generate_slide_design_spec"](
+            outline_json=SAMPLE_OUTLINE_JSON,
+            slide_index=0,
+            total_slides=1,
+        ))
+
+        assert result["project_id"]
+        assert len(result["project_id"]) == 36  # UUID
