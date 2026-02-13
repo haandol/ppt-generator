@@ -30,7 +30,7 @@ adr/
 - [0008: 템플릿 분석](./pipeline/0008-template-analysis.md)
 - [0010: 워킹 디렉토리 통합 및 슬라이드 개별 생성/수정](./pipeline/0010-workspace-and-per-slide.md)
 - [0011: 점진적 구체화 파이프라인 설계](./pipeline/0011-progressive-refinement-pipeline.md)
-- [0012: 레이아웃 골격(Skeleton) 기반 위치 강제](./pipeline/0012-layout-skeleton-enforcement.md)
+- [0012: 레이아웃 골격(Skeleton) 기반 위치 강제](./pipeline/0012-layout-skeleton-enforcement.md) — *Superseded by 0013*
 - [0013: 디자인 스펙 기반 슬라이드 생성 파이프라인](./pipeline/0013-design-spec-pipeline.md)
 - [0014: 파일 기반 통신 및 슬라이드 단위 CRUD](./pipeline/0014-file-based-communication-and-per-slide-crud.md)
 - [0015: 디자인 스펙 슬라이드별 파일 분리](./pipeline/0015-per-slide-file-separation.md)

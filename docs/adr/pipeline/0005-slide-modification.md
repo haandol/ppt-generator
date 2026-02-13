@@ -74,10 +74,6 @@ sequenceDiagram
 
 ## References
 
-- 구현: `src/ppt_generator/tools/slides/service.py` — `SlidesService.modify()`
-- 컨트롤러: `src/ppt_generator/tools/slides/controller.py` — `modify_slides` MCP 도구
-- 프롬프트: `src/ppt_generator/interfaces/constants.py` — `SLIDES_MODIFY_SYSTEM_PROMPT`, `SLIDES_MODIFY_USER_PROMPT_TEMPLATE`
-- 테스트: `tests/test_slides_service.py` — `TestModify` 클래스
-- 좌표 검증: `src/ppt_generator/tools/slides/service.py` — `_validate_region_styles()`, `_detect_layout_index_from_html()`
-- 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0012-layout-skeleton-enforcement](./0012-layout-skeleton-enforcement.md)
+- 대체 구현: `src/ppt_generator/tools/design/controller.py` — `modify_design_spec` MCP 도구
+- 관련 ADR: [0013-design-spec-pipeline](./0013-design-spec-pipeline.md), [0014-file-based-communication-and-per-slide-crud](./0014-file-based-communication-and-per-slide-crud.md)
 - ALPS: Section 7.4

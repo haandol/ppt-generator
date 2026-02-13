@@ -34,7 +34,7 @@ Accepted
 │   ├── ...
 │   └── design_summary.json   # 첫 슬라이드에서 추출한 디자인 테마 요약 (슬라이드별 생성 시)
 ├── slides.html
-└── metadata.json
+└── project.json
 ```
 
 ### Technical Details

@@ -69,6 +69,7 @@ Accepted
 ## References
 
 - [ADR 0007: 파이프라인 결과물 저장/로드](./0007-pipeline-artifact-persistence.md)
-- `src/ppt_generator/interfaces/constants.py` - `PPT_GENERATOR_HOME`, `SLIDES_MAX_PER_BATCH`
-- `src/ppt_generator/tools/project/service.py` - `resolve_project_dir()`, `list_projects()`
-- `src/ppt_generator/tools/slides/service.py` - `_modify_single_slide()`
+- `src/ppt_generator/interfaces/constants.py` — `PPT_GENERATOR_HOME`
+- `src/ppt_generator/tools/project/service.py` — `resolve_project_dir()`, `list_projects()`
+
+> **Note**: 슬라이드 개별 생성/수정 관련 구현은 ADR-0013(디자인 스펙 파이프라인)으로 대체되었습니다. `SLIDES_MAX_PER_BATCH` 상수와 `_modify_single_slide()` 메서드는 레거시 HTML 경로와 함께 제거되었습니다.
