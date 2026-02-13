@@ -120,12 +120,10 @@ sequenceDiagram
 
 ## References
 
-- 구현: `src/ppt_generator/tools/pptx/service.py` — `ExportService`
+- 현재 구현: `src/ppt_generator/tools/pptx/service.py` — `ExportService.export_from_design_spec()`
 - 컨트롤러: `src/ppt_generator/tools/pptx/controller.py` — `export_pptx` MCP 도구
-- 의존: `src/ppt_generator/tools/slides/service.py` — `SlidesService.get_session_html()`
-- CSS 인라이너: `src/ppt_generator/tools/slides/css_inliner.py` — `inline_css_classes()`
-- 스키마: `src/ppt_generator/interfaces/schemas.py` — `PptxSlideSpec`, `PptxTextBox`, `PptxShape`, `PptxTextRun`, `PptxParagraph`
-- 프롬프트: `src/ppt_generator/interfaces/constants.py` — `PPTX_CONVERT_SYSTEM_PROMPT`, `PPTX_CONVERT_MODEL_ID`
+- 슬라이드 빌더: `src/ppt_generator/tools/pptx/slide_builder.py` — `SlideBuilder`
+- 스키마: `src/ppt_generator/interfaces/schemas.py` — `DesignSpec`, `PptxSlideSpec`, `PptxTextBox`, `PptxShape`, `PptxTextRun`, `PptxParagraph`
 - 테스트: `tests/test_pptx_service.py`
-- 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0005-slide-modification](./0005-slide-modification.md), [0012-layout-skeleton-enforcement](./0012-layout-skeleton-enforcement.md), [0013-design-spec-pipeline](./0013-design-spec-pipeline.md)
+- 관련 ADR: [0013-design-spec-pipeline](./0013-design-spec-pipeline.md)
 - ALPS: Section 7.5

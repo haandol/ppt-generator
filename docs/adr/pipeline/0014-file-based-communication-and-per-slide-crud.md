@@ -45,8 +45,8 @@ MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 �
 #### 도구 우선순위
 
 ```
-generate_slides: design_spec_json > project_id (자동 로드) > outline_json
-export_pptx:     design_spec_json > session_id > project_id (자동 로드)
+generate_slides: design_spec_json > project_id (자동 로드)
+export_pptx:     design_spec_json > project_id (자동 로드)
 ```
 
 #### project_id 기반 체이닝 (권장 흐름)
@@ -81,7 +81,7 @@ generate_outline → generate_script
 2. `generate_slides(project_id=...)` 만으로 HTML 슬라이드가 생성된다
 3. `export_pptx(project_id=...)` 만으로 PPTX가 생성된다
 4. `modify_design_spec`으로 개별 슬라이드 add/update/delete가 동작한다
-5. 기존 경로(design_spec_json 직접 전달, outline_json, session_id)가 하위 호환 유지된다
+5. `design_spec_json` 직접 전달 경로도 동작한다 (인라인 파라미터 하위 호환)
 6. `generate_slide_design_spec`으로 슬라이드를 하나씩 생성할 수 있다
 7. 첫 슬라이드 생성 시 `design_summary.json`가 생성되고, 후속 슬라이드에서 로드된다
 
@@ -92,7 +92,7 @@ generate_outline → generate_script
 - **토큰 절감**: 인라인 JSON 제거로 MCP 클라이언트의 컨텍스트 윈도우 낭비 방지
 - **슬라이드 단위 반복**: 전체 재생성 없이 개별 슬라이드 추가/수정/삭제 가능
 - **단순한 체이닝**: project_id만으로 도구 연쇄 호출 가능
-- **하위 호환**: 기존 인라인 JSON 방식도 모두 동작
+- **하위 호환**: `design_spec_json` 인라인 파라미터 방식도 동작
 
 ### Negative
 

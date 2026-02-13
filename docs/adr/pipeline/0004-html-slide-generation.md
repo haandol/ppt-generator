@@ -107,13 +107,12 @@ LLM 응답에서 `<section>` 요소를 추출하는 3단계 fallback:
 2. 완전한 HTML 문서가 반환된 경우 `<section>` 태그만 추출
 3. `<section>` 태그가 직접 포함된 경우 regex로 추출
 
-### 디자인 스펙 결정론적 변환 경로 (신규)
+### 현재 구현: 디자인 스펙 결정론적 변환 경로
 
-[ADR-0013](./0013-design-spec-pipeline.md)에서 도입된 **디자인 스펙(PptxSlideSpec JSON)** 입력 경로가 추가되었다. `design_spec_json` 파라미터가 제공되면 LLM 호출 없이 `SlidesService.generate_from_design_spec()`으로 position:absolute HTML을 결정론적으로 생성한다.
+[ADR-0013](./0013-design-spec-pipeline.md)에서 도입된 **디자인 스펙(PptxSlideSpec JSON)** 경로만 지원된다. 기존 LLM 기반 HTML 생성 경로는 완전 제거되었다.
 
 ```
-디자인 스펙 경로: DesignSpec → position:absolute HTML 결정론적 변환 (LLM 미사용)
-기존 HTML 경로:  아웃라인 → 골격 생성 → LLM 콘텐츠 채우기 → 좌표 검증 (하위 호환 유지)
+현재: DesignSpec → position:absolute HTML 결정론적 변환 (LLM 미사용)
 ```
 
 ### MCP Tool Interface
@@ -121,7 +120,7 @@ LLM 응답에서 `<section>` 요소를 추출하는 3단계 fallback:
 | 항목 | 값 |
 |------|-----|
 | Tool | `generate_slides` |
-| 입력 | `outline_json: str` (기존 HTML 경로) 또는 `design_spec_json: str` (디자인 스펙 경로), `project_id: str` (선택) |
+| 입력 | `design_spec_json: str` (선택) 또는 `project_id: str` (선택, 디자인 스펙 자동 로드) |
 | 출력 | session_id, slides_html_path, project_id를 포함하는 JSON |
 
 ### Acceptance Criteria
@@ -171,11 +170,8 @@ sequenceDiagram
 
 ## References
 
-- 구현: `src/ppt_generator/tools/slides/` (controller.py, service.py, css_inliner.py)
+- 현재 구현: `src/ppt_generator/tools/slides/` (controller.py, service.py)
 - 템플릿: `src/ppt_generator/templates/slides.html`
-- 스키마: `src/ppt_generator/interfaces/schemas.py` — `SlidesRequest`, `SlidesResponse`
-- 골격 생성: `src/ppt_generator/interfaces/constants.py` — `build_layout_skeleton()`, `LAYOUT_REGIONS`
-- 프롬프트: `src/ppt_generator/interfaces/constants.py` — `SLIDES_REGION_SYSTEM_PROMPT`, `SLIDES_REGION_USER_PROMPT_TEMPLATE`
-- 좌표 검증: `src/ppt_generator/tools/slides/service.py` — `_validate_region_styles()`
-- 관련 ADR: [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md), [0012-layout-skeleton-enforcement](./0012-layout-skeleton-enforcement.md), [0013-design-spec-pipeline](./0013-design-spec-pipeline.md)
+- 스키마: `src/ppt_generator/interfaces/schemas.py` — `SlidesResponse`, `DesignSpec`
+- 관련 ADR: [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md), [0013-design-spec-pipeline](./0013-design-spec-pipeline.md)
 - ALPS: Section 7.3

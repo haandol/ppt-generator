@@ -47,7 +47,6 @@ MCP 도구:
 - `load_outline(project_id)` → 아웃라인 JSON
 - `load_script(project_id)` → 스크립트 JSON (speaker_notes 포함 아웃라인)
 - `load_design_spec(project_id)` → 디자인 스펙 정보 (design_spec_dir, slide_count, slide_files; [ADR-0013](./0013-design-spec-pipeline.md), [ADR-0015](./0015-per-slide-file-separation.md))
-- `load_slides_html(project_id)` → `{"session_id", "html"}` JSON (세션 복원 포함)
 
 기존 generate 도구 변경: 모두 `project_id: str = ""` 파라미터 추가.
 

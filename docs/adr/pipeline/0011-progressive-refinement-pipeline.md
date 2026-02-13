@@ -26,7 +26,7 @@ Accepted (Updated: 디자인 스펙 중간 표현 추가, [ADR-0013](./0013-desi
         └→ PPTX             — SlideBuilder 직접 사용, 편집 가능한 포맷
 ```
 
-> **Note**: 기존 HTML 중간 표현 경로(아웃라인 → HTML → PPTX)도 하위 호환을 위해 유지됩니다.
+> **Note**: 기존 HTML 중간 표현 경로(아웃라인 → LLM HTML → PPTX)는 디자인 스펙 파이프라인으로 완전 대체되어 제거되었습니다.
 > 디자인 스펙 경로는 [ADR-0013](./0013-design-spec-pipeline.md)에서 상세히 설명합니다.
 
 ### 각 단계의 설계 의도
@@ -36,9 +36,9 @@ Accepted (Updated: 디자인 스펙 중간 표현 추가, [ADR-0013](./0013-desi
 | **텍스트** (사용자 입력) | 가장 추상적 | 사용자는 주제만 제공. 구조화 부담 없음 |
 | **아웃라인** (F1) | 구조화 | 슬라이드의 뼈대를 JSON으로 정리. 제목, 내용 요약, layout_index, component_hint 결정. speaker_notes는 비워두어 구조와 내용을 분리 |
 | **스크립트** (F2) | 구체적 | 확정된 구조 위에 발표 내용을 채움. 구조를 먼저 확정했으므로 내용이 구조에 맞게 생성됨 |
-| **디자인 스펙** (신규) | 정밀한 레이아웃 설계 | LLM(Opus 4.6)이 PptxSlideSpec JSON으로 각 요소의 좌표/크기/서식을 정밀하게 설계. 단일 소스에서 HTML과 PPTX를 결정론적으로 생성 |
-| **HTML 슬라이드** (F3) | 브라우저 미리보기 | 디자인 스펙 경로: PptxSlideSpec → position:absolute HTML로 결정론적 변환. 기존 경로: LLM이 자유 형식 HTML/CSS 생성 |
-| **PPTX** (F5) | 편집 가능한 최종물 | 디자인 스펙 경로: SlideBuilder가 PptxSlideSpec에서 직접 PPTX 생성. 기존 경로: HTML 역분석 폴백 체인 |
+| **디자인 스펙** | 정밀한 레이아웃 설계 | LLM(Opus 4.6)이 PptxSlideSpec JSON으로 각 요소의 좌표/크기/서식을 정밀하게 설계. 단일 소스에서 HTML과 PPTX를 결정론적으로 생성 |
+| **HTML 슬라이드** (F3) | 브라우저 미리보기 | PptxSlideSpec → position:absolute HTML로 결정론적 변환 (LLM 미사용) |
+| **PPTX** (F5) | 편집 가능한 최종물 | SlideBuilder가 PptxSlideSpec에서 직접 PPTX 생성 (LLM 미사용) |
 
 ### 왜 아웃라인과 스크립트를 분리하는가
 

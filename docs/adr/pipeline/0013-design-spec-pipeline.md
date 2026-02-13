@@ -101,7 +101,7 @@ class DesignSpec:
 - `~/.ppt-generator/<UUID>/design_spec/design_summary.json` — 첫 슬라이드에서 추출한 디자인 테마 요약 (슬라이드별 생성 시 테마 일관성 유지용)
 - `ProjectService.save_design_spec(dir, DesignSpec)` / `load_design_spec(dir) -> DesignSpec`
 - 슬라이드별 CRUD: `save_design_spec_slide`, `load_design_spec_slide`, `delete_design_spec_slide`, `insert_design_spec_slide`, `create_design_spec_slide`
-- 디자인 요약: `save_design_summary(dir, str)` / `load_design_summary(dir) -> str | None`
+- 디자인 요약: `save_design_summary(dir, dict)` / `load_design_summary(dir) -> dict | None`
 
 ### Alternatives Considered
 
