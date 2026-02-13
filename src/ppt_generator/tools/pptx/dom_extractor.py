@@ -26,7 +26,7 @@ from ppt_generator.tools.pptx.html_parser import (
     extract_head_html,
     parse_slides,
 )
-from ppt_generator.tools.pptx.llm_converter import validate_slide_spec
+from ppt_generator.interfaces.spec_utils import validate_slide_spec
 
 try:
     from playwright.sync_api import sync_playwright

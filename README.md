@@ -1,8 +1,12 @@
 # PPT Generator
 
-주제를 입력하면 AI가 자동으로 HTML/CSS 기반 프레젠테이션을 생성하고, 사용자의 수정 요청을 반영한 뒤 편집 가능한 PPTX로 내보내는 MCP 서버입니다.
+주제를 입력하면 AI가 자동으로 프레젠테이션을 생성하고, 사용자의 수정 요청을 반영한 뒤 편집 가능한 PPTX로 내보내는 MCP 서버입니다.
 
-Amazon Bedrock Claude로 콘텐츠를 생성하고, HTML/CSS 기반 슬라이드로 자유로운 디자인을 구현합니다. 생성된 HTML은 브라우저에서 수직 스크롤로 디자인을 확인할 수 있으며, 최종 확정 후 python-pptx로 편집 가능한 PPTX 파일로 내보냅니다. Claude Desktop, Kiro 등 MCP 호환 클라이언트에서 사용할 수 있습니다.
+Amazon Bedrock Claude로 콘텐츠를 생성하고, 두 가지 경로로 슬라이드를 생성합니다:
+- **디자인 스펙 경로 (신규)**: LLM이 PptxSlideSpec JSON으로 정밀한 레이아웃을 설계하고, 단일 소스에서 HTML 미리보기와 PPTX를 각각 결정론적으로 생성
+- **HTML 경로 (기존)**: LLM이 자유 형식 HTML/CSS 슬라이드를 생성하고, HTML 역분석 폴백 체인으로 PPTX 변환
+
+Claude Desktop, Kiro 등 MCP 호환 클라이언트에서 사용할 수 있습니다.
 
 ## 처리 파이프라인
 
@@ -14,28 +18,40 @@ Amazon Bedrock Claude로 콘텐츠를 생성하고, HTML/CSS 기반 슬라이드
 텍스트 (가장 추상적)       — 사용자가 주제만 입력
   → 아웃라인 (구조화)      — 슬라이드 구성·요점·레이아웃을 JSON으로 정리
     → 스크립트 (구체적)     — 발표 내용(speaker_notes)을 채움
-      → HTML 슬라이드       — LLM이 <section> 생성 → 템플릿에 삽입
-        → PPTX              — 자유도를 최대한 유지하면서 편집 가능한 포맷으로 변환
+      → 디자인 스펙         — PptxSlideSpec JSON으로 정밀한 레이아웃 설계
+        ├→ HTML 슬라이드    — 결정론적 변환, 브라우저 미리보기용
+        └→ PPTX             — SlideBuilder 직접 사용, 편집 가능한 포맷
 ```
 
-HTML을 중간 표현으로 사용하는 이유는, python-pptx 직접 생성 대비 LLM이 HTML/CSS 코드로 자유 배치·스타일링을 할 수 있어 디자인 자유도가 훨씬 높기 때문입니다. LLM은 `<section>` 요소만 생성하고, 서비스가 템플릿(`slides.html`)에 삽입하여 일관된 슬라이드 구조를 보장합니다. 생성된 HTML은 브라우저에서 수직 스크롤로 디자인을 확인할 수 있으며, 최종 PPTX 변환 시에는 `<section>` 내 HTML 요소를 개별 편집 가능한 PPTX 객체(텍스트박스, 이미지, 도형)로 매핑하여 실무 편집성을 확보합니다.
+디자인 스펙(PptxSlideSpec JSON)을 중간 표현으로 사용하여, 단일 소스에서 HTML과 PPTX를 각각 결정론적으로 생성합니다. LLM이 각 요소의 좌표/크기/서식을 JSON으로 정밀하게 설계하고, 이를 기반으로 HTML 미리보기(position:absolute 변환)와 PPTX(SlideBuilder 직접 호출)를 생성합니다. 기존 HTML 경로(LLM이 자유 형식 HTML/CSS 생성 → HTML 역분석 PPTX 변환)도 하위 호환을 위해 유지됩니다.
 
 ### 파이프라인 흐름
 
 ```
 사용자 입력 (주제 + 슬라이드 수)
     ↓
-F1: generate_outline   → 슬라이드 아웃라인 JSON 생성
+F1: generate_outline       → 슬라이드 아웃라인 JSON 생성
     ↓
-    ⏸ 사용자 확인       → 아웃라인 구조 검토 및 승인 (수정 시 F1 재호출)
+    ⏸ 사용자 확인           → 아웃라인 구조 검토 및 승인 (수정 시 F1 재호출)
     ↓
-F2: generate_script    → 아웃라인 기반 발표 스크립트 생성 (speaker_notes 채움)
+F2: generate_script        → 아웃라인 기반 발표 스크립트 생성 (speaker_notes 채움)
     ↓
-F3: generate_slides    → 아웃라인 → HTML 슬라이드 생성 (1장씩 개별)
-    ↓ (선택)
-F4: modify_slides      → 사용자 수정 요청 반영 (슬라이드 단위 또는 전체, 반복 가능)
-    ↓
-F5: export_pptx        → 편집 가능한 PPTX 파일 내보내기
+    ┌─────────────────────── 디자인 스펙 경로 (신규, 권장) ───────────────────────┐
+    │ generate_design_spec   → PptxSlideSpec JSON 디자인 스펙 생성               │
+    │     ↓                                                                       │
+    │ F3: generate_slides    → 디자인 스펙 → HTML 결정론적 변환 (미리보기)        │
+    │     ↓ (선택)                                                                │
+    │ F4: modify_slides      → 사용자 수정 요청 반영                              │
+    │     ↓                                                                       │
+    │ F5: export_pptx        → 디자인 스펙 → PPTX 직접 생성 (SlideBuilder)       │
+    └─────────────────────────────────────────────────────────────────────────────┘
+    ┌─────────────────────── HTML 경로 (기존, 하위 호환) ─────────────────────────┐
+    │ F3: generate_slides    → 아웃라인 → HTML 슬라이드 생성 (LLM)               │
+    │     ↓ (선택)                                                                │
+    │ F4: modify_slides      → 사용자 수정 요청 반영                              │
+    │     ↓                                                                       │
+    │ F5: export_pptx        → HTML → PPTX 변환 (DOM추출/LLM변환/룰기반 폴백)    │
+    └─────────────────────────────────────────────────────────────────────────────┘
     ↓
 출력: .pptx 파일 경로
 ```
@@ -49,6 +65,7 @@ F5: export_pptx        → 편집 가능한 PPTX 파일 내보내기
   project.json         # 메타데이터 (주제, 슬라이드 수, 단계 완료 상태)
   outline.json         # F1 출력
   script.json          # F2 출력
+  design_spec.json     # 디자인 스펙 출력 (PptxSlideSpec JSON)
   slides.html          # F3/F4 출력
   slides_meta.json     # 세션 메타 (session_id)
   presentation.pptx    # F5 출력
@@ -102,9 +119,10 @@ uv run pytest
 |------|------|------|------|
 | `generate_outline` | 슬라이드 아웃라인 생성 | 주제, 슬라이드 수, [project_id] | 아웃라인 JSON + project_id |
 | `generate_script` | 발표 스크립트 생성 | 아웃라인 JSON, [project_id] | speaker_notes 포함 아웃라인 JSON + project_id |
-| `generate_slides` | HTML 슬라이드 생성 | 아웃라인 JSON, [project_id] | session_id + HTML + project_id |
+| `generate_design_spec` | 디자인 스펙 생성 | 아웃라인 JSON, [project_id] | PptxSlideSpec JSON + project_id |
+| `generate_slides` | HTML 슬라이드 생성 | 아웃라인 JSON 또는 design_spec_json, [project_id] | session_id + HTML + project_id |
 | `modify_slides` | 슬라이드 수정 | 세션 ID, 수정 요청, [slide_index], [project_id] | session_id + 수정된 HTML + project_id |
-| `export_pptx` | PPTX 내보내기 | 세션 ID, [project_id] | project_id + .pptx 파일 경로 |
+| `export_pptx` | PPTX 내보내기 | 세션 ID 또는 design_spec_json, [project_id] | project_id + .pptx 파일 경로 |
 
 ### 프로젝트 관리 도구
 
@@ -114,6 +132,7 @@ uv run pytest
 | `load_project_status` | 프로젝트 상태 로드 | project_id | 메타데이터 JSON |
 | `load_outline` | 저장된 아웃라인 로드 | project_id | 아웃라인 JSON |
 | `load_script` | 저장된 스크립트 로드 | project_id | speaker_notes 포함 아웃라인 JSON |
+| `load_design_spec` | 저장된 디자인 스펙 로드 | project_id | PptxSlideSpec JSON |
 | `load_slides_html` | 저장된 슬라이드 로드 + 세션 복원 | project_id | session_id + HTML |
 
 ## 프로젝트 구조
@@ -126,13 +145,15 @@ ppt-generator/
 │   │   └── container.py           # 의존성 주입 컨테이너
 │   ├── interfaces/
 │   │   ├── constants.py           # 모델 설정, 프롬프트, 상수
-│   │   └── schemas.py             # 데이터클래스 (Request/Response)
+│   │   ├── schemas.py             # 데이터클래스 (Request/Response)
+│   │   └── spec_utils.py          # PptxSlideSpec 파싱/검증/직렬화 유틸리티
 │   ├── templates/
 │   │   ├── slides.html            # HTML 슬라이드 템플릿 (TailwindCSS, 수직 스크롤)
 │   │   └── layout_mapping.py      # layout_index → 슬라이드 레이아웃 매핑
 │   └── tools/
 │       ├── outline/               # F1: 아웃라인 생성
 │       ├── script/                # F2: 발표 스크립트 생성
+│       ├── design/                # 디자인 스펙 생성 (PptxSlideSpec JSON)
 │       ├── slides/                # F3/F4: HTML 슬라이드 생성 + 수정 (css_inliner.py 포함)
 │       ├── pptx/                  # F5: PPTX 내보내기
 │       └── project/               # F6: 프로젝트 목록/저장/로드
@@ -150,9 +171,9 @@ ppt-generator/
 |-----------|------|
 | 프로토콜 | Model Context Protocol (MCP) |
 | 에이전트 프레임워크 | AWS Strands SDK |
-| LLM | Amazon Bedrock - Claude Opus 4.6 (슬라이드), Sonnet 4.5 (아웃라인/스크립트/PPTX 변환) |
+| LLM | Amazon Bedrock - Claude Opus 4.6 (슬라이드/디자인 스펙), Sonnet 4.5 (아웃라인/스크립트/PPTX 변환) |
 | 슬라이드 프레임워크 | 순수 HTML/CSS (TailwindCSS + 인라인 스타일, JavaScript 없음, 수직 스크롤) |
-| PPTX 내보내기 | python-pptx (HTML → PPTX 변환, LLM 기반 좌표 추출) |
+| PPTX 내보내기 | python-pptx (디자인 스펙 직접 생성 또는 HTML → PPTX 변환) |
 | HTML 파싱 | BeautifulSoup (`<section>` 기반 슬라이드 파싱) |
 | 스크린샷 | Playwright (HTML → 이미지 캡처, PPTX 변환 시 활용) |
 | 패키지 관리 | uv + hatchling |
@@ -167,5 +188,7 @@ Controller-Service 패턴 + 의존성 주입(DI):
 
 ## 슬라이드 생성 방식
 
-LLM이 아웃라인(title, content_summary, component_hint)을 기반으로 자유 형식 HTML/CSS 슬라이드를 생성합니다.
-스켈레톤이나 고정 좌표 없이, LLM이 직접 `<section>` 요소의 전체 HTML을 작성합니다.
+두 가지 슬라이드 생성 경로를 지원합니다:
+
+- **디자인 스펙 경로 (권장)**: LLM(Opus 4.6)이 아웃라인을 기반으로 PptxSlideSpec JSON을 생성하고, 이를 position:absolute HTML로 결정론적 변환하여 미리보기를 제공합니다. PPTX는 SlideBuilder가 디자인 스펙에서 직접 생성합니다.
+- **HTML 경로 (기존)**: LLM이 아웃라인(title, content_summary, component_hint)을 기반으로 자유 형식 HTML/CSS 슬라이드를 생성합니다. PPTX 변환 시 DOM 추출/LLM 변환/룰 기반 폴백 체인을 사용합니다.

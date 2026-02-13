@@ -118,12 +118,20 @@ flowchart LR
 flowchart TD
     A[사용자 입력: 주제 + 슬라이드 수] --> B[Bedrock LLM: 슬라이드 아웃라인 생성]
     B --> B1[Bedrock LLM: 아웃라인 기반 슬라이드별 스크립트 생성]
-    B1 --> E[HTML/CSS 슬라이드 생성 + 필요시 Gemini 이미지 생성]
-    E --> F{사용자 확인}
+    B1 --> DS{경로 선택}
+    DS -- "디자인 스펙 경로 (권장)" --> DS1[Bedrock Opus 4.6: PptxSlideSpec JSON 생성]
+    DS1 --> DS2[결정론적 HTML 변환: 미리보기]
+    DS2 --> F{사용자 확인}
+    DS1 --> DS3[SlideBuilder: PPTX 직접 생성]
+    DS -- "HTML 경로 (기존)" --> E[HTML/CSS 슬라이드 생성 + 필요시 Gemini 이미지 생성]
+    E --> F
     F -- "수정 요청" --> G[Bedrock LLM: 수정 사항 반영]
-    G --> E
-    F -- "확정" --> H[python-pptx: PPTX 내보내기]
-    H --> I[.pptx 파일 반환]
+    G --> F
+    F -- "확정" --> H{PPTX 내보내기}
+    H -- "디자인 스펙" --> DS3
+    H -- "HTML 경로" --> H1[DOM추출/LLM변환/룰기반 폴백]
+    DS3 --> I[.pptx 파일 반환]
+    H1 --> I
 ```
 
 ### 4.3. 기술 스택
@@ -149,9 +157,10 @@ flowchart TD
 |-----------|-----------|------|------|
 | `generate_outline` | F1 | 주제, 슬라이드 수 | 아웃라인 JSON (제목, 본문, 이미지 아이디어, 레이아웃 타입, speaker_notes 비어있음) |
 | `generate_script` | F2 | 아웃라인 JSON | 아웃라인 JSON (speaker_notes 채워짐) |
-| `generate_slides` | F3 | 슬라이드 아웃라인 | HTML 슬라이드 (이미지는 필요한 경우 내부 생성) |
+| `generate_design_spec` | 디자인 스펙 | 아웃라인 JSON | PptxSlideSpec JSON (좌표/크기/서식 정밀 설계) |
+| `generate_slides` | F3 | 아웃라인 JSON 또는 design_spec_json | HTML 슬라이드 (디자인 스펙 시 결정론적 변환, 아웃라인 시 LLM 생성) |
 | `modify_slides` | F4 | 세션 ID, 수정 요청 (자연어) | 수정된 HTML 슬라이드 |
-| `export_pptx` | F5 | 세션 ID | .pptx 파일 경로 |
+| `export_pptx` | F5 | 세션 ID 또는 design_spec_json | .pptx 파일 경로 |
 
 ### 5.2. 사용자 흐름
 
@@ -207,7 +216,8 @@ sequenceDiagram
 | F2 | 발표 스크립트 생성 | 아웃라인 JSON을 기반으로 슬라이드별 발표자 노트(speaker_notes) 생성 | Must-Have |
 | F3 | HTML 슬라이드 생성 | 아웃라인 기반 HTML/CSS 자유 레이아웃 슬라이드 생성. 이미지는 필요한 경우 Gemini로 내부 생성. 발표자 노트 포함 | Must-Have |
 | F4 | 슬라이드 수정 | 사용자의 자연어 수정 요청을 받아 HTML 슬라이드를 업데이트하는 인터랙티브 수정 루프 | Must-Have |
-| F5 | PPTX 내보내기 | 최종 확정된 HTML 슬라이드를 python-pptx로 변환하여 편집 가능한 PPTX 파일 생성. 발표자 노트 포함 | Must-Have |
+| - | 디자인 스펙 생성 | 아웃라인 기반으로 PptxSlideSpec JSON 디자인 스펙 생성 (LLM). 단일 소스에서 HTML/PPTX 결정론적 생성 | Must-Have |
+| F5 | PPTX 내보내기 | 디자인 스펙에서 SlideBuilder 직접 생성 또는 HTML 역분석 변환. 편집 가능한 PPTX 파일 생성. 발표자 노트 포함 | Must-Have |
 
 ### 6.2. 비기능 요구사항
 
@@ -283,7 +293,19 @@ sequenceDiagram
 - As a 사내 직원, I want to 아웃라인 기반으로 전문적인 디자인의 슬라이드를 즉시 확인하길 원한다, so that 결과물을 미리 검토하고 수정 요청을 할 수 있다.
 
 #### 7.3.2 흐름
-1. MCP 클라이언트에서 `generate_slides(outline)` 호출
+
+**디자인 스펙 경로 (design_spec_json 입력 시):**
+1. MCP 클라이언트에서 `generate_slides(design_spec_json=...)` 호출
+2. PptxSlideSpec JSON을 파싱하여 DesignSpec 객체로 변환
+3. 각 PptxSlideSpec을 position:absolute HTML div로 결정론적 변환 (LLM 호출 없음)
+   - shapes → `<div>` (배경색, 테두리, border-radius)
+   - textboxes → `<div>` (text runs → `<span>` with inline font styles)
+   - paragraphs/bullets → `<p>`, `<ul>/<li>` 구조
+4. HTML 템플릿에 삽입하여 세션 ID 부여 및 저장
+5. HTML 슬라이드와 세션 ID 반환
+
+**HTML 경로 (outline_json 입력 시, 기존):**
+1. MCP 클라이언트에서 `generate_slides(outline_json=...)` 호출
 2. 슬라이드마다 `layout_index`를 확인하여, 이미지가 필요한 슬라이드는 Gemini로 이미지를 내부 생성
 3. 슬라이드마다 `LAYOUT_REGIONS` 좌표를 사용하여 `position:absolute` div 골격(skeleton) HTML을 코드로 생성
 4. Bedrock LLM에 골격 HTML과 아웃라인 JSON을 전달하여, 각 `data-region` div 내부의 `<!-- CONTENT:xxx -->` 마커를 실제 HTML 컨텐츠로 교체하도록 요청
@@ -365,7 +387,17 @@ sequenceDiagram
 - As a 사내 직원, I want to 최종 확정된 슬라이드를 편집 가능한 PPTX 파일로 내보내길 원한다, so that PowerPoint에서 추가 편집하고 발표에 활용할 수 있다.
 
 #### 7.5.2 흐름
-1. MCP 클라이언트에서 `export_pptx(session_id)` 호출
+
+**디자인 스펙 경로 (design_spec_json 입력 시):**
+1. MCP 클라이언트에서 `export_pptx(design_spec_json=...)` 호출
+2. PptxSlideSpec JSON을 파싱하여 DesignSpec 객체로 변환
+3. `DesignSpec.slides` 순회 → `SlideBuilder.build_slide_from_spec()` 직접 호출
+4. `speaker_notes`는 PptxSlideSpec에서 직접 읽어 PPTX 발표자 노트에 설정
+5. DOM 추출/LLM 변환/HTML 파싱 전혀 불필요
+6. 완성된 .pptx 파일 경로 반환
+
+**HTML 경로 (session_id 입력 시, 기존):**
+1. MCP 클라이언트에서 `export_pptx(session_id=...)` 호출
 2. 서버에서 세션 ID에 해당하는 최종 HTML 슬라이드 상태를 로드
 3. F3/F4를 거쳐 확정된 HTML 슬라이드를 파싱하여 각 슬라이드의 요소(텍스트, 이미지, 도형, 위치, 스타일) 추출
 4. python-pptx로 추출된 요소를 개별 객체로 변환하여 PPTX 생성:

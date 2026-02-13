@@ -4,7 +4,7 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted
+Accepted (Updated: 디자인 스펙 영속화 추가, [ADR-0013](./0013-design-spec-pipeline.md) 참조)
 
 ## Context
 
@@ -32,6 +32,7 @@ Accepted
   project.json        # 메타데이터 (topic, num_slides, 각 단계 완료 상태/타임스탬프)
   outline.json        # F1 출력
   script.json         # F2 출력
+  design_spec.json    # 디자인 스펙 출력 (PptxSlideSpec JSON, ADR-0013)
   slides.html         # F3/F4 출력
   slides_meta.json    # 세션 메타 (session_id)
   presentation.pptx   # F5 출력
@@ -42,6 +43,7 @@ MCP 도구:
 - `load_project_status(project_id)` → 메타데이터 JSON
 - `load_outline(project_id)` → 아웃라인 JSON
 - `load_script(project_id)` → 스크립트 JSON (speaker_notes 포함 아웃라인)
+- `load_design_spec(project_id)` → 디자인 스펙 JSON (PptxSlideSpec 배열, [ADR-0013](./0013-design-spec-pipeline.md))
 - `load_slides_html(project_id)` → `{"session_id", "html"}` JSON (세션 복원 포함)
 
 기존 generate 도구 변경: 모두 `project_id: str = ""` 파라미터 추가.
@@ -84,4 +86,4 @@ MCP 도구:
 - 수정: 각 `tools/*/controller.py`, `di/container.py`, `server.py`
 - 스키마: `interfaces/schemas.py` (`ProjectMetadata`)
 - 테스트: `tests/test_project_service.py`
-- 관련 ADR: [0001](./0001-script-generation.md)~[0006](./0006-pptx-export.md) 전체
+- 관련 ADR: [0001](./0001-outline-generation.md)~[0006](./0006-pptx-export.md) 전체, [0013-design-spec-pipeline](./0013-design-spec-pipeline.md)

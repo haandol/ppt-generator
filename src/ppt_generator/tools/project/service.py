@@ -57,6 +57,11 @@ class ProjectService:
         )
         logger.info("slides.html 저장 완료: %s", project_dir)
 
+    def save_design_spec(self, project_dir: Path, design_spec_json: str) -> None:
+        self._ensure_dir(project_dir)
+        (project_dir / "design_spec.json").write_text(design_spec_json, encoding="utf-8")
+        logger.info("design_spec.json 저장 완료: %s", project_dir)
+
     def save_pptx(self, project_dir: Path, pptx_path: str) -> None:
         self._ensure_dir(project_dir)
         src = Path(pptx_path)
@@ -102,6 +107,10 @@ class ProjectService:
 
     def load_script(self, project_dir: Path) -> str:
         path = project_dir / "script.json"
+        return path.read_text(encoding="utf-8")
+
+    def load_design_spec(self, project_dir: Path) -> str:
+        path = project_dir / "design_spec.json"
         return path.read_text(encoding="utf-8")
 
     def load_slides_html(self, project_dir: Path) -> tuple[str, str]:
