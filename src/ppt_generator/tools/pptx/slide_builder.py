@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import re
+from io import BytesIO
 
 from bs4 import Tag
 from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE
-from pptx.enum.text import MSO_AUTO_SIZE
+from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
 from pptx.oxml.ns import qn
 from pptx.util import Emu, Inches, Pt
 
@@ -19,8 +20,13 @@ from ppt_generator.interfaces.constants import (
     PPTX_BULLET_MARGIN_EMU_L0,
     PPTX_BULLET_MARGIN_EMU_L1,
     PPTX_FONT_NAME,
+    PPTX_MONOSPACE_FONT_NAME,
+    PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU,
+    PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU,
+    PX_TO_EMU,
 )
 from ppt_generator.interfaces.schemas import (
+    PptxImage,
     PptxParagraph,
     PptxShape,
     PptxSlideSpec,
@@ -51,9 +57,13 @@ class SlideBuilder:
 
     @staticmethod
     def ensure_textboxes_on_top(slide) -> None:
-        """spTree XML을 재정렬하여 텍스트박스가 항상 도형 위(z-order 최상위)에 오도록 보장."""
+        """spTree XML을 재정렬하여 텍스트박스가 항상 도형 위(z-order 최상위)에 오도록 보장.
+
+        z-order: shapes(최하단) → pictures(중간) → textboxes(최상단)
+        """
         sp_tree = slide.shapes._spTree
         shape_elements = []
+        picture_elements = []
         textbox_elements = []
 
         shape_map = {}
@@ -61,7 +71,11 @@ class SlideBuilder:
             shape_map[id(shape._element)] = shape
 
         sp_tag = qn("p:sp")
+        pic_tag = qn("p:pic")
         for child in list(sp_tree):
+            if child.tag == pic_tag:
+                picture_elements.append(child)
+                continue
             if child.tag != sp_tag:
                 continue
             shape_obj = shape_map.get(id(child))
@@ -77,9 +91,11 @@ class SlideBuilder:
             else:
                 shape_elements.append(child)
 
-        for el in shape_elements + textbox_elements:
+        for el in shape_elements + picture_elements + textbox_elements:
             sp_tree.remove(el)
         for el in shape_elements:
+            sp_tree.append(el)
+        for el in picture_elements:
             sp_tree.append(el)
         for el in textbox_elements:
             sp_tree.append(el)
@@ -108,8 +124,31 @@ class SlideBuilder:
         """PptxSlideSpec을 python-pptx 슬라이드 요소로 배치."""
         for shape in spec.shapes:
             self._add_shape_from_spec(slide, shape)
+        for image in spec.images:
+            self._add_image_from_spec(slide, image)
         for tb in spec.textboxes:
             self._add_textbox_from_spec(slide, tb)
+
+    _ALIGN_MAP = {
+        "center": PP_ALIGN.CENTER,
+        "right": PP_ALIGN.RIGHT,
+        "left": PP_ALIGN.LEFT,
+    }
+
+    _ANCHOR_MAP = {"top": "t", "middle": "ctr", "bottom": "b"}
+
+    def _add_image_from_spec(self, slide, image_spec: PptxImage) -> None:
+        """PptxImage spec으로 이미지를 슬라이드에 삽입."""
+        if not image_spec.image_bytes:
+            return
+        image_stream = BytesIO(image_spec.image_bytes)
+        slide.shapes.add_picture(
+            image_stream,
+            Inches(image_spec.left_px * EXPORT_PX_TO_INCHES_X),
+            Inches(image_spec.top_px * EXPORT_PX_TO_INCHES_Y),
+            Inches(image_spec.width_px * EXPORT_PX_TO_INCHES_X),
+            Inches(image_spec.height_px * EXPORT_PX_TO_INCHES_Y),
+        )
 
     def _add_textbox_from_spec(self, slide, tb: PptxTextBox) -> None:
         """PptxTextBox spec으로 텍스트박스를 생성."""
@@ -123,8 +162,8 @@ class SlideBuilder:
         tf.word_wrap = True
         tf.auto_size = MSO_AUTO_SIZE.NONE
 
-        tf.margin_left = Emu(45720)
-        tf.margin_right = Emu(45720)
+        tf.margin_left = Emu(0)
+        tf.margin_right = Emu(0)
         tf.margin_top = Emu(0)
         tf.margin_bottom = Emu(0)
 
@@ -139,7 +178,10 @@ class SlideBuilder:
                     continue
                 run = para.add_run()
                 run.text = run_spec.text
-                run.font.name = PPTX_FONT_NAME
+                if run_spec.font_family == "monospace":
+                    run.font.name = PPTX_MONOSPACE_FONT_NAME
+                else:
+                    run.font.name = PPTX_FONT_NAME
                 if run_spec.font_size_pt:
                     run.font.size = Pt(run_spec.font_size_pt)
                 run.font.bold = run_spec.bold
@@ -152,6 +194,18 @@ class SlideBuilder:
             if para_spec.bullet_level >= 0:
                 self._apply_bullet(para, para_spec.bullet_level)
 
+            if para_spec.alignment and para_spec.alignment in self._ALIGN_MAP:
+                para.alignment = self._ALIGN_MAP[para_spec.alignment]
+
+        if tb.line_spacing_pt:
+            for para in tf.paragraphs:
+                para.line_spacing = Pt(tb.line_spacing_pt)
+
+        if tb.vertical_alignment and tb.vertical_alignment in self._ANCHOR_MAP:
+            bodyPr = tf._txBody.find(qn("a:bodyPr"))
+            if bodyPr is not None:
+                bodyPr.set("anchor", self._ANCHOR_MAP[tb.vertical_alignment])
+
     def _add_shape_from_spec(self, slide, shape_spec: PptxShape) -> None:
         """PptxShape spec으로 도형을 생성."""
         left = shape_spec.left_px * EXPORT_PX_TO_INCHES_X
@@ -162,6 +216,7 @@ class SlideBuilder:
         shape_type_map = {
             "rectangle": MSO_SHAPE.RECTANGLE,
             "rounded_rectangle": MSO_SHAPE.ROUNDED_RECTANGLE,
+            "ellipse": MSO_SHAPE.OVAL,
             "line": MSO_SHAPE.RECTANGLE,
         }
         mso_shape = shape_type_map.get(shape_spec.shape_type, MSO_SHAPE.RECTANGLE)
@@ -187,15 +242,76 @@ class SlideBuilder:
         else:
             shape.line.fill.background()
 
-        if shape_spec.text:
+        if shape_spec.paragraphs:
             tf = shape.text_frame
             tf.word_wrap = True
             tf.auto_size = MSO_AUTO_SIZE.NONE
 
-            tf.margin_left = Emu(91440)
-            tf.margin_right = Emu(91440)
-            tf.margin_top = Emu(45720)
-            tf.margin_bottom = Emu(45720)
+            if shape_spec.padding_left_px is not None:
+                tf.margin_left = Emu(int(shape_spec.padding_left_px * PX_TO_EMU))
+            else:
+                tf.margin_left = Emu(PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU)
+            if shape_spec.padding_right_px is not None:
+                tf.margin_right = Emu(int(shape_spec.padding_right_px * PX_TO_EMU))
+            else:
+                tf.margin_right = Emu(PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU)
+            if shape_spec.padding_top_px is not None:
+                tf.margin_top = Emu(int(shape_spec.padding_top_px * PX_TO_EMU))
+            else:
+                tf.margin_top = Emu(PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU)
+            if shape_spec.padding_bottom_px is not None:
+                tf.margin_bottom = Emu(int(shape_spec.padding_bottom_px * PX_TO_EMU))
+            else:
+                tf.margin_bottom = Emu(PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU)
+
+            for p_idx, para_spec in enumerate(shape_spec.paragraphs):
+                if p_idx == 0:
+                    para = tf.paragraphs[0]
+                else:
+                    para = tf.add_paragraph()
+
+                for run_spec in para_spec.runs:
+                    if not run_spec.text:
+                        continue
+                    run = para.add_run()
+                    run.text = run_spec.text
+                    if run_spec.font_family == "monospace":
+                        run.font.name = PPTX_MONOSPACE_FONT_NAME
+                    else:
+                        run.font.name = PPTX_FONT_NAME
+                    if run_spec.font_size_pt:
+                        run.font.size = Pt(run_spec.font_size_pt)
+                    run.font.bold = run_spec.bold
+                    run.font.italic = run_spec.italic
+                    if run_spec.color:
+                        rgb = parse_color(run_spec.color)
+                        if rgb:
+                            run.font.color.rgb = rgb
+
+                if para_spec.bullet_level >= 0:
+                    self._apply_bullet(para, para_spec.bullet_level)
+
+                if para_spec.alignment and para_spec.alignment in self._ALIGN_MAP:
+                    para.alignment = self._ALIGN_MAP[para_spec.alignment]
+
+            if shape_spec.line_spacing_pt:
+                for para in tf.paragraphs:
+                    para.line_spacing = Pt(shape_spec.line_spacing_pt)
+
+            if shape_spec.vertical_alignment and shape_spec.vertical_alignment in self._ANCHOR_MAP:
+                bodyPr = tf._txBody.find(qn("a:bodyPr"))
+                if bodyPr is not None:
+                    bodyPr.set("anchor", self._ANCHOR_MAP[shape_spec.vertical_alignment])
+
+        elif shape_spec.text:
+            tf = shape.text_frame
+            tf.word_wrap = True
+            tf.auto_size = MSO_AUTO_SIZE.NONE
+
+            tf.margin_left = Emu(45720)
+            tf.margin_right = Emu(45720)
+            tf.margin_top = Emu(22860)
+            tf.margin_bottom = Emu(22860)
 
             txBody = tf._txBody
             bodyPr = txBody.find(qn("a:bodyPr"))
