@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Presentation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: '맑은 고딕', 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+            background: #1a1a1a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 60px 20px;
+            gap: 28px;
+        }
+        .slide-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            width: 1280px;
+        }
+        .slide-number {
+            font-size: 14px;
+            color: #606366;
+            padding: 0 12px 6px;
+            font-variant-numeric: tabular-nums;
+        }
+        iframe {
+            width: 1280px;
+            height: 720px;
+            border: none;
+            border-radius: 8px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+        }
+    </style>
+</head>
+<body>
+{slides_content}
+</body>
+</html>

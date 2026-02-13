@@ -66,7 +66,11 @@ F2: generate_script        → 아웃라인 기반 발표 스크립트 생성 (s
     slide_02.json
     ...
     design_summary.json   # 디자인 테마 요약 (슬라이드별 생성 시)
-  slides.html             # HTML 미리보기 출력
+  slides/                 # HTML 슬라이드 출력 (슬라이드별 개별 파일)
+    slide_01.html         # 슬라이드별 완전한 HTML 문서
+    slide_02.html
+    ...
+  slides.html             # iframe 컨테이너 (각 슬라이드를 iframe으로 참조)
   slides_meta.json        # 세션 메타 (session_id)
   presentation.pptx       # PPTX 내보내기 출력
 ```

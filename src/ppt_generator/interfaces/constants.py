@@ -88,6 +88,10 @@ PX_TO_EMU = 9525                            # 914400 / 96
 
 SLIDES_TEMPLATE_PATH = Path(__file__).parent.parent / \
     "templates" / "slides.html"
+SLIDE_TEMPLATE_PATH = Path(__file__).parent.parent / \
+    "templates" / "slide.html"
+SLIDES_CONTAINER_TEMPLATE_PATH = Path(__file__).parent.parent / \
+    "templates" / "slides_container.html"
 
 SLIDE_WIDTH = 1280
 SLIDE_HEIGHT = 720
@@ -120,7 +124,8 @@ __all__ = [
     "PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU", "PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU", "PX_TO_EMU",
     "PPTX_VALIDATE_FONT_MIN_PT", "PPTX_VALIDATE_FONT_MAX_PT", "PPTX_VALIDATE_LINE_HEIGHT_FACTOR",
     "EXPORT_PX_TO_INCHES_X", "EXPORT_PX_TO_INCHES_Y",
-    "SLIDES_TEMPLATE_PATH", "SLIDE_WIDTH", "SLIDE_HEIGHT", "SLIDE_FOOTER_HEIGHT",
+    "SLIDES_TEMPLATE_PATH", "SLIDE_TEMPLATE_PATH", "SLIDES_CONTAINER_TEMPLATE_PATH",
+    "SLIDE_WIDTH", "SLIDE_HEIGHT", "SLIDE_FOOTER_HEIGHT",
     # JSON schemas
     "OUTLINE_JSON_SCHEMA", "SCRIPT_JSON_SCHEMA",
     # Prompts (re-exported from prompts module)

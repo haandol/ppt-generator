@@ -152,4 +152,4 @@ class DesignSpec:
 - 프로젝트 서비스: `src/ppt_generator/tools/project/service.py` — `save_design_spec()`, `load_design_spec()`
 - DI 컨테이너: `src/ppt_generator/di/container.py` — `_create_design_agent()`, `design_service` 프로퍼티
 - MCP 서버: `src/ppt_generator/server.py` — `register_design_tools()` 호출
-- 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0006-pptx-export](./0006-pptx-export.md), [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md), [0011-progressive-refinement-pipeline](./0011-progressive-refinement-pipeline.md)
+- 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0006-pptx-export](./0006-pptx-export.md), [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md), [0011-progressive-refinement-pipeline](./0011-progressive-refinement-pipeline.md), [0016-per-slide-html-iframe](./0016-per-slide-html-iframe.md)

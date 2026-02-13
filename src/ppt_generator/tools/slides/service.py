@@ -4,21 +4,16 @@ import logging
 import uuid
 
 from ppt_generator.interfaces.constants import (
-    PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU,
-    PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU,
-    PX_TO_EMU,
-    SLIDES_TEMPLATE_PATH,
+    SLIDE_TEMPLATE_PATH,
+    SLIDES_CONTAINER_TEMPLATE_PATH,
 )
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
-    PptxParagraph,
-    PptxShape,
     PptxSlideSpec,
-    PptxTextBox,
-    PptxTextRun,
     SlidesResponse,
 )
 from ppt_generator.interfaces.spec_utils import validate_slide_spec
+from ppt_generator.tools.slides.html_renderer import spec_to_html_section
 
 logger = logging.getLogger(__name__)
 
@@ -28,209 +23,60 @@ class SlidesService:
         self._sessions: dict[str, str] = {}
 
     def generate_from_design_spec(self, design_spec: DesignSpec) -> SlidesResponse:
-        """DesignSpec(PptxSlideSpec 리스트)을 결정론적으로 HTML로 변환한다.
+        """DesignSpec(PptxSlideSpec 리스트)을 슬라이드별 HTML + iframe 컨테이너로 변환한다.
 
-        LLM 호출 없이 PptxSlideSpec → position:absolute HTML div로 변환.
+        LLM 호출 없이 PptxSlideSpec -> position:absolute HTML div로 변환.
+        각 슬라이드는 완전한 HTML 문서로 생성되며, 컨테이너는 iframe으로 참조.
         """
         if not design_spec.slides:
             raise ValueError("디자인 스펙에 슬라이드가 없습니다.")
 
-        sections: list[str] = []
+        slide_htmls: list[str] = []
         for idx, raw_spec in enumerate(design_spec.slides):
             spec = validate_slide_spec(raw_spec)
-            section_html = self._spec_to_html_section(idx, spec)
-            sections.append(section_html)
+            slide_html = self._spec_to_html_document(idx, spec)
+            slide_htmls.append(slide_html)
 
-        combined = "\n".join(sections)
-        html = self._wrap_with_template(combined)
+        container_html = self._build_container_html(len(slide_htmls))
 
         session_id = str(uuid.uuid4())
-        self._sessions[session_id] = html
+        self._sessions[session_id] = container_html
 
         logger.info(
-            "Design Spec → HTML 변환 완료: session_id=%s, 슬라이드 수=%d",
+            "Design Spec -> HTML 변환 완료: session_id=%s, 슬라이드 수=%d",
             session_id, len(design_spec.slides),
         )
-        return SlidesResponse(session_id=session_id, html=html)
-
-    @staticmethod
-    def _spec_to_html_section(slide_index: int, spec: PptxSlideSpec) -> str:
-        """PptxSlideSpec 하나를 <section> HTML로 결정론적 변환."""
-        bg = spec.background_color or "#1a1a2e"
-        notes_attr = ""
-        if spec.speaker_notes:
-            escaped_notes = spec.speaker_notes.replace('"', "&quot;").replace("<", "&lt;").replace(">", "&gt;")
-            notes_attr = f' data-speaker-notes="{escaped_notes}"'
-
-        parts: list[str] = []
-        parts.append(
-            f'<section id="slide-{slide_index}"{notes_attr}>'
-            f'<div style="position:absolute;top:0;left:0;right:0;bottom:0;'
-            f'background-color:{bg};overflow:hidden;">'
+        return SlidesResponse(
+            session_id=session_id,
+            slide_htmls=slide_htmls,
+            container_html=container_html,
         )
 
-        # shapes를 먼저 렌더링 (z-order 하단)
-        for shape in spec.shapes:
-            parts.append(_shape_to_html(shape))
+    @staticmethod
+    def _spec_to_html_document(slide_index: int, spec: PptxSlideSpec) -> str:
+        """PptxSlideSpec 하나를 완전한 HTML 문서로 변환."""
+        section_html = spec_to_html_section(slide_index, spec)
+        template = SLIDE_TEMPLATE_PATH.read_text(encoding="utf-8")
+        return template.replace("{slide_content}", section_html)
 
-        # textboxes를 나중에 렌더링 (z-order 상단)
-        for tb in spec.textboxes:
-            parts.append(_textbox_to_html(tb))
-
-        parts.append("</div></section>")
-        return "\n".join(parts)
+    @staticmethod
+    def _build_container_html(slide_count: int) -> str:
+        """iframe 컨테이너 HTML을 생성한다."""
+        parts: list[str] = []
+        for i in range(slide_count):
+            filename = f"slide_{i + 1:02d}.html"
+            parts.append(
+                f'<div class="slide-wrapper">\n'
+                f'    <div class="slide-number">{i + 1} / {slide_count}</div>\n'
+                f'    <iframe src="slides/{filename}"></iframe>\n'
+                f'</div>'
+            )
+        content = "\n".join(parts)
+        template = SLIDES_CONTAINER_TEMPLATE_PATH.read_text(encoding="utf-8")
+        return template.replace("{slides_content}", content)
 
     def get_session_html(self, session_id: str) -> str:
         html = self._sessions.get(session_id)
         if html is None:
             raise KeyError(f"세션을 찾을 수 없습니다: {session_id}")
         return html
-
-    @staticmethod
-    def _wrap_with_template(sections_html: str) -> str:
-        """section 요소들을 HTML 템플릿에 삽입하여 완전한 HTML 문서 생성."""
-        template = SLIDES_TEMPLATE_PATH.read_text(encoding="utf-8")
-        return template.replace("{slides_content}", sections_html.strip())
-
-
-# ---------------------------------------------------------------------------
-# PptxSlideSpec → HTML 변환 헬퍼 (모듈 수준)
-# ---------------------------------------------------------------------------
-
-def _escape_html(text: str) -> str:
-    """HTML 특수문자 이스케이프."""
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
-
-def _run_to_html(run: PptxTextRun) -> str:
-    """PptxTextRun → <span> 변환."""
-    styles: list[str] = []
-    if run.font_size_pt:
-        styles.append(f"font-size:{run.font_size_pt}pt")
-    if run.color:
-        styles.append(f"color:{run.color}")
-    if run.bold:
-        styles.append("font-weight:bold")
-    if run.italic:
-        styles.append("font-style:italic")
-    if run.font_family == "monospace":
-        styles.append("font-family:Consolas,'Courier New',monospace")
-
-    text = _escape_html(run.text)
-    if styles:
-        return f'<span style="{";".join(styles)}">{text}</span>'
-    return text
-
-
-def _paragraph_to_html(para: PptxParagraph) -> str:
-    """PptxParagraph → HTML 변환."""
-    runs_html = "".join(_run_to_html(r) for r in para.runs)
-    align_style = ""
-    if para.alignment:
-        align_style = f" style=\"text-align:{para.alignment}\""
-
-    if para.bullet_level >= 0:
-        indent = 20 * (para.bullet_level + 1)
-        return f'<li style="margin-left:{indent}px{(";text-align:" + para.alignment) if para.alignment else ""}">{runs_html}</li>'
-    return f"<p{align_style}>{runs_html}</p>"
-
-
-def _textbox_to_html(tb: PptxTextBox) -> str:
-    """PptxTextBox → position:absolute <div> 변환."""
-    style = (
-        f"position:absolute;"
-        f"left:{tb.left_px}px;top:{tb.top_px}px;"
-        f"width:{tb.width_px}px;height:{tb.height_px}px;"
-        f"padding:0;box-sizing:border-box;"
-        f"overflow:hidden;"
-    )
-    if tb.line_spacing_pt:
-        style += f"line-height:{tb.line_spacing_pt}pt;"
-    if tb.vertical_alignment == "middle":
-        style += "display:flex;flex-direction:column;justify-content:center;"
-    elif tb.vertical_alignment == "bottom":
-        style += "display:flex;flex-direction:column;justify-content:flex-end;"
-
-    # 불릿 그룹핑
-    has_bullets = any(p.bullet_level >= 0 for p in tb.paragraphs)
-    inner_parts: list[str] = []
-    if has_bullets:
-        bullet_items: list[str] = []
-        for para in tb.paragraphs:
-            html = _paragraph_to_html(para)
-            if para.bullet_level >= 0:
-                bullet_items.append(html)
-            else:
-                if bullet_items:
-                    inner_parts.append(f'<ul style="list-style:disc;padding-left:20px;margin:0">{"".join(bullet_items)}</ul>')
-                    bullet_items = []
-                inner_parts.append(html)
-        if bullet_items:
-            inner_parts.append(f'<ul style="list-style:disc;padding-left:20px;margin:0">{"".join(bullet_items)}</ul>')
-    else:
-        for para in tb.paragraphs:
-            inner_parts.append(_paragraph_to_html(para))
-
-    return f'<div style="{style}">{"".join(inner_parts)}</div>'
-
-
-def _shape_to_html(shape: PptxShape) -> str:
-    """PptxShape → position:absolute <div> 변환."""
-    style = (
-        f"position:absolute;"
-        f"left:{shape.left_px}px;top:{shape.top_px}px;"
-        f"width:{shape.width_px}px;height:{shape.height_px}px;"
-    )
-    if shape.fill_color:
-        style += f"background-color:{shape.fill_color};"
-    if shape.border_color:
-        bw = shape.border_width_pt or 1
-        style += f"border:{bw}pt solid {shape.border_color};"
-    if shape.corner_radius_px:
-        style += f"border-radius:{shape.corner_radius_px}px;"
-    if shape.shape_type == "rounded_rectangle" and not shape.corner_radius_px:
-        style += "border-radius:8px;"
-    if shape.shape_type == "ellipse":
-        style += "border-radius:50%;"
-
-    style += "overflow:hidden;"
-
-    # 패딩 (PPTX 기본값: 45720/22860 EMU → px 변환)
-    default_lr = PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU / PX_TO_EMU
-    default_tb = PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU / PX_TO_EMU
-    pl = shape.padding_left_px if shape.padding_left_px is not None else default_lr
-    pr = shape.padding_right_px if shape.padding_right_px is not None else default_lr
-    pt_ = shape.padding_top_px if shape.padding_top_px is not None else default_tb
-    pb = shape.padding_bottom_px if shape.padding_bottom_px is not None else default_tb
-    style += f"padding:{pt_}px {pr}px {pb}px {pl}px;box-sizing:border-box;"
-
-    # line-height (shape.line_spacing_pt)
-    if shape.line_spacing_pt:
-        style += f"line-height:{shape.line_spacing_pt}pt;"
-
-    # 수직 정렬 (shape.text만 있을 때는 PPTX가 무조건 anchor="ctr")
-    if shape.text and not shape.paragraphs:
-        style += "display:flex;flex-direction:column;justify-content:center;"
-    elif shape.vertical_alignment == "middle":
-        style += "display:flex;flex-direction:column;justify-content:center;"
-    elif shape.vertical_alignment == "bottom":
-        style += "display:flex;flex-direction:column;justify-content:flex-end;"
-
-    inner = ""
-    if shape.paragraphs:
-        para_parts: list[str] = []
-        for para in shape.paragraphs:
-            para_parts.append(_paragraph_to_html(para))
-        inner = "".join(para_parts)
-    elif shape.text:
-        text_style = ""
-        if shape.text_color:
-            text_style += f"color:{shape.text_color};"
-        if shape.text_size_pt:
-            text_style += f"font-size:{shape.text_size_pt}pt;"
-        if shape.text_bold:
-            text_style += "font-weight:bold;"
-        escaped = _escape_html(shape.text).replace("\n", "<br>")
-        inner = f'<span style="{text_style}">{escaped}</span>'
-
-    return f'<div style="{style}">{inner}</div>'

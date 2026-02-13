@@ -54,7 +54,9 @@ ppt-generator/
 │   │       ├── outline_prompts.py # 아웃라인 생성 프롬프트
 │   │       └── script_prompts.py  # 스크립트 생성 프롬프트
 │   └── templates/
-│       ├── slides.html            # HTML 슬라이드 템플릿 (TailwindCSS + 인라인 CSS, 수직 스크롤)
+│       ├── slide.html             # 개별 슬라이드 HTML 템플릿 (완전한 HTML 문서)
+│       ├── slides.html            # 레거시 단일 HTML 템플릿 (하위 호환)
+│       ├── slides_container.html  # iframe 컨테이너 템플릿
 │       └── layout_mapping.py      # layout_index → 슬라이드 레이아웃 매핑 (97종)
 ├── docs/
 │   ├── adr/                       # Architecture Decision Records
@@ -73,7 +75,7 @@ ppt-generator/
 - **Agent Framework**: AWS Strands SDK (`strands-agents`)
 - **LLM (디자인 스펙 생성)**: Amazon Bedrock - Claude Opus 4.6 (`us.anthropic.claude-opus-4-6-v1`, 32K tokens)
 - **LLM (아웃라인/스크립트)**: Amazon Bedrock - Claude Sonnet 4.5 (`us.anthropic.claude-sonnet-4-5-20250929-v1:0`, 16K tokens)
-- **Slide Framework**: 순수 HTML/CSS (TailwindCSS + 인라인 스타일, JavaScript 없음, `templates/slides.html` 템플릿)
+- **Slide Framework**: 순수 HTML/CSS (인라인 스타일, 슬라이드별 개별 HTML + iframe 컨테이너)
 - **PPTX Export**: python-pptx (디자인 스펙 → SlideBuilder 직접 변환)
 
 ## Prerequisites
@@ -125,7 +127,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 **핵심 원칙:**
 
 - **파일 기반 통신**: 모든 도구는 결과를 파일로 저장하고 파일 경로를 반환합니다. `project_id`만으로 도구를 체이닝할 수 있어 인라인 JSON 전달이 불필요하며, MCP 클라이언트의 컨텍스트 윈도우 토큰 사용을 최적화합니다.
-- **슬라이드 단위 세분화**: `modify_design_spec` 도구로 중간 산출물(디자인 스펙)의 개별 슬라이드를 추가/수정/삭제할 수 있어, 전체 재생성 없이 반복적 개선이 가능합니다. 디자인 스펙은 `design_spec/slide_NN.json` 형식으로 슬라이드별 개별 파일에 저장되어, 수정 시 해당 파일만 다룹니다.
+- **슬라이드 단위 세분화**: `modify_design_spec` 도구로 중간 산출물(디자인 스펙)의 개별 슬라이드를 추가/수정/삭제할 수 있어, 전체 재생성 없이 반복적 개선이 가능합니다. 디자인 스펙은 `design_spec/slide_NN.json`, HTML은 `slides/slide_NN.html` 형식으로 슬라이드별 개별 파일에 저장됩니다.
 
 ### Processing Pipeline
 
@@ -292,4 +294,4 @@ uv run pytest tests/test_xxx.py  # 개별 테스트
 - 기존 도구 시그니처 변경 (MCP 클라이언트 호환성에 영향)
 - Bedrock API 호출 파라미터 변경 (비용 및 품질에 영향)
 - PPTX 변환 로직 (`tools/pptx/service.py`, `slide_builder.py` - 좌표 변환, 스타일 매핑)
-- HTML 템플릿 구조 (`templates/slides.html` - TailwindCSS + 인라인 CSS, placeholder 구조)
+- HTML 템플릿 구조 (`templates/slide.html`, `templates/slides_container.html` - 인라인 CSS, placeholder 구조)

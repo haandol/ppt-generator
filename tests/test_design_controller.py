@@ -82,7 +82,7 @@ def mcp_tools(project_service: ProjectService) -> dict:
 
     design_service = MagicMock()
     design_service.generate_single_slide.return_value = _make_slide_spec("새로 생성됨")
-    design_service._extract_design_summary.return_value = {"background_color": "#1a1a2e", "text_colors": ["#ffffff"]}
+    design_service.extract_design_summary.return_value = {"background_color": "#1a1a2e", "text_colors": ["#ffffff"]}
 
     register_design_tools(mcp, design_service, project_service)
     tools["_design_service"] = design_service

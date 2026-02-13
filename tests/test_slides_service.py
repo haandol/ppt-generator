@@ -41,15 +41,35 @@ class TestGenerateFromDesignSpec:
 
         assert isinstance(response, SlidesResponse)
         assert response.session_id
-        assert response.html
+        assert len(response.slide_htmls) == 1
+        assert response.container_html
 
-    def test_produces_html_structure(self, service):
+    def test_slide_html_is_complete_document(self, service):
         spec = _make_design_spec()
         response = service.generate_from_design_spec(spec)
 
-        assert "<!DOCTYPE html>" in response.html
-        assert "<section" in response.html
-        assert "<body>" in response.html
+        slide_html = response.slide_htmls[0]
+        assert "<!DOCTYPE html>" in slide_html
+        assert "<section" in slide_html
+        assert "<body" in slide_html
+        assert "</html>" in slide_html
+
+    def test_container_html_has_iframes(self, service):
+        spec = _make_design_spec(3)
+        response = service.generate_from_design_spec(spec)
+
+        assert "iframe" in response.container_html
+        assert 'src="slides/slide_01.html"' in response.container_html
+        assert 'src="slides/slide_02.html"' in response.container_html
+        assert 'src="slides/slide_03.html"' in response.container_html
+
+    def test_container_html_has_slide_numbers(self, service):
+        spec = _make_design_spec(3)
+        response = service.generate_from_design_spec(spec)
+
+        assert "1 / 3" in response.container_html
+        assert "2 / 3" in response.container_html
+        assert "3 / 3" in response.container_html
 
     def test_raises_on_empty_slides(self, service):
         spec = DesignSpec(slides=[])
@@ -61,28 +81,29 @@ class TestGenerateFromDesignSpec:
         response = service.generate_from_design_spec(spec)
 
         html = service.get_session_html(response.session_id)
-        assert html == response.html
+        assert html == response.container_html
 
     def test_multiple_slides(self, service):
         spec = _make_design_spec(3)
         response = service.generate_from_design_spec(spec)
 
-        assert "slide-0" in response.html
-        assert "slide-1" in response.html
-        assert "slide-2" in response.html
+        assert len(response.slide_htmls) == 3
+        assert "slide-0" in response.slide_htmls[0]
+        assert "slide-1" in response.slide_htmls[1]
+        assert "slide-2" in response.slide_htmls[2]
 
-    def test_speaker_notes_in_html(self, service):
+    def test_speaker_notes_in_slide_html(self, service):
         spec = _make_design_spec(2)
         response = service.generate_from_design_spec(spec)
 
-        assert "data-speaker-notes" in response.html
-        assert "노트 1" in response.html
+        assert "data-speaker-notes" in response.slide_htmls[1]
+        assert "노트 1" in response.slide_htmls[1]
 
-    def test_background_color_in_html(self, service):
+    def test_background_color_in_slide_html(self, service):
         spec = _make_design_spec()
         response = service.generate_from_design_spec(spec)
 
-        assert "#1a1a2e" in response.html
+        assert "#1a1a2e" in response.slide_htmls[0]
 
 
 class TestGetSessionHtml:
