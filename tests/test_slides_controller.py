@@ -14,7 +14,7 @@ from ppt_generator.interfaces.schemas import (
     PptxTextRun,
     SlidesResponse,
 )
-from ppt_generator.interfaces.spec_utils import design_spec_to_json
+from ppt_generator.interfaces.spec_utils import design_spec_to_json  # noqa: F401 — inline parameter 테스트용
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.controller import register_slides_tools
 
@@ -78,7 +78,7 @@ class TestGenerateSlidesProjectId:
             encoding="utf-8",
         )
         spec = _make_design_spec()
-        project_service.save_design_spec(proj_dir, design_spec_to_json(spec))
+        project_service.save_design_spec(proj_dir, spec)
 
         result = json.loads(mcp_tools["generate_slides"](project_id="proj-1"))
         assert result["session_id"] == "sess-1"

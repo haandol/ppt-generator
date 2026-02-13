@@ -99,22 +99,28 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
 
     @mcp.tool()
     def load_design_spec(project_id: str) -> str:
-        """저장된 디자인 스펙 JSON을 로드합니다.
+        """저장된 디자인 스펙을 로드합니다.
 
         프로젝트 디렉토리에서 이전에 생성된 디자인 스펙(PptxSlideSpec JSON)을
-        불러옵니다. 불러온 결과를 generate_slides(design_spec_json=...)이나
-        export_pptx(design_spec_json=...)의 입력으로 바로 사용할 수 있습니다.
+        불러옵니다. project_id를 generate_slides(project_id=...)이나
+        export_pptx(project_id=...)에 전달하여 사용할 수 있습니다.
 
         Args:
             project_id: 프로젝트 ID
 
         Returns:
-            design_spec_path를 포함하는 JSON 문자열
+            design_spec_dir, slide_count, slide_files를 포함하는 JSON 문자열
         """
         _, project_dir = project_service.resolve_project_dir(project_id)
-        # 파일 존재 확인 (없으면 예외 발생)
-        project_service.load_design_spec(project_dir)
+        # 존재 확인 (없으면 예외 발생)
+        design_spec = project_service.load_design_spec(project_dir)
+        spec_dir = project_dir / "design_spec"
+        slide_files = sorted(str(f.name) for f in spec_dir.glob("slide_*.json"))
         return json.dumps(
-            {"design_spec_path": str(project_dir / "design_spec.json")},
+            {
+                "design_spec_dir": str(spec_dir),
+                "slide_count": len(design_spec.slides),
+                "slide_files": slide_files,
+            },
             ensure_ascii=False,
         )

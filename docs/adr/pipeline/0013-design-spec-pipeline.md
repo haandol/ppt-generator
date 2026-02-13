@@ -105,8 +105,9 @@ class DesignSpecResponse:
 
 #### 프로젝트 영속화
 
-- `~/.ppt-generator/<UUID>/design_spec.json` — 디자인 스펙 저장
-- `ProjectService.save_design_spec()` / `load_design_spec()` 추가
+- `~/.ppt-generator/<UUID>/design_spec/slide_NN.json` — 슬라이드별 개별 파일 저장 ([ADR-0015](./0015-per-slide-file-separation.md))
+- `ProjectService.save_design_spec(dir, DesignSpec)` / `load_design_spec(dir) -> DesignSpec`
+- 슬라이드별 CRUD: `save_design_spec_slide`, `load_design_spec_slide`, `delete_design_spec_slide`, `insert_design_spec_slide`
 
 ### Alternatives Considered
 
@@ -150,7 +151,7 @@ class DesignSpecResponse:
 
 - 구현: `src/ppt_generator/tools/design/` (service.py, controller.py)
 - 스키마: `src/ppt_generator/interfaces/schemas.py` — `DesignSpec`, `DesignSpecRequest`, `DesignSpecResponse`
-- 유틸리티: `src/ppt_generator/interfaces/spec_utils.py` — `parse_slide_spec`, `validate_slide_spec`, `design_spec_to_json`, `parse_design_spec_json`
+- 유틸리티: `src/ppt_generator/interfaces/spec_utils.py` — `parse_slide_spec`, `validate_slide_spec`, `slide_spec_to_json`, `parse_slide_spec_json`, `design_spec_to_json`, `parse_design_spec_json`
 - 프롬프트: `src/ppt_generator/interfaces/prompts/design_prompts.py`
 - 슬라이드 서비스: `src/ppt_generator/tools/slides/service.py` — `generate_from_design_spec()`
 - PPTX 서비스: `src/ppt_generator/tools/pptx/service.py` — `export_from_design_spec()`

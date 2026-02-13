@@ -4,7 +4,7 @@ Date: 2026-02-13
 
 ## Status
 
-Accepted
+Accepted (Updated: 슬라이드별 파일 분리 [ADR-0015](./0015-per-slide-file-separation.md))
 
 ## Context
 
@@ -19,7 +19,7 @@ MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 �
 ### 1. 파일 기반 통신
 
 - 모든 도구는 결과를 파일로 저장하고, 반환값에 파일 경로와 `project_id`만 포함
-- `generate_design_spec`의 반환에서 `design_spec_json` 인라인 키 제거
+- `generate_design_spec`의 반환에서 `design_spec_json` 인라인 키 제거, `design_spec_dir` + `slide_count` 반환
 - `generate_slides`와 `export_pptx`에 `project_id` 기반 자동 로드 추가
   - `project_id`만 제공 시 프로젝트 디렉토리에서 디자인 스펙을 자동 로드
   - 기존 `design_spec_json`, `outline_json`, `session_id` 경로도 하위 호환 유지
@@ -89,6 +89,7 @@ generate_outline → generate_script → generate_design_spec
 
 - 구현: `src/ppt_generator/tools/design/controller.py` — `modify_design_spec`, `generate_design_spec`
 - 서비스: `src/ppt_generator/tools/design/service.py` — `generate_single_slide()`
+- 프로젝트 서비스: `src/ppt_generator/tools/project/service.py` — 슬라이드별 CRUD 메서드
 - 슬라이드 컨트롤러: `src/ppt_generator/tools/slides/controller.py` — project_id 자동 로드
 - PPTX 컨트롤러: `src/ppt_generator/tools/pptx/controller.py` — project_id 자동 로드
-- 관련 ADR: [0013-design-spec-pipeline](./0013-design-spec-pipeline.md), [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md)
+- 관련 ADR: [0013-design-spec-pipeline](./0013-design-spec-pipeline.md), [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md), [0015-per-slide-file-separation](./0015-per-slide-file-separation.md)

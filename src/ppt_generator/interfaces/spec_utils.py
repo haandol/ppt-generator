@@ -43,6 +43,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
                     color=r.get("color"),
                     bold=r.get("bold", False),
                     italic=r.get("italic", False),
+                    font_family=r.get("font_family"),
                 ))
             paragraphs.append(PptxParagraph(
                 runs=runs,
@@ -56,6 +57,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
             height_px=tb.get("height_px", 50),
             paragraphs=paragraphs,
             line_spacing_pt=tb.get("line_spacing_pt"),
+            vertical_alignment=tb.get("vertical_alignment"),
         ))
 
     shapes: list[PptxShape] = []
@@ -70,6 +72,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
                     color=r.get("color"),
                     bold=r.get("bold", False),
                     italic=r.get("italic", False),
+                    font_family=r.get("font_family"),
                 ))
             shape_paragraphs.append(PptxParagraph(
                 runs=s_runs,
@@ -92,6 +95,11 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
             text_bold=s.get("text_bold", False),
             paragraphs=shape_paragraphs,
             line_spacing_pt=s.get("line_spacing_pt"),
+            padding_left_px=s.get("padding_left_px"),
+            padding_right_px=s.get("padding_right_px"),
+            padding_top_px=s.get("padding_top_px"),
+            padding_bottom_px=s.get("padding_bottom_px"),
+            vertical_alignment=s.get("vertical_alignment"),
         ))
 
     return PptxSlideSpec(
@@ -218,6 +226,20 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
 # ---------------------------------------------------------------------------
 # 직렬화 / 역직렬화
 # ---------------------------------------------------------------------------
+
+def slide_spec_to_json(slide_spec: PptxSlideSpec) -> str:
+    """단일 PptxSlideSpec을 JSON 문자열로 직렬화."""
+    data = asdict(slide_spec)
+    for img in data.get("images", []):
+        img.pop("image_bytes", None)
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+def parse_slide_spec_json(json_str: str) -> PptxSlideSpec:
+    """JSON 문자열을 단일 PptxSlideSpec으로 역직렬화."""
+    data = json.loads(json_str)
+    return parse_slide_spec(data)
+
 
 def design_spec_to_json(design_spec: DesignSpec) -> str:
     """DesignSpec을 JSON 문자열로 직렬화."""

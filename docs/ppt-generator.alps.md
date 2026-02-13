@@ -157,10 +157,11 @@ flowchart TD
 |-----------|-----------|------|------|
 | `generate_outline` | F1 | 주제, 슬라이드 수 | 아웃라인 JSON (제목, 본문, 이미지 아이디어, 레이아웃 타입, speaker_notes 비어있음) |
 | `generate_script` | F2 | 아웃라인 JSON | 아웃라인 JSON (speaker_notes 채워짐) |
-| `generate_design_spec` | 디자인 스펙 | 아웃라인 JSON | PptxSlideSpec JSON (좌표/크기/서식 정밀 설계) |
-| `generate_slides` | F3 | 아웃라인 JSON 또는 design_spec_json | HTML 슬라이드 (디자인 스펙 시 결정론적 변환, 아웃라인 시 LLM 생성) |
+| `generate_design_spec` | 디자인 스펙 | 아웃라인 JSON | design_spec_dir, slide_count, project_id (슬라이드별 개별 JSON 파일) |
+| `modify_design_spec` | 디자인 스펙 수정 | project_id, action, slide_index, outline_json | design_spec_dir, slide_count, project_id |
+| `generate_slides` | F3 | design_spec_json 또는 project_id | HTML 슬라이드 (디자인 스펙 시 결정론적 변환) |
 | `modify_slides` | F4 | 세션 ID, 수정 요청 (자연어) | 수정된 HTML 슬라이드 |
-| `export_pptx` | F5 | 세션 ID 또는 design_spec_json | .pptx 파일 경로 |
+| `export_pptx` | F5 | design_spec_json 또는 project_id | .pptx 파일 경로 |
 
 ### 5.2. 사용자 흐름
 
@@ -189,9 +190,9 @@ sequenceDiagram
         MCPServer->>Bedrock: PptxSlideSpec JSON 생성 요청
         Bedrock-->>MCPServer: PptxSlideSpec JSON
     end
-    MCPServer-->>MCPClient: design_spec_json 반환
+    MCPServer-->>MCPClient: design_spec_dir, slide_count, project_id 반환
 
-    MCPClient->>MCPServer: generate_slides(design_spec_json)
+    MCPClient->>MCPServer: generate_slides(project_id=...)
     MCPServer->>MCPServer: DesignSpec → HTML 결정론적 변환
     MCPServer-->>MCPClient: HTML 슬라이드 반환 (프리뷰)
 
@@ -202,7 +203,7 @@ sequenceDiagram
     MCPServer-->>MCPClient: 수정된 HTML 슬라이드
 
     User->>MCPClient: "확정, PPTX로 내보내줘"
-    MCPClient->>MCPServer: export_pptx(design_spec_json)
+    MCPClient->>MCPServer: export_pptx(project_id=...)
     MCPServer->>MCPServer: SlideBuilder 직접 PPTX 생성
     MCPServer-->>MCPClient: .pptx 파일 경로
     MCPClient-->>User: PPTX 다운로드
@@ -298,15 +299,20 @@ sequenceDiagram
 
 #### 7.3.2 흐름
 
-**디자인 스펙 경로 (design_spec_json 입력 시):**
-1. MCP 클라이언트에서 `generate_slides(design_spec_json=...)` 호출
-2. PptxSlideSpec JSON을 파싱하여 DesignSpec 객체로 변환
+**디자인 스펙 경로 (project_id 입력 시, 권장):**
+1. MCP 클라이언트에서 `generate_slides(project_id=...)` 호출
+2. `design_spec/slide_NN.json` 파일들을 읽어 DesignSpec 객체로 조합
 3. 각 PptxSlideSpec을 position:absolute HTML div로 결정론적 변환 (LLM 호출 없음)
    - shapes → `<div>` (배경색, 테두리, border-radius)
    - textboxes → `<div>` (text runs → `<span>` with inline font styles)
    - paragraphs/bullets → `<p>`, `<ul>/<li>` 구조
 4. HTML 템플릿에 삽입하여 세션 ID 부여 및 저장
 5. HTML 슬라이드와 세션 ID 반환
+
+**디자인 스펙 경로 (design_spec_json 인라인 입력 시, 하위 호환):**
+1. MCP 클라이언트에서 `generate_slides(design_spec_json=...)` 호출
+2. PptxSlideSpec JSON을 파싱하여 DesignSpec 객체로 변환
+3. 이후 동일한 결정론적 변환 수행
 
 **HTML 경로 (outline_json 입력 시, 기존):**
 1. MCP 클라이언트에서 `generate_slides(outline_json=...)` 호출
@@ -392,9 +398,9 @@ sequenceDiagram
 
 #### 7.5.2 흐름
 
-**디자인 스펙 경로 (design_spec_json 입력 시):**
-1. MCP 클라이언트에서 `export_pptx(design_spec_json=...)` 호출
-2. PptxSlideSpec JSON을 파싱하여 DesignSpec 객체로 변환
+**디자인 스펙 경로 (project_id 입력 시, 권장):**
+1. MCP 클라이언트에서 `export_pptx(project_id=...)` 호출
+2. `design_spec/slide_NN.json` 파일들을 읽어 DesignSpec 객체로 조합
 3. `DesignSpec.slides` 순회 → `SlideBuilder.build_slide_from_spec()` 직접 호출
 4. `speaker_notes`는 PptxSlideSpec에서 직접 읽어 PPTX 발표자 노트에 설정
 5. DOM 추출/LLM 변환/HTML 파싱 전혀 불필요
@@ -413,7 +419,7 @@ sequenceDiagram
 
 #### 7.5.3 기술 설명
 
-**디자인 스펙 경로 (design_spec_json 입력 시):**
+**디자인 스펙 경로 (project_id 또는 design_spec_json 입력 시):**
 - `ExportService.export_from_design_spec()` — `SlideBuilder.build_slide_from_spec()` 직접 호출
 - DOM 추출/LLM 변환/HTML 파싱 전혀 불필요
 - `speaker_notes`는 `PptxSlideSpec`에서 직접 읽어 PPTX 발표자 노트에 설정
