@@ -34,8 +34,13 @@ ppt-generator/
 │   │   │   ├── controller.py      # MCP 인터페이스
 │   │   │   └── service.py         # LLM 기반 디자인 스펙 생성
 │   │   ├── pptx/                  # PPTX 내보내기 도구 (F5)
-│   │   │   ├── controller.py
-│   │   │   └── service.py
+│   │   │   ├── controller.py      # MCP 인터페이스
+│   │   │   ├── service.py         # 오케스트레이션 (ExportService)
+│   │   │   ├── slide_builder.py   # PptxSlideSpec → python-pptx 변환
+│   │   │   ├── llm_converter.py   # HTML → PptxSlideSpec LLM 변환 (기존 경로)
+│   │   │   ├── dom_extractor.py   # Playwright DOM 추출 (기존 경로)
+│   │   │   ├── html_parser.py     # HTML 파싱 유틸리티
+│   │   │   └── style_utils.py     # 폰트/스타일 변환 유틸리티
 │   │   ├── project/               # 프로젝트 저장/로드 도구 (F6)
 │   │   │   ├── controller.py
 │   │   │   └── service.py
@@ -44,9 +49,17 @@ ppt-generator/
 │   │       ├── css_inliner.py     # CSS 클래스 → inline style 병합 유틸리티
 │   │       └── service.py
 │   ├── interfaces/
-│   │   ├── constants.py           # 모델 설정, 프롬프트, 상수
+│   │   ├── constants.py           # 모델 설정, 수치 상수, 프롬프트 re-export
 │   │   ├── schemas.py             # 데이터클래스 (Request/Response)
-│   │   └── spec_utils.py          # PptxSlideSpec 파싱/검증/직렬화 공유 유틸리티
+│   │   ├── spec_utils.py          # PptxSlideSpec 파싱/검증/직렬화 공유 유틸리티
+│   │   ├── utils.py               # parse_outline_json 등 공용 파싱 유틸리티
+│   │   └── prompts/               # 프롬프트 템플릿 모듈
+│   │       ├── __init__.py        # 전체 프롬프트 상수 re-export
+│   │       ├── design_prompts.py  # 디자인 스펙 생성 프롬프트
+│   │       ├── outline_prompts.py # 아웃라인 생성 프롬프트
+│   │       ├── pptx_prompts.py    # PPTX 변환 프롬프트
+│   │       ├── script_prompts.py  # 스크립트 생성 프롬프트
+│   │       └── slides_prompts.py  # 슬라이드 생성/수정 프롬프트
 │   └── templates/
 │       ├── slides.html            # HTML 슬라이드 템플릿 (TailwindCSS + 인라인 CSS, 수직 스크롤)
 │       └── layout_mapping.py      # layout_index → 슬라이드 레이아웃 매핑 (97종)
@@ -67,11 +80,11 @@ ppt-generator/
 - **Agent Framework**: AWS Strands SDK (`strands-agents`)
 - **LLM (슬라이드 생성/수정)**: Amazon Bedrock - Claude Opus 4.6 (`us.anthropic.claude-opus-4-6-v1`, 32K tokens)
 - **LLM (아웃라인/스크립트)**: Amazon Bedrock - Claude Sonnet 4.5 (`us.anthropic.claude-sonnet-4-5-20250929-v1:0`, 16K tokens)
-- **LLM (PPTX 변환)**: Amazon Bedrock - Claude Sonnet 4.5 (`us.anthropic.claude-sonnet-4-5-20250929-v1:0`, 8K tokens)
+- **LLM (PPTX 변환)**: Amazon Bedrock - Claude Sonnet 4.5 (`us.anthropic.claude-sonnet-4-5-20250929-v1:0`, 8K tokens) — 기존 HTML 경로에서만 사용
 - **Slide Framework**: 순수 HTML/CSS (TailwindCSS + 인라인 스타일, JavaScript 없음, `templates/slides.html` 템플릿)
-- **HTML Parsing**: BeautifulSoup4 (HTML → PPTX 변환용 파싱)
-- **Screenshot**: Playwright (HTML → 이미지 캡처, PPTX 변환 시 활용)
-- **PPTX Export**: python-pptx (HTML 세션 → PPTX 변환, LLM 기반 좌표 추출)
+- **HTML Parsing**: BeautifulSoup4 (HTML → PPTX 변환용 파싱, 기존 경로)
+- **Screenshot**: Playwright (HTML → 이미지 캡처, 기존 PPTX 변환 시 활용)
+- **PPTX Export**: python-pptx (디자인 스펙 직접 생성 또는 HTML 세션 → PPTX 변환)
 
 ## Prerequisites
 
@@ -119,6 +132,11 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 > HTML과 PPTX를 각각 결정론적으로 생성합니다. 기존의 HTML → PPTX 역변환(DOM 추출/LLM 변환) 없이
 > 단일 소스에서 두 출력을 생성하므로 정확도가 높습니다.
 
+**핵심 원칙:**
+
+- **파일 기반 통신**: 모든 도구는 결과를 파일로 저장하고 파일 경로를 반환합니다. `project_id`만으로 도구를 체이닝할 수 있어 인라인 JSON 전달이 불필요하며, MCP 클라이언트의 컨텍스트 윈도우 토큰 사용을 최적화합니다.
+- **슬라이드 단위 세분화**: `modify_design_spec` 도구로 중간 산출물(디자인 스펙)의 개별 슬라이드를 추가/수정/삭제할 수 있어, 전체 재생성 없이 반복적 개선이 가능합니다.
+
 **왜 이런 구조인가?**
 
 - **아웃라인 → 스크립트 분리**: 아웃라인은 슬라이드의 뼈대(구조)이고, 스크립트는 살(발표 내용)입니다. 분리하면 구조를 먼저 확정한 뒤 내용을 채울 수 있고, LLM이 각 단계에 집중할 수 있습니다.
@@ -141,15 +159,18 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
     ↓
     generate_design_spec   → 스크립트 아웃라인 → PptxSlideSpec JSON 디자인 스펙 생성 (LLM)
     ↓
-    ├→ generate_slides(design_spec_json=...)  → Design Spec → HTML 결정론적 변환 (미리보기용)
+    ⏸ (선택) modify_design_spec → 개별 슬라이드 추가/수정/삭제 (project_id로 참조)
+    ↓
+    ├→ generate_slides(project_id=...)       → project_id로 디자인 스펙 자동 로드 → HTML 변환 (권장)
     │    ↓ (선택)
     │   modify_slides      → HTML 슬라이드 수정 (사용자 요청 반영)
     │
-    └→ export_pptx(design_spec_json=...)     → Design Spec → PPTX 직접 생성 (SlideBuilder)
+    └→ export_pptx(project_id=...)          → project_id로 디자인 스펙 자동 로드 → PPTX 생성 (권장)
     ↓
 출력: 편집 가능한 .pptx 파일
 
-* 기존 경로 (generate_slides(outline_json=...) → export_pptx(session_id=...))도 하위 호환 유지
+* project_id 기반 체이닝 (권장): generate_design_spec → generate_slides(project_id=...) → export_pptx(project_id=...)
+* 기존 경로 (design_spec_json 직접 전달, outline_json → session_id)도 하위 호환 유지
 * 모든 도구가 project_id를 자동 생성하여 ~/.ppt-generator/<UUID>/에 결과물을 저장
 * load_* 도구에 project_id를 전달하여 저장된 결과물을 로드, 중간 단계부터 재개 가능
 ```
@@ -161,7 +182,8 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 | `generate_outline` | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (title, content_summary, component_hint) |
 | `generate_script` | `tools/script/` | 아웃라인 JSON을 기반으로 슬라이드별 발표 스크립트 생성 |
 | `generate_design_spec` | `tools/design/` | 아웃라인 → PptxSlideSpec JSON 디자인 스펙 생성 (LLM) |
-| `generate_slides` | `tools/slides/` | 아웃라인 또는 디자인 스펙 기반 HTML 슬라이드 생성 |
+| `modify_design_spec` | `tools/design/` | 디자인 스펙의 개별 슬라이드 추가/수정/삭제 (CRUD) |
+| `generate_slides` | `tools/slides/` | 아웃라인, 디자인 스펙, 또는 project_id 기반 HTML 슬라이드 생성 |
 | `modify_slides` | `tools/slides/` | 기존 HTML 슬라이드를 사용자 요청에 따라 수정 |
 | `export_pptx` | `tools/pptx/` | 세션 HTML 또는 디자인 스펙을 편집 가능한 PPTX로 내보내기 |
 | `list_projects` | `tools/project/` | 기존 프로젝트 목록 조회 (파이프라인 시작 전 호출 권장) |
@@ -240,7 +262,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 
 - 타입 힌트 필수 (`-> None`, `-> str` 등)
 - 상수는 `interfaces/constants.py`에 정의
-- 프롬프트 템플릿은 `constants.py`에 문자열 상수로 관리
+- 프롬프트 템플릿은 `interfaces/prompts/` 모듈에 정의, `constants.py`에서 re-export
 - MCP 도구 함수에는 한국어 docstring 필수 (클라이언트에 노출됨)
 
 ## Testing

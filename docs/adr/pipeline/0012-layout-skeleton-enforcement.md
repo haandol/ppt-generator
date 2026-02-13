@@ -111,5 +111,7 @@ LLM이 region div의 좌표를 변경했을 경우 `LAYOUT_REGIONS`에서 원래
 - PPTX 변환: `src/ppt_generator/tools/pptx/service.py` — `_extract_region_elements()`
 - 테스트: `tests/test_slides_service.py`
 - 테스트: `tests/test_pptx_service.py`
-- 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0006-pptx-export](./0006-pptx-export.md), [0005-slide-modification](./0005-slide-modification.md)
+- 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0005-slide-modification](./0005-slide-modification.md), [0006-pptx-export](./0006-pptx-export.md), [0013-design-spec-pipeline](./0013-design-spec-pipeline.md)
+
+> **Note**: 디자인 스펙 경로([ADR-0013](./0013-design-spec-pipeline.md))에서는 LLM이 PptxSlideSpec JSON으로 좌표를 직접 생성하므로, 골격 기반 위치 강제와 `_validate_region_styles()` 후처리가 불필요하다. 이 ADR의 골격 기반 접근은 기존 HTML 경로에서만 적용된다.
 - ALPS: Section 7.3, Section 7.5
