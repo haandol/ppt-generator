@@ -1,15 +1,13 @@
-"""design controller 테스트: modify_design_spec, generate_design_spec 반환값 검증."""
+"""design controller 테스트: modify_design_spec, generate_slide_design_spec 검증."""
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
-    DesignSpecRequest,
-    DesignSpecResponse,
     PptxParagraph,
     PptxSlideSpec,
     PptxTextBox,
@@ -83,39 +81,13 @@ def mcp_tools(project_service: ProjectService) -> dict:
     mcp.tool = tool_decorator
 
     design_service = MagicMock()
-    design_service.generate.return_value = DesignSpecResponse(design_spec=_make_design_spec(3))
     design_service.generate_single_slide.return_value = _make_slide_spec("새로 생성됨")
-    design_service._extract_design_summary.return_value = "어두운 배경, 밝은 텍스트"
+    design_service._extract_design_summary.return_value = {"background_color": "#1a1a2e", "text_colors": ["#ffffff"]}
 
     register_design_tools(mcp, design_service, project_service)
     tools["_design_service"] = design_service
     tools["_project_service"] = project_service
     return tools
-
-
-class TestGenerateDesignSpecReturn:
-    """generate_design_spec 반환값에 design_spec_json이 없어야 한다."""
-
-    def test_no_inline_json_in_return(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
-        import ppt_generator.tools.project.service as svc_module
-        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
-
-        # project.json이 있어야 update_step이 동작
-        proj_dir = tmp_path / "test-proj"
-        proj_dir.mkdir()
-        (proj_dir / "project.json").write_text(
-            json.dumps({"topic": "", "num_slides": 0, "steps_completed": {}}, ensure_ascii=False),
-            encoding="utf-8",
-        )
-
-        result = json.loads(mcp_tools["generate_design_spec"](
-            outline_json=SAMPLE_OUTLINE_JSON,
-            project_id="test-proj",
-        ))
-        assert "design_spec_json" not in result
-        assert "design_spec_dir" in result
-        assert "slide_count" in result
-        assert "project_id" in result
 
 
 class TestModifyDesignSpec:
@@ -266,8 +238,8 @@ class TestGenerateSlideDesignSpec:
         assert result["project_id"] == project_id
         assert result["slide_file"] == "slide_01.json"
 
-        # design_summary.txt가 생성되었는지 확인
-        summary_path = tmp_path / project_id / "design_spec" / "design_summary.txt"
+        # design_summary.json이 생성되었는지 확인
+        summary_path = tmp_path / project_id / "design_spec" / "design_summary.json"
         assert summary_path.exists()
 
     def test_subsequent_slide_loads_design_summary(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:

@@ -36,8 +36,8 @@ F1: generate_outline       → 슬라이드 아웃라인 JSON 생성
     ↓
 F2: generate_script        → 아웃라인 기반 발표 스크립트 생성 (speaker_notes 채움)
     ↓
-    ┌─────────────────────── 디자인 스펙 경로 (신규, 권장) ───────────────────────┐
-    │ generate_design_spec   → PptxSlideSpec JSON 디자인 스펙 생성               │
+    ┌─────────────────────── 디자인 스펙 경로 (권장) ─────────────────────────────┐
+    │ generate_slide_design_spec → 슬라이드별 PptxSlideSpec JSON 디자인 스펙 생성│
     │     ↓                                                                       │
     │ F3: generate_slides    → 디자인 스펙 → HTML 결정론적 변환 (미리보기)        │
     │     ↓ (선택)                                                                │
@@ -119,7 +119,8 @@ uv run pytest
 |------|------|------|------|
 | `generate_outline` | 슬라이드 아웃라인 생성 | 주제, 슬라이드 수, [project_id] | 아웃라인 JSON + project_id |
 | `generate_script` | 발표 스크립트 생성 | 아웃라인 JSON, [project_id] | speaker_notes 포함 아웃라인 JSON + project_id |
-| `generate_design_spec` | 디자인 스펙 생성 | 아웃라인 JSON, [project_id] | PptxSlideSpec JSON + project_id |
+| `generate_slide_design_spec` | 슬라이드별 디자인 스펙 생성 | 아웃라인 JSON, slide_index, total_slides, [project_id] | slide_file + project_id |
+| `modify_design_spec` | 디자인 스펙 슬라이드 CRUD | project_id, action, [slide_index], [outline_json] | slide_count + project_id |
 | `generate_slides` | HTML 슬라이드 생성 | 아웃라인 JSON 또는 design_spec_json, [project_id] | session_id + HTML + project_id |
 | `modify_slides` | 슬라이드 수정 | 세션 ID, 수정 요청, [slide_index], [project_id] | session_id + 수정된 HTML + project_id |
 | `export_pptx` | PPTX 내보내기 | 세션 ID 또는 design_spec_json, [project_id] | project_id + .pptx 파일 경로 |

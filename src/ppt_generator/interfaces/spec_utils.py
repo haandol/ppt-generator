@@ -128,11 +128,18 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
             return None
         return max(font_min, min(font_max, pt))
 
-    def _clip_rect(left: float, top: float, width: float, height: float) -> tuple[float, float, float, float]:
+    margin = 40  # 슬라이드 가장자리 최소 여백 (px)
+
+    def _clip_rect(
+        left: float, top: float, width: float, height: float,
+        *, is_decorative: bool = False,
+    ) -> tuple[float, float, float, float]:
         left = max(0, min(left, canvas_w - 10))
         top = max(0, min(top, canvas_h - 10))
         width = max(10, min(width, canvas_w - left))
-        height = max(10, min(height, canvas_h - top))
+        # 장식용 요소(얇은 라인/바)는 캔버스 끝까지 허용, 그 외는 하단 여백 확보
+        max_bottom = canvas_h if is_decorative else (canvas_h - margin)
+        height = max(10, min(height, max_bottom - top))
         return left, top, width, height
 
     validated_textboxes: list[PptxTextBox] = []
@@ -162,7 +169,7 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
 
         min_required_height = num_lines * max_font_in_tb * lh_factor
         if height < min_required_height:
-            height = min(min_required_height, canvas_h - top)
+            height = min(min_required_height, canvas_h - margin - top)
 
         validated_textboxes.append(PptxTextBox(
             left_px=left,
@@ -176,7 +183,16 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
 
     validated_shapes: list[PptxShape] = []
     for s in spec.shapes:
-        left, top, width, height = _clip_rect(s.left_px, s.top_px, s.width_px, s.height_px)
+        # 장식용 shape: 텍스트/paragraphs 없고 높이 ≤ 10px인 얇은 라인/바
+        is_decorative = (
+            not s.text
+            and not s.paragraphs
+            and s.height_px <= 10
+        )
+        left, top, width, height = _clip_rect(
+            s.left_px, s.top_px, s.width_px, s.height_px,
+            is_decorative=is_decorative,
+        )
         clamped_text_size = _clamp_font(s.text_size_pt)
 
         # paragraphs 내부 폰트 클램핑
@@ -193,16 +209,17 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
             new_shape_paragraphs.append(replace(para, runs=new_runs))
             shape_num_lines += 1
 
+        max_bottom = canvas_h if is_decorative else (canvas_h - margin)
         if s.text and clamped_text_size:
             line_count = s.text.count("\n") + 1
             min_h = line_count * clamped_text_size * lh_factor
             if height < min_h:
-                height = min(min_h, canvas_h - top)
+                height = min(min_h, max_bottom - top)
 
         if new_shape_paragraphs and shape_num_lines > 0:
             min_h = shape_num_lines * shape_max_font * lh_factor
             if height < min_h:
-                height = min(min_h, canvas_h - top)
+                height = min(min_h, max_bottom - top)
 
         validated_shapes.append(replace(
             s,

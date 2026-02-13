@@ -32,7 +32,7 @@ Accepted
 │   ├── slide_01.json        # 단일 PptxSlideSpec
 │   ├── slide_02.json
 │   ├── ...
-│   └── design_summary.txt   # 첫 슬라이드에서 추출한 디자인 테마 요약 (슬라이드별 생성 시)
+│   └── design_summary.json   # 첫 슬라이드에서 추출한 디자인 테마 요약 (슬라이드별 생성 시)
 ├── slides.html
 └── metadata.json
 ```
@@ -65,14 +65,14 @@ Accepted
 | `delete_design_spec_slide(dir, index)` | 신규: 삭제 + 재번호 |
 | `insert_design_spec_slide(dir, index, slide)` | 신규: 삽입 + 재번호 |
 | `get_design_spec_slide_count(dir)` | 신규: 슬라이드 파일 수 반환 |
-| `save_design_summary(dir, summary)` | 신규: design_summary.txt 저장 |
-| `load_design_summary(dir) -> str \| None` | 신규: design_summary.txt 로드 (없으면 None) |
+| `save_design_summary(dir, dict)` | 신규: design_summary.json 저장 |
+| `load_design_summary(dir) -> dict \| None` | 신규: design_summary.json 로드 (없으면 None) |
 
 #### 컨트롤러 반환값 변경
 
 | 도구 | 이전 | 이후 |
 |------|------|------|
-| `generate_design_spec` | `design_spec_path` | `design_spec_dir` + `slide_count` |
+| `generate_slide_design_spec` | `design_spec_path` | `design_spec_dir` + `slide_count` |
 | `modify_design_spec` | `design_spec_path` | `design_spec_dir` + `slide_count` |
 | `load_design_spec` | `design_spec_path` | `design_spec_dir` + `slide_count` + `slide_files` |
 

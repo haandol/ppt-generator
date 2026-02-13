@@ -48,21 +48,12 @@ class PptxSlideSpec:
 @dataclass(frozen=True)
 class DesignSpec:
     slides: list[PptxSlideSpec] = field(default_factory=list)
-
-@dataclass(frozen=True)
-class DesignSpecRequest:
-    slides: list[SlideOutline] = field(default_factory=list)
-
-@dataclass(frozen=True)
-class DesignSpecResponse:
-    design_spec: DesignSpec = field(default_factory=DesignSpec)
 ```
 
 #### 새 MCP 도구
 
 | 도구 | 설명 |
 |------|------|
-| `generate_design_spec` | 아웃라인 → PptxSlideSpec JSON 디자인 스펙 일괄 생성 (LLM) |
 | `generate_slide_design_spec` | 단일 슬라이드 디자인 스펙 생성 (슬라이드별 검토/수정 가능) |
 | `load_design_spec` | 저장된 디자인 스펙 로드 |
 
@@ -75,8 +66,8 @@ class DesignSpecResponse:
 
 #### 디자인 스펙 생성 서비스 (DesignService)
 
-- `tools/design/service.py` — `DesignService.generate()`
-- 슬라이드별 개별 LLM 호출 (SLIDES_MAX_PER_BATCH=1 패턴과 동일)
+- `tools/design/service.py` — `DesignService.generate_single_slide()`
+- 슬라이드별 개별 LLM 호출
 - 첫 슬라이드 생성 후 디자인 요약 추출 → 후속 슬라이드에 전달하여 일관성 유지
 - `parse_slide_spec()` + `validate_slide_spec()` 재사용 (`interfaces/spec_utils.py`)
 - Bedrock Claude Opus 4.6 사용 (`us.anthropic.claude-opus-4-6-v1`, 32K tokens)
@@ -107,7 +98,7 @@ class DesignSpecResponse:
 #### 프로젝트 영속화
 
 - `~/.ppt-generator/<UUID>/design_spec/slide_NN.json` — 슬라이드별 개별 파일 저장 ([ADR-0015](./0015-per-slide-file-separation.md))
-- `~/.ppt-generator/<UUID>/design_spec/design_summary.txt` — 첫 슬라이드에서 추출한 디자인 테마 요약 (슬라이드별 생성 시 테마 일관성 유지용)
+- `~/.ppt-generator/<UUID>/design_spec/design_summary.json` — 첫 슬라이드에서 추출한 디자인 테마 요약 (슬라이드별 생성 시 테마 일관성 유지용)
 - `ProjectService.save_design_spec(dir, DesignSpec)` / `load_design_spec(dir) -> DesignSpec`
 - 슬라이드별 CRUD: `save_design_spec_slide`, `load_design_spec_slide`, `delete_design_spec_slide`, `insert_design_spec_slide`, `create_design_spec_slide`
 - 디자인 요약: `save_design_summary(dir, str)` / `load_design_summary(dir) -> str | None`
@@ -122,7 +113,7 @@ class DesignSpecResponse:
 
 ### Acceptance Criteria
 
-1. `generate_design_spec`으로 아웃라인에서 PptxSlideSpec JSON이 생성된다
+1. `generate_slide_design_spec`으로 아웃라인에서 PptxSlideSpec JSON이 생성된다
 2. `generate_slides(design_spec_json=...)`으로 결정론적 HTML이 생성된다
 3. `export_pptx(design_spec_json=...)`으로 PPTX가 직접 생성된다
 4. ~~기존 경로 (`outline_json` → `session_id`)가 하위 호환 유지된다~~ → 레거시 경로 제거됨
@@ -153,7 +144,7 @@ class DesignSpecResponse:
 ## References
 
 - 구현: `src/ppt_generator/tools/design/` (service.py, controller.py)
-- 스키마: `src/ppt_generator/interfaces/schemas.py` — `DesignSpec`, `DesignSpecRequest`, `DesignSpecResponse`
+- 스키마: `src/ppt_generator/interfaces/schemas.py` — `DesignSpec`
 - 유틸리티: `src/ppt_generator/interfaces/spec_utils.py` — `parse_slide_spec`, `validate_slide_spec`, `slide_spec_to_json`, `parse_slide_spec_json`, `design_spec_to_json`, `parse_design_spec_json`
 - 프롬프트: `src/ppt_generator/interfaces/prompts/design_prompts.py`
 - 슬라이드 서비스: `src/ppt_generator/tools/slides/service.py` — `generate_from_design_spec()`

@@ -19,7 +19,7 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
         반환되는 session_id를 사용하여 이후 PPTX 내보내기를 수행할 수 있습니다.
 
         Args:
-            design_spec_json: generate_design_spec으로 생성된 디자인 스펙 JSON 문자열
+            design_spec_json: 디자인 스펙 JSON 문자열
             project_id: 프로젝트 ID (미지정 시 자동 생성). 단독 제공 시 디자인 스펙 자동 로드
 
         Returns:

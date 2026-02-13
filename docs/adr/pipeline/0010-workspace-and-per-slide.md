@@ -41,7 +41,7 @@ Accepted
     slide_01.json      # 슬라이드별 PptxSlideSpec JSON
     slide_02.json
     ...
-    design_summary.txt # 디자인 테마 요약 (슬라이드별 생성 시)
+    design_summary.json # 디자인 테마 요약 (슬라이드별 생성 시)
   slides.html          # F3/F4 출력
   slides_meta.json     # 세션 메타 (session_id)
   presentation.pptx    # F5 출력 (직접 생성)

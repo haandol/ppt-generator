@@ -324,7 +324,7 @@ class TestCreateDesignSpecSlide:
 
 class TestSaveAndLoadDesignSummary:
     def test_roundtrip(self, project_service: ProjectService, project_dir: Path) -> None:
-        summary = "배경: #1a1a2e, 텍스트: 흰색"
+        summary = {"background_color": "#1a1a2e", "text_colors": ["#ffffff"]}
         project_service.save_design_summary(project_dir, summary)
         loaded = project_service.load_design_summary(project_dir)
         assert loaded == summary
@@ -334,12 +334,12 @@ class TestSaveAndLoadDesignSummary:
         assert result is None
 
     def test_creates_design_spec_dir_if_missing(self, project_service: ProjectService, project_dir: Path) -> None:
-        project_service.save_design_summary(project_dir, "테스트 요약")
-        assert (project_dir / "design_spec" / "design_summary.txt").exists()
+        project_service.save_design_summary(project_dir, {"test": True})
+        assert (project_dir / "design_spec" / "design_summary.json").exists()
 
     def test_not_counted_as_slide(self, project_service: ProjectService, project_dir: Path) -> None:
-        """design_summary.txt는 slide_*.json glob에 매칭되지 않는다."""
-        project_service.save_design_summary(project_dir, "요약")
+        """design_summary.json은 slide_*.json glob에 매칭되지 않는다."""
+        project_service.save_design_summary(project_dir, {"test": True})
         assert project_service.get_design_spec_slide_count(project_dir) == 0
 
 

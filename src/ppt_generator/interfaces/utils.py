@@ -28,8 +28,13 @@ def extract_json_from_response(text: str) -> dict:
 
 
 def parse_outline_json(outline_json: str) -> OutlineResponse:
-    """outline JSON 문자열을 OutlineResponse로 파싱."""
+    """outline JSON 문자열을 OutlineResponse로 파싱.
+
+    {"slides": [...]} 형식과 단일 슬라이드 객체 {"title": ...} 형식 모두 지원.
+    """
     data = json.loads(outline_json)
+    if "slides" not in data:
+        data = {"slides": [data]}
     slides: list[SlideOutline] = []
     for item in data["slides"]:
         slides.append(

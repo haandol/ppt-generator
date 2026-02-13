@@ -132,7 +132,9 @@ DESIGN_SPEC_SYSTEM_PROMPT = (
     "3. 높이 관계: height_px ≥ 줄수 × font_size_pt × 2.0 (pt→px 변환 + line-height 반영, 텍스트 잘림 방지)\n"
     "4. 텍스트 누락 금지: content_summary의 모든 핵심 내용이 textbox 또는 shape에 포함되어야 함\n"
     "5. 요소 겹침 최소화: 텍스트박스끼리 겹치지 않도록 배치\n"
-    "6. 여백 확보: 슬라이드 가장자리에서 최소 40px 여백 (left ≥ 40, top ≥ 40, right ≤ 1240, bottom ≤ 680)\n"
+    "6. 여백 확보: 슬라이드 가장자리에서 최소 40px 여백 (left ≥ 40, top ≥ 40, right ≤ 1240, bottom ≤ 680). "
+    "특히 하단 여백을 반드시 확보하세요: 모든 요소의 top_px + height_px ≤ 680. "
+    "콘텐츠가 슬라이드 하단에 딱 붙지 않도록 상단 제목 여백(40px)과 동일한 수준의 하단 여백을 유지하세요.\n"
     "7. vertical_alignment 필수: 모든 textbox와 shape에 vertical_alignment을 반드시 지정 (null 금지)\n\n"
     "=== 디자인 원칙 ===\n"
     "- 어두운 배경(#1a1a2e ~ #232F3E 계열) + 밝은 텍스트(#ffffff, #e0e0e0) 권장\n"
@@ -159,10 +161,3 @@ DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE = (
     "슬라이드 아웃라인:\n{outline_json}"
 )
 
-DESIGN_SPEC_DESIGN_SUMMARY_TEMPLATE = (
-    "background_color: {background_color}\n"
-    "텍스트 색상: {text_colors}\n"
-    "제목 폰트: {title_font}pt bold\n"
-    "본문 폰트: {body_font}pt\n"
-    "카드 스타일: {card_style}"
-)
