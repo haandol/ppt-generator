@@ -43,11 +43,19 @@ class PptxSlideSpec:
     textboxes: list[PptxTextBox] = field(default_factory=list)
     shapes: list[PptxShape] = field(default_factory=list)
     images: list[PptxImage] = field(default_factory=list)
-    speaker_notes: str = ""  # 신규
+    speaker_notes: str = ""
 
 @dataclass(frozen=True)
 class DesignSpec:
     slides: list[PptxSlideSpec] = field(default_factory=list)
+
+@dataclass(frozen=True)
+class DesignSpecRequest:
+    slides: list[SlideOutline] = field(default_factory=list)
+
+@dataclass(frozen=True)
+class DesignSpecResponse:
+    design_spec: DesignSpec = field(default_factory=DesignSpec)
 ```
 
 #### 새 MCP 도구
@@ -69,8 +77,9 @@ class DesignSpec:
 - `tools/design/service.py` — `DesignService.generate()`
 - 슬라이드별 개별 LLM 호출 (SLIDES_MAX_PER_BATCH=1 패턴과 동일)
 - 첫 슬라이드 생성 후 디자인 요약 추출 → 후속 슬라이드에 전달하여 일관성 유지
-- `parse_slide_spec()` + `validate_slide_spec()` 재사용 (spec_utils.py)
-- Bedrock Claude Opus 4.6 사용 (고품질 레이아웃)
+- `parse_slide_spec()` + `validate_slide_spec()` 재사용 (`interfaces/spec_utils.py`)
+- Bedrock Claude Opus 4.6 사용 (`us.anthropic.claude-opus-4-6-v1`, 32K tokens)
+- `_create_design_agent()`는 `DESIGN_SPEC_SYSTEM_PROMPT`를 시스템 프롬프트로 사용
 
 #### Design Spec → HTML 변환
 
@@ -118,7 +127,7 @@ class DesignSpec:
 
 ### Out of Scope
 
-- 디자인 스펙 수정 도구 (modify_design_spec) — 향후 추가 가능
+- ~~디자인 스펙 수정 도구 (modify_design_spec)~~ → [ADR-0014](./0014-file-based-communication-and-per-slide-crud.md)에서 구현됨
 - 기존 HTML → PPTX 폴백 경로 제거 — 하위 호환을 위해 유지
 
 ## Consequences
@@ -146,4 +155,6 @@ class DesignSpec:
 - 슬라이드 서비스: `src/ppt_generator/tools/slides/service.py` — `generate_from_design_spec()`
 - PPTX 서비스: `src/ppt_generator/tools/pptx/service.py` — `export_from_design_spec()`
 - 프로젝트 서비스: `src/ppt_generator/tools/project/service.py` — `save_design_spec()`, `load_design_spec()`
-- 관련 ADR: [0006-pptx-export](./0006-pptx-export.md), [0011-progressive-refinement-pipeline](./0011-progressive-refinement-pipeline.md)
+- DI 컨테이너: `src/ppt_generator/di/container.py` — `_create_design_agent()`, `design_service` 프로퍼티
+- MCP 서버: `src/ppt_generator/server.py` — `register_design_tools()` 호출
+- 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0006-pptx-export](./0006-pptx-export.md), [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md), [0011-progressive-refinement-pipeline](./0011-progressive-refinement-pipeline.md)

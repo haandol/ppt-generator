@@ -144,9 +144,11 @@ ppt-generator/
 │   ├── di/
 │   │   └── container.py           # 의존성 주입 컨테이너
 │   ├── interfaces/
-│   │   ├── constants.py           # 모델 설정, 프롬프트, 상수
+│   │   ├── constants.py           # 모델 설정, 수치 상수, 프롬프트 re-export
 │   │   ├── schemas.py             # 데이터클래스 (Request/Response)
-│   │   └── spec_utils.py          # PptxSlideSpec 파싱/검증/직렬화 유틸리티
+│   │   ├── spec_utils.py          # PptxSlideSpec 파싱/검증/직렬화 유틸리티
+│   │   ├── utils.py               # parse_outline_json 등 공용 파싱 유틸리티
+│   │   └── prompts/               # 프롬프트 템플릿 모듈
 │   ├── templates/
 │   │   ├── slides.html            # HTML 슬라이드 템플릿 (TailwindCSS, 수직 스크롤)
 │   │   └── layout_mapping.py      # layout_index → 슬라이드 레이아웃 매핑
@@ -155,7 +157,7 @@ ppt-generator/
 │       ├── script/                # F2: 발표 스크립트 생성
 │       ├── design/                # 디자인 스펙 생성 (PptxSlideSpec JSON)
 │       ├── slides/                # F3/F4: HTML 슬라이드 생성 + 수정 (css_inliner.py 포함)
-│       ├── pptx/                  # F5: PPTX 내보내기
+│       ├── pptx/                  # F5: PPTX 내보내기 (slide_builder, llm_converter, dom_extractor 등)
 │       └── project/               # F6: 프로젝트 목록/저장/로드
 ├── docs/
 │   ├── adr/                       # Architecture Decision Records

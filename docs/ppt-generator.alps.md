@@ -143,7 +143,7 @@ flowchart TD
 | LLM | Amazon Bedrock - Claude Opus 4.6 | 고품질 콘텐츠 생성, 구조화된 출력, HTML/CSS 코드 생성 |
 | 이미지 생성 | Google Gemini 2.5 Flash (슬라이드 생성 시 내부 호출) | 색상 팔레트 조건, 스타일 일관성 유지 |
 | 슬라이드 렌더링 | HTML/CSS | 자유로운 레이아웃, 풍부한 스타일링, LLM의 코드 생성 능력 활용 |
-| PPTX 내보내기 | python-pptx | HTML 슬라이드를 편집 가능한 PPT 객체로 변환 (텍스트, 이미지, 도형 분리) |
+| PPTX 내보내기 | python-pptx | 디자인 스펙에서 직접 생성 또는 HTML 슬라이드를 편집 가능한 PPT 객체로 변환 |
 
 ---
 
@@ -183,13 +183,16 @@ sequenceDiagram
     Bedrock-->>MCPServer: 슬라이드별 speaker_notes
     MCPServer-->>MCPClient: speaker_notes가 채워진 아웃라인 JSON
 
-    MCPClient->>MCPServer: generate_slides(아웃라인)
-    loop 슬라이드별 (이미지 필요 시)
-        MCPServer->>Gemini: 이미지 생성 요청
-        Gemini-->>MCPServer: 이미지 파일
+    Note over MCPClient,MCPServer: 디자인 스펙 경로 (권장)
+    MCPClient->>MCPServer: generate_design_spec(아웃라인 JSON)
+    loop 슬라이드별
+        MCPServer->>Bedrock: PptxSlideSpec JSON 생성 요청
+        Bedrock-->>MCPServer: PptxSlideSpec JSON
     end
-    MCPServer->>Bedrock: HTML/CSS 슬라이드 코드 생성
-    Bedrock-->>MCPServer: HTML 슬라이드
+    MCPServer-->>MCPClient: design_spec_json 반환
+
+    MCPClient->>MCPServer: generate_slides(design_spec_json)
+    MCPServer->>MCPServer: DesignSpec → HTML 결정론적 변환
     MCPServer-->>MCPClient: HTML 슬라이드 반환 (프리뷰)
 
     User->>MCPClient: "3번 슬라이드 제목 바꿔줘"
@@ -199,7 +202,8 @@ sequenceDiagram
     MCPServer-->>MCPClient: 수정된 HTML 슬라이드
 
     User->>MCPClient: "확정, PPTX로 내보내줘"
-    MCPClient->>MCPServer: export_pptx(세션ID)
+    MCPClient->>MCPServer: export_pptx(design_spec_json)
+    MCPServer->>MCPServer: SlideBuilder 직접 PPTX 생성
     MCPServer-->>MCPClient: .pptx 파일 경로
     MCPClient-->>User: PPTX 다운로드
 ```
@@ -408,6 +412,14 @@ sequenceDiagram
 5. 완성된 .pptx 파일 경로 반환
 
 #### 7.5.3 기술 설명
+
+**디자인 스펙 경로 (design_spec_json 입력 시):**
+- `ExportService.export_from_design_spec()` — `SlideBuilder.build_slide_from_spec()` 직접 호출
+- DOM 추출/LLM 변환/HTML 파싱 전혀 불필요
+- `speaker_notes`는 `PptxSlideSpec`에서 직접 읽어 PPTX 발표자 노트에 설정
+- 좌표 변환: PptxSlideSpec의 px 좌표를 python-pptx의 EMU 좌표로 변환
+
+**HTML 경로 (session_id 입력 시, 기존):**
 - HTML 파싱: BeautifulSoup로 HTML 슬라이드 DOM 파싱
 - **data-region 기반 요소 추출 (우선)**: `data-wrapper="true"` div가 있으면 region 기반 로직 사용
   - `data-region` div의 `position:absolute` style에서 좌표 직접 추출
