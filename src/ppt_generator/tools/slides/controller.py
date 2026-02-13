@@ -13,9 +13,10 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
     def generate_slides(outline_json: str = "", design_spec_json: str = "", project_id: str = "") -> str:
         """아웃라인 또는 디자인 스펙을 기반으로 HTML/CSS 슬라이드를 생성합니다.
 
-        두 가지 모드로 동작합니다:
+        세 가지 모드로 동작합니다:
         1. design_spec_json 제공 시: 디자인 스펙을 결정론적으로 HTML로 변환 (LLM 미사용, 빠르고 정확)
-        2. outline_json 제공 시: 아웃라인을 LLM으로 HTML 슬라이드 생성 (기존 방식)
+        2. project_id만 제공 시: 프로젝트 디렉토리에서 디자인 스펙을 자동 로드하여 HTML 변환 (권장)
+        3. outline_json 제공 시: 아웃라인을 LLM으로 HTML 슬라이드 생성 (레거시)
 
         반환되는 session_id를 사용하여 이후 슬라이드 수정이나
         PPTX 내보내기를 수행할 수 있습니다.
@@ -23,7 +24,7 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
         Args:
             outline_json: generate_outline로 생성된 슬라이드 아웃라인 JSON 문자열
             design_spec_json: generate_design_spec으로 생성된 디자인 스펙 JSON 문자열
-            project_id: 프로젝트 ID (미지정 시 자동 생성)
+            project_id: 프로젝트 ID (미지정 시 자동 생성). 단독 제공 시 디자인 스펙 자동 로드
 
         Returns:
             session_id, slides_html_path, project_id를 포함하는 JSON 문자열
@@ -31,12 +32,29 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
         if design_spec_json:
             design_spec = parse_design_spec_json(design_spec_json)
             response = slides_service.generate_from_design_spec(design_spec)
+        elif project_id:
+            _, proj_dir = project_service.resolve_project_dir(project_id)
+            try:
+                spec_json = project_service.load_design_spec(proj_dir)
+                design_spec = parse_design_spec_json(spec_json)
+                response = slides_service.generate_from_design_spec(design_spec)
+            except FileNotFoundError:
+                if outline_json:
+                    outline = parse_outline_json(outline_json)
+                    response = slides_service.generate(outline.slides)
+                else:
+                    raise ValueError(
+                        "project_id에 디자인 스펙이 없고 outline_json도 제공되지 않았습니다. "
+                        "design_spec_json, outline_json 중 하나를 제공하거나, "
+                        "generate_design_spec을 먼저 실행하세요."
+                    )
         elif outline_json:
             outline = parse_outline_json(outline_json)
-            slides = outline.slides
-            response = slides_service.generate(slides)
+            response = slides_service.generate(outline.slides)
         else:
-            raise ValueError("outline_json 또는 design_spec_json 중 하나를 제공해야 합니다.")
+            raise ValueError(
+                "design_spec_json, project_id, outline_json 중 하나를 제공해야 합니다."
+            )
 
         project_id, project_dir = project_service.resolve_project_dir(project_id)
         project_service.save_slides_html(

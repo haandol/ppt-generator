@@ -85,6 +85,44 @@ class DesignService:
         design_spec = DesignSpec(slides=specs)
         return DesignSpecResponse(design_spec=design_spec)
 
+    def generate_single_slide(
+        self,
+        slide_outline: SlideOutline,
+        design_summary: str = "",
+    ) -> PptxSlideSpec:
+        """단일 슬라이드의 디자인 스펙을 생성한다.
+
+        Args:
+            slide_outline: 슬라이드 아웃라인
+            design_summary: 기존 디자인 요약 (제공 시 일관성 유지)
+
+        Returns:
+            생성된 PptxSlideSpec
+        """
+        outline_json = json.dumps(
+            {
+                "title": slide_outline.title,
+                "content_summary": slide_outline.content_summary,
+                "component_hint": slide_outline.component_hint,
+                "speaker_notes": slide_outline.speaker_notes,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+
+        if design_summary:
+            prompt = DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE.format(
+                design_summary=design_summary,
+                outline_json=outline_json,
+            )
+        else:
+            prompt = DESIGN_SPEC_USER_PROMPT_TEMPLATE.format(
+                outline_json=outline_json,
+            )
+
+        raw_result = str(self._agent(prompt))
+        return self._parse_and_validate(raw_result)
+
     def _extract_design_summary(self, spec_json_text: str) -> str:
         """첫 슬라이드 스펙에서 디자인 테마 요약을 추출."""
         prompt = DESIGN_SPEC_DESIGN_SUMMARY_PROMPT.format(
