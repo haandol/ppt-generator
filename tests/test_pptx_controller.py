@@ -14,7 +14,7 @@ from ppt_generator.interfaces.schemas import (
     PptxTextBox,
     PptxTextRun,
 )
-from ppt_generator.interfaces.spec_utils import design_spec_to_json
+from ppt_generator.interfaces.spec_utils import design_spec_to_json  # noqa: F401 — inline parameter 테스트용
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.pptx.controller import register_pptx_tools
 
@@ -76,7 +76,7 @@ class TestExportPptxProjectId:
             encoding="utf-8",
         )
         spec = _make_design_spec()
-        project_service.save_design_spec(proj_dir, design_spec_to_json(spec))
+        project_service.save_design_spec(proj_dir, spec)
 
         result = json.loads(mcp_tools["export_pptx"](project_id="proj-1"))
         assert result["project_id"] == "proj-1"

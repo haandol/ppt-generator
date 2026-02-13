@@ -3,7 +3,12 @@ from __future__ import annotations
 import logging
 import uuid
 
-from ppt_generator.interfaces.constants import SLIDES_TEMPLATE_PATH
+from ppt_generator.interfaces.constants import (
+    PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU,
+    PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU,
+    PX_TO_EMU,
+    SLIDES_TEMPLATE_PATH,
+)
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
     PptxParagraph,
@@ -107,7 +112,7 @@ def _run_to_html(run: PptxTextRun) -> str:
     if run.italic:
         styles.append("font-style:italic")
     if run.font_family == "monospace":
-        styles.append("font-family:'Roboto Mono',monospace")
+        styles.append("font-family:Consolas,'Courier New',monospace")
 
     text = _escape_html(run.text)
     if styles:
@@ -134,6 +139,7 @@ def _textbox_to_html(tb: PptxTextBox) -> str:
         f"position:absolute;"
         f"left:{tb.left_px}px;top:{tb.top_px}px;"
         f"width:{tb.width_px}px;height:{tb.height_px}px;"
+        f"padding:0;box-sizing:border-box;"
         f"overflow:hidden;"
     )
     if tb.line_spacing_pt:
@@ -187,15 +193,23 @@ def _shape_to_html(shape: PptxShape) -> str:
 
     style += "overflow:hidden;"
 
-    # 패딩
-    pl = shape.padding_left_px or 8
-    pr = shape.padding_right_px or 8
-    pt_ = shape.padding_top_px or 4
-    pb = shape.padding_bottom_px or 4
+    # 패딩 (PPTX 기본값: 45720/22860 EMU → px 변환)
+    default_lr = PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU / PX_TO_EMU
+    default_tb = PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU / PX_TO_EMU
+    pl = shape.padding_left_px if shape.padding_left_px is not None else default_lr
+    pr = shape.padding_right_px if shape.padding_right_px is not None else default_lr
+    pt_ = shape.padding_top_px if shape.padding_top_px is not None else default_tb
+    pb = shape.padding_bottom_px if shape.padding_bottom_px is not None else default_tb
     style += f"padding:{pt_}px {pr}px {pb}px {pl}px;box-sizing:border-box;"
 
-    # 수직 정렬
-    if shape.vertical_alignment == "middle":
+    # line-height (shape.line_spacing_pt)
+    if shape.line_spacing_pt:
+        style += f"line-height:{shape.line_spacing_pt}pt;"
+
+    # 수직 정렬 (shape.text만 있을 때는 PPTX가 무조건 anchor="ctr")
+    if shape.text and not shape.paragraphs:
+        style += "display:flex;flex-direction:column;justify-content:center;"
+    elif shape.vertical_alignment == "middle":
         style += "display:flex;flex-direction:column;justify-content:center;"
     elif shape.vertical_alignment == "bottom":
         style += "display:flex;flex-direction:column;justify-content:flex-end;"

@@ -3,7 +3,14 @@ from pathlib import Path
 
 import pytest
 
-from ppt_generator.interfaces.schemas import ProjectMetadata
+from ppt_generator.interfaces.schemas import (
+    DesignSpec,
+    ProjectMetadata,
+    PptxParagraph,
+    PptxSlideSpec,
+    PptxTextBox,
+    PptxTextRun,
+)
 from ppt_generator.tools.project.service import ProjectService
 
 
@@ -207,6 +214,91 @@ class TestListProjects:
         result = project_service.list_projects()
         assert result[0]["topic"] == "newer"
         assert result[1]["topic"] == "older"
+
+
+def _make_slide_spec(title: str = "테스트") -> PptxSlideSpec:
+    return PptxSlideSpec(
+        background_color="#1a1a2e",
+        textboxes=[
+            PptxTextBox(
+                left_px=40, top_px=40, width_px=600, height_px=60,
+                paragraphs=[PptxParagraph(runs=[PptxTextRun(text=title, font_size_pt=32, bold=True)])],
+            ),
+        ],
+        shapes=[],
+        images=[],
+        speaker_notes="",
+    )
+
+
+def _make_design_spec(n: int = 3) -> DesignSpec:
+    return DesignSpec(slides=[_make_slide_spec(f"슬라이드 {i+1}") for i in range(n)])
+
+
+class TestSaveAndLoadDesignSpec:
+    def test_roundtrip(self, project_service: ProjectService, project_dir: Path) -> None:
+        spec = _make_design_spec(3)
+        project_service.save_design_spec(project_dir, spec)
+        loaded = project_service.load_design_spec(project_dir)
+        assert len(loaded.slides) == 3
+
+    def test_directory_created(self, project_service: ProjectService, project_dir: Path) -> None:
+        spec = _make_design_spec(2)
+        project_service.save_design_spec(project_dir, spec)
+        spec_dir = project_dir / "design_spec"
+        assert spec_dir.is_dir()
+        files = sorted(spec_dir.glob("slide_*.json"))
+        assert len(files) == 2
+        assert files[0].name == "slide_01.json"
+        assert files[1].name == "slide_02.json"
+
+    def test_overwrite_clears_old_files(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_design_spec(project_dir, _make_design_spec(5))
+        project_service.save_design_spec(project_dir, _make_design_spec(2))
+        spec_dir = project_dir / "design_spec"
+        files = list(spec_dir.glob("slide_*.json"))
+        assert len(files) == 2
+
+    def test_load_nonexistent_raises(self, project_service: ProjectService, tmp_path: Path) -> None:
+        with pytest.raises(FileNotFoundError):
+            project_service.load_design_spec(tmp_path / "nonexistent")
+
+
+class TestDesignSpecSlideCRUD:
+    def test_load_single_slide(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_design_spec(project_dir, _make_design_spec(3))
+        slide = project_service.load_design_spec_slide(project_dir, 0)
+        assert slide.textboxes[0].paragraphs[0].runs[0].text == "슬라이드 1"
+
+    def test_save_single_slide(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_design_spec(project_dir, _make_design_spec(3))
+        new_slide = _make_slide_spec("수정됨")
+        project_service.save_design_spec_slide(project_dir, 1, new_slide)
+        loaded = project_service.load_design_spec_slide(project_dir, 1)
+        assert loaded.textboxes[0].paragraphs[0].runs[0].text == "수정됨"
+
+    def test_delete_slide(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_design_spec(project_dir, _make_design_spec(3))
+        project_service.delete_design_spec_slide(project_dir, 1)
+        assert project_service.get_design_spec_slide_count(project_dir) == 2
+        # 삭제 후 재번호 확인
+        slide_0 = project_service.load_design_spec_slide(project_dir, 0)
+        slide_1 = project_service.load_design_spec_slide(project_dir, 1)
+        assert slide_0.textboxes[0].paragraphs[0].runs[0].text == "슬라이드 1"
+        assert slide_1.textboxes[0].paragraphs[0].runs[0].text == "슬라이드 3"
+
+    def test_insert_slide(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_design_spec(project_dir, _make_design_spec(2))
+        new_slide = _make_slide_spec("삽입됨")
+        project_service.insert_design_spec_slide(project_dir, 1, new_slide)
+        assert project_service.get_design_spec_slide_count(project_dir) == 3
+        slide_1 = project_service.load_design_spec_slide(project_dir, 1)
+        assert slide_1.textboxes[0].paragraphs[0].runs[0].text == "삽입됨"
+
+    def test_get_slide_count(self, project_service: ProjectService, project_dir: Path) -> None:
+        assert project_service.get_design_spec_slide_count(project_dir) == 0
+        project_service.save_design_spec(project_dir, _make_design_spec(4))
+        assert project_service.get_design_spec_slide_count(project_dir) == 4
 
 
 class TestLoadNonexistentRaises:

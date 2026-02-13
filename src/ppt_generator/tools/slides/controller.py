@@ -2,7 +2,7 @@ import json
 
 from mcp.server.fastmcp import FastMCP
 
-from ppt_generator.interfaces.spec_utils import parse_design_spec_json
+from ppt_generator.interfaces.spec_utils import parse_design_spec_json  # inline parameter용
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
 
@@ -30,8 +30,7 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
             response = slides_service.generate_from_design_spec(design_spec)
         elif project_id:
             _, proj_dir = project_service.resolve_project_dir(project_id)
-            spec_json = project_service.load_design_spec(proj_dir)
-            design_spec = parse_design_spec_json(spec_json)
+            design_spec = project_service.load_design_spec(proj_dir)
             response = slides_service.generate_from_design_spec(design_spec)
         else:
             raise ValueError(

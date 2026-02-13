@@ -2,7 +2,7 @@ import json
 
 from mcp.server.fastmcp import FastMCP
 
-from ppt_generator.interfaces.spec_utils import parse_design_spec_json
+from ppt_generator.interfaces.spec_utils import parse_design_spec_json  # inline parameter용
 from ppt_generator.tools.pptx.service import ExportService
 from ppt_generator.tools.project.service import ProjectService
 
@@ -32,8 +32,7 @@ def register_pptx_tools(mcp: FastMCP, export_service: ExportService, project_ser
             )
         else:
             try:
-                spec_json = project_service.load_design_spec(project_dir)
-                design_spec = parse_design_spec_json(spec_json)
+                design_spec = project_service.load_design_spec(project_dir)
                 response = export_service.export_from_design_spec(
                     design_spec, output_dir=project_dir,
                 )

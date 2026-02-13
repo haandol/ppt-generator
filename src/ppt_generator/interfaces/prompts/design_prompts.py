@@ -5,7 +5,7 @@ DESIGN_SPEC_SYSTEM_PROMPT = (
     "주어진 슬라이드 아웃라인(title, content_summary, component_hint, speaker_notes)을 분석하여,\n"
     "python-pptx로 직접 렌더링할 수 있는 PptxSlideSpec JSON을 출력하세요.\n\n"
     "=== 좌표계 ===\n"
-    "- 캔버스: 1280 x 720 px\n"
+    "- 캔버스: 1280 x 720 px (16:9 비율, PPTX 13.333×7.5인치에 대응)\n"
     "- 원점: 좌측 상단 (0, 0)\n"
     "- 모든 좌표와 크기는 px 단위 (정수 또는 소수)\n\n"
     "=== 출력 JSON 스키마 ===\n"
@@ -38,6 +38,10 @@ DESIGN_SPEC_SYSTEM_PROMPT = (
     '      "border_color": "#RRGGBB"|null,\n'
     '      "border_width_pt": number|null,\n'
     '      "corner_radius_px": number|null,\n'
+    '      "text": "간단한 텍스트(paragraphs 미사용 시)"|null,\n'
+    '      "text_color": "#RRGGBB"|null,\n'
+    '      "text_size_pt": number|null,\n'
+    '      "text_bold": bool,\n'
     '      "paragraphs": [...],\n'
     '      "line_spacing_pt": number|null,\n'
     '      "padding_left_px": number|null,\n'
@@ -49,6 +53,21 @@ DESIGN_SPEC_SYSTEM_PROMPT = (
     "  ]\n"
     "}\n"
     "```\n\n"
+    "=== shapes 텍스트 사용법 ===\n"
+    "shapes에 텍스트를 넣는 방법은 2가지:\n"
+    "1. **간단한 텍스트**: text, text_color, text_size_pt, text_bold 필드 사용 (한 줄 텍스트, 자동 중앙 정렬)\n"
+    "2. **구조화된 텍스트**: paragraphs 배열 사용 (여러 줄, 불릿, 서식 혼합 시). paragraphs의 runs에서 font_family: \"monospace\"로 코드 폰트 지정 가능\n"
+    "둘 다 사용하면 paragraphs가 우선됨. 카드형 shape에는 paragraphs를 적극 활용하세요.\n\n"
+    "=== vertical_alignment 가이드 ===\n"
+    "- textboxes와 shapes 모두 vertical_alignment 필드로 텍스트의 수직 정렬을 제어\n"
+    '- "top": 상단 정렬 (기본값), "middle": 수직 중앙, "bottom": 하단 정렬\n'
+    "- 카드/배너 shape에서 텍스트를 수직 중앙에 배치하려면 \"middle\" 사용\n"
+    "- 제목 텍스트박스: \"top\" 또는 \"middle\" 권장\n\n"
+    "=== padding 가이드 ===\n"
+    "- shapes의 padding_*_px 필드로 텍스트와 shape 경계 사이 여백을 제어\n"
+    "- 미지정 시 기본값: 좌우 약 5px, 상하 약 2.5px\n"
+    "- 카드형 shape 권장: padding_left_px: 12~16, padding_right_px: 12~16, padding_top_px: 8~12, padding_bottom_px: 8~12\n"
+    "- 넓은 배너/헤더 shape: padding_left_px: 16~24 권장\n\n"
     "=== component_hint별 레이아웃 가이드 ===\n"
     "- bullets: 상단 제목 텍스트박스 + 본문 불릿 텍스트박스 (bullet_level 0/1)\n"
     "- two_column: 제목 + 좌우 2개 텍스트박스 (각 width ≈ 560px, gap 32px)\n"
@@ -66,6 +85,31 @@ DESIGN_SPEC_SYSTEM_PROMPT = (
     "- process_flow: 제목 + 좌측 설명 텍스트박스 + 우측 플로우 다이어그램(shape+line)\n"
     "- quote_code: 좌측 인용/설명 텍스트박스 + 우측 코드 shape\n"
     "- concept_list: 좌측 개념 설명 텍스트 + 우측 다이어그램(shape)\n\n"
+    "=== 레이아웃 예시 (bullets) ===\n"
+    "```json\n"
+    "{\n"
+    '  "background_color": "#1a1a2e",\n'
+    '  "speaker_notes": "이 슬라이드에서는...",\n'
+    '  "textboxes": [\n'
+    "    {\n"
+    '      "left_px": 40, "top_px": 40, "width_px": 1200, "height_px": 60,\n'
+    '      "paragraphs": [\n'
+    '        {"runs": [{"text": "슬라이드 제목", "font_size_pt": 32, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"}\n'
+    "      ]\n"
+    "    },\n"
+    "    {\n"
+    '      "left_px": 40, "top_px": 120, "width_px": 1200, "height_px": 540,\n'
+    '      "line_spacing_pt": 28,\n'
+    '      "paragraphs": [\n'
+    '        {"runs": [{"text": "첫 번째 항목", "font_size_pt": 20, "color": "#e0e0e0", "bold": false, "italic": false}], "bullet_level": 0, "alignment": "left"},\n'
+    '        {"runs": [{"text": "세부 설명", "font_size_pt": 16, "color": "#b0b0b0", "bold": false, "italic": false}], "bullet_level": 1, "alignment": "left"},\n'
+    '        {"runs": [{"text": "두 번째 항목", "font_size_pt": 20, "color": "#e0e0e0", "bold": false, "italic": false}], "bullet_level": 0, "alignment": "left"}\n'
+    "      ]\n"
+    "    }\n"
+    "  ],\n"
+    '  "shapes": []\n'
+    "}\n"
+    "```\n\n"
     "=== 타이포그래피 규칙 ===\n"
     "- 슬라이드 대제목 (타이틀 슬라이드): font_size_pt 32~40, bold\n"
     "- 슬라이드 제목 (본문 슬라이드): font_size_pt 28~36, bold\n"
@@ -74,7 +118,8 @@ DESIGN_SPEC_SYSTEM_PROMPT = (
     "- 카드 제목: font_size_pt 16~20, bold\n"
     "- 카드 본문: font_size_pt 14~18\n"
     "- 보조 텍스트: font_size_pt 12~16\n"
-    "- 코드: font_family: \"monospace\", font_size_pt 14~16\n\n"
+    "- 코드: font_family: \"monospace\", font_size_pt 14~16\n"
+    "- line_spacing_pt 권장값: 본문 텍스트 24~28pt, 불릿 리스트 26~32pt, 카드 내부 20~24pt\n\n"
     "=== 하드 제약 조건 (위반 시 렌더링 실패) ===\n"
     "1. 폰트 크기: 모든 font_size_pt는 반드시 10~44pt 범위\n"
     "2. 좌표 경계: 0 ≤ left_px, 0 ≤ top_px, left_px + width_px ≤ 1280, top_px + height_px ≤ 720\n"
@@ -89,26 +134,28 @@ DESIGN_SPEC_SYSTEM_PROMPT = (
     "- 카드: rounded_rectangle shape, fill_color로 배경, paragraphs로 내부 텍스트\n"
     "- 슬라이드 간 일관된 색상 팔레트와 레이아웃 패턴 유지\n\n"
     "=== 출력 규칙 ===\n"
-    "- 반드시 JSON만 출력하세요. 마크다운 코드블록으로 감싸지 마세요.\n"
     "- speaker_notes에는 입력의 speaker_notes를 그대로 포함하세요.\n"
     "- shapes의 paragraphs를 적극 활용하여 카드 내부 텍스트를 구조화하세요."
 )
 
 DESIGN_SPEC_USER_PROMPT_TEMPLATE = (
     "다음 슬라이드 아웃라인을 기반으로 PptxSlideSpec JSON을 생성해주세요.\n\n"
+    "슬라이드 위치: {slide_index}/{total_slides}장 중\n\n"
     "슬라이드 아웃라인:\n{outline_json}"
 )
 
 DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE = (
     "다음 슬라이드 아웃라인을 기반으로 PptxSlideSpec JSON을 생성해주세요.\n"
     "이전 슬라이드들과 동일한 디자인 테마를 반드시 유지하세요.\n\n"
+    "슬라이드 위치: {slide_index}/{total_slides}장 중\n\n"
     "이전 슬라이드의 디자인 요약:\n{design_summary}\n\n"
     "슬라이드 아웃라인:\n{outline_json}"
 )
 
-DESIGN_SPEC_DESIGN_SUMMARY_PROMPT = (
-    "다음 PptxSlideSpec JSON에서 사용된 디자인 테마를 요약해주세요.\n"
-    "background_color, 텍스트 색상 팔레트, 제목/본문 폰트 크기, 카드 스타일(fill_color, border 등)을 포함하세요.\n"
-    "간결하게 3~5줄로 요약하세요. JSON이 아닌 자연어 텍스트로 출력하세요.\n\n"
-    "PptxSlideSpec JSON:\n{spec_json}"
+DESIGN_SPEC_DESIGN_SUMMARY_TEMPLATE = (
+    "background_color: {background_color}\n"
+    "텍스트 색상: {text_colors}\n"
+    "제목 폰트: {title_font}pt bold\n"
+    "본문 폰트: {body_font}pt\n"
+    "카드 스타일: {card_style}"
 )

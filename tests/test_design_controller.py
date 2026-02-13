@@ -15,7 +15,7 @@ from ppt_generator.interfaces.schemas import (
     PptxTextBox,
     PptxTextRun,
 )
-from ppt_generator.interfaces.spec_utils import design_spec_to_json
+from ppt_generator.interfaces.spec_utils import design_spec_to_json  # noqa: F401 — 하위 호환 확인용
 from ppt_generator.tools.design.controller import register_design_tools
 from ppt_generator.tools.project.service import ProjectService
 
@@ -64,8 +64,7 @@ def project_dir(tmp_path: Path) -> Path:
 @pytest.fixture()
 def project_with_design_spec(project_service: ProjectService, project_dir: Path) -> tuple[str, Path]:
     spec = _make_design_spec(3)
-    spec_json = design_spec_to_json(spec)
-    project_service.save_design_spec(project_dir, spec_json)
+    project_service.save_design_spec(project_dir, spec)
     return project_dir.name, project_dir
 
 
@@ -114,7 +113,8 @@ class TestGenerateDesignSpecReturn:
             project_id="test-proj",
         ))
         assert "design_spec_json" not in result
-        assert "design_spec_path" in result
+        assert "design_spec_dir" in result
+        assert "slide_count" in result
         assert "project_id" in result
 
 

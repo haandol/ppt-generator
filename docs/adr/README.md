@@ -33,6 +33,7 @@ adr/
 - [0012: 레이아웃 골격(Skeleton) 기반 위치 강제](./pipeline/0012-layout-skeleton-enforcement.md)
 - [0013: 디자인 스펙 기반 슬라이드 생성 파이프라인](./pipeline/0013-design-spec-pipeline.md)
 - [0014: 파일 기반 통신 및 슬라이드 단위 CRUD](./pipeline/0014-file-based-communication-and-per-slide-crud.md)
+- [0015: 디자인 스펙 슬라이드별 파일 분리](./pipeline/0015-per-slide-file-separation.md)
 
 ## ADR 작성 가이드
 

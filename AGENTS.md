@@ -125,7 +125,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 **핵심 원칙:**
 
 - **파일 기반 통신**: 모든 도구는 결과를 파일로 저장하고 파일 경로를 반환합니다. `project_id`만으로 도구를 체이닝할 수 있어 인라인 JSON 전달이 불필요하며, MCP 클라이언트의 컨텍스트 윈도우 토큰 사용을 최적화합니다.
-- **슬라이드 단위 세분화**: `modify_design_spec` 도구로 중간 산출물(디자인 스펙)의 개별 슬라이드를 추가/수정/삭제할 수 있어, 전체 재생성 없이 반복적 개선이 가능합니다.
+- **슬라이드 단위 세분화**: `modify_design_spec` 도구로 중간 산출물(디자인 스펙)의 개별 슬라이드를 추가/수정/삭제할 수 있어, 전체 재생성 없이 반복적 개선이 가능합니다. 디자인 스펙은 `design_spec/slide_NN.json` 형식으로 슬라이드별 개별 파일에 저장되어, 수정 시 해당 파일만 다룹니다.
 
 ### Processing Pipeline
 
@@ -167,7 +167,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 | `load_project_status` | `tools/project/` | 프로젝트 상태 및 메타데이터 로드 |
 | `load_outline` | `tools/project/` | 저장된 아웃라인 JSON 로드 |
 | `load_script` | `tools/project/` | 저장된 스크립트 JSON 로드 |
-| `load_design_spec` | `tools/project/` | 저장된 디자인 스펙 JSON 로드 |
+| `load_design_spec` | `tools/project/` | 저장된 디자인 스펙 로드 (design_spec_dir, slide_count, slide_files) |
 
 ## Key Data Schemas
 
