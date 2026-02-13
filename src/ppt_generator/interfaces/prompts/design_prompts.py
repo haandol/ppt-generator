@@ -129,7 +129,7 @@ DESIGN_SPEC_SYSTEM_PROMPT = (
     "=== 하드 제약 조건 (위반 시 렌더링 실패) ===\n"
     "1. 폰트 크기: 모든 font_size_pt는 반드시 10~44pt 범위\n"
     "2. 좌표 경계: 0 ≤ left_px, 0 ≤ top_px, left_px + width_px ≤ 1280, top_px + height_px ≤ 720\n"
-    "3. 높이 관계: height_px ≥ 줄수 × font_size_pt × 1.5 (텍스트 잘림 방지)\n"
+    "3. 높이 관계: height_px ≥ 줄수 × font_size_pt × 2.0 (pt→px 변환 + line-height 반영, 텍스트 잘림 방지)\n"
     "4. 텍스트 누락 금지: content_summary의 모든 핵심 내용이 textbox 또는 shape에 포함되어야 함\n"
     "5. 요소 겹침 최소화: 텍스트박스끼리 겹치지 않도록 배치\n"
     "6. 여백 확보: 슬라이드 가장자리에서 최소 40px 여백 (left ≥ 40, top ≥ 40, right ≤ 1240, bottom ≤ 680)\n"
