@@ -17,8 +17,6 @@ from ppt_generator.interfaces.constants import (
     OUTLINE_SYSTEM_PROMPT,
     SCRIPT_JSON_SCHEMA,
     SCRIPT_SYSTEM_PROMPT,
-    SLIDES_MODIFY_SYSTEM_PROMPT,
-    SLIDES_SYSTEM_PROMPT,
 )
 from ppt_generator.tools.design.service import DesignService
 from ppt_generator.tools.outline.service import OutlineService
@@ -82,14 +80,6 @@ class DIContainer:
         )
         return Agent(model=model, system_prompt=OUTLINE_SYSTEM_PROMPT, callback_handler=None, tools=[])
 
-    def _create_slides_agent(self) -> Agent:
-        model = self._create_bedrock_model()
-        return Agent(model=model, system_prompt=SLIDES_SYSTEM_PROMPT, callback_handler=None, tools=[])
-
-    def _create_slides_modify_agent(self) -> Agent:
-        model = self._create_bedrock_model()
-        return Agent(model=model, system_prompt=SLIDES_MODIFY_SYSTEM_PROMPT, callback_handler=None, tools=[])
-
     def _create_design_agent(self) -> Agent:
         model = self._create_bedrock_model()
         return Agent(model=model, system_prompt=DESIGN_SPEC_SYSTEM_PROMPT, callback_handler=None, tools=[])
@@ -111,19 +101,13 @@ class DIContainer:
     @property
     def export_service(self) -> ExportService:
         if self._export_service is None:
-            self._export_service = ExportService(
-                slides_service=self.slides_service,
-                use_llm_convert=True,
-                use_dom_extract=True,
-            )
+            self._export_service = ExportService()
         return self._export_service
 
     @property
     def slides_service(self) -> SlidesService:
         if self._slides_service is None:
-            agent = self._create_slides_agent()
-            modify_agent = self._create_slides_modify_agent()
-            self._slides_service = SlidesService(agent=agent, modify_agent=modify_agent)
+            self._slides_service = SlidesService()
         return self._slides_service
 
     @property
@@ -136,5 +120,5 @@ class DIContainer:
     @property
     def project_service(self) -> ProjectService:
         if self._project_service is None:
-            self._project_service = ProjectService(slides_service=self.slides_service)
+            self._project_service = ProjectService()
         return self._project_service

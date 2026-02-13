@@ -4,7 +4,11 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted (Updated: data-region 기반 요소 추출 추가 → LLM 기반 HTML→PPTX 변환 + Playwright 스크린샷, 디자인 스펙 직접 경로 추가 [ADR-0013](./0013-design-spec-pipeline.md) 참조)
+Superseded by [ADR-0013](./0013-design-spec-pipeline.md)
+
+> **레거시 HTML → PPTX 변환 경로는 제거되었습니다.** HTML 세션 기반의 DOM 추출/LLM 변환/룰 기반 폴백 체인은 삭제되었습니다. 현재 `export_pptx`는 디자인 스펙(PptxSlideSpec JSON)에서 SlideBuilder를 직접 호출하여 PPTX를 생성하는 단일 경로만 지원합니다. `session_id` 파라미터, Playwright 의존성, BeautifulSoup 의존성, `css_inliner`, `dom_extractor`, `llm_converter`, `html_parser`, `style_utils` 모듈이 모두 삭제되었습니다.
+>
+> 이전 상태: Accepted (Updated: data-region 기반 요소 추출 추가 → LLM 기반 HTML→PPTX 변환 + Playwright 스크린샷, 디자인 스펙 직접 경로 추가)
 
 ## Context
 

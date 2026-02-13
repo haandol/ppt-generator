@@ -121,14 +121,14 @@ class DesignSpecResponse:
 1. `generate_design_spec`으로 아웃라인에서 PptxSlideSpec JSON이 생성된다
 2. `generate_slides(design_spec_json=...)`으로 결정론적 HTML이 생성된다
 3. `export_pptx(design_spec_json=...)`으로 PPTX가 직접 생성된다
-4. 기존 경로 (`outline_json` → `session_id`)가 하위 호환 유지된다
+4. ~~기존 경로 (`outline_json` → `session_id`)가 하위 호환 유지된다~~ → 레거시 경로 제거됨
 5. 디자인 스펙이 프로젝트 디렉토리에 영속화된다
 6. 후속 슬라이드가 첫 슬라이드와 일관된 디자인을 유지한다
 
 ### Out of Scope
 
 - ~~디자인 스펙 수정 도구 (modify_design_spec)~~ → [ADR-0014](./0014-file-based-communication-and-per-slide-crud.md)에서 구현됨
-- 기존 HTML → PPTX 폴백 경로 제거 — 하위 호환을 위해 유지
+- ~~기존 HTML → PPTX 폴백 경로 제거~~ → 레거시 경로 완전 제거 완료 (ADR-0004, 0005, 0006 Superseded)
 
 ## Consequences
 
@@ -138,7 +138,7 @@ class DesignSpecResponse:
 - **단순성**: PPTX 생성 시 3단계 폴백 체인 대신 SlideBuilder 직접 호출
 - **속도**: PPTX 생성 시 Playwright/추가 LLM 호출 불필요
 - **비용 절감**: PPTX 변환용 Sonnet 4.5 호출 제거
-- **하위 호환**: 기존 HTML 기반 경로가 그대로 유지됨
+- **단일 파이프라인**: 레거시 HTML 기반 경로를 완전 제거하여 코드 단순화 달성
 
 ### Negative
 

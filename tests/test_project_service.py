@@ -1,6 +1,5 @@
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -9,15 +8,8 @@ from ppt_generator.tools.project.service import ProjectService
 
 
 @pytest.fixture()
-def slides_service() -> MagicMock:
-    svc = MagicMock()
-    svc._sessions = {}
-    return svc
-
-
-@pytest.fixture()
-def project_service(slides_service: MagicMock) -> ProjectService:
-    return ProjectService(slides_service=slides_service)
+def project_service() -> ProjectService:
+    return ProjectService()
 
 
 @pytest.fixture()
@@ -88,37 +80,21 @@ class TestSaveAndLoadScript:
         assert json.loads(loaded) == json.loads(SAMPLE_SCRIPT)
 
 
-class TestSaveAndLoadSlidesHtml:
-    def test_roundtrip(self, project_service: ProjectService, project_dir: Path) -> None:
-        session_id = "test-session-123"
-        project_service.save_slides_html(project_dir, session_id, SAMPLE_HTML)
-
-        loaded_sid, loaded_html = project_service.load_slides_html(project_dir)
-        assert loaded_sid == session_id
-        assert loaded_html == SAMPLE_HTML
-
+class TestSaveSlidesHtml:
     def test_files_created(self, project_service: ProjectService, project_dir: Path) -> None:
         project_service.save_slides_html(project_dir, "sid", SAMPLE_HTML)
         assert (project_dir / "slides.html").exists()
         assert (project_dir / "slides_meta.json").exists()
 
-
-class TestLoadSlidesRestoresSession:
-    def test_session_restored(self, project_service: ProjectService, slides_service: MagicMock, project_dir: Path) -> None:
-        session_id = "restore-test-456"
-        project_service.save_slides_html(project_dir, session_id, SAMPLE_HTML)
-
-        project_service.load_slides_html(project_dir)
-        html = slides_service._sessions[session_id]
+    def test_html_content(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_slides_html(project_dir, "sid-123", SAMPLE_HTML)
+        html = (project_dir / "slides.html").read_text(encoding="utf-8")
         assert html == SAMPLE_HTML
 
-    def test_session_restored_without_image_paths(self, project_service: ProjectService, slides_service: MagicMock, project_dir: Path) -> None:
-        session_id = "restore-no-images"
-        project_service.save_slides_html(project_dir, session_id, SAMPLE_HTML)
-
-        project_service.load_slides_html(project_dir)
-        html = slides_service._sessions[session_id]
-        assert html == SAMPLE_HTML
+    def test_meta_content(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_slides_html(project_dir, "sid-123", SAMPLE_HTML)
+        meta = json.loads((project_dir / "slides_meta.json").read_text(encoding="utf-8"))
+        assert meta["session_id"] == "sid-123"
 
 
 class TestSavePptxCopiesFile:
@@ -241,10 +217,6 @@ class TestLoadNonexistentRaises:
     def test_script(self, project_service: ProjectService, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
             project_service.load_script(tmp_path / "empty")
-
-    def test_slides_html(self, project_service: ProjectService, tmp_path: Path) -> None:
-        with pytest.raises(FileNotFoundError):
-            project_service.load_slides_html(tmp_path / "empty")
 
     def test_metadata(self, project_service: ProjectService, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):

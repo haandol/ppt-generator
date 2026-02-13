@@ -6,13 +6,9 @@ import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from ppt_generator.interfaces.constants import PPT_GENERATOR_HOME
 from ppt_generator.interfaces.schemas import ProjectMetadata
-
-if TYPE_CHECKING:
-    from ppt_generator.tools.slides.service import SlidesService
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +16,8 @@ logger = logging.getLogger(__name__)
 class ProjectService:
     """파이프라인 결과물의 파일 I/O를 전담하는 서비스."""
 
-    def __init__(self, slides_service: SlidesService) -> None:
-        self._slides_service = slides_service
+    def __init__(self) -> None:
+        pass
 
     def resolve_project_dir(self, project_id: str = "") -> tuple[str, Path]:
         """project_id → (project_id, project_dir). 빈 값이면 UUID 자동 생성."""
@@ -112,17 +108,6 @@ class ProjectService:
     def load_design_spec(self, project_dir: Path) -> str:
         path = project_dir / "design_spec.json"
         return path.read_text(encoding="utf-8")
-
-    def load_slides_html(self, project_dir: Path) -> tuple[str, str]:
-        html = (project_dir / "slides.html").read_text(encoding="utf-8")
-        meta = json.loads((project_dir / "slides_meta.json").read_text(encoding="utf-8"))
-        session_id = meta["session_id"]
-
-        # SlidesService 인메모리 세션 복원
-        self._slides_service._sessions[session_id] = html
-        logger.info("슬라이드 세션 복원 완료: session_id=%s", session_id)
-
-        return session_id, html
 
     # --- 프로젝트 목록 ---
 

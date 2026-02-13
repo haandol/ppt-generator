@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from io import BytesIO
 
-from bs4 import Tag
+from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE
 from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
 from pptx.oxml.ns import qn
@@ -32,17 +32,26 @@ from ppt_generator.interfaces.schemas import (
     PptxSlideSpec,
     PptxTextBox,
 )
-from ppt_generator.tools.pptx.html_parser import walk_region_content
-from ppt_generator.tools.pptx.style_utils import (
-    RichTextFragment,
-    extract_color,
-    extract_font_size,
-    get_position_and_size,
-    is_bold,
-    parse_color,
-    parse_inline_style,
-    scale_font_size,
-)
+
+
+def parse_color(color_str: str) -> RGBColor | None:
+    """CSS 색상 문자열을 python-pptx RGBColor로 변환."""
+    if not color_str:
+        return None
+    # #RRGGBB or #RGB
+    hex_match = re.match(r"#([0-9a-fA-F]{6})", color_str)
+    if hex_match:
+        hex_val = hex_match.group(1)
+        return RGBColor(int(hex_val[0:2], 16), int(hex_val[2:4], 16), int(hex_val[4:6], 16))
+    short_hex = re.match(r"#([0-9a-fA-F]{3})(?:\s|;|$)", color_str)
+    if short_hex:
+        h = short_hex.group(1)
+        return RGBColor(int(h[0] * 2, 16), int(h[1] * 2, 16), int(h[2] * 2, 16))
+    # rgb(r, g, b)
+    rgb_match = re.match(r"rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", color_str)
+    if rgb_match:
+        return RGBColor(int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3)))
+    return None
 
 
 class SlideBuilder:
@@ -354,178 +363,3 @@ class SlideBuilder:
             buChar = pPr.makeelement(qn("a:buChar"), {})
             pPr.append(buChar)
         buChar.set("char", PPTX_BULLET_CHAR_L0)
-
-    # --- 룰 기반 요소 추출 ---
-
-    def extract_elements(self, slide, section: Tag) -> None:
-        """section에서 요소를 추출하여 슬라이드에 배치."""
-        self._extract_legacy_elements(slide, section)
-
-    def _extract_legacy_elements(self, slide, section: Tag) -> None:
-        for child in section.children:
-            if not isinstance(child, Tag):
-                continue
-            style = parse_inline_style(child.get("style", ""))
-
-            if child.name in ("h1", "h2", "h3", "h4", "h5", "h6", "p", "div", "span", "ul", "ol"):
-                if child.get_text(strip=True):
-                    self._add_textbox(slide, child, style)
-            else:
-                text = child.get_text(strip=True)
-                if text:
-                    self._add_textbox(slide, child, style)
-
-    def _build_textbox_from_fragments(
-        self, slide, fragments: list[RichTextFragment],
-        left: float, top: float, width: float, height: float,
-    ) -> None:
-        """RichTextFragment 리스트를 python-pptx 텍스트박스로 변환."""
-        txbox = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
-        tf = txbox.text_frame
-        tf.word_wrap = True
-
-        current_para = tf.paragraphs[0]
-        is_first_para = True
-
-        for frag in fragments:
-            if not frag.text:
-                continue
-
-            if frag.paragraph_break and not is_first_para:
-                current_para = tf.add_paragraph()
-
-            run = current_para.add_run()
-            run.text = frag.text
-            run.font.name = PPTX_FONT_NAME
-            scaled_size = scale_font_size(frag.font_size)
-            if scaled_size:
-                run.font.size = Pt(scaled_size)
-            run.font.bold = frag.bold
-            run.font.italic = frag.italic
-            if frag.color:
-                rgb = parse_color(frag.color)
-                if rgb:
-                    run.font.color.rgb = rgb
-
-            if frag.bullet_level >= 0 and frag.paragraph_break:
-                self._apply_bullet(current_para, frag.bullet_level)
-
-            if frag.paragraph_break:
-                is_first_para = False
-
-    def extract_flex_columns(
-        self, slide, region_div: Tag,
-        left: float, top: float, width: float, height: float,
-    ) -> bool:
-        """flex 컨테이너가 있으면 자식을 개별 텍스트박스로 분할 배치. 처리했으면 True 반환."""
-        flex_container = None
-        for child in region_div.children:
-            if not isinstance(child, Tag):
-                continue
-            child_style = parse_inline_style(child.get("style", ""))
-            display = child_style.get("display", "")
-            if "flex" in display and child.name == "div":
-                flex_container = child
-                break
-
-        if flex_container is None:
-            return False
-
-        flex_style = parse_inline_style(flex_container.get("style", ""))
-        flex_children = [c for c in flex_container.children if isinstance(c, Tag)]
-        if len(flex_children) < 2:
-            return False
-
-        gap_str = flex_style.get("gap", "0")
-        gap_match = re.match(r"(\d+(?:\.\d+)?)\s*px", gap_str)
-        gap_px = float(gap_match.group(1)) if gap_match else 0
-        gap_inches = gap_px * EXPORT_PX_TO_INCHES_X
-
-        n = len(flex_children)
-        total_gap = gap_inches * (n - 1)
-        col_width = (width - total_gap) / n
-
-        for i, col_child in enumerate(flex_children):
-            col_left = left + i * (col_width + gap_inches)
-            fragments = walk_region_content(col_child, parent_style={}, bullet_level=-1)
-            if fragments:
-                self._build_textbox_from_fragments(slide, fragments, col_left, top, col_width, height)
-
-        return True
-
-    def _add_textbox(self, slide, element: Tag, style: dict[str, str]) -> None:
-        left, top, width, height = get_position_and_size(style)
-        txbox = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
-        tf = txbox.text_frame
-        tf.word_wrap = True
-
-        font_size = extract_font_size(style)
-        bold = is_bold(element, style)
-        color = extract_color(style)
-
-        text = element.get_text(separator="\n", strip=True)
-        lines = text.split("\n")
-
-        for i, line in enumerate(lines):
-            if not line.strip():
-                continue
-            if i == 0:
-                p = tf.paragraphs[0]
-            else:
-                p = tf.add_paragraph()
-            p.text = line.strip()
-            for run in p.runs:
-                run.font.name = PPTX_FONT_NAME
-                if font_size:
-                    run.font.size = Pt(font_size)
-                run.font.bold = bold
-                if color:
-                    run.font.color.rgb = color
-
-    def add_textbox_at(
-        self, slide, element: Tag,
-        left: float, top: float, width: float, height: float,
-        is_title: bool = False,
-    ) -> None:
-        """region 좌표를 직접 사용하여 텍스트박스를 배치."""
-        txbox = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
-        tf = txbox.text_frame
-        tf.word_wrap = True
-
-        style = parse_inline_style(element.get("style", ""))
-        font_size = extract_font_size(style)
-        color = extract_color(style)
-
-        text = element.get_text(separator="\n", strip=True)
-        lines = text.split("\n")
-
-        for i, line in enumerate(lines):
-            if not line.strip():
-                continue
-            if i == 0:
-                p = tf.paragraphs[0]
-            else:
-                p = tf.add_paragraph()
-            p.text = line.strip()
-            for run in p.runs:
-                run.font.name = PPTX_FONT_NAME
-                if font_size:
-                    run.font.size = Pt(font_size)
-                run.font.bold = is_title
-                if color:
-                    run.font.color.rgb = color
-
-    def add_shape(self, slide, element: Tag, style: dict[str, str]) -> None:
-        """HTML 요소를 도형으로 변환하여 슬라이드에 추가."""
-        left, top, width, height = get_position_and_size(style)
-        shape = slide.shapes.add_shape(
-            MSO_SHAPE.ROUNDED_RECTANGLE, Inches(left), Inches(top), Inches(width), Inches(height),
-        )
-        text = element.get_text(strip=True)
-        if text:
-            tf = shape.text_frame
-            tf.word_wrap = True
-            p = tf.paragraphs[0]
-            p.text = text
-            for run in p.runs:
-                run.font.name = PPTX_FONT_NAME

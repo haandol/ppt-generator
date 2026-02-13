@@ -1,4 +1,4 @@
-"""pptx controller 테스트: project_id 기반 자동 로드 검증."""
+"""pptx controller 테스트: design_spec_json 및 project_id 기반 자동 로드 검증."""
 
 import json
 from pathlib import Path
@@ -34,22 +34,14 @@ def _make_design_spec() -> DesignSpec:
 
 
 @pytest.fixture()
-def slides_service() -> MagicMock:
-    svc = MagicMock()
-    svc._sessions = {}
-    return svc
-
-
-@pytest.fixture()
-def project_service(slides_service: MagicMock) -> ProjectService:
-    return ProjectService(slides_service=slides_service)
+def project_service() -> ProjectService:
+    return ProjectService()
 
 
 @pytest.fixture()
 def export_service() -> MagicMock:
     svc = MagicMock()
     svc.export_from_design_spec.return_value = ExportPptxResponse(pptx_path="/tmp/output.pptx")
-    svc.export.return_value = ExportPptxResponse(pptx_path="/tmp/output.pptx")
     return svc
 
 
@@ -91,7 +83,7 @@ class TestExportPptxProjectId:
         assert result["pptx_path"] == "/tmp/output.pptx"
         mcp_tools["_export_service"].export_from_design_spec.assert_called_once()
 
-    def test_error_when_no_design_spec_no_session(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+    def test_error_when_no_design_spec(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
         import ppt_generator.tools.project.service as svc_module
         monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
 
@@ -101,12 +93,12 @@ class TestExportPptxProjectId:
             json.dumps({"topic": "", "num_slides": 0, "steps_completed": {}}, ensure_ascii=False),
             encoding="utf-8",
         )
-        with pytest.raises(ValueError, match="session_id, design_spec_json 중 하나"):
+        with pytest.raises(ValueError, match="design_spec_json을 제공하거나"):
             mcp_tools["export_pptx"](project_id="proj-2")
 
     def test_error_when_nothing_provided(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
         import ppt_generator.tools.project.service as svc_module
         monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
 
-        with pytest.raises(ValueError, match="session_id, design_spec_json 중 하나"):
+        with pytest.raises(ValueError, match="design_spec_json을 제공하거나"):
             mcp_tools["export_pptx"]()
