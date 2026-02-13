@@ -2,7 +2,6 @@ import json
 
 from mcp.server.fastmcp import FastMCP
 
-from ppt_generator.interfaces.schemas import DesignSpecRequest
 from ppt_generator.interfaces.utils import parse_outline_json
 from ppt_generator.tools.design.service import DesignService
 from ppt_generator.tools.project.service import ProjectService
@@ -13,39 +12,6 @@ def register_design_tools(
     design_service: DesignService,
     project_service: ProjectService,
 ) -> None:
-    @mcp.tool()
-    def generate_design_spec(outline_json: str, project_id: str = "") -> str:
-        """아웃라인을 기반으로 디자인 스펙(PptxSlideSpec JSON)을 생성합니다.
-
-        슬라이드 아웃라인 JSON을 받아 각 슬라이드의 정밀한 시각적 레이아웃을
-        PptxSlideSpec 형식으로 생성합니다. 생성된 디자인 스펙은
-        generate_slides(design_spec_json=...)이나 export_pptx(design_spec_json=...)의
-        입력으로 사용할 수 있습니다.
-
-        Args:
-            outline_json: generate_script로 생성된 슬라이드 아웃라인 JSON 문자열
-            project_id: 프로젝트 ID (미지정 시 자동 생성)
-
-        Returns:
-            design_spec_path, project_id를 포함하는 JSON 문자열
-        """
-        outline = parse_outline_json(outline_json)
-        request = DesignSpecRequest(slides=outline.slides)
-        response = design_service.generate(request)
-
-        project_id, project_dir = project_service.resolve_project_dir(project_id)
-        project_service.save_design_spec(project_dir, response.design_spec)
-        project_service.update_step(project_dir, "design_spec")
-
-        return json.dumps(
-            {
-                "design_spec_dir": str(project_dir / "design_spec"),
-                "slide_count": len(response.design_spec.slides),
-                "project_id": project_id,
-            },
-            ensure_ascii=False,
-        )
-
     @mcp.tool()
     def generate_slide_design_spec(
         outline_json: str,
@@ -58,6 +24,10 @@ def register_design_tools(
         슬라이드를 하나씩 생성하고 검토/수정한 뒤 다음 슬라이드로 진행할 수 있습니다.
         첫 슬라이드(slide_index=0) 생성 시 디자인 테마를 추출하여 저장하고,
         이후 슬라이드에서 자동으로 로드하여 시각적 일관성을 유지합니다.
+
+        **사전 조건: 아웃라인 생성 후 사용자에게 아웃라인 수정 사항이 없는지 반드시 확인을 받은 뒤 호출하세요.**
+        아웃라인의 슬라이드 수, 제목, 내용 구성 등에 수정이 필요한지 사용자에게 물어보고,
+        수정이 필요하면 generate_outline을 다시 호출하여 반영한 후 진행하세요.
 
         Args:
             outline_json: 단일 슬라이드 아웃라인 JSON (title, content_summary, component_hint, speaker_notes)
@@ -74,9 +44,9 @@ def register_design_tools(
         project_id, project_dir = project_service.resolve_project_dir(project_id)
 
         # 디자인 요약 결정
-        design_summary = ""
+        design_summary: dict | None = None
         if slide_index > 0:
-            design_summary = project_service.load_design_summary(project_dir) or ""
+            design_summary = project_service.load_design_summary(project_dir)
 
         # 슬라이드 생성 (1-based index를 프롬프트에 전달)
         spec = design_service.generate_single_slide(
@@ -138,7 +108,7 @@ def register_design_tools(
         slide_count = project_service.get_design_spec_slide_count(project_dir)
 
         # 디자인 요약 추출 (add/update 시 일관성 유지)
-        design_summary = ""
+        design_summary: dict | None = None
         if action in ("add", "update") and slide_count > 0:
             first_slide = project_service.load_design_spec_slide(project_dir, 0)
             design_summary = design_service._extract_design_summary(first_slide)

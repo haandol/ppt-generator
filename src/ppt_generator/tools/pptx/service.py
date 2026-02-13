@@ -19,6 +19,7 @@ from ppt_generator.interfaces.schemas import (
     DesignSpec,
     ExportPptxResponse,
 )
+from ppt_generator.interfaces.spec_utils import validate_slide_spec
 from ppt_generator.tools.pptx.slide_builder import SlideBuilder
 
 logger = logging.getLogger(__name__)
@@ -45,7 +46,8 @@ class ExportService:
         prs.slide_height = PPTX_SLIDE_HEIGHT_EMU
         blank_layout = prs.slide_layouts[6]
 
-        for spec in design_spec.slides:
+        for raw_spec in design_spec.slides:
+            spec = validate_slide_spec(raw_spec)
             slide = prs.slides.add_slide(blank_layout)
             self._builder.remove_placeholders(slide)
 

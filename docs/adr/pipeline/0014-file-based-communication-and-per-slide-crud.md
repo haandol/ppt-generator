@@ -8,7 +8,7 @@ Accepted (Updated: 슬라이드별 파일 분리 [ADR-0015](./0015-per-slide-fil
 
 ## Context
 
-MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 때, 인라인 JSON 콘텐츠가 컨텍스트 윈도우를 낭비한다. 예를 들어 `generate_design_spec`이 반환하는 `design_spec_json`은 수십 KB에 달하며, 이를 `generate_slides`나 `export_pptx`의 인자로 다시 전달하면 토큰이 중복 소비된다.
+MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 때, 인라인 JSON 콘텐츠가 컨텍스트 윈도우를 낭비한다. 예를 들어 디자인 스펙 생성 도구가 반환하는 `design_spec_json`은 수십 KB에 달하며, 이를 `generate_slides`나 `export_pptx`의 인자로 다시 전달하면 토큰이 중복 소비된다.
 
 또한 디자인 스펙의 개별 슬라이드를 수정하려면 전체를 재생성해야 하는 문제가 있었다 (ADR-0013의 Out of Scope).
 
@@ -19,7 +19,7 @@ MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 �
 ### 1. 파일 기반 통신
 
 - 모든 도구는 결과를 파일로 저장하고, 반환값에 파일 경로와 `project_id`만 포함
-- `generate_design_spec`의 반환에서 `design_spec_json` 인라인 키 제거, `design_spec_dir` + `slide_count` 반환
+- 디자인 스펙 생성 도구의 반환에서 `design_spec_json` 인라인 키 제거, `design_spec_dir` + `slide_count` 반환
 - `generate_slides`와 `export_pptx`에 `project_id` 기반 자동 로드 추가
   - `project_id`만 제공 시 프로젝트 디렉토리에서 디자인 스펙을 자동 로드
   - 기존 `design_spec_json`, `outline_json`, `session_id` 경로도 하위 호환 유지
@@ -35,8 +35,8 @@ MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 �
 
 - 새 MCP 도구 `generate_slide_design_spec(outline_json, slide_index, total_slides, project_id)` 추가
 - 슬라이드를 하나씩 생성하고 검토/수정한 뒤 다음 슬라이드로 진행하는 점진적 워크플로우 지원
-- `slide_index == 0` (첫 슬라이드): 디자인 요약 추출 → `design_spec/design_summary.txt` 저장
-- `slide_index > 0` (후속 슬라이드): `design_summary.txt` 로드 → 디자인 테마 일관성 유지
+- `slide_index == 0` (첫 슬라이드): 디자인 요약 추출 → `design_spec/design_summary.json` 저장
+- `slide_index > 0` (후속 슬라이드): `design_summary.json` 로드 → 디자인 테마 일관성 유지
 - `ProjectService.create_design_spec_slide()` — 파일 유무 무관하게 슬라이드 저장 (디렉토리 자동 생성)
 - `ProjectService.save_design_summary()` / `load_design_summary()` — 디자인 요약 영속화
 
@@ -52,11 +52,6 @@ export_pptx:     design_spec_json > session_id > project_id (자동 로드)
 #### project_id 기반 체이닝 (권장 흐름)
 
 ```
-A) 일괄 생성:
-generate_outline → generate_script → generate_design_spec
-    → generate_slides(project_id=...) → export_pptx(project_id=...)
-
-B) 슬라이드별 생성 (권장):
 generate_outline → generate_script
     → for i in 0..N-1:
         generate_slide_design_spec(slide[i], slide_index=i, total_slides=N)
@@ -82,13 +77,13 @@ generate_outline → generate_script
 
 ### Acceptance Criteria
 
-1. `generate_design_spec` 반환에 `design_spec_json` 인라인 키가 없다
+1. `generate_slide_design_spec` 반환에 `design_spec_json` 인라인 키가 없다
 2. `generate_slides(project_id=...)` 만으로 HTML 슬라이드가 생성된다
 3. `export_pptx(project_id=...)` 만으로 PPTX가 생성된다
 4. `modify_design_spec`으로 개별 슬라이드 add/update/delete가 동작한다
 5. 기존 경로(design_spec_json 직접 전달, outline_json, session_id)가 하위 호환 유지된다
 6. `generate_slide_design_spec`으로 슬라이드를 하나씩 생성할 수 있다
-7. 첫 슬라이드 생성 시 `design_summary.txt`가 생성되고, 후속 슬라이드에서 로드된다
+7. 첫 슬라이드 생성 시 `design_summary.json`가 생성되고, 후속 슬라이드에서 로드된다
 
 ## Consequences
 
@@ -106,7 +101,7 @@ generate_outline → generate_script
 
 ## References
 
-- 구현: `src/ppt_generator/tools/design/controller.py` — `modify_design_spec`, `generate_design_spec`, `generate_slide_design_spec`
+- 구현: `src/ppt_generator/tools/design/controller.py` — `modify_design_spec`, `generate_slide_design_spec`
 - 서비스: `src/ppt_generator/tools/design/service.py` — `generate_single_slide(slide_outline, design_summary, slide_index, total_slides)`
 - 프로젝트 서비스: `src/ppt_generator/tools/project/service.py` — 슬라이드별 CRUD 메서드, `create_design_spec_slide()`, `save_design_summary()`, `load_design_summary()`
 - 슬라이드 컨트롤러: `src/ppt_generator/tools/slides/controller.py` — project_id 자동 로드

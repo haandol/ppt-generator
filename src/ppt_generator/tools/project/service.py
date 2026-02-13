@@ -198,18 +198,20 @@ class ProjectService:
         fname = self._slide_filename(index)
         (spec_dir / fname).write_text(slide_spec_to_json(slide), encoding="utf-8")
 
-    def save_design_summary(self, project_dir: Path, summary: str) -> None:
-        """디자인 요약을 design_spec/design_summary.txt에 저장한다."""
+    def save_design_summary(self, project_dir: Path, summary: dict) -> None:
+        """디자인 요약을 design_spec/design_summary.json에 저장한다."""
         spec_dir = self._design_spec_dir(project_dir)
         spec_dir.mkdir(parents=True, exist_ok=True)
-        (spec_dir / "design_summary.txt").write_text(summary, encoding="utf-8")
+        (spec_dir / "design_summary.json").write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
-    def load_design_summary(self, project_dir: Path) -> str | None:
+    def load_design_summary(self, project_dir: Path) -> dict | None:
         """디자인 요약을 로드한다. 파일이 없으면 None을 반환한다."""
-        path = self._design_spec_dir(project_dir) / "design_summary.txt"
+        path = self._design_spec_dir(project_dir) / "design_summary.json"
         if not path.exists():
             return None
-        return path.read_text(encoding="utf-8")
+        return json.loads(path.read_text(encoding="utf-8"))
 
     def get_design_spec_slide_count(self, project_dir: Path) -> int:
         """디자인 스펙의 슬라이드 수를 반환한다."""

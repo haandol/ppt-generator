@@ -161,20 +161,6 @@ class DesignSpec:
     slides: list[PptxSlideSpec] = field(default_factory=list)
 
 
-@dataclass(frozen=True)
-class DesignSpecRequest:
-    """디자인 스펙 생성 입력."""
-
-    slides: list[SlideOutline] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class DesignSpecResponse:
-    """디자인 스펙 생성 출력."""
-
-    design_spec: DesignSpec = field(default_factory=DesignSpec)
-
-
 # --- Pydantic 출력 모델 (strands structured_output용) ---
 
 

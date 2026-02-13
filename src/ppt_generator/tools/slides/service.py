@@ -18,6 +18,7 @@ from ppt_generator.interfaces.schemas import (
     PptxTextRun,
     SlidesResponse,
 )
+from ppt_generator.interfaces.spec_utils import validate_slide_spec
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,8 @@ class SlidesService:
             raise ValueError("디자인 스펙에 슬라이드가 없습니다.")
 
         sections: list[str] = []
-        for idx, spec in enumerate(design_spec.slides):
+        for idx, raw_spec in enumerate(design_spec.slides):
+            spec = validate_slide_spec(raw_spec)
             section_html = self._spec_to_html_section(idx, spec)
             sections.append(section_html)
 

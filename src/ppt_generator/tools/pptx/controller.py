@@ -17,7 +17,7 @@ def register_pptx_tools(mcp: FastMCP, export_service: ExportService, project_ser
         2. project_id만 제공 시: 프로젝트 디렉토리에서 디자인 스펙을 자동 로드하여 PPTX 생성 (권장)
 
         Args:
-            design_spec_json: generate_design_spec으로 생성된 디자인 스펙 JSON 문자열
+            design_spec_json: 디자인 스펙 JSON 문자열
             project_id: 프로젝트 ID (미지정 시 자동 생성). 단독 제공 시 디자인 스펙 자동 로드
 
         Returns:
@@ -39,7 +39,7 @@ def register_pptx_tools(mcp: FastMCP, export_service: ExportService, project_ser
             except FileNotFoundError:
                 raise ValueError(
                     "design_spec_json을 제공하거나, "
-                    "generate_design_spec을 먼저 실행하여 프로젝트에 디자인 스펙을 저장하세요."
+                    "generate_slide_design_spec을 먼저 실행하여 프로젝트에 디자인 스펙을 저장하세요."
                 )
 
         project_service.update_step(project_dir, "pptx")
