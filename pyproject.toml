@@ -4,9 +4,7 @@ version = "0.1.0"
 description = "자동 프레젠테이션 생성 MCP 서버"
 requires-python = ">=3.13"
 dependencies = [
-    "beautifulsoup4>=4.12",
     "mcp",
-    "playwright>=1.40",
     "python-pptx>=1.0.2",
     "strands-agents",
     "strands-agents-tools",

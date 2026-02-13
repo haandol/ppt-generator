@@ -4,7 +4,11 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted (Updated: reveal.js 제거 → 정적 HTML 수직 스크롤 → 레이아웃 골격 기반 위치 강제 → 이미지 생성 기능 제거 → layout_index 기반 + component_hint + css_inliner, 디자인 스펙 결정론적 변환 경로 추가 [ADR-0013](./0013-design-spec-pipeline.md) 참조)
+Superseded by [ADR-0013](./0013-design-spec-pipeline.md)
+
+> **레거시 자유형식 HTML 생성 경로는 제거되었습니다.** LLM이 직접 HTML을 생성하는 기존 방식(아웃라인 → 골격 → LLM 콘텐츠 채우기 → 좌표 검증)은 ADR-0013의 디자인 스펙 파이프라인으로 대체되었습니다. 현재 `generate_slides`는 디자인 스펙(PptxSlideSpec JSON)을 결정론적으로 HTML로 변환하는 단일 경로만 지원합니다. 관련 코드(`css_inliner.py`, `slides_prompts.py`, 레거시 서비스 메서드)가 삭제되었습니다.
+>
+> 이전 상태: Accepted (Updated: reveal.js 제거 → 정적 HTML 수직 스크롤 → 레이아웃 골격 기반 위치 강제 → 이미지 생성 기능 제거 → layout_index 기반 + component_hint + css_inliner, 디자인 스펙 결정론적 변환 경로 추가)
 
 ## Context
 

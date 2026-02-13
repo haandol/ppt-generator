@@ -4,7 +4,9 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted
+Superseded by [ADR-0013](./0013-design-spec-pipeline.md) + [ADR-0014](./0014-file-based-communication-and-per-slide-crud.md)
+
+> **`modify_slides` 도구는 제거되었습니다.** HTML 슬라이드를 LLM으로 직접 수정하는 기존 방식은 디자인 스펙 수준에서 수정하는 `modify_design_spec` 도구로 대체되었습니다. 디자인 스펙을 수정한 후 `generate_slides`로 HTML을 재생성하는 방식이 더 정확하고 일관된 결과를 제공합니다.
 
 ## Context
 

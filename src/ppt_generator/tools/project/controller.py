@@ -118,27 +118,3 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
             {"design_spec_path": str(project_dir / "design_spec.json")},
             ensure_ascii=False,
         )
-
-    @mcp.tool()
-    def load_slides_html(project_id: str) -> str:
-        """저장된 HTML 슬라이드를 로드하고 세션을 복원합니다.
-
-        프로젝트 디렉토리에서 이전에 생성된 HTML 슬라이드를 불러오고,
-        SlidesService의 인메모리 세션을 복원합니다.
-        반환된 session_id를 modify_slides나 export_pptx에 바로 사용할 수 있습니다.
-
-        Args:
-            project_id: 프로젝트 ID
-
-        Returns:
-            session_id와 slides_html_path를 포함하는 JSON 문자열
-        """
-        _, project_dir = project_service.resolve_project_dir(project_id)
-        session_id, _ = project_service.load_slides_html(project_dir)
-        return json.dumps(
-            {
-                "session_id": session_id,
-                "slides_html_path": str(project_dir / "slides.html"),
-            },
-            ensure_ascii=False,
-        )

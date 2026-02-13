@@ -48,15 +48,8 @@ SAMPLE_OUTLINE_JSON = json.dumps(
 
 
 @pytest.fixture()
-def slides_service() -> MagicMock:
-    svc = MagicMock()
-    svc._sessions = {}
-    return svc
-
-
-@pytest.fixture()
-def project_service(slides_service: MagicMock) -> ProjectService:
-    return ProjectService(slides_service=slides_service)
+def project_service() -> ProjectService:
+    return ProjectService()
 
 
 @pytest.fixture()
@@ -77,7 +70,7 @@ def project_with_design_spec(project_service: ProjectService, project_dir: Path)
 
 
 @pytest.fixture()
-def mcp_tools(slides_service: MagicMock, project_service: ProjectService) -> dict:
+def mcp_tools(project_service: ProjectService) -> dict:
     """MCP 도구를 등록하고 도구 함수들을 반환한다."""
     mcp = MagicMock()
     tools = {}
