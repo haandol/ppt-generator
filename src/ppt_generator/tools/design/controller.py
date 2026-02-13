@@ -61,7 +61,7 @@ def register_design_tools(
 
         # 첫 슬라이드인 경우 디자인 요약 추출 및 저장
         if slide_index == 0:
-            summary = design_service._extract_design_summary(spec)
+            summary = design_service.extract_design_summary(spec)
             project_service.save_design_summary(project_dir, summary)
 
         project_service.update_step(project_dir, "design_spec")
@@ -111,7 +111,7 @@ def register_design_tools(
         design_summary: dict | None = None
         if action in ("add", "update") and slide_count > 0:
             first_slide = project_service.load_design_spec_slide(project_dir, 0)
-            design_summary = design_service._extract_design_summary(first_slide)
+            design_summary = design_service.extract_design_summary(first_slide)
 
         if action == "add":
             if not outline_json:

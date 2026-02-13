@@ -112,38 +112,52 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
 
 
 # ---------------------------------------------------------------------------
-# validate_slide_spec: 경계/폰트 검증 및 보정
+# validate_slide_spec: 경계/폰트 검증 및 보정 (헬퍼 함수)
 # ---------------------------------------------------------------------------
 
-def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
-    """LLM 출력 PptxSlideSpec을 검증하고 보정한다."""
-    canvas_w = SLIDES_WIDTH_PX
-    canvas_h = SLIDES_HEIGHT_PX
-    font_min = PPTX_VALIDATE_FONT_MIN_PT
-    font_max = PPTX_VALIDATE_FONT_MAX_PT
-    lh_factor = PPTX_VALIDATE_LINE_HEIGHT_FACTOR
+_CANVAS_W = SLIDES_WIDTH_PX
+_CANVAS_H = SLIDES_HEIGHT_PX
+_FONT_MIN = PPTX_VALIDATE_FONT_MIN_PT
+_FONT_MAX = PPTX_VALIDATE_FONT_MAX_PT
+_LH_FACTOR = PPTX_VALIDATE_LINE_HEIGHT_FACTOR
+_MARGIN = 40  # 슬라이드 가장자리 최소 여백 (px)
 
-    def _clamp_font(pt: int | None) -> int | None:
-        if pt is None:
-            return None
-        return max(font_min, min(font_max, pt))
 
-    margin = 40  # 슬라이드 가장자리 최소 여백 (px)
+def _clamp_font(pt: int | None, font_min: int = _FONT_MIN, font_max: int = _FONT_MAX) -> int | None:
+    """폰트 크기를 허용 범위로 클램핑한다."""
+    if pt is None:
+        return None
+    return max(font_min, min(font_max, pt))
 
-    def _clip_rect(
-        left: float, top: float, width: float, height: float,
-        *, is_decorative: bool = False,
-    ) -> tuple[float, float, float, float]:
-        left = max(0, min(left, canvas_w - 10))
-        top = max(0, min(top, canvas_h - 10))
-        width = max(10, min(width, canvas_w - left))
-        # 장식용 요소(얇은 라인/바)는 캔버스 끝까지 허용, 그 외는 하단 여백 확보
-        max_bottom = canvas_h if is_decorative else (canvas_h - margin)
-        height = max(10, min(height, max_bottom - top))
-        return left, top, width, height
 
-    validated_textboxes: list[PptxTextBox] = []
-    for tb in spec.textboxes:
+def _clip_rect(
+    left: float, top: float, width: float, height: float,
+    canvas_w: float = _CANVAS_W, canvas_h: float = _CANVAS_H,
+    margin: int = _MARGIN,
+    *, is_decorative: bool = False,
+) -> tuple[float, float, float, float]:
+    """요소 위치/크기를 캔버스 범위 내로 클리핑한다."""
+    left = max(0, min(left, canvas_w - 10))
+    top = max(0, min(top, canvas_h - 10))
+    width = max(10, min(width, canvas_w - left))
+    # 장식용 요소(얇은 라인/바)는 캔버스 끝까지 허용, 그 외는 하단 여백 확보
+    max_bottom = canvas_h if is_decorative else (canvas_h - margin)
+    height = max(10, min(height, max_bottom - top))
+    return left, top, width, height
+
+
+def _validate_textboxes(
+    textboxes: list[PptxTextBox],
+    canvas_w: float = _CANVAS_W,
+    canvas_h: float = _CANVAS_H,
+    font_min: int = _FONT_MIN,
+    font_max: int = _FONT_MAX,
+    lh_factor: float = _LH_FACTOR,
+    margin: int = _MARGIN,
+) -> list[PptxTextBox]:
+    """텍스트박스 목록을 검증/보정한다."""
+    validated: list[PptxTextBox] = []
+    for tb in textboxes:
         has_text = any(
             run.text.strip()
             for para in tb.paragraphs
@@ -158,20 +172,23 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
         for para in tb.paragraphs:
             new_runs: list[PptxTextRun] = []
             for run in para.runs:
-                clamped_size = _clamp_font(run.font_size_pt)
+                clamped_size = _clamp_font(run.font_size_pt, font_min, font_max)
                 new_runs.append(replace(run, font_size_pt=clamped_size))
                 if clamped_size and clamped_size > max_font_in_tb:
                     max_font_in_tb = clamped_size
             new_paragraphs.append(replace(para, runs=new_runs))
             num_lines += 1
 
-        left, top, width, height = _clip_rect(tb.left_px, tb.top_px, tb.width_px, tb.height_px)
+        left, top, width, height = _clip_rect(
+            tb.left_px, tb.top_px, tb.width_px, tb.height_px,
+            canvas_w, canvas_h, margin,
+        )
 
         min_required_height = num_lines * max_font_in_tb * lh_factor
         if height < min_required_height:
             height = min(min_required_height, canvas_h - margin - top)
 
-        validated_textboxes.append(PptxTextBox(
+        validated.append(PptxTextBox(
             left_px=left,
             top_px=top,
             width_px=width,
@@ -180,9 +197,21 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
             line_spacing_pt=tb.line_spacing_pt,
             vertical_alignment=tb.vertical_alignment,
         ))
+    return validated
 
-    validated_shapes: list[PptxShape] = []
-    for s in spec.shapes:
+
+def _validate_shapes(
+    shapes: list[PptxShape],
+    canvas_w: float = _CANVAS_W,
+    canvas_h: float = _CANVAS_H,
+    font_min: int = _FONT_MIN,
+    font_max: int = _FONT_MAX,
+    lh_factor: float = _LH_FACTOR,
+    margin: int = _MARGIN,
+) -> list[PptxShape]:
+    """도형 목록을 검증/보정한다."""
+    validated: list[PptxShape] = []
+    for s in shapes:
         # 장식용 shape: 텍스트/paragraphs 없고 높이 ≤ 10px인 얇은 라인/바
         is_decorative = (
             not s.text
@@ -191,9 +220,10 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
         )
         left, top, width, height = _clip_rect(
             s.left_px, s.top_px, s.width_px, s.height_px,
+            canvas_w, canvas_h, margin,
             is_decorative=is_decorative,
         )
-        clamped_text_size = _clamp_font(s.text_size_pt)
+        clamped_text_size = _clamp_font(s.text_size_pt, font_min, font_max)
 
         # paragraphs 내부 폰트 클램핑
         new_shape_paragraphs: list[PptxParagraph] = []
@@ -202,7 +232,7 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
         for para in s.paragraphs:
             new_runs: list[PptxTextRun] = []
             for run in para.runs:
-                clamped = _clamp_font(run.font_size_pt)
+                clamped = _clamp_font(run.font_size_pt, font_min, font_max)
                 new_runs.append(replace(run, font_size_pt=clamped))
                 if clamped and clamped > shape_max_font:
                     shape_max_font = clamped
@@ -221,7 +251,7 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
             if height < min_h:
                 height = min(min_h, max_bottom - top)
 
-        validated_shapes.append(replace(
+        validated.append(replace(
             s,
             left_px=left,
             top_px=top,
@@ -230,6 +260,13 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
             text_size_pt=clamped_text_size,
             paragraphs=new_shape_paragraphs,
         ))
+    return validated
+
+
+def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
+    """LLM 출력 PptxSlideSpec을 검증하고 보정한다."""
+    validated_textboxes = _validate_textboxes(spec.textboxes)
+    validated_shapes = _validate_shapes(spec.shapes)
 
     return PptxSlideSpec(
         background_color=spec.background_color,

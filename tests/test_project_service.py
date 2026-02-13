@@ -87,21 +87,45 @@ class TestSaveAndLoadScript:
         assert json.loads(loaded) == json.loads(SAMPLE_SCRIPT)
 
 
+SAMPLE_SLIDE_HTMLS = [
+    "<html><body><section>Slide 1</section></body></html>",
+    "<html><body><section>Slide 2</section></body></html>",
+]
+SAMPLE_CONTAINER_HTML = "<html><body><iframe src='slides/slide_01.html'></iframe></body></html>"
+
+
 class TestSaveSlidesHtml:
     def test_files_created(self, project_service: ProjectService, project_dir: Path) -> None:
-        project_service.save_slides_html(project_dir, "sid", SAMPLE_HTML)
+        project_service.save_slides_html(project_dir, "sid", SAMPLE_SLIDE_HTMLS, SAMPLE_CONTAINER_HTML)
         assert (project_dir / "slides.html").exists()
         assert (project_dir / "slides_meta.json").exists()
+        assert (project_dir / "slides" / "slide_01.html").exists()
+        assert (project_dir / "slides" / "slide_02.html").exists()
 
-    def test_html_content(self, project_service: ProjectService, project_dir: Path) -> None:
-        project_service.save_slides_html(project_dir, "sid-123", SAMPLE_HTML)
+    def test_container_html_content(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_slides_html(project_dir, "sid-123", SAMPLE_SLIDE_HTMLS, SAMPLE_CONTAINER_HTML)
         html = (project_dir / "slides.html").read_text(encoding="utf-8")
-        assert html == SAMPLE_HTML
+        assert html == SAMPLE_CONTAINER_HTML
+
+    def test_slide_html_content(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_slides_html(project_dir, "sid-123", SAMPLE_SLIDE_HTMLS, SAMPLE_CONTAINER_HTML)
+        slide1 = (project_dir / "slides" / "slide_01.html").read_text(encoding="utf-8")
+        assert "Slide 1" in slide1
+        slide2 = (project_dir / "slides" / "slide_02.html").read_text(encoding="utf-8")
+        assert "Slide 2" in slide2
 
     def test_meta_content(self, project_service: ProjectService, project_dir: Path) -> None:
-        project_service.save_slides_html(project_dir, "sid-123", SAMPLE_HTML)
+        project_service.save_slides_html(project_dir, "sid-123", SAMPLE_SLIDE_HTMLS, SAMPLE_CONTAINER_HTML)
         meta = json.loads((project_dir / "slides_meta.json").read_text(encoding="utf-8"))
         assert meta["session_id"] == "sid-123"
+
+    def test_overwrite_clears_old_files(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_slides_html(project_dir, "sid-1", SAMPLE_SLIDE_HTMLS, SAMPLE_CONTAINER_HTML)
+        # 슬라이드 1개로 다시 저장
+        project_service.save_slides_html(project_dir, "sid-2", [SAMPLE_SLIDE_HTMLS[0]], SAMPLE_CONTAINER_HTML)
+        slides_dir = project_dir / "slides"
+        files = list(slides_dir.glob("slide_*.html"))
+        assert len(files) == 1
 
 
 class TestSavePptxCopiesFile:

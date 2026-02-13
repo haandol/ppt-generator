@@ -2,56 +2,33 @@
 
 from __future__ import annotations
 
-import re
 from io import BytesIO
 
-from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE
-from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
+from pptx.enum.text import MSO_AUTO_SIZE
 from pptx.oxml.ns import qn
 from pptx.util import Emu, Inches, Pt
 
 from ppt_generator.interfaces.constants import (
     EXPORT_PX_TO_INCHES_X,
     EXPORT_PX_TO_INCHES_Y,
-    PPTX_BULLET_CHAR_L0,
-    PPTX_BULLET_INDENT_EMU_L0,
-    PPTX_BULLET_INDENT_EMU_L1,
-    PPTX_BULLET_MARGIN_EMU_L0,
-    PPTX_BULLET_MARGIN_EMU_L1,
     PPTX_FONT_NAME,
-    PPTX_MONOSPACE_FONT_NAME,
     PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU,
     PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU,
     PX_TO_EMU,
 )
 from ppt_generator.interfaces.schemas import (
     PptxImage,
-    PptxParagraph,
     PptxShape,
     PptxSlideSpec,
     PptxTextBox,
 )
-
-
-def parse_color(color_str: str) -> RGBColor | None:
-    """CSS 색상 문자열을 python-pptx RGBColor로 변환."""
-    if not color_str:
-        return None
-    # #RRGGBB or #RGB
-    hex_match = re.match(r"#([0-9a-fA-F]{6})", color_str)
-    if hex_match:
-        hex_val = hex_match.group(1)
-        return RGBColor(int(hex_val[0:2], 16), int(hex_val[2:4], 16), int(hex_val[4:6], 16))
-    short_hex = re.match(r"#([0-9a-fA-F]{3})(?:\s|;|$)", color_str)
-    if short_hex:
-        h = short_hex.group(1)
-        return RGBColor(int(h[0] * 2, 16), int(h[1] * 2, 16), int(h[2] * 2, 16))
-    # rgb(r, g, b)
-    rgb_match = re.match(r"rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", color_str)
-    if rgb_match:
-        return RGBColor(int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3)))
-    return None
+from ppt_generator.tools.pptx.text_formatter import (
+    apply_line_spacing,
+    apply_vertical_alignment,
+    format_paragraphs,
+    parse_color,
+)
 
 
 class SlideBuilder:
@@ -138,14 +115,6 @@ class SlideBuilder:
         for tb in spec.textboxes:
             self._add_textbox_from_spec(slide, tb)
 
-    _ALIGN_MAP = {
-        "center": PP_ALIGN.CENTER,
-        "right": PP_ALIGN.RIGHT,
-        "left": PP_ALIGN.LEFT,
-    }
-
-    _ANCHOR_MAP = {"top": "t", "middle": "ctr", "bottom": "b"}
-
     def _add_image_from_spec(self, slide, image_spec: PptxImage) -> None:
         """PptxImage spec으로 이미지를 슬라이드에 삽입."""
         if not image_spec.image_bytes:
@@ -176,44 +145,13 @@ class SlideBuilder:
         tf.margin_top = Emu(0)
         tf.margin_bottom = Emu(0)
 
-        for p_idx, para_spec in enumerate(tb.paragraphs):
-            if p_idx == 0:
-                para = tf.paragraphs[0]
-            else:
-                para = tf.add_paragraph()
-
-            for run_spec in para_spec.runs:
-                if not run_spec.text:
-                    continue
-                run = para.add_run()
-                run.text = run_spec.text
-                if run_spec.font_family == "monospace":
-                    run.font.name = PPTX_MONOSPACE_FONT_NAME
-                else:
-                    run.font.name = PPTX_FONT_NAME
-                if run_spec.font_size_pt:
-                    run.font.size = Pt(run_spec.font_size_pt)
-                run.font.bold = run_spec.bold
-                run.font.italic = run_spec.italic
-                if run_spec.color:
-                    rgb = parse_color(run_spec.color)
-                    if rgb:
-                        run.font.color.rgb = rgb
-
-            if para_spec.bullet_level >= 0:
-                self._apply_bullet(para, para_spec.bullet_level)
-
-            if para_spec.alignment and para_spec.alignment in self._ALIGN_MAP:
-                para.alignment = self._ALIGN_MAP[para_spec.alignment]
+        format_paragraphs(tf, tb.paragraphs)
 
         if tb.line_spacing_pt:
-            for para in tf.paragraphs:
-                para.line_spacing = Pt(tb.line_spacing_pt)
+            apply_line_spacing(tf, tb.line_spacing_pt)
 
-        if tb.vertical_alignment and tb.vertical_alignment in self._ANCHOR_MAP:
-            bodyPr = tf._txBody.find(qn("a:bodyPr"))
-            if bodyPr is not None:
-                bodyPr.set("anchor", self._ANCHOR_MAP[tb.vertical_alignment])
+        if tb.vertical_alignment:
+            apply_vertical_alignment(tf, tb.vertical_alignment)
 
     def _add_shape_from_spec(self, slide, shape_spec: PptxShape) -> None:
         """PptxShape spec으로 도형을 생성."""
@@ -273,44 +211,13 @@ class SlideBuilder:
             else:
                 tf.margin_bottom = Emu(PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU)
 
-            for p_idx, para_spec in enumerate(shape_spec.paragraphs):
-                if p_idx == 0:
-                    para = tf.paragraphs[0]
-                else:
-                    para = tf.add_paragraph()
-
-                for run_spec in para_spec.runs:
-                    if not run_spec.text:
-                        continue
-                    run = para.add_run()
-                    run.text = run_spec.text
-                    if run_spec.font_family == "monospace":
-                        run.font.name = PPTX_MONOSPACE_FONT_NAME
-                    else:
-                        run.font.name = PPTX_FONT_NAME
-                    if run_spec.font_size_pt:
-                        run.font.size = Pt(run_spec.font_size_pt)
-                    run.font.bold = run_spec.bold
-                    run.font.italic = run_spec.italic
-                    if run_spec.color:
-                        rgb = parse_color(run_spec.color)
-                        if rgb:
-                            run.font.color.rgb = rgb
-
-                if para_spec.bullet_level >= 0:
-                    self._apply_bullet(para, para_spec.bullet_level)
-
-                if para_spec.alignment and para_spec.alignment in self._ALIGN_MAP:
-                    para.alignment = self._ALIGN_MAP[para_spec.alignment]
+            format_paragraphs(tf, shape_spec.paragraphs)
 
             if shape_spec.line_spacing_pt:
-                for para in tf.paragraphs:
-                    para.line_spacing = Pt(shape_spec.line_spacing_pt)
+                apply_line_spacing(tf, shape_spec.line_spacing_pt)
 
-            if shape_spec.vertical_alignment and shape_spec.vertical_alignment in self._ANCHOR_MAP:
-                bodyPr = tf._txBody.find(qn("a:bodyPr"))
-                if bodyPr is not None:
-                    bodyPr.set("anchor", self._ANCHOR_MAP[shape_spec.vertical_alignment])
+            if shape_spec.vertical_alignment:
+                apply_vertical_alignment(tf, shape_spec.vertical_alignment)
 
         elif shape_spec.text:
             tf = shape.text_frame
@@ -338,28 +245,3 @@ class SlideBuilder:
                 rgb = parse_color(shape_spec.text_color)
                 if rgb:
                     run.font.color.rgb = rgb
-
-    @staticmethod
-    def _apply_bullet(paragraph, level: int) -> None:
-        """paragraph에 불릿 마커와 들여쓰기를 XML로 설정."""
-        pPr = paragraph._p.get_or_add_pPr()
-
-        if level == 0:
-            margin = PPTX_BULLET_MARGIN_EMU_L0
-            indent = PPTX_BULLET_INDENT_EMU_L0
-        else:
-            margin = PPTX_BULLET_MARGIN_EMU_L1
-            indent = PPTX_BULLET_INDENT_EMU_L1
-
-        pPr.set("marL", str(margin))
-        pPr.set("indent", str(indent))
-
-        buNone = pPr.find(qn("a:buNone"))
-        if buNone is not None:
-            pPr.remove(buNone)
-
-        buChar = pPr.find(qn("a:buChar"))
-        if buChar is None:
-            buChar = pPr.makeelement(qn("a:buChar"), {})
-            pPr.append(buChar)
-        buChar.set("char", PPTX_BULLET_CHAR_L0)

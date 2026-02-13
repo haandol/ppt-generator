@@ -15,10 +15,10 @@ from ppt_generator.interfaces.constants import (
     DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE,
     DESIGN_SPEC_USER_PROMPT_TEMPLATE,
 )
+from ppt_generator.interfaces.llm_output_models import SlideSpecOutput
 from ppt_generator.interfaces.schemas import (
     PptxSlideSpec,
     SlideOutline,
-    SlideSpecOutput,
 )
 from ppt_generator.interfaces.spec_utils import validate_slide_spec
 
@@ -69,7 +69,7 @@ class DesignService:
         return self._generate_with_structured_output(prompt)
 
     @staticmethod
-    def _extract_design_summary(spec: PptxSlideSpec) -> dict:
+    def extract_design_summary(spec: PptxSlideSpec) -> dict:
         """슬라이드 스펙에서 디자인 테마 요약을 직접 추출 (LLM 호출 없음)."""
         text_colors: set[str] = set()
         title_font: int | None = None
