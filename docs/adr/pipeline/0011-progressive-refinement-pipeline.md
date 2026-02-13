@@ -4,7 +4,7 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted
+Accepted (Updated: 디자인 스펙 중간 표현 추가, [ADR-0013](./0013-design-spec-pipeline.md) 참조)
 
 ## Context
 
@@ -21,9 +21,13 @@ Accepted
 텍스트 (가장 추상적)       — 사용자의 주제 입력
   → 아웃라인 (구조화)      — 슬라이드 구성·요점·레이아웃을 JSON으로 정리
     → 스크립트 (구체적)     — 발표 내용(speaker_notes)을 채움
-      → HTML 슬라이드       — 코드(HTML/CSS)로 디자인 자유도를 최대화
-        → PPTX              — 자유도를 최대한 유지하면서 편집 가능한 포맷으로 변환
+      → 디자인 스펙         — PptxSlideSpec JSON으로 정밀한 레이아웃 설계
+        ├→ HTML 슬라이드    — 결정론적 변환, 브라우저 미리보기용
+        └→ PPTX             — SlideBuilder 직접 사용, 편집 가능한 포맷
 ```
+
+> **Note**: 기존 HTML 중간 표현 경로(아웃라인 → HTML → PPTX)도 하위 호환을 위해 유지됩니다.
+> 디자인 스펙 경로는 [ADR-0013](./0013-design-spec-pipeline.md)에서 상세히 설명합니다.
 
 ### 각 단계의 설계 의도
 
@@ -32,8 +36,9 @@ Accepted
 | **텍스트** (사용자 입력) | 가장 추상적 | 사용자는 주제만 제공. 구조화 부담 없음 |
 | **아웃라인** (F1) | 구조화 | 슬라이드의 뼈대를 JSON으로 정리. 제목, 내용 요약, layout_index, component_hint 결정. speaker_notes는 비워두어 구조와 내용을 분리 |
 | **스크립트** (F2) | 구체적 | 확정된 구조 위에 발표 내용을 채움. 구조를 먼저 확정했으므로 내용이 구조에 맞게 생성됨 |
-| **HTML 슬라이드** (F3) | 디자인 자유도 최대 | HTML/CSS로 슬라이드를 생성. 레이아웃 골격(data-region) 기반 `position: absolute` 배치, 영역 내부에서 TailwindCSS로 자유 스타일링. LLM의 코드 생성 능력을 최대한 활용 |
-| **PPTX** (F5) | 편집 가능한 최종물 | LLM(Sonnet 4.5)이 HTML을 분석하여 PPTX 요소(텍스트박스, 도형)로 변환. Playwright 스크린샷을 시각적 참조로 활용. px→EMU 좌표 변환으로 위치·크기 보존. 디자인 자유도를 최대한 유지하면서 실무 편집성 확보 |
+| **디자인 스펙** (신규) | 정밀한 레이아웃 설계 | LLM(Opus 4.6)이 PptxSlideSpec JSON으로 각 요소의 좌표/크기/서식을 정밀하게 설계. 단일 소스에서 HTML과 PPTX를 결정론적으로 생성 |
+| **HTML 슬라이드** (F3) | 브라우저 미리보기 | 디자인 스펙 경로: PptxSlideSpec → position:absolute HTML로 결정론적 변환. 기존 경로: LLM이 자유 형식 HTML/CSS 생성 |
+| **PPTX** (F5) | 편집 가능한 최종물 | 디자인 스펙 경로: SlideBuilder가 PptxSlideSpec에서 직접 PPTX 생성. 기존 경로: HTML 역분석 폴백 체인 |
 
 ### 왜 아웃라인과 스크립트를 분리하는가
 

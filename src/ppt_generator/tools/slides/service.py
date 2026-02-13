@@ -18,7 +18,16 @@ from ppt_generator.interfaces.constants import (
     SLIDES_USER_PROMPT_TEMPLATE,
     SLIDES_BATCH_USER_PROMPT_TEMPLATE,
 )
-from ppt_generator.interfaces.schemas import SlidesResponse, SlideOutline
+from ppt_generator.interfaces.schemas import (
+    DesignSpec,
+    PptxParagraph,
+    PptxShape,
+    PptxSlideSpec,
+    PptxTextBox,
+    PptxTextRun,
+    SlidesResponse,
+    SlideOutline,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +52,58 @@ class SlidesService:
 
         logger.info("HTML 슬라이드 생성 완료: session_id=%s, 슬라이드 수=%d", session_id, len(slides))
         return SlidesResponse(session_id=session_id, html=html)
+
+    def generate_from_design_spec(self, design_spec: DesignSpec) -> SlidesResponse:
+        """DesignSpec(PptxSlideSpec 리스트)을 결정론적으로 HTML로 변환한다.
+
+        LLM 호출 없이 PptxSlideSpec → position:absolute HTML div로 변환.
+        """
+        if not design_spec.slides:
+            raise ValueError("디자인 스펙에 슬라이드가 없습니다.")
+
+        sections: list[str] = []
+        for idx, spec in enumerate(design_spec.slides):
+            section_html = self._spec_to_html_section(idx, spec)
+            sections.append(section_html)
+
+        combined = "\n".join(sections)
+        html = self._wrap_with_template(combined)
+
+        session_id = str(uuid.uuid4())
+        self._sessions[session_id] = html
+
+        logger.info(
+            "Design Spec → HTML 변환 완료: session_id=%s, 슬라이드 수=%d",
+            session_id, len(design_spec.slides),
+        )
+        return SlidesResponse(session_id=session_id, html=html)
+
+    @staticmethod
+    def _spec_to_html_section(slide_index: int, spec: PptxSlideSpec) -> str:
+        """PptxSlideSpec 하나를 <section> HTML로 결정론적 변환."""
+        bg = spec.background_color or "#1a1a2e"
+        notes_attr = ""
+        if spec.speaker_notes:
+            escaped_notes = spec.speaker_notes.replace('"', "&quot;").replace("<", "&lt;").replace(">", "&gt;")
+            notes_attr = f' data-speaker-notes="{escaped_notes}"'
+
+        parts: list[str] = []
+        parts.append(
+            f'<section id="slide-{slide_index}"{notes_attr}>'
+            f'<div style="position:absolute;top:0;left:0;right:0;bottom:0;'
+            f'background-color:{bg};overflow:hidden;">'
+        )
+
+        # shapes를 먼저 렌더링 (z-order 하단)
+        for shape in spec.shapes:
+            parts.append(_shape_to_html(shape))
+
+        # textboxes를 나중에 렌더링 (z-order 상단)
+        for tb in spec.textboxes:
+            parts.append(_textbox_to_html(tb))
+
+        parts.append("</div></section>")
+        return "\n".join(parts)
 
     def modify(self, session_id: str, modification_request: str, slide_index: int = -1) -> SlidesResponse:
         if not modification_request.strip():
@@ -267,3 +328,137 @@ class SlidesService:
         # 폴백: 전체 텍스트를 반환
         logger.warning("section 추출 실패, 원본 텍스트를 그대로 사용합니다.")
         return text.strip()
+
+
+# ---------------------------------------------------------------------------
+# PptxSlideSpec → HTML 변환 헬퍼 (모듈 수준)
+# ---------------------------------------------------------------------------
+
+def _escape_html(text: str) -> str:
+    """HTML 특수문자 이스케이프."""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _run_to_html(run: PptxTextRun) -> str:
+    """PptxTextRun → <span> 변환."""
+    styles: list[str] = []
+    if run.font_size_pt:
+        styles.append(f"font-size:{run.font_size_pt}pt")
+    if run.color:
+        styles.append(f"color:{run.color}")
+    if run.bold:
+        styles.append("font-weight:bold")
+    if run.italic:
+        styles.append("font-style:italic")
+    if run.font_family == "monospace":
+        styles.append("font-family:'Roboto Mono',monospace")
+
+    text = _escape_html(run.text)
+    if styles:
+        return f'<span style="{";".join(styles)}">{text}</span>'
+    return text
+
+
+def _paragraph_to_html(para: PptxParagraph) -> str:
+    """PptxParagraph → HTML 변환."""
+    runs_html = "".join(_run_to_html(r) for r in para.runs)
+    align_style = ""
+    if para.alignment:
+        align_style = f" style=\"text-align:{para.alignment}\""
+
+    if para.bullet_level >= 0:
+        indent = 20 * (para.bullet_level + 1)
+        return f'<li style="margin-left:{indent}px{(";text-align:" + para.alignment) if para.alignment else ""}">{runs_html}</li>'
+    return f"<p{align_style}>{runs_html}</p>"
+
+
+def _textbox_to_html(tb: PptxTextBox) -> str:
+    """PptxTextBox → position:absolute <div> 변환."""
+    style = (
+        f"position:absolute;"
+        f"left:{tb.left_px}px;top:{tb.top_px}px;"
+        f"width:{tb.width_px}px;height:{tb.height_px}px;"
+        f"overflow:hidden;"
+    )
+    if tb.line_spacing_pt:
+        style += f"line-height:{tb.line_spacing_pt}pt;"
+    if tb.vertical_alignment == "middle":
+        style += "display:flex;flex-direction:column;justify-content:center;"
+    elif tb.vertical_alignment == "bottom":
+        style += "display:flex;flex-direction:column;justify-content:flex-end;"
+
+    # 불릿 그룹핑
+    has_bullets = any(p.bullet_level >= 0 for p in tb.paragraphs)
+    inner_parts: list[str] = []
+    if has_bullets:
+        bullet_items: list[str] = []
+        for para in tb.paragraphs:
+            html = _paragraph_to_html(para)
+            if para.bullet_level >= 0:
+                bullet_items.append(html)
+            else:
+                if bullet_items:
+                    inner_parts.append(f'<ul style="list-style:disc;padding-left:20px;margin:0">{"".join(bullet_items)}</ul>')
+                    bullet_items = []
+                inner_parts.append(html)
+        if bullet_items:
+            inner_parts.append(f'<ul style="list-style:disc;padding-left:20px;margin:0">{"".join(bullet_items)}</ul>')
+    else:
+        for para in tb.paragraphs:
+            inner_parts.append(_paragraph_to_html(para))
+
+    return f'<div style="{style}">{"".join(inner_parts)}</div>'
+
+
+def _shape_to_html(shape: PptxShape) -> str:
+    """PptxShape → position:absolute <div> 변환."""
+    style = (
+        f"position:absolute;"
+        f"left:{shape.left_px}px;top:{shape.top_px}px;"
+        f"width:{shape.width_px}px;height:{shape.height_px}px;"
+    )
+    if shape.fill_color:
+        style += f"background-color:{shape.fill_color};"
+    if shape.border_color:
+        bw = shape.border_width_pt or 1
+        style += f"border:{bw}pt solid {shape.border_color};"
+    if shape.corner_radius_px:
+        style += f"border-radius:{shape.corner_radius_px}px;"
+    if shape.shape_type == "rounded_rectangle" and not shape.corner_radius_px:
+        style += "border-radius:8px;"
+    if shape.shape_type == "ellipse":
+        style += "border-radius:50%;"
+
+    style += "overflow:hidden;"
+
+    # 패딩
+    pl = shape.padding_left_px or 8
+    pr = shape.padding_right_px or 8
+    pt_ = shape.padding_top_px or 4
+    pb = shape.padding_bottom_px or 4
+    style += f"padding:{pt_}px {pr}px {pb}px {pl}px;box-sizing:border-box;"
+
+    # 수직 정렬
+    if shape.vertical_alignment == "middle":
+        style += "display:flex;flex-direction:column;justify-content:center;"
+    elif shape.vertical_alignment == "bottom":
+        style += "display:flex;flex-direction:column;justify-content:flex-end;"
+
+    inner = ""
+    if shape.paragraphs:
+        para_parts: list[str] = []
+        for para in shape.paragraphs:
+            para_parts.append(_paragraph_to_html(para))
+        inner = "".join(para_parts)
+    elif shape.text:
+        text_style = ""
+        if shape.text_color:
+            text_style += f"color:{shape.text_color};"
+        if shape.text_size_pt:
+            text_style += f"font-size:{shape.text_size_pt}pt;"
+        if shape.text_bold:
+            text_style += "font-weight:bold;"
+        escaped = _escape_html(shape.text).replace("\n", "<br>")
+        inner = f'<span style="{text_style}">{escaped}</span>'
+
+    return f'<div style="{style}">{inner}</div>'

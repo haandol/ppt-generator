@@ -1,0 +1,149 @@
+# 13. 디자인 스펙 기반 슬라이드 생성 파이프라인
+
+Date: 2026-02-13
+
+## Status
+
+Accepted
+
+## Context
+
+기존 PPTX 내보내기 과정은 HTML을 역분석하여 PPTX 요소로 변환하는 복잡한 3단계 폴백 체인(DOM 추출 → LLM 변환 → 룰 기반)을 사용하고 있다.
+
+```
+기존: Outline → Script → HTML (LLM 생성) → PPTX (DOM추출/LLM변환/룰기반 폴백)
+```
+
+이 방식의 문제점:
+1. **복잡성**: Playwright DOM 추출, LLM 변환, 룰 기반 폴백의 3단계 체인이 복잡하고 유지보수 어려움
+2. **부정확성**: HTML/CSS의 시각적 렌더링 결과를 역분석하여 좌표를 추출하므로, flex/grid 레이아웃 등의 계산 결과가 부정확할 수 있음
+3. **의존성**: Playwright 브라우저 인스턴스가 필요하고, 추가 LLM 호출(Sonnet 4.5) 비용 발생
+4. **정보 손실**: LLM이 자유 형식 HTML을 생성한 후 다시 LLM으로 PPTX 좌표를 추출하는 과정에서 디자인 의도가 손실됨
+
+## Decision
+
+**디자인 스펙(PptxSlideSpec JSON)**을 파이프라인의 중간 표현으로 도입하여, 단일 소스에서 HTML과 PPTX를 각각 결정론적으로 생성한다.
+
+```
+변경 후: Outline → Script → Design Spec (LLM 생성)
+                                  ├──→ HTML (결정론적 변환, 브라우저 미리보기용)
+                                  └──→ PPTX (SlideBuilder 직접 사용)
+```
+
+### Technical Details
+
+#### 디자인 스펙 스키마
+
+기존 `PptxSlideSpec` 데이터클래스에 `speaker_notes` 필드를 추가하고, 전체 프레젠테이션을 나타내는 `DesignSpec(slides: list[PptxSlideSpec])` 래퍼를 도입한다.
+
+```python
+@dataclass(frozen=True)
+class PptxSlideSpec:
+    background_color: str | None = None
+    textboxes: list[PptxTextBox] = field(default_factory=list)
+    shapes: list[PptxShape] = field(default_factory=list)
+    images: list[PptxImage] = field(default_factory=list)
+    speaker_notes: str = ""  # 신규
+
+@dataclass(frozen=True)
+class DesignSpec:
+    slides: list[PptxSlideSpec] = field(default_factory=list)
+```
+
+#### 새 MCP 도구
+
+| 도구 | 설명 |
+|------|------|
+| `generate_design_spec` | 아웃라인 → PptxSlideSpec JSON 디자인 스펙 생성 (LLM) |
+| `load_design_spec` | 저장된 디자인 스펙 로드 |
+
+#### 기존 도구 변경
+
+| 도구 | 변경 내용 |
+|------|-----------|
+| `generate_slides` | `design_spec_json` 파라미터 추가. 제공 시 결정론적 HTML 변환 |
+| `export_pptx` | `design_spec_json` 파라미터 추가. 제공 시 SlideBuilder 직접 사용 |
+
+#### 디자인 스펙 생성 서비스 (DesignService)
+
+- `tools/design/service.py` — `DesignService.generate()`
+- 슬라이드별 개별 LLM 호출 (SLIDES_MAX_PER_BATCH=1 패턴과 동일)
+- 첫 슬라이드 생성 후 디자인 요약 추출 → 후속 슬라이드에 전달하여 일관성 유지
+- `parse_slide_spec()` + `validate_slide_spec()` 재사용 (spec_utils.py)
+- Bedrock Claude Opus 4.6 사용 (고품질 레이아웃)
+
+#### Design Spec → HTML 변환
+
+- `SlidesService.generate_from_design_spec()` — LLM 호출 없는 결정론적 변환
+- PptxSlideSpec → position:absolute HTML div로 직접 매핑:
+  - shapes → `<div>` (배경색, 테두리, border-radius)
+  - textboxes → `<div>` (text runs → `<span>` with inline font styles)
+  - paragraphs/bullets → `<p>`, `<ul>/<li>` 구조
+- `_wrap_with_template()`로 HTML 문서 래핑
+
+#### Design Spec → PPTX 변환
+
+- `ExportService.export_from_design_spec()` — SlideBuilder 직접 사용
+- DOM 추출/LLM 변환/HTML 파싱 전혀 불필요
+- `DesignSpec.slides` 순회 → `SlideBuilder.build_slide_from_spec()` 직접 호출
+- `speaker_notes`는 `PptxSlideSpec`에서 직접 읽어 설정
+
+#### 공유 유틸리티
+
+`interfaces/spec_utils.py`에 다음 함수를 통합:
+- `parse_slide_spec()` / `validate_slide_spec()` — llm_converter.py에서 이동
+- `design_spec_to_json()` / `parse_design_spec_json()` — 직렬화/역직렬화
+
+#### 프로젝트 영속화
+
+- `~/.ppt-generator/<UUID>/design_spec.json` — 디자인 스펙 저장
+- `ProjectService.save_design_spec()` / `load_design_spec()` 추가
+
+### Alternatives Considered
+
+| 대안 | 설명 | 판단 |
+|------|------|------|
+| A. HTML → PPTX 변환 개선 | DOM 추출 정확도 향상, LLM 프롬프트 개선 | 근본적 한계(역분석) 해결 불가, 탈락 |
+| B. LLM이 PPTX 코드 직접 생성 | python-pptx API 호출 코드를 LLM이 생성 | LLM의 API 코드 생성 정확도 부족, 탈락 |
+| **C. 디자인 스펙 중간 표현** | PptxSlideSpec JSON을 단일 소스로 HTML/PPTX 생성 | **채택** |
+
+### Acceptance Criteria
+
+1. `generate_design_spec`으로 아웃라인에서 PptxSlideSpec JSON이 생성된다
+2. `generate_slides(design_spec_json=...)`으로 결정론적 HTML이 생성된다
+3. `export_pptx(design_spec_json=...)`으로 PPTX가 직접 생성된다
+4. 기존 경로 (`outline_json` → `session_id`)가 하위 호환 유지된다
+5. 디자인 스펙이 프로젝트 디렉토리에 영속화된다
+6. 후속 슬라이드가 첫 슬라이드와 일관된 디자인을 유지한다
+
+### Out of Scope
+
+- 디자인 스펙 수정 도구 (modify_design_spec) — 향후 추가 가능
+- 기존 HTML → PPTX 폴백 경로 제거 — 하위 호환을 위해 유지
+
+## Consequences
+
+### Positive
+
+- **정확성 향상**: 단일 소스에서 HTML/PPTX를 생성하므로 변환 과정의 정보 손실 없음
+- **단순성**: PPTX 생성 시 3단계 폴백 체인 대신 SlideBuilder 직접 호출
+- **속도**: PPTX 생성 시 Playwright/추가 LLM 호출 불필요
+- **비용 절감**: PPTX 변환용 Sonnet 4.5 호출 제거
+- **하위 호환**: 기존 HTML 기반 경로가 그대로 유지됨
+
+### Negative
+
+- 디자인 스펙 생성에 추가 LLM 호출(Opus 4.6) 필요
+- HTML 미리보기가 position:absolute 기반이라 기존 Tailwind CSS 기반보다 시각적으로 단순할 수 있음
+- LLM이 정밀한 좌표를 생성해야 하므로 프롬프트 품질이 중요
+
+## References
+
+- 구현: `src/ppt_generator/tools/design/` (service.py, controller.py)
+- 스키마: `src/ppt_generator/interfaces/schemas.py` — `DesignSpec`, `DesignSpecRequest`, `DesignSpecResponse`
+- 유틸리티: `src/ppt_generator/interfaces/spec_utils.py` — `parse_slide_spec`, `validate_slide_spec`, `design_spec_to_json`, `parse_design_spec_json`
+- 프롬프트: `src/ppt_generator/interfaces/prompts/design_prompts.py`
+- 슬라이드 서비스: `src/ppt_generator/tools/slides/service.py` — `generate_from_design_spec()`
+- PPTX 서비스: `src/ppt_generator/tools/pptx/service.py` — `export_from_design_spec()`
+- 프로젝트 서비스: `src/ppt_generator/tools/project/service.py` — `save_design_spec()`, `load_design_spec()`
+- 관련 ADR: [0006-pptx-export](./0006-pptx-export.md), [0011-progressive-refinement-pipeline](./0011-progressive-refinement-pipeline.md)

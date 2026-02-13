@@ -1,5 +1,11 @@
 """프롬프트 상수 모듈."""
 
+from ppt_generator.interfaces.prompts.design_prompts import (
+    DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE,
+    DESIGN_SPEC_DESIGN_SUMMARY_PROMPT,
+    DESIGN_SPEC_SYSTEM_PROMPT,
+    DESIGN_SPEC_USER_PROMPT_TEMPLATE,
+)
 from ppt_generator.interfaces.prompts.outline_prompts import (
     OUTLINE_SYSTEM_PROMPT,
     OUTLINE_USER_PROMPT_TEMPLATE,
@@ -25,6 +31,10 @@ from ppt_generator.interfaces.prompts.slides_prompts import (
 )
 
 __all__ = [
+    "DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE",
+    "DESIGN_SPEC_DESIGN_SUMMARY_PROMPT",
+    "DESIGN_SPEC_SYSTEM_PROMPT",
+    "DESIGN_SPEC_USER_PROMPT_TEMPLATE",
     "OUTLINE_SYSTEM_PROMPT",
     "OUTLINE_USER_PROMPT_TEMPLATE",
     "PPTX_CONVERT_SYSTEM_PROMPT",

@@ -145,3 +145,28 @@ class PptxSlideSpec:
     textboxes: list[PptxTextBox] = field(default_factory=list)
     shapes: list[PptxShape] = field(default_factory=list)
     images: list[PptxImage] = field(default_factory=list)
+    speaker_notes: str = ""
+
+
+# --- 디자인 스펙 스키마 ---
+
+
+@dataclass(frozen=True)
+class DesignSpec:
+    """프레젠테이션 전체 디자인 스펙."""
+
+    slides: list[PptxSlideSpec] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class DesignSpecRequest:
+    """디자인 스펙 생성 입력."""
+
+    slides: list[SlideOutline] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class DesignSpecResponse:
+    """디자인 스펙 생성 출력."""
+
+    design_spec: DesignSpec = field(default_factory=DesignSpec)

@@ -12,6 +12,7 @@ from ppt_generator.interfaces.constants import (
     BEDROCK_REGION,
     BEDROCK_SCRIPT_MAX_TOKENS,
     BEDROCK_TEMPERATURE,
+    DESIGN_SPEC_SYSTEM_PROMPT,
     OUTLINE_JSON_SCHEMA,
     OUTLINE_SYSTEM_PROMPT,
     SCRIPT_JSON_SCHEMA,
@@ -19,6 +20,7 @@ from ppt_generator.interfaces.constants import (
     SLIDES_MODIFY_SYSTEM_PROMPT,
     SLIDES_SYSTEM_PROMPT,
 )
+from ppt_generator.tools.design.service import DesignService
 from ppt_generator.tools.outline.service import OutlineService
 from ppt_generator.tools.pptx.service import ExportService
 from ppt_generator.tools.project.service import ProjectService
@@ -33,6 +35,7 @@ class DIContainer:
         self._outline_service: OutlineService | None = None
         self._export_service: ExportService | None = None
         self._slides_service: SlidesService | None = None
+        self._design_service: DesignService | None = None
         self._project_service: ProjectService | None = None
 
     def _create_bedrock_model(self) -> BedrockModel:
@@ -87,6 +90,10 @@ class DIContainer:
         model = self._create_bedrock_model()
         return Agent(model=model, system_prompt=SLIDES_MODIFY_SYSTEM_PROMPT, callback_handler=None, tools=[])
 
+    def _create_design_agent(self) -> Agent:
+        model = self._create_bedrock_model()
+        return Agent(model=model, system_prompt=DESIGN_SPEC_SYSTEM_PROMPT, callback_handler=None, tools=[])
+
     @property
     def script_service(self) -> ScriptService:
         if self._script_service is None:
@@ -118,6 +125,13 @@ class DIContainer:
             modify_agent = self._create_slides_modify_agent()
             self._slides_service = SlidesService(agent=agent, modify_agent=modify_agent)
         return self._slides_service
+
+    @property
+    def design_service(self) -> DesignService:
+        if self._design_service is None:
+            agent = self._create_design_agent()
+            self._design_service = DesignService(agent=agent)
+        return self._design_service
 
     @property
     def project_service(self) -> ProjectService:

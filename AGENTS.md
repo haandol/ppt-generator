@@ -30,6 +30,9 @@ ppt-generator/
 │   │   ├── script/                # 발표 스크립트 생성 도구 (F2)
 │   │   │   ├── controller.py
 │   │   │   └── service.py
+│   │   ├── design/                # 디자인 스펙 생성 도구
+│   │   │   ├── controller.py      # MCP 인터페이스
+│   │   │   └── service.py         # LLM 기반 디자인 스펙 생성
 │   │   ├── pptx/                  # PPTX 내보내기 도구 (F5)
 │   │   │   ├── controller.py
 │   │   │   └── service.py
@@ -42,7 +45,8 @@ ppt-generator/
 │   │       └── service.py
 │   ├── interfaces/
 │   │   ├── constants.py           # 모델 설정, 프롬프트, 상수
-│   │   └── schemas.py             # 데이터클래스 (Request/Response)
+│   │   ├── schemas.py             # 데이터클래스 (Request/Response)
+│   │   └── spec_utils.py          # PptxSlideSpec 파싱/검증/직렬화 공유 유틸리티
 │   └── templates/
 │       ├── slides.html            # HTML 슬라이드 템플릿 (TailwindCSS + 인라인 CSS, 수직 스크롤)
 │       └── layout_mapping.py      # layout_index → 슬라이드 레이아웃 매핑 (97종)
@@ -106,9 +110,14 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 텍스트 (가장 추상적)
   → 아웃라인 (구조화된 JSON — 제목, 내용 요약, 레이아웃 인덱스)
     → 스크립트 (구체적 — 아웃라인 기반 발표 스크립트)
-      → HTML 슬라이드 (LLM이 <section> 요소 생성 → 템플릿에 삽입)
-        → PPTX (디자인 자유도를 최대한 유지하면서 편집 가능한 포맷으로 변환)
+      → 디자인 스펙 (PptxSlideSpec JSON — LLM이 정밀한 레이아웃 설계)
+        ├→ HTML 슬라이드 (결정론적 변환, 브라우저 미리보기용)
+        └→ PPTX (SlideBuilder 직접 사용, 편집 가능한 포맷으로 변환)
 ```
+
+> **디자인 스펙 기반 파이프라인**: 디자인 스펙(PptxSlideSpec JSON)을 중간 표현으로 사용하여
+> HTML과 PPTX를 각각 결정론적으로 생성합니다. 기존의 HTML → PPTX 역변환(DOM 추출/LLM 변환) 없이
+> 단일 소스에서 두 출력을 생성하므로 정확도가 높습니다.
 
 **왜 이런 구조인가?**
 
@@ -124,22 +133,25 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 ```
 사용자 입력 (주제 + 슬라이드 수)
     ↓
-F1: generate_outline   → 슬라이드 아웃라인 JSON 생성 (Bedrock LLM, title/content_summary/component_hint)
+F1: generate_outline       → 슬라이드 아웃라인 JSON 생성 (Bedrock LLM, title/content_summary/component_hint)
     ↓
-    ⏸ 사용자 확인       → 아웃라인 구조 검토 및 승인 (수정 시 F1 재호출)
+    ⏸ 사용자 확인           → 아웃라인 구조 검토 및 승인 (수정 시 F1 재호출)
     ↓
-F2: generate_script    → 아웃라인 기반 슬라이드별 발표 스크립트 생성
+F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크립트 생성
     ↓
-F3: generate_slides    → 아웃라인 → HTML 슬라이드 생성 (LLM이 자유 형식 HTML 생성 → 템플릿 삽입)
-    ↓ (선택)
-F4: modify_slides      → HTML 슬라이드 수정 (사용자 요청 반영)
+    generate_design_spec   → 스크립트 아웃라인 → PptxSlideSpec JSON 디자인 스펙 생성 (LLM)
     ↓
-F5: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보내기
+    ├→ generate_slides(design_spec_json=...)  → Design Spec → HTML 결정론적 변환 (미리보기용)
+    │    ↓ (선택)
+    │   modify_slides      → HTML 슬라이드 수정 (사용자 요청 반영)
+    │
+    └→ export_pptx(design_spec_json=...)     → Design Spec → PPTX 직접 생성 (SlideBuilder)
     ↓
 출력: 편집 가능한 .pptx 파일
 
+* 기존 경로 (generate_slides(outline_json=...) → export_pptx(session_id=...))도 하위 호환 유지
 * 모든 도구가 project_id를 자동 생성하여 ~/.ppt-generator/<UUID>/에 결과물을 저장
-* F6: load_* 도구에 project_id를 전달하여 저장된 결과물을 로드, 중간 단계부터 재개 가능
+* load_* 도구에 project_id를 전달하여 저장된 결과물을 로드, 중간 단계부터 재개 가능
 ```
 
 ## Available Tools
@@ -148,13 +160,15 @@ F5: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
 |------|--------|-------------|
 | `generate_outline` | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (title, content_summary, component_hint) |
 | `generate_script` | `tools/script/` | 아웃라인 JSON을 기반으로 슬라이드별 발표 스크립트 생성 |
-| `generate_slides` | `tools/slides/` | 아웃라인 기반 HTML 슬라이드 생성 (LLM이 section 생성 → 템플릿 삽입, 세션 반환) |
+| `generate_design_spec` | `tools/design/` | 아웃라인 → PptxSlideSpec JSON 디자인 스펙 생성 (LLM) |
+| `generate_slides` | `tools/slides/` | 아웃라인 또는 디자인 스펙 기반 HTML 슬라이드 생성 |
 | `modify_slides` | `tools/slides/` | 기존 HTML 슬라이드를 사용자 요청에 따라 수정 |
-| `export_pptx` | `tools/pptx/` | 세션의 HTML 슬라이드를 편집 가능한 PPTX 파일로 내보내기 |
+| `export_pptx` | `tools/pptx/` | 세션 HTML 또는 디자인 스펙을 편집 가능한 PPTX로 내보내기 |
 | `list_projects` | `tools/project/` | 기존 프로젝트 목록 조회 (파이프라인 시작 전 호출 권장) |
 | `load_project_status` | `tools/project/` | 프로젝트 상태 및 메타데이터 로드 |
 | `load_outline` | `tools/project/` | 저장된 아웃라인 JSON 로드 |
 | `load_script` | `tools/project/` | 저장된 스크립트 JSON 로드 |
+| `load_design_spec` | `tools/project/` | 저장된 디자인 스펙 JSON 로드 |
 | `load_slides_html` | `tools/project/` | 저장된 HTML 슬라이드 로드 및 세션 복원 |
 
 ## Key Data Schemas
@@ -168,8 +182,9 @@ F5: export_pptx        → HTML 세션 → 편집 가능한 PPTX 파일 내보�
 | `SlideOutline` | 개별 슬라이드 아웃라인 (title, content_summary, component_hint, speaker_notes) |
 | `SlidesRequest` / `SlidesResponse` | HTML 슬라이드 생성 입출력 (slides → session_id, html) |
 | `ExportPptxRequest` / `ExportPptxResponse` | PPTX 내보내기 입출력 (session_id → pptx_path) |
-| `PptxTextRun` / `PptxParagraph` / `PptxTextBox` | PPTX 텍스트 요소 (LLM 변환용) |
-| `PptxShape` / `PptxSlideSpec` | PPTX 도형/슬라이드 스펙 (LLM 변환용) |
+| `PptxTextRun` / `PptxParagraph` / `PptxTextBox` | PPTX 텍스트 요소 |
+| `PptxShape` / `PptxSlideSpec` | PPTX 도형/슬라이드 스펙 (speaker_notes 포함) |
+| `DesignSpec` / `DesignSpecRequest` / `DesignSpecResponse` | 디자인 스펙 생성 입출력 |
 | `ProjectMetadata` | 프로젝트 메타데이터 (topic, num_slides, steps_completed) |
 
 ### 슬라이드 아웃라인 JSON

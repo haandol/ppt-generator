@@ -4,7 +4,7 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted (Updated: data-region 기반 요소 추출 추가 → LLM 기반 HTML→PPTX 변환 + Playwright 스크린샷)
+Accepted (Updated: data-region 기반 요소 추출 추가 → LLM 기반 HTML→PPTX 변환 + Playwright 스크린샷, 디자인 스펙 직접 경로 추가 [ADR-0013](./0013-design-spec-pipeline.md) 참조)
 
 ## Context
 
@@ -49,12 +49,21 @@ MCP 도구 `export_pptx`를 구현하여, 세션의 최종 HTML을 파싱하고 
 
 **장점:** LLM이 TailwindCSS로 자유 배치하더라도, `data-region` div의 `position:absolute` 좌표가 LAYOUT_REGIONS 원본으로 보장되므로 PPTX에서 정확한 위치에 요소가 배치된다.
 
+### 디자인 스펙 직접 경로 (신규)
+
+[ADR-0013](./0013-design-spec-pipeline.md)에서 도입된 **디자인 스펙(PptxSlideSpec JSON)** 경로가 추가되었다. `design_spec_json` 파라미터가 제공되면 HTML 파싱/DOM 추출/LLM 변환 없이 `SlideBuilder.build_slide_from_spec()`을 직접 호출하여 PPTX를 생성한다.
+
+```
+디자인 스펙 경로: DesignSpec → SlideBuilder 직접 호출 → PPTX
+기존 HTML 경로:  HTML → DOM 추출/LLM 변환/룰 기반 폴백 → PPTX (하위 호환 유지)
+```
+
 ### MCP Tool Interface
 
 | 항목 | 값 |
 |------|-----|
 | Tool | `export_pptx` |
-| 입력 | `session_id: str`, `project_id: str` (선택) |
+| 입력 | `session_id: str` (기존 HTML 경로), `design_spec_json: str` (디자인 스펙 경로), `project_id: str` (선택) |
 | 출력 | `project_id`와 `.pptx` 파일 경로를 포함하는 JSON |
 
 ### Acceptance Criteria
@@ -114,5 +123,5 @@ sequenceDiagram
 - 스키마: `src/ppt_generator/interfaces/schemas.py` — `PptxSlideSpec`, `PptxTextBox`, `PptxShape`, `PptxTextRun`, `PptxParagraph`
 - 프롬프트: `src/ppt_generator/interfaces/constants.py` — `PPTX_CONVERT_SYSTEM_PROMPT`, `PPTX_CONVERT_MODEL_ID`
 - 테스트: `tests/test_pptx_service.py`
-- 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0005-slide-modification](./0005-slide-modification.md), [0012-layout-skeleton-enforcement](./0012-layout-skeleton-enforcement.md)
+- 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0005-slide-modification](./0005-slide-modification.md), [0012-layout-skeleton-enforcement](./0012-layout-skeleton-enforcement.md), [0013-design-spec-pipeline](./0013-design-spec-pipeline.md)
 - ALPS: Section 7.5
