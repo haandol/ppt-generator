@@ -72,6 +72,7 @@ class PptxTextRun:
     color: str | None = None
     bold: bool = False
     italic: bool = False
+    font_family: str | None = None
 
 
 @dataclass(frozen=True)
@@ -80,6 +81,7 @@ class PptxParagraph:
 
     runs: list[PptxTextRun] = field(default_factory=list)
     bullet_level: int = -1  # -1 = 불릿 아님, 0 = 1단계, 1 = 2단계
+    alignment: str | None = None  # 'left', 'center', 'right'
 
 
 @dataclass(frozen=True)
@@ -91,11 +93,16 @@ class PptxTextBox:
     width_px: float
     height_px: float
     paragraphs: list[PptxParagraph] = field(default_factory=list)
+    line_spacing_pt: float | None = None  # pt 단위 줄간격
+    vertical_alignment: str | None = None  # "top", "middle", "bottom"
 
 
 @dataclass(frozen=True)
 class PptxShape:
-    """도형: 위치/크기, 배경색, 내부 텍스트(옵션)."""
+    """도형: 위치/크기, 배경색, 내부 텍스트(옵션).
+
+    shape_type: "rectangle" | "rounded_rectangle" | "ellipse" | "line"
+    """
 
     left_px: float
     top_px: float
@@ -110,12 +117,31 @@ class PptxShape:
     text_color: str | None = None
     text_size_pt: int | None = None
     text_bold: bool = False
+    paragraphs: list[PptxParagraph] = field(default_factory=list)
+    line_spacing_pt: float | None = None
+    padding_left_px: float | None = None
+    padding_right_px: float | None = None
+    padding_top_px: float | None = None
+    padding_bottom_px: float | None = None
+    vertical_alignment: str | None = None  # "top", "middle", "bottom"
+
+
+@dataclass(frozen=True)
+class PptxImage:
+    """이미지: 위치/크기와 PNG 바이트 데이터."""
+
+    left_px: float
+    top_px: float
+    width_px: float
+    height_px: float
+    image_bytes: bytes = b""
 
 
 @dataclass(frozen=True)
 class PptxSlideSpec:
-    """슬라이드 전체 스펙: 배경색, 텍스트박스 목록, 도형 목록."""
+    """슬라이드 전체 스펙: 배경색, 텍스트박스 목록, 도형 목록, 이미지 목록."""
 
     background_color: str | None = None
     textboxes: list[PptxTextBox] = field(default_factory=list)
     shapes: list[PptxShape] = field(default_factory=list)
+    images: list[PptxImage] = field(default_factory=list)

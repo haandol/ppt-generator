@@ -165,6 +165,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
             paragraphs.append(PptxParagraph(
                 runs=runs,
                 bullet_level=p.get("bullet_level", -1),
+                alignment=p.get("alignment"),
             ))
         textboxes.append(PptxTextBox(
             left_px=tb.get("left_px", 0),
@@ -172,10 +173,27 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
             width_px=tb.get("width_px", 100),
             height_px=tb.get("height_px", 50),
             paragraphs=paragraphs,
+            line_spacing_pt=tb.get("line_spacing_pt"),
         ))
 
     shapes: list[PptxShape] = []
     for s in data.get("shapes", []):
+        shape_paragraphs: list[PptxParagraph] = []
+        for p in s.get("paragraphs", []):
+            s_runs: list[PptxTextRun] = []
+            for r in p.get("runs", []):
+                s_runs.append(PptxTextRun(
+                    text=r.get("text", ""),
+                    font_size_pt=r.get("font_size_pt"),
+                    color=r.get("color"),
+                    bold=r.get("bold", False),
+                    italic=r.get("italic", False),
+                ))
+            shape_paragraphs.append(PptxParagraph(
+                runs=s_runs,
+                bullet_level=p.get("bullet_level", -1),
+                alignment=p.get("alignment"),
+            ))
         shapes.append(PptxShape(
             left_px=s.get("left_px", 0),
             top_px=s.get("top_px", 0),
@@ -190,12 +208,15 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
             text_color=s.get("text_color"),
             text_size_pt=s.get("text_size_pt"),
             text_bold=s.get("text_bold", False),
+            paragraphs=shape_paragraphs,
+            line_spacing_pt=s.get("line_spacing_pt"),
         ))
 
     return PptxSlideSpec(
         background_color=data.get("background_color"),
         textboxes=textboxes,
         shapes=shapes,
+        images=[],
     )
 
 
@@ -254,6 +275,8 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
             width_px=width,
             height_px=height,
             paragraphs=new_paragraphs,
+            line_spacing_pt=tb.line_spacing_pt,
+            vertical_alignment=tb.vertical_alignment,
         ))
 
     validated_shapes: list[PptxShape] = []
@@ -261,9 +284,28 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
         left, top, width, height = _clip_rect(s.left_px, s.top_px, s.width_px, s.height_px)
         clamped_text_size = _clamp_font(s.text_size_pt)
 
+        # paragraphs 내부 폰트 클램핑
+        new_shape_paragraphs: list[PptxParagraph] = []
+        shape_max_font = font_min
+        shape_num_lines = 0
+        for para in s.paragraphs:
+            new_runs: list[PptxTextRun] = []
+            for run in para.runs:
+                clamped = _clamp_font(run.font_size_pt)
+                new_runs.append(replace(run, font_size_pt=clamped))
+                if clamped and clamped > shape_max_font:
+                    shape_max_font = clamped
+            new_shape_paragraphs.append(replace(para, runs=new_runs))
+            shape_num_lines += 1
+
         if s.text and clamped_text_size:
             line_count = s.text.count("\n") + 1
             min_h = line_count * clamped_text_size * lh_factor
+            if height < min_h:
+                height = min(min_h, canvas_h - top)
+
+        if new_shape_paragraphs and shape_num_lines > 0:
+            min_h = shape_num_lines * shape_max_font * lh_factor
             if height < min_h:
                 height = min(min_h, canvas_h - top)
 
@@ -274,10 +316,12 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
             width_px=width,
             height_px=height,
             text_size_pt=clamped_text_size,
+            paragraphs=new_shape_paragraphs,
         ))
 
     return PptxSlideSpec(
         background_color=spec.background_color,
         textboxes=validated_textboxes,
         shapes=validated_shapes,
+        images=spec.images,
     )
