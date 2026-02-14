@@ -158,7 +158,13 @@ def shape_to_html(shape: PptxShape) -> str:
     return f'<div style="{style}">{inner}</div>'
 
 
-def spec_to_html_section(slide_index: int, spec: PptxSlideSpec) -> str:
+def spec_to_html_section(
+    slide_index: int,
+    spec: PptxSlideSpec,
+    *,
+    bg_image_base64: str | None = None,
+    logo_image_base64: str | None = None,
+) -> str:
     """PptxSlideSpec 하나를 <section> HTML로 결정론적 변환."""
     bg = spec.background_color or "#1a1a2e"
     notes_attr = ""
@@ -166,11 +172,18 @@ def spec_to_html_section(slide_index: int, spec: PptxSlideSpec) -> str:
         escaped_notes = spec.speaker_notes.replace('"', "&quot;").replace("<", "&lt;").replace(">", "&gt;")
         notes_attr = f' data-speaker-notes="{escaped_notes}"'
 
+    bg_image_css = ""
+    if bg_image_base64:
+        bg_image_css = (
+            f"background-image:url(data:image/png;base64,{bg_image_base64});"
+            "background-size:cover;background-position:center;"
+        )
+
     parts: list[str] = []
     parts.append(
         f'<section id="slide-{slide_index}"{notes_attr}>'
         f'<div style="position:absolute;top:0;left:0;right:0;bottom:0;'
-        f'background-color:{bg};overflow:hidden;">'
+        f'background-color:{bg};{bg_image_css}overflow:hidden;">'
     )
 
     # shapes를 먼저 렌더링 (z-order 하단)
@@ -180,6 +193,13 @@ def spec_to_html_section(slide_index: int, spec: PptxSlideSpec) -> str:
     # textboxes를 나중에 렌더링 (z-order 상단)
     for tb in spec.textboxes:
         parts.append(textbox_to_html(tb))
+
+    # 로고 이미지 (우측 하단)
+    if logo_image_base64:
+        parts.append(
+            f'<img src="data:image/png;base64,{logo_image_base64}" '
+            'style="position:absolute;bottom:45px;right:50px;width:100px;height:auto;" />'
+        )
 
     parts.append("</div></section>")
     return "\n".join(parts)

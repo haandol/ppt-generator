@@ -15,6 +15,7 @@ from ppt_generator.interfaces.constants import (
     PPTX_SLIDE_HEIGHT_EMU,
     PPTX_SLIDE_WIDTH_EMU,
 )
+from ppt_generator.interfaces import bg_image_utils
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
     ExportPptxResponse,
@@ -41,12 +42,15 @@ class ExportService:
         if not design_spec.slides:
             raise ValueError("디자인 스펙에 슬라이드가 없습니다.")
 
+        bg_image_utils.reset_cache()
+        last_idx = len(design_spec.slides) - 1
+
         prs = Presentation()
         prs.slide_width = PPTX_SLIDE_WIDTH_EMU
         prs.slide_height = PPTX_SLIDE_HEIGHT_EMU
         blank_layout = prs.slide_layouts[6]
 
-        for raw_spec in design_spec.slides:
+        for idx, raw_spec in enumerate(design_spec.slides):
             spec = validate_slide_spec(raw_spec)
             slide = prs.slides.add_slide(blank_layout)
             self._builder.remove_placeholders(slide)
@@ -54,8 +58,20 @@ class ExportService:
             if spec.background_color:
                 self._builder.set_slide_background(slide, spec.background_color)
 
+            # 제목(첫 번째) / Thank You(마지막) 슬라이드에 배경 이미지 + 로고 삽입
+            if idx == 0 or idx == last_idx:
+                bg_bytes = bg_image_utils.get_bg_image_bytes(spec.background_color)
+                if bg_bytes:
+                    self._builder.set_slide_background_image(slide, bg_bytes)
+
             self._builder.build_slide_from_spec(slide, spec)
             self._builder.ensure_textboxes_on_top(slide)
+
+            # 로고는 z-order 최상단이어야 하므로 ensure_textboxes_on_top 이후 추가
+            if idx == 0 or idx == last_idx:
+                logo_bytes = bg_image_utils.get_logo_image_bytes(spec.background_color)
+                if logo_bytes:
+                    self._builder.add_logo_image(slide, logo_bytes)
 
             if spec.speaker_notes:
                 self._builder.set_speaker_notes(slide, spec.speaker_notes)
