@@ -40,8 +40,14 @@ class DIContainer:
         return BedrockModel(
             model_id=BEDROCK_MODEL_ID,
             region_name=BEDROCK_REGION,
-            temperature=BEDROCK_TEMPERATURE,
+            temperature=1.0,
             max_tokens=BEDROCK_MAX_TOKENS,
+            additional_request_fields={
+                "thinking": {
+                    "type": "enabled",
+                    "budget_tokens": 8000,
+                },
+            },
         )
 
     @staticmethod

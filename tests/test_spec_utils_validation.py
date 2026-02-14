@@ -1,6 +1,6 @@
 """spec_utils 검증 로직 통합 테스트.
 
-폰트 메트릭 기반 텍스트 오버플로우 방지 검증.
+폰트 메트릭 기반 텍스트 오버플로우 방지, 여백 강제, 겹침 해소 검증.
 """
 
 from __future__ import annotations
@@ -214,3 +214,204 @@ class TestAutofitFontScale:
             for run in para.runs:
                 if run.font_size_pt is not None:
                     assert run.font_size_pt >= 10
+
+
+# ---------------------------------------------------------------------------
+# 여백 강제 검증
+# ---------------------------------------------------------------------------
+
+
+class TestMarginEnforcement:
+    def test_textbox_left_margin_enforced(self) -> None:
+        """left=10 → 40으로 보정되어야 한다."""
+        tb = PptxTextBox(
+            left_px=10, top_px=40, width_px=200, height_px=50,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="테스트", font_size_pt=16)],
+                ),
+            ],
+        )
+        slide = _make_slide(textboxes=[tb])
+        result = validate_slide_spec(slide)
+        assert result.textboxes[0].left_px >= 40
+
+    def test_textbox_right_margin_enforced(self) -> None:
+        """left+width=1260 → width가 축소되어 right가 1240 이하."""
+        tb = PptxTextBox(
+            left_px=1060, top_px=40, width_px=200, height_px=50,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="테스트", font_size_pt=16)],
+                ),
+            ],
+        )
+        slide = _make_slide(textboxes=[tb])
+        result = validate_slide_spec(slide)
+        validated_tb = result.textboxes[0]
+        assert validated_tb.left_px + validated_tb.width_px <= 1240
+
+    def test_textbox_top_margin_enforced(self) -> None:
+        """top=10 → 40으로 보정되어야 한다."""
+        tb = PptxTextBox(
+            left_px=40, top_px=10, width_px=200, height_px=50,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="테스트", font_size_pt=16)],
+                ),
+            ],
+        )
+        slide = _make_slide(textboxes=[tb])
+        result = validate_slide_spec(slide)
+        assert result.textboxes[0].top_px >= 40
+
+    def test_decorative_shape_no_margin(self) -> None:
+        """장식 shape(텍스트 없음, height<=10)는 left=0 허용."""
+        shape = PptxShape(
+            left_px=0, top_px=100, width_px=1280, height_px=3,
+            shape_type="rectangle",
+            fill_color="#FF9900",
+        )
+        slide = _make_slide(shapes=[shape])
+        result = validate_slide_spec(slide)
+        # 장식 요소는 left=0 그대로 허용
+        assert result.shapes[0].left_px == 0
+
+    def test_shape_with_text_margin_enforced(self) -> None:
+        """텍스트가 있는 shape도 여백이 강제되어야 한다."""
+        shape = PptxShape(
+            left_px=10, top_px=10, width_px=200, height_px=50,
+            shape_type="rounded_rectangle",
+            fill_color="#2a2a4e",
+            text="카드 텍스트",
+            text_size_pt=16,
+        )
+        slide = _make_slide(shapes=[shape])
+        result = validate_slide_spec(slide)
+        validated_shape = result.shapes[0]
+        assert validated_shape.left_px >= 40
+        assert validated_shape.top_px >= 40
+
+
+# ---------------------------------------------------------------------------
+# 겹침 해소 검증
+# ---------------------------------------------------------------------------
+
+
+class TestOverlapDetection:
+    def test_no_overlap_no_change(self) -> None:
+        """겹침이 없으면 위치가 변경되지 않아야 한다."""
+        tb1 = PptxTextBox(
+            left_px=40, top_px=40, width_px=500, height_px=60,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="제목", font_size_pt=32)],
+                ),
+            ],
+        )
+        tb2 = PptxTextBox(
+            left_px=40, top_px=120, width_px=500, height_px=200,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="본문", font_size_pt=18)],
+                ),
+            ],
+        )
+        slide = _make_slide(textboxes=[tb1, tb2])
+        result = validate_slide_spec(slide)
+        assert result.textboxes[0].top_px == 40
+        assert result.textboxes[1].top_px == 120
+
+    def test_vertical_overlap_pushdown(self) -> None:
+        """수직 겹침 → 아래 요소가 push-down되어야 한다."""
+        tb1 = PptxTextBox(
+            left_px=40, top_px=40, width_px=500, height_px=100,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="제목", font_size_pt=32)],
+                ),
+            ],
+        )
+        # top=80으로 tb1(top=40, height=100)과 겹침
+        tb2 = PptxTextBox(
+            left_px=40, top_px=80, width_px=500, height_px=200,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="본문", font_size_pt=18)],
+                ),
+            ],
+        )
+        slide = _make_slide(textboxes=[tb1, tb2])
+        result = validate_slide_spec(slide)
+        # tb2가 tb1의 아래쪽으로 밀려야 함 (tb1.top + tb1.height + gap)
+        assert result.textboxes[1].top_px >= result.textboxes[0].top_px + result.textboxes[0].height_px
+
+    def test_pushdown_respects_canvas_bottom(self) -> None:
+        """push-down 후 캔버스 초과 시 height가 축소되어야 한다."""
+        tb1 = PptxTextBox(
+            left_px=40, top_px=500, width_px=500, height_px=100,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="상단", font_size_pt=18)],
+                ),
+            ],
+        )
+        # 겹치게 배치
+        tb2 = PptxTextBox(
+            left_px=40, top_px=550, width_px=500, height_px=200,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="하단", font_size_pt=18)],
+                ),
+            ],
+        )
+        slide = _make_slide(textboxes=[tb1, tb2])
+        result = validate_slide_spec(slide)
+        validated_tb2 = result.textboxes[1]
+        # 캔버스 하단(680) 초과하면 안 됨
+        assert validated_tb2.top_px + validated_tb2.height_px <= 680
+
+    def test_decorative_excluded(self) -> None:
+        """장식 shape는 겹침 해소에서 제외되어야 한다."""
+        # 장식용 구분선이 텍스트박스와 겹침
+        decorative = PptxShape(
+            left_px=40, top_px=95, width_px=1200, height_px=3,
+            shape_type="rectangle",
+            fill_color="#FF9900",
+        )
+        tb = PptxTextBox(
+            left_px=40, top_px=90, width_px=500, height_px=200,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="본문", font_size_pt=18)],
+                ),
+            ],
+        )
+        slide = _make_slide(textboxes=[tb], shapes=[decorative])
+        result = validate_slide_spec(slide)
+        # 장식 shape 위치는 변경되지 않아야 함
+        assert result.shapes[0].top_px == 95
+
+    def test_shape_textbox_overlap(self) -> None:
+        """shape와 textbox 간 겹침도 해소되어야 한다."""
+        tb = PptxTextBox(
+            left_px=40, top_px=40, width_px=400, height_px=100,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="제목", font_size_pt=32)],
+                ),
+            ],
+        )
+        shape = PptxShape(
+            left_px=40, top_px=80, width_px=380, height_px=200,
+            shape_type="rounded_rectangle",
+            fill_color="#2a2a4e",
+            text="카드 내용",
+            text_size_pt=16,
+        )
+        slide = _make_slide(textboxes=[tb], shapes=[shape])
+        result = validate_slide_spec(slide)
+        # shape가 textbox 아래로 밀려야 함
+        tb_result = result.textboxes[0]
+        shape_result = result.shapes[0]
+        assert shape_result.top_px >= tb_result.top_px + tb_result.height_px
