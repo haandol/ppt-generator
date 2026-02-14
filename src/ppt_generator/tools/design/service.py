@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import replace
 
 from strands import Agent
 
@@ -66,7 +67,8 @@ class DesignService:
                 outline_json=outline_json,
             )
 
-        return self._generate_with_structured_output(prompt)
+        spec = self._generate_with_structured_output(prompt)
+        return replace(spec, slide_type=slide_outline.slide_type)
 
     @staticmethod
     def extract_design_summary(spec: PptxSlideSpec) -> dict:
@@ -130,6 +132,7 @@ class DesignService:
                 "content_summary": slide.content_summary,
                 "component_hint": slide.component_hint,
                 "speaker_notes": slide.speaker_notes,
+                "slide_type": slide.slide_type,
             },
             ensure_ascii=False,
             indent=2,

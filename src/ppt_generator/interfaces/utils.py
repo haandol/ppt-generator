@@ -43,6 +43,7 @@ def parse_outline_json(outline_json: str) -> OutlineResponse:
                 content_summary=item.get("content_summary", ""),
                 component_hint=item.get("component_hint", "bullets"),
                 speaker_notes=item.get("speaker_notes", ""),
+                slide_type=item.get("slide_type", "content"),
             )
         )
     return OutlineResponse(slides=slides)

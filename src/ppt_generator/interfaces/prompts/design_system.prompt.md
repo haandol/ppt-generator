@@ -236,7 +236,7 @@ shapes의 padding_*_px 필드로 텍스트와 shape 경계 사이 여백을 제�
    이유: 겹친 요소는 텍스트 가독성을 크게 저하시킵니다.
 
 6. 여백 확보 (수치 기준): 모든 콘텐츠 요소는 left_px >= 40, top_px >= 40, left_px + width_px <= 1240, top_px + height_px <= 680을 만족해야 합니다. 콘텐츠가 슬라이드 하단에 딱 붙지 않도록 상단 제목 여백(40px)과 동일한 수준의 하단 여백을 유지하세요.
-   ※ 첫 번째 슬라이드(타이틀)와 마지막 슬라이드(Thank You)에는 배경 이미지와 로고가 자동 삽입됩니다. 이 두 슬라이드에서는: (1) background_color를 null로 설정하세요 (배경 이미지가 덮으므로 불필요). (2) 우측 하단 영역(left_px > 1080, top_px > 600)에 텍스트박스나 도형을 배치하지 않고 비워두세요.
+   ※ slide_type이 "title" 또는 "closing"인 슬라이드에는 배경 이미지와 로고가 자동 삽입됩니다. 이 슬라이드에서는: (1) background_color를 null로 설정하세요 (배경 이미지가 덮으므로 불필요). (2) 우측 하단 영역(left_px > 1080, top_px > 600)에 텍스트박스나 도형을 배치하지 않고 비워두세요.
 
 7. vertical_alignment 필수: 모든 textbox와 shape에 vertical_alignment을 반드시 지정하세요 (null 금지).
 </constraints>

@@ -3,10 +3,11 @@
 </role>
 
 <output_schema>
-각 슬라이드에는 다음 3개 필드를 포함합니다:
+각 슬라이드에는 다음 4개 필드를 포함합니다:
 - title: 슬라이드 제목
 - content_summary: 슬라이드에 담길 핵심 내용 요약 (불릿 포인트, 설명, 키워드 등을 자연어로 작성)
 - component_hint: 슬라이드에 사용할 시각적 컴포넌트 유형 (아래 목록 참고)
+- slide_type: 슬라이드 유형 — "title" (타이틀 슬라이드), "closing" (Thank You/Q&A 슬라이드), "content" (일반 본론 슬라이드)
 </output_schema>
 
 <component_hints>
@@ -32,16 +33,16 @@
 <slide_composition_rules>
 슬라이드 구성 필수 규칙:
 
-- 1장(첫 번째): 반드시 타이틀 슬라이드 — 주제, 부제목, 발표자 정보. component_hint는 bullets 사용
+- 1장(첫 번째): 반드시 타이틀 슬라이드 — 주제, 부제목, 발표자 정보. slide_type은 "title", component_hint는 bullets 사용
   이유: 타이틀 슬라이드는 디자인 단계에서 특별한 레이아웃으로 처리되므로, bullets 힌트가 필요합니다.
 
-- N장(마지막): 반드시 Thank You / Q&A 슬라이드 — 감사 인사, 연락처, Q&A 안내. component_hint는 cta 사용
+- N장(마지막): 반드시 Thank You / Q&A 슬라이드 — 감사 인사, 연락처, Q&A 안내. slide_type은 "closing", component_hint는 cta 사용
   이유: CTA 레이아웃이 마무리 슬라이드에 가장 적합한 시각적 구조를 제공합니다.
 
-- 2장: 목차/개요 (agenda) — 전체 흐름 안내
+- 2장: 목차/개요 (agenda) — 전체 흐름 안내. slide_type은 "content"
   이유: 청중이 프레젠테이션의 전체 구조를 미리 파악할 수 있습니다.
 
-- 3~N-1장: 본론 — 아래 유형을 주제에 맞게 조합:
+- 3~N-1장: 본론 — slide_type은 "content". 아래 유형을 주제에 맞게 조합:
   · 개념 설명: two_column, info_cards, bullets
   · 프로세스/워크플로: process_flow, step_cards, pipeline
   · 비교/분석: vs_comparison, summary_grid

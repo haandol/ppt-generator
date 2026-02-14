@@ -44,8 +44,10 @@ class DIContainer:
             max_tokens=BEDROCK_MAX_TOKENS,
             additional_request_fields={
                 "thinking": {
-                    "type": "enabled",
-                    "budget_tokens": 8000,
+                    "type": "adaptive",
+                },
+                "output_config": {
+                    "effort": "max",
                 },
             },
         )

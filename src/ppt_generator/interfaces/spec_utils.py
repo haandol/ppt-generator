@@ -115,6 +115,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
         shapes=shapes,
         images=[],
         speaker_notes=data.get("speaker_notes", ""),
+        slide_type=data.get("slide_type", "content"),
     )
 
 
@@ -459,6 +460,7 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
         shapes=validated_shapes,
         images=spec.images,
         speaker_notes=spec.speaker_notes,
+        slide_type=spec.slide_type,
     )
 
 

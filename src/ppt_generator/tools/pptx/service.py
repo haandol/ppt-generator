@@ -43,7 +43,6 @@ class ExportService:
             raise ValueError("디자인 스펙에 슬라이드가 없습니다.")
 
         bg_image_utils.reset_cache()
-        last_idx = len(design_spec.slides) - 1
 
         prs = Presentation()
         prs.slide_width = PPTX_SLIDE_WIDTH_EMU
@@ -58,8 +57,8 @@ class ExportService:
             if spec.background_color:
                 self._builder.set_slide_background(slide, spec.background_color)
 
-            # 제목(첫 번째) / Thank You(마지막) 슬라이드에 배경 이미지 + 로고 삽입
-            if idx == 0 or idx == last_idx:
+            # 타이틀/클로징 슬라이드에 배경 이미지 + 로고 삽입
+            if spec.slide_type in ("title", "closing"):
                 bg_bytes = bg_image_utils.get_bg_image_bytes(spec.background_color)
                 if bg_bytes:
                     self._builder.set_slide_background_image(slide, bg_bytes)
@@ -68,7 +67,7 @@ class ExportService:
             self._builder.ensure_textboxes_on_top(slide)
 
             # 로고는 z-order 최상단이어야 하므로 ensure_textboxes_on_top 이후 추가
-            if idx == 0 or idx == last_idx:
+            if spec.slide_type in ("title", "closing"):
                 logo_bytes = bg_image_utils.get_logo_image_bytes(spec.background_color)
                 if logo_bytes:
                     self._builder.add_logo_image(slide, logo_bytes)

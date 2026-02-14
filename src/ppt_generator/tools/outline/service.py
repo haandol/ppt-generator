@@ -55,6 +55,7 @@ class OutlineService:
                     title=item.get("title", ""),
                     content_summary=item.get("content_summary", ""),
                     component_hint=component_hint,
+                    slide_type=item.get("slide_type", "content"),
                 )
             )
         return slides
