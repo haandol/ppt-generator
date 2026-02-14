@@ -143,13 +143,25 @@ def _clip_rect(
     margin: int = _MARGIN,
     *, is_decorative: bool = False,
 ) -> tuple[float, float, float, float]:
-    """요소 위치/크기를 캔버스 범위 내로 클리핑한다."""
-    left = max(0, min(left, canvas_w - 10))
-    top = max(0, min(top, canvas_h - 10))
-    width = max(10, min(width, canvas_w - left))
-    # 장식용 요소(얇은 라인/바)는 캔버스 끝까지 허용, 그 외는 하단 여백 확보
-    max_bottom = canvas_h if is_decorative else (canvas_h - margin)
-    height = max(10, min(height, max_bottom - top))
+    """요소 위치/크기를 캔버스 범위 내로 클리핑한다.
+
+    일반 요소는 margin 여백을 강제하고, 장식 요소(is_decorative)는
+    캔버스 전체를 사용할 수 있도록 기존 동작을 유지한다.
+    """
+    if is_decorative:
+        # 장식용 요소: 캔버스 전체 허용 (left>=0, 캔버스 끝까지)
+        left = max(0, min(left, canvas_w - 10))
+        top = max(0, min(top, canvas_h - 10))
+        width = max(10, min(width, canvas_w - left))
+        height = max(10, min(height, canvas_h - top))
+    else:
+        # 일반 요소: margin 여백 강제
+        left = max(margin, min(left, canvas_w - margin - 10))
+        top = max(margin, min(top, canvas_h - margin - 10))
+        max_right = canvas_w - margin
+        width = max(10, min(width, max_right - left))
+        max_bottom = canvas_h - margin
+        height = max(10, min(height, max_bottom - top))
     return left, top, width, height
 
 
@@ -341,10 +353,105 @@ def _validate_shapes(
     return validated
 
 
+_OVERLAP_GAP = 8  # 겹침 해소 시 요소 간 최소 간격 (px)
+_OVERLAP_MAX_PASSES = 3  # 겹침 해소 최대 반복 횟수
+
+
+def _resolve_overlaps(
+    textboxes: list[PptxTextBox],
+    shapes: list[PptxShape],
+    canvas_h: float = _CANVAS_H,
+    margin: int = _MARGIN,
+    gap: int = _OVERLAP_GAP,
+    max_passes: int = _OVERLAP_MAX_PASSES,
+) -> tuple[list[PptxTextBox], list[PptxShape]]:
+    """비장식 요소 간 수직 겹침을 해소한다.
+
+    알고리즘:
+    1. 비장식 요소의 bounding box를 수집
+    2. top_px 오름차순 정렬
+    3. 겹치는 쌍 → 아래 요소를 push-down (위 요소의 bottom + gap)
+    4. push-down 후 캔버스 초과 시 height 축소 (최소 10px)
+    5. 최대 max_passes회 반복
+
+    한계: 수평 겹침은 해소하지 않음 (수평 이동은 레이아웃을 크게 망가뜨릴 수 있음).
+    """
+    # 인덱싱: (종류, 원본 인덱스, left, top, width, height)
+    items: list[tuple[str, int, float, float, float, float]] = []
+    for i, tb in enumerate(textboxes):
+        items.append(("tb", i, tb.left_px, tb.top_px, tb.width_px, tb.height_px))
+    for i, s in enumerate(shapes):
+        is_decorative = not s.text and not s.paragraphs and s.height_px <= 10
+        if is_decorative:
+            continue
+        items.append(("sh", i, s.left_px, s.top_px, s.width_px, s.height_px))
+
+    if len(items) <= 1:
+        return textboxes, shapes
+
+    max_bottom = canvas_h - margin
+
+    for _ in range(max_passes):
+        # top 기준 정렬
+        items.sort(key=lambda x: x[3])
+        changed = False
+        for a_idx in range(len(items)):
+            a_kind, a_orig, a_l, a_t, a_w, a_h = items[a_idx]
+            a_right = a_l + a_w
+            a_bottom = a_t + a_h
+            for b_idx in range(a_idx + 1, len(items)):
+                b_kind, b_orig, b_l, b_t, b_w, b_h = items[b_idx]
+                b_right = b_l + b_w
+                # 수평 겹침 확인
+                if a_l >= b_right or b_l >= a_right:
+                    continue
+                # 수직 겹침 확인
+                if a_bottom <= b_t:
+                    continue
+                # 겹침 → 아래 요소 push-down
+                new_top = a_bottom + gap
+                if new_top + b_h > max_bottom:
+                    # 캔버스 초과 시 height 축소
+                    b_h = max(10, max_bottom - new_top)
+                if new_top >= max_bottom:
+                    # push-down 자체가 불가능한 경우는 건너뜀
+                    continue
+                items[b_idx] = (b_kind, b_orig, b_l, new_top, b_w, b_h)
+                changed = True
+        if not changed:
+            break
+
+    # 결과를 반영
+    new_textboxes = list(textboxes)
+    new_shapes = list(shapes)
+    for kind, orig_idx, _l, new_top, _w, new_h in items:
+        if kind == "tb":
+            tb = new_textboxes[orig_idx]
+            if tb.top_px != new_top or tb.height_px != new_h:
+                new_textboxes[orig_idx] = PptxTextBox(
+                    left_px=tb.left_px,
+                    top_px=new_top,
+                    width_px=tb.width_px,
+                    height_px=new_h,
+                    paragraphs=tb.paragraphs,
+                    line_spacing_pt=tb.line_spacing_pt,
+                    vertical_alignment=tb.vertical_alignment,
+                )
+        else:
+            s = new_shapes[orig_idx]
+            if s.top_px != new_top or s.height_px != new_h:
+                new_shapes[orig_idx] = replace(s, top_px=new_top, height_px=new_h)
+
+    return new_textboxes, new_shapes
+
+
 def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
     """LLM 출력 PptxSlideSpec을 검증하고 보정한다."""
     validated_textboxes = _validate_textboxes(spec.textboxes)
     validated_shapes = _validate_shapes(spec.shapes)
+    validated_textboxes, validated_shapes = _resolve_overlaps(
+        validated_textboxes, validated_shapes,
+    )
 
     return PptxSlideSpec(
         background_color=spec.background_color,
