@@ -19,6 +19,7 @@ class SlideOutline:
     content_summary: str
     component_hint: str = "bullets"
     speaker_notes: str = ""
+    slide_type: str = "content"
 
 
 @dataclass(frozen=True)
@@ -147,6 +148,7 @@ class PptxSlideSpec:
     shapes: list[PptxShape] = field(default_factory=list)
     images: list[PptxImage] = field(default_factory=list)
     speaker_notes: str = ""
+    slide_type: str = "content"
 
 
 # --- 디자인 스펙 스키마 ---

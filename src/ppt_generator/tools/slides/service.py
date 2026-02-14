@@ -33,14 +33,13 @@ class SlidesService:
             raise ValueError("디자인 스펙에 슬라이드가 없습니다.")
 
         bg_image_utils.reset_cache()
-        last_idx = len(design_spec.slides) - 1
 
         slide_htmls: list[str] = []
         for idx, raw_spec in enumerate(design_spec.slides):
             spec = validate_slide_spec(raw_spec)
             bg_b64: str | None = None
             logo_b64: str | None = None
-            if idx == 0 or idx == last_idx:
+            if spec.slide_type in ("title", "closing"):
                 bg_b64 = bg_image_utils.get_bg_image_base64(spec.background_color)
                 logo_b64 = bg_image_utils.get_logo_image_base64(spec.background_color)
             slide_html = self._spec_to_html_document(

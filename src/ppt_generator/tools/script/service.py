@@ -46,6 +46,7 @@ class ScriptService:
                     content_summary=slide.content_summary,
                     component_hint=slide.component_hint,
                     speaker_notes=notes,
+                    slide_type=slide.slide_type,
                 )
             )
         return merged
