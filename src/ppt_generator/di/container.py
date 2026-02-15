@@ -71,13 +71,8 @@ class DIContainer:
         model = BedrockModel(
             model_id=BEDROCK_OUTLINE_MODEL_ID,
             region_name=BEDROCK_REGION,
-            temperature=1.0,
+            temperature=0.3,
             max_tokens=BEDROCK_SCRIPT_MAX_TOKENS,
-            additional_request_fields={
-                "thinking": {
-                    "type": "adaptive",
-                },
-            },
             additional_args=self._build_json_schema_args(SCRIPT_JSON_SCHEMA, "script_output"),
         )
         return Agent(model=model, system_prompt=SCRIPT_SYSTEM_PROMPT, callback_handler=None, tools=[])
@@ -86,13 +81,8 @@ class DIContainer:
         model = BedrockModel(
             model_id=BEDROCK_OUTLINE_MODEL_ID,
             region_name=BEDROCK_REGION,
-            temperature=1.0,
+            temperature=0.3,
             max_tokens=BEDROCK_OUTLINE_MAX_TOKENS,
-            additional_request_fields={
-                "thinking": {
-                    "type": "adaptive",
-                },
-            },
             additional_args=self._build_json_schema_args(OUTLINE_JSON_SCHEMA, "outline_output"),
         )
         return Agent(model=model, system_prompt=OUTLINE_SYSTEM_PROMPT, callback_handler=None, tools=[])
