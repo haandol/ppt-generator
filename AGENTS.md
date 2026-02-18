@@ -3,7 +3,7 @@
 ## Overview
 
 사용자가 주제를 입력하면 AI가 자동으로 프레젠테이션을 생성하는 Python MCP 서버입니다.
-Amazon Bedrock LLM으로 아웃라인/스크립트/디자인 스펙을 생성하고, 디자인 스펙(PptxSlideSpec JSON)에서 HTML 미리보기와 편집 가능한 PPTX를 결정론적으로 변환합니다.
+Claude LLM(Anthropic API 또는 AWS Bedrock)으로 아웃라인/스크립트/디자인 스펙을 생성하고, 디자인 스펙(PptxSlideSpec JSON)에서 HTML 미리보기와 편집 가능한 PPTX를 결정론적으로 변환합니다.
 Claude Desktop, Kiro 등 MCP 호환 클라이언트에서 사용할 수 있습니다.
 
 > ALPS 설계 문서: 피쳐 목록, 기능 명세, 인수 기준 등 구현에 필요한 세부 사항은 [`docs/ppt-generator.alps.md`](docs/ppt-generator.alps.md) (또는 원본 [`docs/ppt-generator.alps.xml`](docs/ppt-generator.alps.xml))를 반드시 확인하세요.
@@ -26,7 +26,7 @@ ppt-generator/
 │   ├── tools/
 │   │   ├── outline/               # 슬라이드 아웃라인 생성 도구 (F1)
 │   │   │   ├── controller.py      # MCP 인터페이스
-│   │   │   └── service.py         # Bedrock LLM 호출 로직
+│   │   │   └── service.py         # LLM 호출 로직 (Anthropic/Bedrock)
 │   │   ├── script/                # 발표 스크립트 생성 도구 (F2)
 │   │   │   ├── controller.py
 │   │   │   └── service.py
@@ -52,6 +52,7 @@ ppt-generator/
 │   │   ├── llm_output_models.py   # LLM structured_output용 Pydantic 모델
 │   │   ├── spec_utils.py          # PptxSlideSpec 파싱/검증/직렬화 공유 유틸리티
 │   │   ├── text_measurement.py    # 폰트 메트릭 기반 텍스트 크기 추정 (줄바꿈/높이 계산)
+│   │   ├── bg_image_utils.py      # 배경 이미지 유틸리티
 │   │   ├── utils.py               # parse_outline_json 등 공용 파싱 유틸리티
 │   │   └── prompts/               # 프롬프트 템플릿 모듈
 │   │       ├── __init__.py        # 전체 프롬프트 상수 re-export
@@ -62,7 +63,10 @@ ppt-generator/
 │       ├── slide.html             # 개별 슬라이드 HTML 템플릿 (완전한 HTML 문서)
 │       ├── slides.html            # 레거시 단일 HTML 템플릿 (하위 호환)
 │       ├── slides_container.html  # iframe 컨테이너 템플릿
-│       └── layout_mapping.py      # layout_index → 슬라이드 레이아웃 매핑 (97종)
+│       ├── layout_mapping.py      # layout_index → 슬라이드 레이아웃 매핑 (97종)
+│       └── template_bg_images/    # 배경 이미지 리소스
+├── env/
+│   └── local.env                  # 샘플 환경변수 파일
 ├── docs/
 │   ├── adr/                       # Architecture Decision Records
 │   ├── ppt-generator.alps.xml     # ALPS 설계 문서
@@ -124,7 +128,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 
 - **Controller** (`controller.py`): MCP 도구 인터페이스. `register_*_tools(mcp, service, project_service)` 함수로 도구를 등록하며, 내부에 `@mcp.tool()` 데코레이터가 적용된 함수를 정의합니다. docstring이 MCP 클라이언트에 도구 설명으로 노출됩니다.
 - **Service** (`service.py`): 비즈니스 로직. Request 데이터클래스를 받아 Response 데이터클래스를 반환합니다.
-- **DIContainer** (`di/container.py`): Bedrock 모델, Agent, Service 인스턴스를 생성하고 연결합니다. 지연 초기화(lazy init) 패턴을 사용합니다.
+- **DIContainer** (`di/container.py`): 프로바이더 자동 감지(Anthropic/Bedrock), 모델, Agent, Service 인스턴스를 생성하고 연결합니다. 지연 초기화(lazy init) 패턴을 사용합니다.
 
 ### Pipeline Design Philosophy: Progressive Refinement
 
@@ -153,7 +157,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 ```
 사용자 입력 (주제 + 슬라이드 수)
     ↓
-F1: generate_outline       → 슬라이드 아웃라인 JSON 생성 (Bedrock LLM, title/content_summary/component_hint)
+F1: generate_outline       → 슬라이드 아웃라인 JSON 생성 (LLM, title/content_summary/component_hint)
     ↓
     ⏸ 사용자 확인           → 아웃라인 구조 검토 및 승인 (수정 시 F1 재호출)
     ↓
@@ -282,7 +286,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 
 - 테스트 프레임워크: pytest
 - 테스트 파일: `tests/test_*.py`
-- 외부 API(Bedrock) 호출은 mock 처리
+- 외부 API(Bedrock/Anthropic) 호출은 mock 처리
 
 ```bash
 uv run pytest                    # 전체 테스트
@@ -291,12 +295,49 @@ uv run pytest tests/test_xxx.py  # 개별 테스트
 
 ## MCP Client Configuration
 
+Anthropic API 사용 시:
+
+```json
+{
+  "mcpServers": {
+    "ppt-generator": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"],
+      "env": {
+        "ANTHROPIC_API_KEY": "sk-ant-..."
+      }
+    }
+  }
+}
+```
+
+AWS Bedrock 사용 시 (`~/.aws/credentials` 설정 완료 가정):
+
 ```json
 {
   "mcpServers": {
     "ppt-generator": {
       "command": "uv",
       "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"]
+    }
+  }
+}
+```
+
+AWS 환경변수를 직접 지정하는 경우:
+
+```json
+{
+  "mcpServers": {
+    "ppt-generator": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"],
+      "env": {
+        "LLM_PROVIDER": "bedrock",
+        "AWS_ACCESS_KEY_ID": "AKIA...",
+        "AWS_SECRET_ACCESS_KEY": "...",
+        "AWS_REGION": "us-east-1"
+      }
     }
   }
 }
@@ -321,7 +362,7 @@ uv run pytest tests/test_xxx.py  # 개별 테스트
 - `server.py` - 도구 등록 로직
 - `di/container.py` - 의존성 주입 설정
 - 기존 도구 시그니처 변경 (MCP 클라이언트 호환성에 영향)
-- Bedrock API 호출 파라미터 변경 (비용 및 품질에 영향)
+- LLM API 호출 파라미터 변경 (비용 및 품질에 영향, Anthropic/Bedrock 양쪽 확인 필요)
 - PPTX 변환 로직 (`tools/pptx/service.py`, `slide_builder.py`, `text_formatter.py` - 좌표 변환, 스타일 매핑)
 - HTML 렌더링 로직 (`tools/slides/html_renderer.py` - PptxSlideSpec → HTML 변환)
 - HTML 템플릿 구조 (`templates/slide.html`, `templates/slides_container.html` - 인라인 CSS, placeholder 구조)
