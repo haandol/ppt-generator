@@ -5,4 +5,6 @@
 <input>
 주제: {topic}
 슬라이드 수: {num_slides}장
+청중 수준: {audience_level}
+발표 시간: {presentation_minutes}분
 </input>

@@ -48,6 +48,8 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
                 "topic": metadata.topic,
                 "num_slides": metadata.num_slides,
                 "steps_completed": metadata.steps_completed,
+                "audience_level": metadata.audience_level,
+                "presentation_minutes": metadata.presentation_minutes,
             },
             ensure_ascii=False,
             indent=2,

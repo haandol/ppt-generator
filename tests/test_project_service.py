@@ -142,12 +142,24 @@ class TestSavePptxCopiesFile:
 
 class TestSaveMetadataAndUpdateStep:
     def test_save_and_load_metadata(self, project_service: ProjectService, project_dir: Path) -> None:
-        meta = ProjectMetadata(topic="테스트", num_slides=5)
+        meta = ProjectMetadata(topic="테스트", num_slides=5, audience_level="technical", presentation_minutes=20)
         project_service.save_metadata(project_dir, meta)
 
         loaded = project_service.load_metadata(project_dir)
         assert loaded.topic == "테스트"
         assert loaded.num_slides == 5
+        assert loaded.audience_level == "technical"
+        assert loaded.presentation_minutes == 20
+
+    def test_load_metadata_backward_compatibility(self, project_service: ProjectService, project_dir: Path) -> None:
+        """audience_level, presentation_minutes가 없는 기존 project.json도 로드 가능."""
+        old_data = {"topic": "구형 프로젝트", "num_slides": 3, "steps_completed": {}}
+        (project_dir / "project.json").write_text(json.dumps(old_data, ensure_ascii=False), encoding="utf-8")
+
+        loaded = project_service.load_metadata(project_dir)
+        assert loaded.topic == "구형 프로젝트"
+        assert loaded.audience_level == "general"
+        assert loaded.presentation_minutes == 15
 
     def test_update_step(self, project_service: ProjectService, project_dir: Path) -> None:
         project_service.update_step(project_dir, "outline")

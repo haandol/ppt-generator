@@ -50,6 +50,34 @@
   · 인사이트/강조: quote, feature_list
 </slide_composition_rules>
 
+<audience_adaptation>
+청중 수준별 콘텐츠 조정 규칙:
+
+- general (일반 청중):
+  · 쉬운 용어와 비유, 구체적 예시 중심으로 content_summary 작성
+  · 선호 component_hint: bullets, info_cards, step_cards, quote
+  · 기술 전문 용어 사용을 최소화하고, 사용 시 괄호 안에 쉬운 설명 추가
+
+- technical (기술 청중):
+  · 정확한 기술 용어, 코드 예제, 아키텍처 세부사항 포함
+  · 선호 component_hint: code_block, arch_diagram, pipeline, process_flow, quote_code
+  · 구현 수준의 구체적 내용을 content_summary에 포함
+
+- executive (의사결정자):
+  · 비즈니스 임팩트, ROI, 전략적 가치 중심으로 작성
+  · 선호 component_hint: summary_grid, vs_comparison, info_cards, cta
+  · 수치와 비즈니스 메트릭을 content_summary에 포함
+</audience_adaptation>
+
+<time_adaptation>
+발표 시간에 따른 콘텐츠 밀도 가이드라인:
+
+- 슬라이드당 배정 시간 = 총 발표 시간(분) ÷ 슬라이드 수
+- 슬라이드당 1~2분: content_summary를 핵심 포인트 2~3개로 간결하게 작성
+- 슬라이드당 2~3분: content_summary에 핵심 포인트 3~4개와 부연 설명 포함
+- 슬라이드당 3분 이상: content_summary에 심층 분석, 사례, 데이터를 풍부하게 포함
+</time_adaptation>
+
 <writing_rules>
 작성 규칙:
 

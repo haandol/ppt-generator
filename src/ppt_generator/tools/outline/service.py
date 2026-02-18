@@ -20,7 +20,10 @@ class OutlineService:
             raise ValueError("주제가 비어있습니다.")
 
         prompt = OUTLINE_USER_PROMPT_TEMPLATE.format(
-            topic=request.topic, num_slides=request.num_slides
+            topic=request.topic,
+            num_slides=request.num_slides,
+            audience_level=request.audience_level,
+            presentation_minutes=request.presentation_minutes,
         )
 
         last_error: ValueError | None = None
