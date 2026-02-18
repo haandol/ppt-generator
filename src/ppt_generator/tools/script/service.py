@@ -16,7 +16,15 @@ class ScriptService:
             raise ValueError("아웃라인에 슬라이드가 없습니다.")
 
         outline_json = self._build_outline_json(request.outline.slides)
-        prompt = SCRIPT_USER_PROMPT_TEMPLATE.format(outline_json=outline_json)
+        num_slides = len(request.outline.slides)
+        minutes_per_slide = round(request.presentation_minutes / max(num_slides, 1), 1)
+        prompt = SCRIPT_USER_PROMPT_TEMPLATE.format(
+            outline_json=outline_json,
+            audience_level=request.audience_level,
+            presentation_minutes=request.presentation_minutes,
+            num_slides=num_slides,
+            minutes_per_slide=minutes_per_slide,
+        )
         result = str(self._agent(prompt))
 
         scripts = self._parse_scripts(result)

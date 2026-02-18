@@ -3,6 +3,7 @@ from dataclasses import asdict
 
 from mcp.server.fastmcp import FastMCP
 
+from ppt_generator.interfaces.constants import DEFAULT_AUDIENCE_LEVEL, DEFAULT_PRESENTATION_MINUTES
 from ppt_generator.interfaces.schemas import ScriptRequest
 from ppt_generator.interfaces.utils import parse_outline_json
 from ppt_generator.tools.project.service import ProjectService
@@ -28,7 +29,24 @@ def register_script_tools(mcp: FastMCP, script_service: ScriptService, project_s
             script_path, project_id를 포함하는 JSON 문자열
         """
         outline = parse_outline_json(outline_json)
-        request = ScriptRequest(outline=outline)
+
+        # 프로젝트 메타데이터에서 audience_level, presentation_minutes 로드
+        audience_level = DEFAULT_AUDIENCE_LEVEL
+        presentation_minutes = DEFAULT_PRESENTATION_MINUTES
+        if project_id:
+            try:
+                _, proj_dir = project_service.resolve_project_dir(project_id)
+                metadata = project_service.load_metadata(proj_dir)
+                audience_level = metadata.audience_level
+                presentation_minutes = metadata.presentation_minutes
+            except (FileNotFoundError, Exception):
+                pass
+
+        request = ScriptRequest(
+            outline=outline,
+            audience_level=audience_level,
+            presentation_minutes=presentation_minutes,
+        )
         response = script_service.generate(request)
         result = json.dumps(
             {"slides": [asdict(s) for s in response.slides]},

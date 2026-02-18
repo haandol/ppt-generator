@@ -117,6 +117,8 @@ class ProjectService:
             "topic": metadata.topic,
             "num_slides": metadata.num_slides,
             "steps_completed": metadata.steps_completed,
+            "audience_level": metadata.audience_level,
+            "presentation_minutes": metadata.presentation_minutes,
         }
         (project_dir / "project.json").write_text(
             json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -139,6 +141,8 @@ class ProjectService:
             topic=data.get("topic", ""),
             num_slides=data.get("num_slides", 0),
             steps_completed=data.get("steps_completed", {}),
+            audience_level=data.get("audience_level", "general"),
+            presentation_minutes=data.get("presentation_minutes", 15),
         )
 
     def load_outline(self, project_dir: Path) -> str:
@@ -186,6 +190,8 @@ class ProjectService:
                 "topic": data.get("topic", ""),
                 "num_slides": data.get("num_slides", 0),
                 "steps_completed": data.get("steps_completed", {}),
+                "audience_level": data.get("audience_level", "general"),
+                "presentation_minutes": data.get("presentation_minutes", 15),
                 "created_at": created_at,
             })
 

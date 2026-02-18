@@ -3,7 +3,16 @@ from dataclasses import asdict
 
 from mcp.server.fastmcp import FastMCP
 
-from ppt_generator.interfaces.constants import DEFAULT_NUM_SLIDES, MAX_NUM_SLIDES, MIN_NUM_SLIDES
+from ppt_generator.interfaces.constants import (
+    DEFAULT_AUDIENCE_LEVEL,
+    DEFAULT_NUM_SLIDES,
+    DEFAULT_PRESENTATION_MINUTES,
+    MAX_NUM_SLIDES,
+    MAX_PRESENTATION_MINUTES,
+    MIN_NUM_SLIDES,
+    MIN_PRESENTATION_MINUTES,
+    VALID_AUDIENCE_LEVELS,
+)
 from ppt_generator.interfaces.schemas import OutlineRequest, ProjectMetadata
 from ppt_generator.tools.outline.service import OutlineService
 from ppt_generator.tools.project.service import ProjectService
@@ -12,7 +21,11 @@ from ppt_generator.tools.project.service import ProjectService
 def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, project_service: ProjectService) -> None:
     @mcp.tool()
     def generate_outline(
-        topic: str, num_slides: int = DEFAULT_NUM_SLIDES, project_id: str = ""
+        topic: str,
+        audience_level: str = DEFAULT_AUDIENCE_LEVEL,
+        presentation_minutes: int = DEFAULT_PRESENTATION_MINUTES,
+        num_slides: int = DEFAULT_NUM_SLIDES,
+        project_id: str = "",
     ) -> str:
         """주제를 기반으로 슬라이드 아웃라인 JSON을 생성합니다.
 
@@ -27,6 +40,8 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
 
         Args:
             topic: 발표 주제 (예: "2024년 클라우드 컴퓨팅 트렌드")
+            audience_level: 청중 수준 — "general" (일반), "technical" (기술), "executive" (의사결정자). 기본값 "general"
+            presentation_minutes: 발표 시간(분). 3~60분, 기본값 15분
             num_slides: 슬라이드 수 (3~20, 기본값 5)
             project_id: 프로젝트 ID (미지정 시 자동 생성)
 
@@ -34,14 +49,28 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
             outline_path, project_id를 포함하는 JSON 문자열
         """
         num_slides = max(MIN_NUM_SLIDES, min(MAX_NUM_SLIDES, num_slides))
-        request = OutlineRequest(topic=topic, num_slides=num_slides)
+        if audience_level not in VALID_AUDIENCE_LEVELS:
+            audience_level = DEFAULT_AUDIENCE_LEVEL
+        presentation_minutes = max(MIN_PRESENTATION_MINUTES, min(MAX_PRESENTATION_MINUTES, presentation_minutes))
+        request = OutlineRequest(
+            topic=topic,
+            num_slides=num_slides,
+            audience_level=audience_level,
+            presentation_minutes=presentation_minutes,
+        )
         response = outline_service.generate(request)
         result = json.dumps(asdict(response), ensure_ascii=False, indent=2)
 
         project_id, project_dir = project_service.resolve_project_dir(project_id)
         project_service.save_metadata(
             project_dir,
-            ProjectMetadata(topic=topic, num_slides=num_slides, steps_completed={}),
+            ProjectMetadata(
+                topic=topic,
+                num_slides=num_slides,
+                steps_completed={},
+                audience_level=audience_level,
+                presentation_minutes=presentation_minutes,
+            ),
         )
         project_service.save_outline(project_dir, result)
         project_service.update_step(project_dir, "outline")
