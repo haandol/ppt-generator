@@ -2,7 +2,7 @@
 
 주제를 입력하면 AI가 자동으로 프레젠테이션을 생성하고, 사용자의 수정 요청을 반영한 뒤 편집 가능한 PPTX로 내보내는 MCP 서버입니다.
 
-Amazon Bedrock Claude로 콘텐츠를 생성하고, 디자인 스펙(PptxSlideSpec JSON)을 중간 표현으로 사용하여 HTML 미리보기와 편집 가능한 PPTX를 각각 결정론적으로 생성합니다.
+Claude LLM으로 콘텐츠를 생성하고, 디자인 스펙(PptxSlideSpec JSON)을 중간 표현으로 사용하여 HTML 미리보기와 편집 가능한 PPTX를 각각 결정론적으로 생성합니다.
 
 Claude Desktop, Kiro 등 MCP 호환 클라이언트에서 사용할 수 있습니다.
 
@@ -21,7 +21,7 @@ Claude Desktop, Kiro 등 MCP 호환 클라이언트에서 사용할 수 있습�
         └→ PPTX             — SlideBuilder 직접 사용, 편집 가능한 포맷
 ```
 
-디자인 스펙(PptxSlideSpec JSON)을 중간 표현으로 사용하여, 단일 소스에서 HTML과 PPTX를 각각 결정론적으로 생성합니다. LLM이 각 요소의 좌표/크기/서식을 JSON으로 정밀하게 설계하고, 이를 기반으로 HTML 미리보기(position:absolute 변환)와 PPTX(SlideBuilder 직접 호출)를 생성합니다. 기존 HTML 경로(LLM이 자유 형식 HTML/CSS 생성 → HTML 역분석 PPTX 변환)도 하위 호환을 위해 유지됩니다.
+디자인 스펙(PptxSlideSpec JSON)을 중간 표현으로 사용하여, 단일 소스에서 HTML과 PPTX를 각각 결정론적으로 생성합니다. LLM이 각 요소의 좌표/크기/서식을 JSON으로 정밀하게 설계하고, 이를 기반으로 HTML 미리보기(position:absolute 변환)와 PPTX(SlideBuilder 직접 호출)를 생성합니다.
 
 ### 파이프라인 흐름
 
@@ -79,8 +79,11 @@ F2: generate_script        → 아웃라인 기반 발표 스크립트 생성 (s
 
 - Python 3.13+
 - [uv](https://docs.astral.sh/uv/) 패키지 매니저
-- AWS 자격 증명 (`~/.aws/credentials` 또는 환경 변수)
-  - Amazon Bedrock 모델 접근 권한 (Claude Opus 4.6, Claude Sonnet 4.5)
+- LLM 인증 (아래 중 하나 선택):
+  - **Anthropic API**: `ANTHROPIC_API_KEY` 환경변수 설정
+  - **AWS Bedrock**: `~/.aws/credentials` 또는 `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` 환경변수
+    - Amazon Bedrock 모델 접근 권한 필요 (Claude Opus 4.6, Claude Sonnet 4.6)
+    - 리전: `us-east-1` (기본값)
 
 ## 시작하기
 
@@ -95,9 +98,63 @@ uv run ppt-generator
 uv run pytest
 ```
 
+## LLM 프로바이더 설정
+
+Anthropic API와 AWS Bedrock 두 가지 프로바이더를 지원합니다. 환경변수로 선택할 수 있으며, 미설정 시 자동 감지됩니다.
+
+### Auto-detect 로직
+
+1. `LLM_PROVIDER` 환경변수가 `anthropic` 또는 `bedrock`로 설정되어 있으면 해당 프로바이더 사용
+2. `LLM_PROVIDER` 미설정 시, `ANTHROPIC_API_KEY` 환경변수가 존재하면 `anthropic` 사용
+3. 그 외의 경우 `bedrock`으로 폴백
+
+### 환경변수
+
+| 환경변수 | 값 | 설명 |
+|----------|-----|------|
+| `LLM_PROVIDER` | `anthropic` / `bedrock` | 명시적 프로바이더 선택 (미설정 시 auto-detect) |
+| `ANTHROPIC_API_KEY` | API Key 문자열 | Anthropic 직접 API 인증 (auto-detect 트리거) |
+| `AWS_ACCESS_KEY_ID` | AWS Access Key | Bedrock 인증 |
+| `AWS_SECRET_ACCESS_KEY` | AWS Secret Key | Bedrock 인증 |
+| `AWS_REGION` | AWS 리전 | Bedrock 리전 (기본: `us-east-1`) |
+
+> 샘플 환경변수 파일은 [`env/local.env`](env/local.env)를 참고하세요.
+
+### 사용 모델
+
+| 용도 | Bedrock 모델 ID | Anthropic 모델 ID | Max Tokens |
+|------|-----------------|-------------------|------------|
+| 디자인 스펙 생성 | `us.anthropic.claude-opus-4-6-v1` | `claude-opus-4-6` | 48,000 |
+| 아웃라인/스크립트 | `us.anthropic.claude-sonnet-4-6` | `claude-sonnet-4-6` | 16,000 |
+
 ## MCP 클라이언트 설정
 
-`claude_desktop_config.json` 또는 MCP 클라이언트 설정에 추가:
+`claude_desktop_config.json` 또는 MCP 클라이언트 설정에 추가합니다.
+
+### Anthropic API 사용 시
+
+```json
+{
+  "mcpServers": {
+    "ppt-generator": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/ppt-generator",
+        "run",
+        "ppt-generator"
+      ],
+      "env": {
+        "ANTHROPIC_API_KEY": "sk-ant-..."
+      }
+    }
+  }
+}
+```
+
+### AWS Bedrock 사용 시
+
+AWS 자격 증명이 `~/.aws/credentials`에 설정되어 있으면 `env` 없이 사용 가능합니다:
 
 ```json
 {
@@ -115,13 +172,60 @@ uv run pytest
 }
 ```
 
+AWS 환경변수를 직접 지정하는 경우:
+
+```json
+{
+  "mcpServers": {
+    "ppt-generator": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/ppt-generator",
+        "run",
+        "ppt-generator"
+      ],
+      "env": {
+        "LLM_PROVIDER": "bedrock",
+        "AWS_ACCESS_KEY_ID": "AKIA...",
+        "AWS_SECRET_ACCESS_KEY": "...",
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
+
+### Claude Code 설정 (`.mcp.json`)
+
+프로젝트 루트에 `.mcp.json` 파일로도 설정할 수 있습니다:
+
+```json
+{
+  "mcpServers": {
+    "ppt-generator": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/ppt-generator",
+        "run",
+        "ppt-generator"
+      ],
+      "env": {
+        "ANTHROPIC_API_KEY": "sk-ant-..."
+      }
+    }
+  }
+}
+```
+
 ## MCP 도구
 
 ### 생성 도구
 
 | 도구 | 설명 | 입력 | 출력 |
 |------|------|------|------|
-| `generate_outline` | 슬라이드 아웃라인 생성 | 주제, 슬라이드 수, [project_id] | 아웃라인 JSON + project_id |
+| `generate_outline` | 슬라이드 아웃라인 생성 | 주제, 슬라이드 수, audience, minutes, [project_id] | 아웃라인 JSON + project_id |
 | `generate_script` | 발표 스크립트 생성 | 아웃라인 JSON, [project_id] | speaker_notes 포함 아웃라인 JSON + project_id |
 | `generate_slide_design_spec` | 슬라이드별 디자인 스펙 생성 | 아웃라인 JSON, slide_index, total_slides, [project_id] | slide_file + project_id |
 | `modify_design_spec` | 디자인 스펙 슬라이드 CRUD | project_id, action, [slide_index], [outline_json] | slide_count + project_id |
@@ -145,18 +249,21 @@ ppt-generator/
 ├── src/ppt_generator/
 │   ├── server.py                  # MCP 서버 진입점
 │   ├── di/
-│   │   └── container.py           # 의존성 주입 컨테이너
+│   │   └── container.py           # 의존성 주입 컨테이너 (Anthropic/Bedrock 듀얼 프로바이더)
 │   ├── interfaces/
 │   │   ├── constants.py           # 모델 설정, 수치 상수, 프롬프트 re-export
 │   │   ├── schemas.py             # 내부 도메인 모델 (dataclass)
 │   │   ├── llm_output_models.py   # LLM structured_output용 Pydantic 모델
 │   │   ├── spec_utils.py          # PptxSlideSpec 파싱/검증/직렬화 유틸리티
+│   │   ├── text_measurement.py    # 폰트 메트릭 기반 텍스트 크기 추정
+│   │   ├── bg_image_utils.py      # 배경 이미지 유틸리티
 │   │   ├── utils.py               # parse_outline_json 등 공용 파싱 유틸리티
 │   │   └── prompts/               # 프롬프트 템플릿 모듈
 │   ├── templates/
 │   │   ├── slide.html             # 개별 슬라이드 HTML 템플릿
 │   │   ├── slides_container.html  # iframe 컨테이너 템플릿
-│   │   └── layout_mapping.py      # layout_index → 슬라이드 레이아웃 매핑
+│   │   ├── layout_mapping.py      # layout_index → 슬라이드 레이아웃 매핑 (97종)
+│   │   └── template_bg_images/    # 배경 이미지 리소스
 │   └── tools/
 │       ├── outline/               # F1: 아웃라인 생성
 │       ├── script/                # F2: 발표 스크립트 생성
@@ -174,6 +281,8 @@ ppt-generator/
 │           ├── controller.py
 │           ├── service.py         # 프로젝트 코어 관리
 │           └── design_spec_store.py # 디자인 스펙 파일 CRUD 전담 저장소
+├── env/
+│   └── local.env                  # 샘플 환경변수 파일
 ├── docs/
 │   ├── adr/                       # Architecture Decision Records
 │   ├── ppt-generator.alps.xml     # ALPS 설계 문서
@@ -187,8 +296,9 @@ ppt-generator/
 | 구성 요소 | 기술 |
 |-----------|------|
 | 프로토콜 | Model Context Protocol (MCP) |
-| 에이전트 프레임워크 | AWS Strands SDK |
-| LLM | Amazon Bedrock - Claude Opus 4.6 (디자인 스펙), Sonnet 4.5 (아웃라인/스크립트) |
+| 에이전트 프레임워크 | AWS Strands SDK (`strands-agents`) |
+| LLM (디자인 스펙) | Claude Opus 4.6 (Bedrock: `us.anthropic.claude-opus-4-6-v1` / Anthropic: `claude-opus-4-6`) |
+| LLM (아웃라인/스크립트) | Claude Sonnet 4.6 (Bedrock: `us.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`) |
 | 슬라이드 프레임워크 | 순수 HTML/CSS (인라인 스타일, JavaScript 없음, 수직 스크롤) |
 | PPTX 내보내기 | python-pptx (디자인 스펙 → SlideBuilder 직접 변환) |
 | 패키지 관리 | uv + hatchling |
@@ -204,7 +314,7 @@ Controller-Service 패턴 + 의존성 주입(DI):
   - `text_formatter.py`: python-pptx run/paragraph 포매팅 공통 함수
   - `design_spec_store.py`: 디자인 스펙 파일 CRUD 전담 저장소
   - `llm_output_models.py`: LLM structured_output용 Pydantic 모델
-- **DIContainer** (`container.py`): Bedrock 모델, Agent, Service 생성 및 연결
+- **DIContainer** (`container.py`): 프로바이더 자동 감지, 모델/Agent/Service 생성 및 연결
 
 ## 슬라이드 생성 방식
 
