@@ -78,8 +78,8 @@ ppt-generator/
 - **Package Manager**: uv
 - **Build System**: hatchling
 - **Agent Framework**: AWS Strands SDK (`strands-agents`)
-- **LLM (디자인 스펙 생성)**: Amazon Bedrock - Claude Opus 4.6 (`us.anthropic.claude-opus-4-6-v1`, 32K tokens)
-- **LLM (아웃라인/스크립트)**: Amazon Bedrock - Claude Sonnet 4.5 (`us.anthropic.claude-sonnet-4-5-20250929-v1:0`, 16K tokens)
+- **LLM (디자인 스펙 생성)**: Claude Opus 4.6 (Bedrock: `us.anthropic.claude-opus-4-6-v1` / Anthropic: `claude-opus-4-6`, 48K tokens)
+- **LLM (아웃라인/스크립트)**: Claude Sonnet 4.6 (Bedrock: `us.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 16K tokens)
 - **Slide Framework**: 순수 HTML/CSS (인라인 스타일, 슬라이드별 개별 HTML + iframe 컨테이너)
 - **PPTX Export**: python-pptx (디자인 스펙 → SlideBuilder 직접 변환)
 
@@ -87,9 +87,23 @@ ppt-generator/
 
 - Python 3.13+
 - [uv](https://docs.astral.sh/uv/) 패키지 매니저
-- AWS 자격 증명 (`~/.aws/credentials` 또는 환경 변수)
-  - Amazon Bedrock 모델 접근 권한 필요 (Claude Opus 4.6, Claude Sonnet 4.5)
-  - 리전: `us-east-1`
+- LLM 인증 (아래 중 하나 선택):
+  - **Anthropic API** (권장): `ANTHROPIC_API_KEY` 환경변수 설정
+  - **AWS Bedrock**: `~/.aws/credentials` 또는 `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` 환경변수
+    - Amazon Bedrock 모델 접근 권한 필요 (Claude Opus 4.6, Claude Sonnet 4.6)
+    - 리전: `us-east-1` (기본값)
+
+### 환경변수
+
+| 환경변수 | 값 | 설명 |
+|----------|-----|------|
+| `LLM_PROVIDER` | `anthropic` / `bedrock` | 명시적 provider 선택 (미설정시 auto-detect) |
+| `ANTHROPIC_API_KEY` | API Key 문자열 | Anthropic 직접 API 인증 (auto-detect 트리거) |
+| `AWS_ACCESS_KEY_ID` | AWS Access Key | Bedrock 인증 |
+| `AWS_SECRET_ACCESS_KEY` | AWS Secret Key | Bedrock 인증 |
+| `AWS_REGION` | AWS 리전 | Bedrock 리전 (기본: us-east-1) |
+
+> **Auto-detect 로직**: `LLM_PROVIDER` 미설정 시, `ANTHROPIC_API_KEY`가 있으면 `anthropic`, 없으면 `bedrock`으로 자동 선택됩니다.
 
 ## Development Commands
 
