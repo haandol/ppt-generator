@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from botocore.config import Config as BotocoreConfig
 from strands import Agent
 from strands.models.bedrock import BedrockModel
 
@@ -52,6 +53,12 @@ class DIContainer:
     # ---- Bedrock model helpers ----
 
     @staticmethod
+    def _build_client_config() -> BotocoreConfig:
+        return BotocoreConfig(
+            auth_scheme_preference=["httpBearerAuth", "sigv4"],
+        )
+
+    @staticmethod
     def _build_json_schema_args(schema: dict, name: str) -> dict:
         return {
             "outputConfig": {
@@ -71,6 +78,7 @@ class DIContainer:
         return BedrockModel(
             model_id=BEDROCK_MODEL_ID,
             region_name=BEDROCK_REGION,
+            boto_client_config=self._build_client_config(),
             temperature=1.0,
             max_tokens=BEDROCK_MAX_TOKENS,
             additional_request_fields={
@@ -95,6 +103,7 @@ class DIContainer:
         return BedrockModel(
             model_id=BEDROCK_OUTLINE_MODEL_ID,
             region_name=BEDROCK_REGION,
+            boto_client_config=self._build_client_config(),
             temperature=1.0,
             max_tokens=max_tokens,
             additional_request_fields={

@@ -97,8 +97,10 @@ ppt-generator/
 - [uv](https://docs.astral.sh/uv/) 패키지 매니저
 - LLM 인증 (아래 중 하나 선택):
   - **Anthropic API** (권장): `ANTHROPIC_API_KEY` 환경변수 설정
-  - **AWS Bedrock**: `~/.aws/credentials` 또는 `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` 환경변수
+  - **AWS Bedrock (IAM)**: `~/.aws/credentials` 또는 `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` 환경변수
     - Amazon Bedrock 모델 접근 권한 필요 (Claude Opus 4.6, Claude Sonnet 4.6)
+    - 리전: `us-east-1` (기본값)
+  - **AWS Bedrock (API key)**: `AWS_BEARER_TOKEN_BEDROCK` 환경변수로 bearer token 설정
     - 리전: `us-east-1` (기본값)
 
 ### 환경변수
@@ -110,6 +112,7 @@ ppt-generator/
 | `AWS_ACCESS_KEY_ID` | AWS Access Key | Bedrock 인증 |
 | `AWS_SECRET_ACCESS_KEY` | AWS Secret Key | Bedrock 인증 |
 | `AWS_REGION` | AWS 리전 | Bedrock 리전 (기본: us-east-1) |
+| `AWS_BEARER_TOKEN_BEDROCK` | Bearer Token 문자열 | Bedrock API key (bearer token) 인증 (설정 시 SigV4보다 우선) |
 
 > **Auto-detect 로직**: `LLM_PROVIDER` 미설정 시, `ANTHROPIC_API_KEY`가 있으면 `anthropic`, 없으면 `bedrock`으로 자동 선택됩니다.
 
@@ -340,6 +343,24 @@ AWS 환경변수를 직접 지정하는 경우:
         "LLM_PROVIDER": "bedrock",
         "AWS_ACCESS_KEY_ID": "AKIA...",
         "AWS_SECRET_ACCESS_KEY": "...",
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
+
+Bedrock API key (bearer token) 사용 시:
+
+```json
+{
+  "mcpServers": {
+    "ppt-generator": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"],
+      "env": {
+        "LLM_PROVIDER": "bedrock",
+        "AWS_BEARER_TOKEN_BEDROCK": "your-api-key",
         "AWS_REGION": "us-east-1"
       }
     }
