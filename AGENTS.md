@@ -54,11 +54,15 @@ ppt-generator/
 │   │   ├── text_measurement.py    # 폰트 메트릭 기반 텍스트 크기 추정 (줄바꿈/높이 계산)
 │   │   ├── bg_image_utils.py      # 배경 이미지 유틸리티
 │   │   ├── utils.py               # parse_outline_json 등 공용 파싱 유틸리티
-│   │   └── prompts/               # 프롬프트 템플릿 모듈
-│   │       ├── __init__.py        # 전체 프롬프트 상수 re-export
-│   │       ├── design_prompts.py  # 디자인 스펙 생성 프롬프트
-│   │       ├── outline_prompts.py # 아웃라인 생성 프롬프트
-│   │       └── script_prompts.py  # 스크립트 생성 프롬프트
+│   │   └── prompts/                      # 프롬프트 템플릿 모듈
+│   │       ├── __init__.py               # .prompt.md 파일 로딩 + 상수 re-export
+│   │       ├── design_system.prompt.md   # 디자인 스펙 시스템 프롬프트
+│   │       ├── design_user.prompt.md     # 디자인 스펙 사용자 프롬프트
+│   │       ├── design_batch_user.prompt.md # 디자인 스펙 배치 사용자 프롬프트
+│   │       ├── outline_system.prompt.md  # 아웃라인 시스템 프롬프트
+│   │       ├── outline_user.prompt.md    # 아웃라인 사용자 프롬프트
+│   │       ├── script_system.prompt.md   # 스크립트 시스템 프롬프트
+│   │       └── script_user.prompt.md     # 스크립트 사용자 프롬프트
 │   └── templates/
 │       ├── slide.html             # 개별 슬라이드 HTML 템플릿 (완전한 HTML 문서)
 │       ├── slides.html            # 레거시 단일 HTML 템플릿 (하위 호환)
@@ -279,7 +283,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 
 - 타입 힌트 필수 (`-> None`, `-> str` 등)
 - 상수는 `interfaces/constants.py`에 정의
-- 프롬프트 템플릿은 `interfaces/prompts/` 모듈에 정의, `constants.py`에서 re-export
+- 프롬프트 템플릿은 `interfaces/prompts/` 모듈에 `.prompt.md` 파일로 정의, `__init__.py`에서 로딩 후 `constants.py`에서 re-export
 - MCP 도구 함수에는 한국어 docstring 필수 (클라이언트에 노출됨)
 
 ## Testing
