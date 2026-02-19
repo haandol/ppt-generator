@@ -54,10 +54,10 @@ Anthropic API와 AWS Bedrock을 지원합니다. `LLM_PROVIDER` 환경변수로 
 |----------|-----|------|
 | `LLM_PROVIDER` | `anthropic` / `bedrock` | 명시적 프로바이더 선택 (미설정 시 auto-detect) |
 | `ANTHROPIC_API_KEY` | API Key 문자열 | Anthropic 직접 API 인증 (auto-detect 트리거) |
-| `AWS_ACCESS_KEY_ID` | AWS Access Key | Bedrock 인증 |
-| `AWS_SECRET_ACCESS_KEY` | AWS Secret Key | Bedrock 인증 |
+| `AWS_ACCESS_KEY_ID` | AWS Access Key | Bedrock IAM 인증 |
+| `AWS_SECRET_ACCESS_KEY` | AWS Secret Key | Bedrock IAM 인증 |
 | `AWS_REGION` | AWS 리전 | Bedrock 리전 (기본: `us-east-1`) |
-| `AWS_BEARER_TOKEN_BEDROCK` | Bearer Token 문자열 | Bedrock API key (bearer token) 인증 (설정 시 SigV4보다 우선) |
+| `AWS_BEARER_TOKEN_BEDROCK` | Bearer Token 문자열 | Bedrock API key (bearer token) 인증. 설정 시 bearer token 우선, 미설정 시 기본 AWS credential chain 사용 |
 
 > 샘플 환경변수 파일은 [`env/local.env`](env/local.env)를 참고하세요.
 
