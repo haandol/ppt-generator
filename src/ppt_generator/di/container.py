@@ -55,7 +55,7 @@ class DIContainer:
     @staticmethod
     def _build_client_config() -> BotocoreConfig:
         return BotocoreConfig(
-            auth_scheme_preference=["httpBearerAuth", "sigv4"],
+            auth_scheme_preference="httpBearerAuth,sigv4",
         )
 
     @staticmethod
