@@ -1,11 +1,14 @@
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from botocore.config import Config as BotocoreConfig
 from strands import Agent
 from strands.models.bedrock import BedrockModel
+from strands.models.model import CacheConfig
+from strands.types.content import Messages
+from strands.types.tools import ToolChoice, ToolSpec
 
 from ppt_generator.interfaces.constants import (
     ANTHROPIC_MODEL_ID,
@@ -28,6 +31,36 @@ from ppt_generator.tools.pptx.service import ExportService
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.script.service import ScriptService
 from ppt_generator.tools.slides.service import SlidesService
+
+
+class CachingAnthropicModel:
+    """AnthropicModel 서브클래스: system_prompt에 cache_control을 적용.
+
+    Anthropic API는 system 필드를 content block 리스트로 받을 때
+    cache_control: {"type": "ephemeral"}을 지정하면 prompt caching이 활성화된다.
+    strands SDK의 AnthropicModel.format_request()는 system을 plain string으로만 전달하므로,
+    이 서브클래스에서 리스트 형태로 변환하여 캐싱을 지원한다.
+    """
+
+    def __new__(cls, **kwargs: Any) -> Any:
+        from strands.models.anthropic import AnthropicModel
+
+        class _CachingAnthropicModel(AnthropicModel):
+            def format_request(
+                self,
+                messages: Messages,
+                tool_specs: Optional[list[ToolSpec]] = None,
+                system_prompt: Optional[str] = None,
+                tool_choice: ToolChoice | None = None,
+            ) -> dict[str, Any]:
+                request = super().format_request(messages, tool_specs, system_prompt, tool_choice)
+                if system_prompt and "system" in request:
+                    request["system"] = [
+                        {"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}},
+                    ]
+                return request
+
+        return _CachingAnthropicModel(**kwargs)
 
 
 class DIContainer:
@@ -81,6 +114,7 @@ class DIContainer:
             model_id=BEDROCK_MODEL_ID,
             region_name=BEDROCK_REGION,
             boto_client_config=self._build_client_config(),
+            cache_config=CacheConfig(strategy="auto"),
             temperature=1.0,
             max_tokens=BEDROCK_MAX_TOKENS,
             additional_request_fields={
@@ -122,9 +156,7 @@ class DIContainer:
     # ---- Anthropic model helpers ----
 
     def _create_anthropic_model(self) -> Any:
-        from strands.models.anthropic import AnthropicModel
-
-        return AnthropicModel(
+        return CachingAnthropicModel(
             model_id=ANTHROPIC_MODEL_ID,
             max_tokens=BEDROCK_MAX_TOKENS,
             params={
@@ -172,6 +204,11 @@ class DIContainer:
 
     # ---- Agent creation (provider-aware) ----
 
+    @staticmethod
+    def _cacheable_system_prompt(text: str) -> list:
+        """시스템 프롬프트를 cachePoint가 포함된 SystemContentBlock 리스트로 변환."""
+        return [{"text": text}, {"cachePoint": {"type": "default"}}]
+
     def _create_script_agent(self) -> Agent:
         if self._provider == "anthropic":
             model = self._create_anthropic_outline_model(
@@ -185,7 +222,12 @@ class DIContainer:
                 json_schema=SCRIPT_JSON_SCHEMA,
                 json_schema_name="script_output",
             )
-        return Agent(model=model, system_prompt=SCRIPT_SYSTEM_PROMPT, callback_handler=None, tools=[])
+        return Agent(
+            model=model,
+            system_prompt=SCRIPT_SYSTEM_PROMPT,
+            callback_handler=None,
+            tools=[],
+        )
 
     def _create_outline_agent(self) -> Agent:
         if self._provider == "anthropic":
@@ -200,14 +242,26 @@ class DIContainer:
                 json_schema=OUTLINE_JSON_SCHEMA,
                 json_schema_name="outline_output",
             )
-        return Agent(model=model, system_prompt=OUTLINE_SYSTEM_PROMPT, callback_handler=None, tools=[])
+        return Agent(
+            model=model,
+            system_prompt=OUTLINE_SYSTEM_PROMPT,
+            callback_handler=None,
+            tools=[],
+        )
 
     def _create_design_agent(self) -> Agent:
         if self._provider == "anthropic":
             model = self._create_anthropic_model()
+            system_prompt: str | list = DESIGN_SPEC_SYSTEM_PROMPT
         else:
             model = self._create_bedrock_model()
-        return Agent(model=model, system_prompt=DESIGN_SPEC_SYSTEM_PROMPT, callback_handler=None, tools=[])
+            system_prompt = self._cacheable_system_prompt(DESIGN_SPEC_SYSTEM_PROMPT)
+        return Agent(
+            model=model,
+            system_prompt=system_prompt,
+            callback_handler=None,
+            tools=[],
+        )
 
     # ---- Service properties (lazy init) ----
 
