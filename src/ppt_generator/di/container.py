@@ -54,9 +54,11 @@ class DIContainer:
 
     @staticmethod
     def _build_client_config() -> BotocoreConfig:
-        return BotocoreConfig(
-            auth_scheme_preference="httpBearerAuth,sigv4",
-        )
+        if os.environ.get("AWS_BEARER_TOKEN_BEDROCK"):
+            return BotocoreConfig(
+                auth_scheme_preference="httpBearerAuth,sigv4",
+            )
+        return BotocoreConfig()
 
     @staticmethod
     def _build_json_schema_args(schema: dict, name: str) -> dict:
