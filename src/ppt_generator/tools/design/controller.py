@@ -18,6 +18,7 @@ def register_design_tools(
         slide_index: int,
         total_slides: int,
         project_id: str = "",
+        color_theme: str = "dark",
     ) -> str:
         """단일 슬라이드의 디자인 스펙을 생성합니다.
 
@@ -34,6 +35,7 @@ def register_design_tools(
             slide_index: 생성할 슬라이드 인덱스 (0-based)
             total_slides: 전체 슬라이드 수
             project_id: 프로젝트 ID (미지정 시 자동 생성)
+            color_theme: 색상 테마 ("dark" 또는 "light", 기본값: "dark")
 
         Returns:
             design_spec_dir, slide_file, slide_index, slide_count, total_slides, project_id를 포함하는 JSON 문자열
@@ -54,6 +56,7 @@ def register_design_tools(
             design_summary=design_summary,
             slide_index=slide_index + 1,
             total_slides=total_slides,
+            color_theme=color_theme,
         )
 
         # 저장
@@ -86,6 +89,7 @@ def register_design_tools(
         action: str,
         slide_index: int = -1,
         outline_json: str = "",
+        color_theme: str = "dark",
     ) -> str:
         """디자인 스펙의 개별 슬라이드를 추가, 수정, 삭제합니다.
 
@@ -97,6 +101,7 @@ def register_design_tools(
             action: 수행할 작업 ("add" | "update" | "delete")
             slide_index: add일 때 삽입 위치(-1이면 끝), update/delete일 때 대상 인덱스
             outline_json: add/update 시 슬라이드 아웃라인 JSON (title, content_summary, component_hint)
+            color_theme: 색상 테마 ("dark" 또는 "light", 기본값: "dark")
 
         Returns:
             design_spec_path, project_id, slide_count를 포함하는 JSON 문자열
@@ -118,7 +123,9 @@ def register_design_tools(
                 raise ValueError("add 시 outline_json이 필수입니다.")
             outline = parse_outline_json(outline_json)
             slide_outline = outline.slides[0]
-            new_spec = design_service.generate_single_slide(slide_outline, design_summary)
+            new_spec = design_service.generate_single_slide(
+                slide_outline, design_summary, color_theme=color_theme,
+            )
             insert_idx = slide_index if 0 <= slide_index < slide_count else slide_count
             project_service.insert_design_spec_slide(project_dir, insert_idx, new_spec)
 
@@ -129,7 +136,9 @@ def register_design_tools(
                 raise ValueError(f"유효하지 않은 slide_index: {slide_index} (전체 {slide_count}장)")
             outline = parse_outline_json(outline_json)
             slide_outline = outline.slides[0]
-            new_spec = design_service.generate_single_slide(slide_outline, design_summary)
+            new_spec = design_service.generate_single_slide(
+                slide_outline, design_summary, color_theme=color_theme,
+            )
             project_service.save_design_spec_slide(project_dir, slide_index, new_spec)
 
         elif action == "delete":

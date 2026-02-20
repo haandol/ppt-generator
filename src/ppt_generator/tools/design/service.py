@@ -38,6 +38,7 @@ class DesignService:
         design_summary: dict | None = None,
         slide_index: int = 1,
         total_slides: int = 1,
+        color_theme: str = "dark",
     ) -> PptxSlideSpec:
         """단일 슬라이드의 디자인 스펙을 생성한다.
 
@@ -46,6 +47,7 @@ class DesignService:
             design_summary: 기존 디자인 요약 dict (제공 시 일관성 유지)
             slide_index: 슬라이드 번호 (1-based)
             total_slides: 전체 슬라이드 수
+            color_theme: 색상 테마 ("dark" 또는 "light", 기본값: "dark")
 
         Returns:
             생성된 PptxSlideSpec
@@ -59,12 +61,14 @@ class DesignService:
                 total_slides=total_slides,
                 design_summary=summary_text,
                 outline_json=outline_json,
+                color_theme=color_theme,
             )
         else:
             prompt = DESIGN_SPEC_USER_PROMPT_TEMPLATE.format(
                 slide_index=slide_index,
                 total_slides=total_slides,
                 outline_json=outline_json,
+                color_theme=color_theme,
             )
 
         spec = self._generate_with_structured_output(prompt)
