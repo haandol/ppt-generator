@@ -50,23 +50,23 @@ Anthropic API와 AWS Bedrock을 지원합니다. `LLM_PROVIDER` 환경변수로 
 
 ### 환경변수
 
-| 환경변수 | 값 | 설명 |
-|----------|-----|------|
-| `LLM_PROVIDER` | `anthropic` / `bedrock` | 명시적 프로바이더 선택 (미설정 시 auto-detect) |
-| `ANTHROPIC_API_KEY` | API Key 문자열 | Anthropic 직접 API 인증 (auto-detect 트리거) |
-| `AWS_ACCESS_KEY_ID` | AWS Access Key | Bedrock IAM 인증 |
-| `AWS_SECRET_ACCESS_KEY` | AWS Secret Key | Bedrock IAM 인증 |
-| `AWS_REGION` | AWS 리전 | Bedrock 리전 (기본: `us-east-1`) |
-| `AWS_BEARER_TOKEN_BEDROCK` | Bearer Token 문자열 | Bedrock API key (bearer token) 인증. 설정 시 bearer token 우선, 미설정 시 기본 AWS credential chain 사용 |
+| 환경변수                   | 값                      | 설명                                                                                                     |
+| -------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------- |
+| `LLM_PROVIDER`             | `anthropic` / `bedrock` | 명시적 프로바이더 선택 (미설정 시 auto-detect)                                                           |
+| `ANTHROPIC_API_KEY`        | API Key 문자열          | Anthropic 직접 API 인증 (auto-detect 트리거)                                                             |
+| `AWS_ACCESS_KEY_ID`        | AWS Access Key          | Bedrock IAM 인증                                                                                         |
+| `AWS_SECRET_ACCESS_KEY`    | AWS Secret Key          | Bedrock IAM 인증                                                                                         |
+| `AWS_REGION`               | AWS 리전                | Bedrock 리전 (기본: `us-east-1`)                                                                         |
+| `AWS_BEARER_TOKEN_BEDROCK` | Bearer Token 문자열     | Bedrock API key (bearer token) 인증. 설정 시 bearer token 우선, 미설정 시 기본 AWS credential chain 사용 |
 
 > 샘플 환경변수 파일은 [`env/local.env`](env/local.env)를 참고하세요.
 
 ### 사용 모델
 
-| 용도 | Bedrock 모델 ID | Anthropic 모델 ID | Max Tokens |
-|------|-----------------|-------------------|------------|
-| 디자인 스펙 생성 | `us.anthropic.claude-opus-4-6-v1` | `claude-opus-4-6` | 48,000 |
-| 아웃라인/스크립트 | `us.anthropic.claude-sonnet-4-6` | `claude-sonnet-4-6` | 16,000 |
+| 용도              | Bedrock 모델 ID                       | Anthropic 모델 ID   | Max Tokens |
+| ----------------- | ------------------------------------- | ------------------- | ---------- |
+| 디자인 스펙 생성  | `global.anthropic.claude-opus-4-6-v1` | `claude-opus-4-6`   | 48,000     |
+| 아웃라인/스크립트 | `global.anthropic.claude-sonnet-4-6`  | `claude-sonnet-4-6` | 16,000     |
 
 ### 클라이언트별 설정 예시
 
@@ -175,24 +175,24 @@ Kiro의 MCP 서버 설정에서 동일한 JSON 형식으로 추가합니다.
 
 ### 생성 도구
 
-| 도구 | 설명 |
-|------|------|
-| `generate_outline` | 주제와 슬라이드 수를 기반으로 아웃라인 JSON 생성 |
-| `generate_script` | 아웃라인 기반 슬라이드별 발표 스크립트 생성 |
-| `generate_slide_design_spec` | 단일 슬라이드의 디자인 스펙(PptxSlideSpec JSON) 생성 |
-| `modify_design_spec` | 디자인 스펙의 개별 슬라이드 추가/수정/삭제 |
-| `generate_slides` | 디자인 스펙에서 HTML 슬라이드 생성 (결정론적 변환) |
-| `export_pptx` | 디자인 스펙에서 편집 가능한 PPTX 내보내기 (결정론적 변환) |
+| 도구                         | 설명                                                      |
+| ---------------------------- | --------------------------------------------------------- |
+| `generate_outline`           | 주제와 슬라이드 수를 기반으로 아웃라인 JSON 생성          |
+| `generate_script`            | 아웃라인 기반 슬라이드별 발표 스크립트 생성               |
+| `generate_slide_design_spec` | 단일 슬라이드의 디자인 스펙(PptxSlideSpec JSON) 생성      |
+| `modify_design_spec`         | 디자인 스펙의 개별 슬라이드 추가/수정/삭제                |
+| `generate_slides`            | 디자인 스펙에서 HTML 슬라이드 생성 (결정론적 변환)        |
+| `export_pptx`                | 디자인 스펙에서 편집 가능한 PPTX 내보내기 (결정론적 변환) |
 
 ### 프로젝트 관리 도구
 
-| 도구 | 설명 |
-|------|------|
-| `list_projects` | 기존 프로젝트 목록 조회 |
+| 도구                  | 설명                             |
+| --------------------- | -------------------------------- |
+| `list_projects`       | 기존 프로젝트 목록 조회          |
 | `load_project_status` | 프로젝트 상태 및 메타데이터 로드 |
-| `load_outline` | 저장된 아웃라인 JSON 로드 |
-| `load_script` | 저장된 스크립트 JSON 로드 |
-| `load_design_spec` | 저장된 디자인 스펙 로드 |
+| `load_outline`        | 저장된 아웃라인 JSON 로드        |
+| `load_script`         | 저장된 스크립트 JSON 로드        |
+| `load_design_spec`    | 저장된 디자인 스펙 로드          |
 
 ## 사용 워크플로우
 
@@ -252,16 +252,16 @@ ppt-generator/
 
 ## 기술 스택
 
-| 구성 요소 | 기술 |
-|-----------|------|
-| 프로토콜 | Model Context Protocol (MCP) |
-| 언어 | Python 3.13+ |
-| 패키지 관리 | uv + hatchling |
-| 에이전트 프레임워크 | AWS Strands SDK (`strands-agents`) |
-| LLM (디자인 스펙) | Claude Opus 4.6 |
-| LLM (아웃라인/스크립트) | Claude Sonnet 4.6 |
-| 슬라이드 프레임워크 | 순수 HTML/CSS (인라인 스타일) |
-| PPTX 내보내기 | python-pptx |
+| 구성 요소               | 기술                               |
+| ----------------------- | ---------------------------------- |
+| 프로토콜                | Model Context Protocol (MCP)       |
+| 언어                    | Python 3.13+                       |
+| 패키지 관리             | uv + hatchling                     |
+| 에이전트 프레임워크     | AWS Strands SDK (`strands-agents`) |
+| LLM (디자인 스펙)       | Claude Opus 4.6                    |
+| LLM (아웃라인/스크립트) | Claude Sonnet 4.6                  |
+| 슬라이드 프레임워크     | 순수 HTML/CSS (인라인 스타일)      |
+| PPTX 내보내기           | python-pptx                        |
 
 ## 개발
 

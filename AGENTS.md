@@ -9,6 +9,7 @@ Claude Desktop, Kiro 등 MCP 호환 클라이언트에서 사용할 수 있습�
 > ALPS 설계 문서: 피쳐 목록, 기능 명세, 인수 기준 등 구현에 필요한 세부 사항은 [`docs/ppt-generator.alps.md`](docs/ppt-generator.alps.md) (또는 원본 [`docs/ppt-generator.alps.xml`](docs/ppt-generator.alps.xml))를 반드시 확인하세요.
 >
 > ALPS 문서에 포함된 내용:
+>
 > - **Section 1~3**: 프로젝트 개요, MVP 목표, 데모 시나리오
 > - **Section 4~5**: 아키텍처, 설계 명세
 > - **Section 6**: 요구사항 요약
@@ -86,8 +87,8 @@ ppt-generator/
 - **Package Manager**: uv
 - **Build System**: hatchling
 - **Agent Framework**: AWS Strands SDK (`strands-agents`)
-- **LLM (디자인 스펙 생성)**: Claude Opus 4.6 (Bedrock: `us.anthropic.claude-opus-4-6-v1` / Anthropic: `claude-opus-4-6`, 48K tokens)
-- **LLM (아웃라인/스크립트)**: Claude Sonnet 4.6 (Bedrock: `us.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 16K tokens)
+- **LLM (디자인 스펙 생성)**: Claude Opus 4.6 (Bedrock: `global.anthropic.claude-opus-4-6-v1` / Anthropic: `claude-opus-4-6`, 48K tokens)
+- **LLM (아웃라인/스크립트)**: Claude Sonnet 4.6 (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 16K tokens)
 - **Slide Framework**: 순수 HTML/CSS (인라인 스타일, 슬라이드별 개별 HTML + iframe 컨테이너)
 - **PPTX Export**: python-pptx (디자인 스펙 → SlideBuilder 직접 변환)
 
@@ -105,14 +106,14 @@ ppt-generator/
 
 ### 환경변수
 
-| 환경변수 | 값 | 설명 |
-|----------|-----|------|
-| `LLM_PROVIDER` | `anthropic` / `bedrock` | 명시적 provider 선택 (미설정시 auto-detect) |
-| `ANTHROPIC_API_KEY` | API Key 문자열 | Anthropic 직접 API 인증 (auto-detect 트리거) |
-| `AWS_ACCESS_KEY_ID` | AWS Access Key | Bedrock IAM 인증 |
-| `AWS_SECRET_ACCESS_KEY` | AWS Secret Key | Bedrock IAM 인증 |
-| `AWS_REGION` | AWS 리전 | Bedrock 리전 (기본: us-east-1) |
-| `AWS_BEARER_TOKEN_BEDROCK` | Bearer Token 문자열 | Bedrock API key (bearer token) 인증. 설정 시 bearer token 우선, 미설정 시 기본 AWS credential chain 사용 |
+| 환경변수                   | 값                      | 설명                                                                                                     |
+| -------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------- |
+| `LLM_PROVIDER`             | `anthropic` / `bedrock` | 명시적 provider 선택 (미설정시 auto-detect)                                                              |
+| `ANTHROPIC_API_KEY`        | API Key 문자열          | Anthropic 직접 API 인증 (auto-detect 트리거)                                                             |
+| `AWS_ACCESS_KEY_ID`        | AWS Access Key          | Bedrock IAM 인증                                                                                         |
+| `AWS_SECRET_ACCESS_KEY`    | AWS Secret Key          | Bedrock IAM 인증                                                                                         |
+| `AWS_REGION`               | AWS 리전                | Bedrock 리전 (기본: us-east-1)                                                                           |
+| `AWS_BEARER_TOKEN_BEDROCK` | Bearer Token 문자열     | Bedrock API key (bearer token) 인증. 설정 시 bearer token 우선, 미설정 시 기본 AWS credential chain 사용 |
 
 > **Auto-detect 로직**: `LLM_PROVIDER` 미설정 시, `ANTHROPIC_API_KEY`가 있으면 `anthropic`, 없으면 `bedrock`으로 자동 선택됩니다.
 
@@ -193,19 +194,19 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 
 ## Available Tools
 
-| Tool | Module | Description |
-|------|--------|-------------|
-| `generate_outline` | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (title, content_summary, component_hint) |
-| `generate_script` | `tools/script/` | 아웃라인 JSON을 기반으로 슬라이드별 발표 스크립트 생성 |
-| `generate_slide_design_spec` | `tools/design/` | 단일 슬라이드 디자인 스펙 생성 (슬라이드별 검토/수정 가능) |
-| `modify_design_spec` | `tools/design/` | 디자인 스펙의 개별 슬라이드 추가/수정/삭제 (CRUD) |
-| `generate_slides` | `tools/slides/` | 디자인 스펙 또는 project_id 기반 HTML 슬라이드 생성 (결정론적 변환) |
-| `export_pptx` | `tools/pptx/` | 디자인 스펙 또는 project_id 기반 편집 가능한 PPTX 내보내기 (결정론적 변환) |
-| `list_projects` | `tools/project/` | 기존 프로젝트 목록 조회 (파이프라인 시작 전 호출 권장) |
-| `load_project_status` | `tools/project/` | 프로젝트 상태 및 메타데이터 로드 |
-| `load_outline` | `tools/project/` | 저장된 아웃라인 JSON 로드 |
-| `load_script` | `tools/project/` | 저장된 스크립트 JSON 로드 |
-| `load_design_spec` | `tools/project/` | 저장된 디자인 스펙 로드 (design_spec_dir, slide_count, slide_files) |
+| Tool                         | Module           | Description                                                                                        |
+| ---------------------------- | ---------------- | -------------------------------------------------------------------------------------------------- |
+| `generate_outline`           | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (title, content_summary, component_hint) |
+| `generate_script`            | `tools/script/`  | 아웃라인 JSON을 기반으로 슬라이드별 발표 스크립트 생성                                             |
+| `generate_slide_design_spec` | `tools/design/`  | 단일 슬라이드 디자인 스펙 생성 (슬라이드별 검토/수정 가능)                                         |
+| `modify_design_spec`         | `tools/design/`  | 디자인 스펙의 개별 슬라이드 추가/수정/삭제 (CRUD)                                                  |
+| `generate_slides`            | `tools/slides/`  | 디자인 스펙 또는 project_id 기반 HTML 슬라이드 생성 (결정론적 변환)                                |
+| `export_pptx`                | `tools/pptx/`    | 디자인 스펙 또는 project_id 기반 편집 가능한 PPTX 내보내기 (결정론적 변환)                         |
+| `list_projects`              | `tools/project/` | 기존 프로젝트 목록 조회 (파이프라인 시작 전 호출 권장)                                             |
+| `load_project_status`        | `tools/project/` | 프로젝트 상태 및 메타데이터 로드                                                                   |
+| `load_outline`               | `tools/project/` | 저장된 아웃라인 JSON 로드                                                                          |
+| `load_script`                | `tools/project/` | 저장된 스크립트 JSON 로드                                                                          |
+| `load_design_spec`           | `tools/project/` | 저장된 디자인 스펙 로드 (design_spec_dir, slide_count, slide_files)                                |
 
 ## Key Data Schemas
 
@@ -213,25 +214,25 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 
 ### 내부 도메인 모델 (`schemas.py`)
 
-| Schema | 용도 |
-|--------|------|
-| `OutlineRequest` / `OutlineResponse` | 아웃라인 생성 입출력 (topic, num_slides → slides) |
-| `ScriptRequest` / `ScriptResponse` | 스크립트 생성 입출력 (outline → slides) |
-| `SlideOutline` | 개별 슬라이드 아웃라인 (title, content_summary, component_hint, speaker_notes) |
-| `SlidesResponse` | HTML 슬라이드 생성 출력 (session_id, html) |
-| `ExportPptxResponse` | PPTX 내보내기 출력 (pptx_path) |
-| `PptxTextRun` / `PptxParagraph` / `PptxTextBox` | PPTX 텍스트 요소 |
-| `PptxShape` / `PptxSlideSpec` | PPTX 도형/슬라이드 스펙 (speaker_notes 포함) |
-| `DesignSpec` | 프레젠테이션 전체 디자인 스펙 (PptxSlideSpec 리스트) |
-| `ProjectMetadata` | 프로젝트 메타데이터 (topic, num_slides, steps_completed) |
+| Schema                                          | 용도                                                                           |
+| ----------------------------------------------- | ------------------------------------------------------------------------------ |
+| `OutlineRequest` / `OutlineResponse`            | 아웃라인 생성 입출력 (topic, num_slides → slides)                              |
+| `ScriptRequest` / `ScriptResponse`              | 스크립트 생성 입출력 (outline → slides)                                        |
+| `SlideOutline`                                  | 개별 슬라이드 아웃라인 (title, content_summary, component_hint, speaker_notes) |
+| `SlidesResponse`                                | HTML 슬라이드 생성 출력 (session_id, html)                                     |
+| `ExportPptxResponse`                            | PPTX 내보내기 출력 (pptx_path)                                                 |
+| `PptxTextRun` / `PptxParagraph` / `PptxTextBox` | PPTX 텍스트 요소                                                               |
+| `PptxShape` / `PptxSlideSpec`                   | PPTX 도형/슬라이드 스펙 (speaker_notes 포함)                                   |
+| `DesignSpec`                                    | 프레젠테이션 전체 디자인 스펙 (PptxSlideSpec 리스트)                           |
+| `ProjectMetadata`                               | 프로젝트 메타데이터 (topic, num_slides, steps_completed)                       |
 
 ### LLM 출력 모델 (`llm_output_models.py`)
 
-| Schema | 용도 |
-|--------|------|
-| `SlideSpecOutput` | strands `structured_output_model`용 Pydantic 모델. `to_dataclass()`로 `PptxSlideSpec`으로 변환 |
-| `TextRunOutput` / `ParagraphOutput` | LLM 출력용 텍스트 런/단락 |
-| `TextBoxOutput` / `ShapeOutput` | LLM 출력용 텍스트박스/도형 |
+| Schema                              | 용도                                                                                           |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `SlideSpecOutput`                   | strands `structured_output_model`용 Pydantic 모델. `to_dataclass()`로 `PptxSlideSpec`으로 변환 |
+| `TextRunOutput` / `ParagraphOutput` | LLM 출력용 텍스트 런/단락                                                                      |
+| `TextBoxOutput` / `ShapeOutput`     | LLM 출력용 텍스트박스/도형                                                                     |
 
 ### 슬라이드 아웃라인 JSON
 
@@ -252,24 +253,24 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 
 슬라이드 본문 영역의 시각적 구조를 결정하는 힌트:
 
-| component_hint | 설명 |
-|----------------|------|
-| `bullets` | 기본 불릿 포인트 (기본값) |
-| `two_column` | 2칼럼 레이아웃 |
-| `vs_comparison` | VS 비교 패널 (A vs B) |
-| `step_cards` | 단계별 카드 |
-| `code_block` | 코드 블록 포함 |
-| `arch_diagram` | 아키텍처 다이어그램 (흐름도) |
-| `pipeline` | 파이프라인 흐름 |
-| `quote` | 인용문 강조 |
-| `summary_grid` | 요약 그리드 (2x2) |
-| `agenda` | 목차/안건 리스트 |
-| `info_cards` | 정보 카드 그리드 |
-| `feature_list` | 기능/특징 리스트 |
-| `cta` | Call-to-Action 강조 |
-| `process_flow` | 프로세스 워크스루 |
-| `quote_code` | 인용문 + 코드 블록 조합 |
-| `concept_list` | 개념 설명 리스트 |
+| component_hint  | 설명                         |
+| --------------- | ---------------------------- |
+| `bullets`       | 기본 불릿 포인트 (기본값)    |
+| `two_column`    | 2칼럼 레이아웃               |
+| `vs_comparison` | VS 비교 패널 (A vs B)        |
+| `step_cards`    | 단계별 카드                  |
+| `code_block`    | 코드 블록 포함               |
+| `arch_diagram`  | 아키텍처 다이어그램 (흐름도) |
+| `pipeline`      | 파이프라인 흐름              |
+| `quote`         | 인용문 강조                  |
+| `summary_grid`  | 요약 그리드 (2x2)            |
+| `agenda`        | 목차/안건 리스트             |
+| `info_cards`    | 정보 카드 그리드             |
+| `feature_list`  | 기능/특징 리스트             |
+| `cta`           | Call-to-Action 강조          |
+| `process_flow`  | 프로세스 워크스루            |
+| `quote_code`    | 인용문 + 코드 블록 조합      |
+| `concept_list`  | 개념 설명 리스트             |
 
 ## Coding Conventions
 

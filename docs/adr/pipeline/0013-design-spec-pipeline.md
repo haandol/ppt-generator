@@ -15,6 +15,7 @@ Accepted
 ```
 
 이 방식의 문제점:
+
 1. **복잡성**: Playwright DOM 추출, LLM 변환, 룰 기반 폴백의 3단계 체인이 복잡하고 유지보수 어려움
 2. **부정확성**: HTML/CSS의 시각적 렌더링 결과를 역분석하여 좌표를 추출하므로, flex/grid 레이아웃 등의 계산 결과가 부정확할 수 있음
 3. **의존성**: Playwright 브라우저 인스턴스가 필요하고, 추가 LLM 호출(Sonnet 4.5) 비용 발생
@@ -52,17 +53,17 @@ class DesignSpec:
 
 #### 새 MCP 도구
 
-| 도구 | 설명 |
-|------|------|
+| 도구                         | 설명                                                       |
+| ---------------------------- | ---------------------------------------------------------- |
 | `generate_slide_design_spec` | 단일 슬라이드 디자인 스펙 생성 (슬라이드별 검토/수정 가능) |
-| `load_design_spec` | 저장된 디자인 스펙 로드 |
+| `load_design_spec`           | 저장된 디자인 스펙 로드                                    |
 
 #### 기존 도구 변경
 
-| 도구 | 변경 내용 |
-|------|-----------|
-| `generate_slides` | `design_spec_json` 파라미터 추가. 제공 시 결정론적 HTML 변환 |
-| `export_pptx` | `design_spec_json` 파라미터 추가. 제공 시 SlideBuilder 직접 사용 |
+| 도구              | 변경 내용                                                        |
+| ----------------- | ---------------------------------------------------------------- |
+| `generate_slides` | `design_spec_json` 파라미터 추가. 제공 시 결정론적 HTML 변환     |
+| `export_pptx`     | `design_spec_json` 파라미터 추가. 제공 시 SlideBuilder 직접 사용 |
 
 #### 디자인 스펙 생성 서비스 (DesignService)
 
@@ -71,7 +72,7 @@ class DesignSpec:
 - 첫 슬라이드 생성 후 `extract_design_summary()` → 후속 슬라이드에 전달하여 일관성 유지
 - `parse_slide_spec()` + `validate_slide_spec()` 재사용 (`interfaces/spec_utils.py`)
 - LLM structured_output용 Pydantic 모델: `interfaces/llm_output_models.py` — `SlideSpecOutput`
-- Bedrock Claude Opus 4.6 사용 (`us.anthropic.claude-opus-4-6-v1`, 32K tokens)
+- Bedrock Claude Opus 4.6 사용 (`global.anthropic.claude-opus-4-6-v1`, 32K tokens)
 - `_create_design_agent()`는 `DESIGN_SPEC_SYSTEM_PROMPT`를 시스템 프롬프트로 사용
 
 #### Design Spec → HTML 변환
@@ -95,6 +96,7 @@ class DesignSpec:
 #### 공유 유틸리티
 
 `interfaces/spec_utils.py`에 다음 함수를 통합:
+
 - `parse_slide_spec()` / `validate_slide_spec()` — llm_converter.py에서 이동
 - `design_spec_to_json()` / `parse_design_spec_json()` — 직렬화/역직렬화
 
@@ -108,11 +110,11 @@ class DesignSpec:
 
 ### Alternatives Considered
 
-| 대안 | 설명 | 판단 |
-|------|------|------|
-| A. HTML → PPTX 변환 개선 | DOM 추출 정확도 향상, LLM 프롬프트 개선 | 근본적 한계(역분석) 해결 불가, 탈락 |
-| B. LLM이 PPTX 코드 직접 생성 | python-pptx API 호출 코드를 LLM이 생성 | LLM의 API 코드 생성 정확도 부족, 탈락 |
-| **C. 디자인 스펙 중간 표현** | PptxSlideSpec JSON을 단일 소스로 HTML/PPTX 생성 | **채택** |
+| 대안                         | 설명                                            | 판단                                  |
+| ---------------------------- | ----------------------------------------------- | ------------------------------------- |
+| A. HTML → PPTX 변환 개선     | DOM 추출 정확도 향상, LLM 프롬프트 개선         | 근본적 한계(역분석) 해결 불가, 탈락   |
+| B. LLM이 PPTX 코드 직접 생성 | python-pptx API 호출 코드를 LLM이 생성          | LLM의 API 코드 생성 정확도 부족, 탈락 |
+| **C. 디자인 스펙 중간 표현** | PptxSlideSpec JSON을 단일 소스로 HTML/PPTX 생성 | **채택**                              |
 
 ### Acceptance Criteria
 

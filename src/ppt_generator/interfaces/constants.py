@@ -2,12 +2,12 @@ from pathlib import Path
 
 PPT_GENERATOR_HOME = Path.home() / ".ppt-generator"
 
-BEDROCK_MODEL_ID = "us.anthropic.claude-opus-4-6-v1"
-BEDROCK_OUTLINE_MODEL_ID = "us.anthropic.claude-sonnet-4-6"
+BEDROCK_MODEL_ID = "global.anthropic.claude-opus-4-6-v1"
+BEDROCK_OUTLINE_MODEL_ID = "global.anthropic.claude-sonnet-4-6"
 BEDROCK_REGION = "us-east-1"
-BEDROCK_TEMPERATURE = 0.3
+BEDROCK_TEMPERATURE = 0.33
 BEDROCK_MAX_TOKENS = 48_000
-BEDROCK_OUTLINE_MAX_TOKENS = 16_000
+BEDROCK_OUTLINE_MAX_TOKENS = 12_000
 BEDROCK_SCRIPT_MAX_TOKENS = 16_000
 
 ANTHROPIC_MODEL_ID = "claude-opus-4-6"
