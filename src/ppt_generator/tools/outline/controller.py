@@ -5,7 +5,6 @@ from mcp.server.fastmcp import FastMCP
 
 from ppt_generator.interfaces.constants import (
     DEFAULT_AUDIENCE_LEVEL,
-    DEFAULT_NUM_SLIDES,
     DEFAULT_PRESENTATION_MINUTES,
     MAX_NUM_SLIDES,
     MAX_PRESENTATION_MINUTES,
@@ -24,7 +23,7 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
         topic: str,
         audience_level: str = DEFAULT_AUDIENCE_LEVEL,
         presentation_minutes: int = DEFAULT_PRESENTATION_MINUTES,
-        num_slides: int = DEFAULT_NUM_SLIDES,
+        num_slides: int = 0,
         project_id: str = "",
     ) -> str:
         """주제를 기반으로 슬라이드 아웃라인 JSON을 생성합니다.
@@ -42,16 +41,19 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
             topic: 발표 주제 (예: "2024년 클라우드 컴퓨팅 트렌드")
             audience_level: 청중 수준 — "general" (일반), "technical" (기술), "executive" (의사결정자). 기본값 "general"
             presentation_minutes: 발표 시간(분). 3~60분, 기본값 15분
-            num_slides: 슬라이드 수 (3~20, 기본값 5)
+            num_slides: 권장 슬라이드 수 (0이면 발표 시간 기준 자동 계산: 1~2분당 1장). 한 슬라이드에 하나의 주제만 다루기 위해 실제 생성 수는 달라질 수 있습니다.
             project_id: 프로젝트 ID (미지정 시 자동 생성)
 
         Returns:
             outline_path, project_id를 포함하는 JSON 문자열
         """
-        num_slides = max(MIN_NUM_SLIDES, min(MAX_NUM_SLIDES, num_slides))
         if audience_level not in VALID_AUDIENCE_LEVELS:
             audience_level = DEFAULT_AUDIENCE_LEVEL
         presentation_minutes = max(MIN_PRESENTATION_MINUTES, min(MAX_PRESENTATION_MINUTES, presentation_minutes))
+        if num_slides <= 0:
+            num_slides = max(MIN_NUM_SLIDES, min(MAX_NUM_SLIDES, presentation_minutes // 2 + 2))
+        else:
+            num_slides = max(MIN_NUM_SLIDES, min(MAX_NUM_SLIDES, num_slides))
         request = OutlineRequest(
             topic=topic,
             num_slides=num_slides,
@@ -59,6 +61,7 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
             presentation_minutes=presentation_minutes,
         )
         response = outline_service.generate(request)
+        actual_num_slides = len(response.slides)
         result = json.dumps(asdict(response), ensure_ascii=False, indent=2)
 
         project_id, project_dir = project_service.resolve_project_dir(project_id)
@@ -66,7 +69,7 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
             project_dir,
             ProjectMetadata(
                 topic=topic,
-                num_slides=num_slides,
+                num_slides=actual_num_slides,
                 steps_completed={},
                 audience_level=audience_level,
                 presentation_minutes=presentation_minutes,
