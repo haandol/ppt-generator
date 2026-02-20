@@ -5,7 +5,7 @@ PPT_GENERATOR_HOME = Path.home() / ".ppt-generator"
 BEDROCK_MODEL_ID = "global.anthropic.claude-opus-4-6-v1"
 BEDROCK_OUTLINE_MODEL_ID = "global.anthropic.claude-sonnet-4-6"
 BEDROCK_REGION = "us-east-1"
-BEDROCK_MAX_TOKENS = 32_000
+BEDROCK_MAX_TOKENS = 40_000
 BEDROCK_OUTLINE_MAX_TOKENS = 18_000
 BEDROCK_SCRIPT_MAX_TOKENS = 24_000
 
