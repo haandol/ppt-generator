@@ -1,6 +1,9 @@
 """design controller 테스트: modify_design_spec, generate_slide_design_spec 검증."""
 
+import asyncio
 import json
+import threading
+import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -84,8 +87,14 @@ def mcp_tools(project_service: ProjectService) -> dict:
     design_service.generate_single_slide.return_value = _make_slide_spec("새로 생성됨")
     design_service.extract_design_summary.return_value = {"background_color": "#1a1a2e", "text_colors": ["#ffffff"]}
 
-    register_design_tools(mcp, design_service, project_service)
+    design_service_factory = lambda: design_service  # noqa: E731
+
+    register_design_tools(
+        mcp, design_service, project_service,
+        design_service_factory=design_service_factory,
+    )
     tools["_design_service"] = design_service
+    tools["_design_service_factory"] = design_service_factory
     tools["_project_service"] = project_service
     return tools
 
@@ -299,3 +308,391 @@ class TestGenerateSlideDesignSpec:
 
         assert result["project_id"]
         assert len(result["project_id"]) == 36  # UUID
+
+
+class TestGenerateSlideDesignSpecFromProject:
+    """generate_slide_design_spec project_id 기반 파일 로드 테스트."""
+
+    def _setup_project_with_outline(self, tmp_path: Path, monkeypatch, num_slides: int = 3) -> str:
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+        proj_dir = tmp_path / "file-load-proj"
+        proj_dir.mkdir()
+        (proj_dir / "project.json").write_text(
+            json.dumps({"topic": "테스트", "num_slides": num_slides, "steps_completed": {}}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        outline = {
+            "slides": [
+                {"title": f"슬라이드 {i+1}", "content_summary": f"내용 {i+1}", "component_hint": "bullets", "speaker_notes": ""}
+                for i in range(num_slides)
+            ],
+        }
+        (proj_dir / "outline.json").write_text(json.dumps(outline, ensure_ascii=False), encoding="utf-8")
+        return "file-load-proj"
+
+    def _setup_project_with_script(self, tmp_path: Path, monkeypatch, num_slides: int = 3) -> str:
+        project_id = self._setup_project_with_outline(tmp_path, monkeypatch, num_slides)
+        proj_dir = tmp_path / project_id
+        script = {
+            "slides": [
+                {"title": f"스크립트 {i+1}", "content_summary": f"내용 {i+1}", "component_hint": "bullets", "speaker_notes": f"노트 {i+1}"}
+                for i in range(num_slides)
+            ],
+        }
+        (proj_dir / "script.json").write_text(json.dumps(script, ensure_ascii=False), encoding="utf-8")
+        return project_id
+
+    def test_load_from_outline_file(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        """project_id만 제공하면 outline.json에서 로드한다."""
+        project_id = self._setup_project_with_outline(tmp_path, monkeypatch, num_slides=5)
+
+        result = json.loads(mcp_tools["generate_slide_design_spec"](
+            slide_index=2,
+            project_id=project_id,
+        ))
+
+        assert result["slide_index"] == 2
+        assert result["total_slides"] == 5
+        assert result["project_id"] == project_id
+
+    def test_load_from_script_file(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        """script.json이 있으면 outline.json보다 우선 로드한다."""
+        project_id = self._setup_project_with_script(tmp_path, monkeypatch, num_slides=4)
+
+        result = json.loads(mcp_tools["generate_slide_design_spec"](
+            slide_index=1,
+            project_id=project_id,
+        ))
+
+        assert result["slide_index"] == 1
+        assert result["total_slides"] == 4
+
+        # design_service에 전달된 slide_outline이 script.json의 내용인지 확인
+        design_service = mcp_tools["_design_service"]
+        call_args = design_service.generate_single_slide.call_args
+        slide_outline = call_args[0][0]
+        assert slide_outline.title == "스크립트 2"
+        assert slide_outline.speaker_notes == "노트 2"
+
+    def test_auto_calculates_total_slides(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        """total_slides=0이면 로드된 아웃라인에서 자동 계산한다."""
+        project_id = self._setup_project_with_outline(tmp_path, monkeypatch, num_slides=7)
+
+        result = json.loads(mcp_tools["generate_slide_design_spec"](
+            slide_index=0,
+            project_id=project_id,
+            total_slides=0,
+        ))
+
+        assert result["total_slides"] == 7
+
+    def test_no_outline_no_project_raises(self, mcp_tools: dict) -> None:
+        """outline_json도 project_id도 없으면 ValueError."""
+        with pytest.raises(ValueError, match="outline_json 또는 project_id"):
+            mcp_tools["generate_slide_design_spec"](slide_index=0)
+
+
+class TestGenerateSlidesDesignSpecFromProject:
+    """generate_slides_design_spec project_id 기반 파일 로드 테스트."""
+
+    @staticmethod
+    def _run(coro):
+        return asyncio.run(coro)
+
+    def _setup_project_with_outline(self, tmp_path: Path, monkeypatch, num_slides: int = 5) -> str:
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+        proj_dir = tmp_path / "batch-file-proj"
+        proj_dir.mkdir()
+        (proj_dir / "project.json").write_text(
+            json.dumps({"topic": "테스트", "num_slides": num_slides, "steps_completed": {}}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        outline = {
+            "slides": [
+                {"title": f"슬라이드 {i+1}", "content_summary": f"내용 {i+1}", "component_hint": "bullets", "speaker_notes": ""}
+                for i in range(num_slides)
+            ],
+        }
+        (proj_dir / "outline.json").write_text(json.dumps(outline, ensure_ascii=False), encoding="utf-8")
+        return "batch-file-proj"
+
+    def _setup_project_with_script(self, tmp_path: Path, monkeypatch, num_slides: int = 5) -> str:
+        project_id = self._setup_project_with_outline(tmp_path, monkeypatch, num_slides)
+        proj_dir = tmp_path / project_id
+        script = {
+            "slides": [
+                {"title": f"스크립트 {i+1}", "content_summary": f"내용 {i+1}", "component_hint": "bullets", "speaker_notes": f"노트 {i+1}"}
+                for i in range(num_slides)
+            ],
+        }
+        (proj_dir / "script.json").write_text(json.dumps(script, ensure_ascii=False), encoding="utf-8")
+        return project_id
+
+    def test_load_from_outline_file(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        """project_id만 제공하면 outline.json에서 로드한다."""
+        project_id = self._setup_project_with_outline(tmp_path, monkeypatch, num_slides=3)
+
+        result = json.loads(self._run(mcp_tools["generate_slides_design_spec"](
+            project_id=project_id,
+        )))
+
+        assert result["total_slides"] == 3
+        assert result["success_count"] == 3
+        assert result["project_id"] == project_id
+
+    def test_load_from_script_file(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        """script.json이 있으면 우선 로드한다."""
+        project_id = self._setup_project_with_script(tmp_path, monkeypatch, num_slides=3)
+
+        result = json.loads(self._run(mcp_tools["generate_slides_design_spec"](
+            project_id=project_id,
+        )))
+
+        assert result["total_slides"] == 3
+        assert result["success_count"] == 3
+
+    def test_auto_calculates_total_slides(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        """total_slides=0이면 자동 계산한다."""
+        project_id = self._setup_project_with_outline(tmp_path, monkeypatch, num_slides=4)
+
+        result = json.loads(self._run(mcp_tools["generate_slides_design_spec"](
+            project_id=project_id,
+            total_slides=0,
+        )))
+
+        assert result["total_slides"] == 4
+        assert result["success_count"] == 4
+
+    def test_no_outline_no_project_raises(self, mcp_tools: dict) -> None:
+        """outline_json도 project_id도 없으면 ValueError."""
+        with pytest.raises(ValueError, match="outline_json 또는 project_id"):
+            self._run(mcp_tools["generate_slides_design_spec"]())
+
+
+SAMPLE_BATCH_OUTLINE_JSON = json.dumps(
+    {
+        "slides": [
+            {"title": f"슬라이드 {i+1}", "content_summary": f"내용 {i+1}", "component_hint": "bullets", "speaker_notes": ""}
+            for i in range(5)
+        ],
+    },
+    ensure_ascii=False,
+)
+
+
+class TestGenerateSlidesDesignSpec:
+    """generate_slides_design_spec 배치 도구 테스트."""
+
+    def _setup_project(self, tmp_path: Path, monkeypatch) -> str:
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+        proj_dir = tmp_path / "batch-proj"
+        proj_dir.mkdir()
+        (proj_dir / "project.json").write_text(
+            json.dumps({"topic": "", "num_slides": 0, "steps_completed": {}}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        return "batch-proj"
+
+    @staticmethod
+    def _run(coro):
+        """async 도구 함수를 동기 테스트에서 실행하는 헬퍼."""
+        return asyncio.run(coro)
+
+    def test_batch_generates_all_slides(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        project_id = self._setup_project(tmp_path, monkeypatch)
+
+        result = json.loads(self._run(mcp_tools["generate_slides_design_spec"](
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
+        )))
+
+        assert result["total_slides"] == 5
+        assert result["success_count"] == 5
+        assert result["error_count"] == 0
+        assert result["slide_count"] == 5
+        assert result["project_id"] == project_id
+        assert len(result["results"]) == 5
+
+    def test_batch_results_ordered_by_index(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        project_id = self._setup_project(tmp_path, monkeypatch)
+
+        result = json.loads(self._run(mcp_tools["generate_slides_design_spec"](
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
+        )))
+
+        for i, r in enumerate(result["results"]):
+            assert r["slide_index"] == i
+            assert r["status"] == "success"
+            assert r["slide_file"] == f"slide_{i + 1:02d}.json"
+
+    def test_batch_creates_design_summary(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        project_id = self._setup_project(tmp_path, monkeypatch)
+
+        self._run(mcp_tools["generate_slides_design_spec"](
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
+        ))
+
+        summary_path = tmp_path / project_id / "design_spec" / "design_summary.json"
+        assert summary_path.exists()
+
+    def test_batch_mismatched_total_slides_raises(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        self._setup_project(tmp_path, monkeypatch)
+
+        with pytest.raises(ValueError, match="일치하지 않습니다"):
+            self._run(mcp_tools["generate_slides_design_spec"](
+                outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+                total_slides=3,  # outline에는 5개
+                project_id="batch-proj",
+            ))
+
+    def test_batch_single_slide(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        """슬라이드 1장짜리 배치도 정상 동작."""
+        project_id = self._setup_project(tmp_path, monkeypatch)
+        single_outline = json.dumps(
+            {"slides": [{"title": "단일", "content_summary": "내용", "component_hint": "bullets", "speaker_notes": ""}]},
+            ensure_ascii=False,
+        )
+
+        result = json.loads(self._run(mcp_tools["generate_slides_design_spec"](
+            outline_json=single_outline,
+            total_slides=1,
+            project_id=project_id,
+        )))
+
+        assert result["success_count"] == 1
+        assert result["error_count"] == 0
+        assert result["slide_count"] == 1
+
+    def test_batch_auto_generates_project_id(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        single_outline = json.dumps(
+            {"slides": [{"title": "단일", "content_summary": "내용", "component_hint": "bullets", "speaker_notes": ""}]},
+            ensure_ascii=False,
+        )
+
+        result = json.loads(self._run(mcp_tools["generate_slides_design_spec"](
+            outline_json=single_outline,
+            total_slides=1,
+        )))
+
+        assert result["project_id"]
+        assert len(result["project_id"]) == 36  # UUID
+
+    def test_batch_partial_failure(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        """일부 슬라이드 실패 시 나머지는 정상 저장되고 에러가 보고된다."""
+        project_id = self._setup_project(tmp_path, monkeypatch)
+
+        design_service = mcp_tools["_design_service"]
+        call_count = 0
+
+        def side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            # 3번째 호출(slide_index=2)에서 실패
+            if kwargs.get("slide_index") == 3:
+                raise RuntimeError("LLM 호출 실패")
+            return _make_slide_spec("생성됨")
+
+        design_service.generate_single_slide.side_effect = side_effect
+
+        result = json.loads(self._run(mcp_tools["generate_slides_design_spec"](
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
+        )))
+
+        assert result["success_count"] == 4
+        assert result["error_count"] == 1
+
+        # 실패한 슬라이드 확인
+        failed = [r for r in result["results"] if r["status"] == "error"]
+        assert len(failed) == 1
+        assert failed[0]["slide_index"] == 2
+        assert "LLM 호출 실패" in failed[0]["error"]
+
+        # 성공한 슬라이드 확인
+        succeeded = [r for r in result["results"] if r["status"] == "success"]
+        assert len(succeeded) == 4
+
+    def test_batch_respects_parallel_limit(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        """동시 실행 스레드가 DESIGN_SPEC_PARALLEL 값을 초과하지 않는지 검증."""
+        project_id = self._setup_project(tmp_path, monkeypatch)
+
+        # DESIGN_SPEC_PARALLEL을 2로 제한
+        import ppt_generator.tools.design.controller as ctrl_module
+        monkeypatch.setattr(ctrl_module, "DESIGN_SPEC_PARALLEL", 2)
+
+        # 10장짜리 아웃라인 (slide[0] 순차 + slide[1..9] 병렬)
+        outline_10 = json.dumps(
+            {
+                "slides": [
+                    {"title": f"슬라이드 {i+1}", "content_summary": f"내용 {i+1}", "component_hint": "bullets", "speaker_notes": ""}
+                    for i in range(10)
+                ],
+            },
+            ensure_ascii=False,
+        )
+
+        peak_concurrent = 0
+        current_concurrent = 0
+        lock = threading.Lock()
+
+        def slow_generate(*args, **kwargs):
+            nonlocal peak_concurrent, current_concurrent
+            with lock:
+                current_concurrent += 1
+                if current_concurrent > peak_concurrent:
+                    peak_concurrent = current_concurrent
+            time.sleep(0.05)  # 병렬 스레드가 겹칠 수 있도록 약간의 지연
+            with lock:
+                current_concurrent -= 1
+            return _make_slide_spec("생성됨")
+
+        design_service = mcp_tools["_design_service"]
+        design_service.generate_single_slide.side_effect = slow_generate
+
+        result = json.loads(self._run(mcp_tools["generate_slides_design_spec"](
+            outline_json=outline_10,
+            total_slides=10,
+            project_id=project_id,
+        )))
+
+        assert result["success_count"] == 10
+        assert result["error_count"] == 0
+        # Phase 1(slide[0])은 순차이므로 Phase 2의 peak만 검증
+        # peak_concurrent에는 Phase 1의 1도 포함될 수 있으나
+        # Phase 2에서 max_workers=2이므로 동시 최대 2를 초과하면 안 됨
+        # (Phase 1은 이미 완료된 후 Phase 2 시작)
+        assert peak_concurrent <= 2, f"동시 실행 peak={peak_concurrent}, 제한=2"
+
+    def test_batch_reports_progress(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        """ctx.report_progress가 각 슬라이드 완료 시 호출되는지 검증."""
+        project_id = self._setup_project(tmp_path, monkeypatch)
+
+        from unittest.mock import AsyncMock
+        ctx = AsyncMock()
+
+        result = json.loads(self._run(mcp_tools["generate_slides_design_spec"](
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
+            ctx=ctx,
+        )))
+
+        assert result["success_count"] == 5
+        # report_progress가 total_slides(5)번 호출되어야 함
+        assert ctx.report_progress.await_count == 5
+        # 마지막 호출의 progress 값은 total_slides와 같아야 함
+        last_call = ctx.report_progress.await_args
+        assert last_call[0][0] == 5  # progress
+        assert last_call[0][1] == 5  # total

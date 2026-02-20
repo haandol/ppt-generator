@@ -6,6 +6,7 @@ import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Lock
 
 from ppt_generator.interfaces.constants import PPT_GENERATOR_HOME
 from ppt_generator.interfaces.schemas import DesignSpec, PptxSlideSpec, ProjectMetadata
@@ -19,6 +20,7 @@ class ProjectService:
 
     def __init__(self, design_spec_store: DesignSpecStore | None = None) -> None:
         self.design_spec_store = design_spec_store or DesignSpecStore()
+        self._metadata_lock = Lock()
 
     def resolve_project_dir(self, project_id: str = "") -> tuple[str, Path]:
         """project_id → (project_id, project_dir). 빈 값이면 UUID 자동 생성."""
@@ -139,9 +141,10 @@ class ProjectService:
         logger.info("project.json 저장 완료: %s", project_dir)
 
     def update_step(self, project_dir: Path, step_name: str) -> None:
-        metadata = self.load_metadata(project_dir)
-        metadata.steps_completed[step_name] = datetime.now(timezone.utc).isoformat()
-        self.save_metadata(project_dir, metadata)
+        with self._metadata_lock:
+            metadata = self.load_metadata(project_dir)
+            metadata.steps_completed[step_name] = datetime.now(timezone.utc).isoformat()
+            self.save_metadata(project_dir, metadata)
 
     def load_metadata(self, project_dir: Path) -> ProjectMetadata:
         path = project_dir / "project.json"
@@ -165,6 +168,13 @@ class ProjectService:
     def load_script(self, project_dir: Path) -> str:
         path = project_dir / "script.json"
         return path.read_text(encoding="utf-8")
+
+    def load_script_or_outline(self, project_dir: Path) -> str:
+        """script.json이 있으면 우선 로드, 없으면 outline.json으로 fallback."""
+        script_path = project_dir / "script.json"
+        if script_path.exists():
+            return script_path.read_text(encoding="utf-8")
+        return self.load_outline(project_dir)
 
     # --- 프로젝트 목록 ---
 

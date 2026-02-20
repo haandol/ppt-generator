@@ -1,6 +1,9 @@
+import os
 from pathlib import Path
 
 PPT_GENERATOR_HOME = Path.home() / ".ppt-generator"
+
+DESIGN_SPEC_PARALLEL = int(os.environ.get("DESIGN_SPEC_PARALLEL", "4"))
 
 BEDROCK_MODEL_ID = "global.anthropic.claude-opus-4-6-v1"
 BEDROCK_OUTLINE_MODEL_ID = "global.anthropic.claude-sonnet-4-6"
@@ -167,4 +170,6 @@ __all__ = [
     "SCRIPT_SYSTEM_PROMPT", "SCRIPT_USER_PROMPT_TEMPLATE",
     # Paths
     "PPT_GENERATOR_HOME",
+    # Parallelism
+    "DESIGN_SPEC_PARALLEL",
 ]

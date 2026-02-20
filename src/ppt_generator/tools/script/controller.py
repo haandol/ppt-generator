@@ -12,7 +12,7 @@ from ppt_generator.tools.script.service import ScriptService
 
 def register_script_tools(mcp: FastMCP, script_service: ScriptService, project_service: ProjectService) -> None:
     @mcp.tool()
-    def generate_script(outline_json: str, project_id: str = "") -> str:
+    def generate_script(project_id: str = "", outline_json: str = "") -> str:
         """아웃라인을 기반으로 슬라이드별 발표자 노트(스크립트)를 생성합니다.
 
         generate_outline로 생성된 아웃라인 JSON을 입력받아, 각 슬라이드에 대한
@@ -22,13 +22,20 @@ def register_script_tools(mcp: FastMCP, script_service: ScriptService, project_s
         사용자가 아웃라인 구조에 만족한다고 확인한 경우에만 이 도구를 호출해야 합니다.
 
         Args:
-            outline_json: generate_outline로 생성된 슬라이드 아웃라인 JSON 문자열
-            project_id: 프로젝트 ID (미지정 시 자동 생성)
+            project_id: 프로젝트 ID. 지정하면 저장된 outline.json에서 자동 로드합니다.
+            outline_json: 슬라이드 아웃라인 JSON 문자열. project_id를 지정하면 생략 가능합니다.
 
         Returns:
             script_path, project_id를 포함하는 JSON 문자열
         """
-        outline = parse_outline_json(outline_json)
+        if outline_json:
+            outline = parse_outline_json(outline_json)
+        elif project_id:
+            _, proj_dir = project_service.resolve_project_dir(project_id)
+            raw = project_service.load_outline(proj_dir)
+            outline = parse_outline_json(raw)
+        else:
+            raise ValueError("outline_json 또는 project_id 중 하나를 제공해야 합니다.")
 
         # 프로젝트 메타데이터에서 audience_level, presentation_minutes 로드
         audience_level = DEFAULT_AUDIENCE_LEVEL

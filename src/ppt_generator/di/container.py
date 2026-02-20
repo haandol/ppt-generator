@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from typing import Any, Optional
 
+import httpx
 from botocore.config import Config as BotocoreConfig
 from strands import Agent
 from strands.models.bedrock import BedrockModel
@@ -89,8 +90,13 @@ class DIContainer:
         if os.environ.get("AWS_BEARER_TOKEN_BEDROCK"):
             return BotocoreConfig(
                 auth_scheme_preference="httpBearerAuth,sigv4",
+                read_timeout=300,
+                connect_timeout=60,
             )
-        return BotocoreConfig()
+        return BotocoreConfig(
+            read_timeout=300,
+            connect_timeout=60,
+        )
 
     @staticmethod
     def _build_json_schema_args(schema: dict, name: str) -> dict:
@@ -153,8 +159,13 @@ class DIContainer:
 
     # ---- Anthropic model helpers ----
 
+    @staticmethod
+    def _build_anthropic_client_args() -> dict[str, Any]:
+        return {"timeout": httpx.Timeout(connect=5.0, read=300.0, write=300.0, pool=300.0)}
+
     def _create_anthropic_model(self) -> Any:
         return CachingAnthropicModel(
+            client_args=self._build_anthropic_client_args(),
             model_id=ANTHROPIC_MODEL_ID,
             max_tokens=BEDROCK_MAX_TOKENS,
             params={
@@ -195,6 +206,7 @@ class DIContainer:
                 },
             }
         return AnthropicModel(
+            client_args=self._build_anthropic_client_args(),
             model_id=ANTHROPIC_OUTLINE_MODEL_ID,
             max_tokens=max_tokens,
             params=params,
@@ -288,6 +300,11 @@ class DIContainer:
             agent = self._create_design_agent()
             self._design_service = DesignService(agent=agent)
         return self._design_service
+
+    def create_design_service(self) -> DesignService:
+        """새 Agent를 포함한 DesignService 인스턴스를 생성한다 (병렬 처리용)."""
+        agent = self._create_design_agent()
+        return DesignService(agent=agent)
 
     @property
     def project_service(self) -> ProjectService:
