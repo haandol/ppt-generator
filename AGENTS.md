@@ -264,7 +264,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 | `pipeline`      | 파이프라인 흐름              |
 | `quote`         | 인용문 강조                  |
 | `summary_grid`  | 요약 그리드 (2x2)            |
-| `agenda`        | 목차/안건 리스트             |
+| `agenda`        | 목차 섹션                    |
 | `info_cards`    | 정보 카드 그리드             |
 | `feature_list`  | 기능/특징 리스트             |
 | `cta`           | Call-to-Action 강조          |

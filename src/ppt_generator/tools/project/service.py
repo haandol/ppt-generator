@@ -69,6 +69,19 @@ class ProjectService:
         )
         logger.info("slides/ 저장 완료 (%d 슬라이드): %s", len(slide_htmls), project_dir)
 
+    def save_single_slide_html(
+        self, project_dir: Path, slide_index: int, slide_html: str,
+    ) -> Path:
+        """단일 슬라이드 HTML을 저장하고 파일 경로를 반환한다."""
+        self._ensure_dir(project_dir)
+        slides_dir = project_dir / self.SLIDES_DIR
+        slides_dir.mkdir(parents=True, exist_ok=True)
+        fname = self._slide_html_filename(slide_index)
+        path = slides_dir / fname
+        path.write_text(slide_html, encoding="utf-8")
+        logger.info("단일 슬라이드 HTML 저장: %s", path)
+        return path
+
     # --- 디자인 스펙 위임 메서드 ---
 
     def save_design_spec(self, project_dir: Path, design_spec: DesignSpec) -> None:

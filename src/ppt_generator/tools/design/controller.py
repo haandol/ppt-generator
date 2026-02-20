@@ -5,12 +5,14 @@ from mcp.server.fastmcp import FastMCP
 from ppt_generator.interfaces.utils import parse_outline_json
 from ppt_generator.tools.design.service import DesignService
 from ppt_generator.tools.project.service import ProjectService
+from ppt_generator.tools.slides.service import SlidesService
 
 
 def register_design_tools(
     mcp: FastMCP,
     design_service: DesignService,
     project_service: ProjectService,
+    slides_service: SlidesService | None = None,
 ) -> None:
     @mcp.tool()
     def generate_slide_design_spec(
@@ -71,17 +73,27 @@ def register_design_tools(
         slide_count = project_service.get_design_spec_slide_count(project_dir)
         slide_file = f"slide_{slide_index + 1:02d}.json"
 
-        return json.dumps(
-            {
-                "design_spec_dir": str(project_dir / "design_spec"),
-                "slide_file": slide_file,
-                "slide_index": slide_index,
-                "slide_count": slide_count,
-                "total_slides": total_slides,
-                "project_id": project_id,
-            },
-            ensure_ascii=False,
-        )
+        # 디자인 스펙 생성 직후 해당 슬라이드 HTML도 바로 생성·저장
+        slide_html_path: str | None = None
+        if slides_service is not None:
+            slide_html = slides_service.render_single_slide_html(slide_index, spec)
+            html_path = project_service.save_single_slide_html(
+                project_dir, slide_index, slide_html,
+            )
+            slide_html_path = str(html_path)
+
+        result: dict = {
+            "design_spec_dir": str(project_dir / "design_spec"),
+            "slide_file": slide_file,
+            "slide_index": slide_index,
+            "slide_count": slide_count,
+            "total_slides": total_slides,
+            "project_id": project_id,
+        }
+        if slide_html_path:
+            result["slide_html_path"] = slide_html_path
+
+        return json.dumps(result, ensure_ascii=False)
 
     @mcp.tool()
     def modify_design_spec(
@@ -118,6 +130,8 @@ def register_design_tools(
             first_slide = project_service.load_design_spec_slide(project_dir, 0)
             design_summary = design_service.extract_design_summary(first_slide)
 
+        slide_html_path: str | None = None
+
         if action == "add":
             if not outline_json:
                 raise ValueError("add 시 outline_json이 필수입니다.")
@@ -128,6 +142,12 @@ def register_design_tools(
             )
             insert_idx = slide_index if 0 <= slide_index < slide_count else slide_count
             project_service.insert_design_spec_slide(project_dir, insert_idx, new_spec)
+            if slides_service is not None:
+                html = slides_service.render_single_slide_html(insert_idx, new_spec)
+                html_path = project_service.save_single_slide_html(
+                    project_dir, insert_idx, html,
+                )
+                slide_html_path = str(html_path)
 
         elif action == "update":
             if not outline_json:
@@ -140,6 +160,12 @@ def register_design_tools(
                 slide_outline, design_summary, color_theme=color_theme,
             )
             project_service.save_design_spec_slide(project_dir, slide_index, new_spec)
+            if slides_service is not None:
+                html = slides_service.render_single_slide_html(slide_index, new_spec)
+                html_path = project_service.save_single_slide_html(
+                    project_dir, slide_index, html,
+                )
+                slide_html_path = str(html_path)
 
         elif action == "delete":
             if slide_index < 0 or slide_index >= slide_count:
@@ -149,11 +175,12 @@ def register_design_tools(
         project_service.update_step(project_dir, "design_spec_modified")
         new_count = project_service.get_design_spec_slide_count(project_dir)
 
-        return json.dumps(
-            {
-                "design_spec_dir": str(project_dir / "design_spec"),
-                "project_id": project_id,
-                "slide_count": new_count,
-            },
-            ensure_ascii=False,
-        )
+        result = {
+            "design_spec_dir": str(project_dir / "design_spec"),
+            "project_id": project_id,
+            "slide_count": new_count,
+        }
+        if slide_html_path:
+            result["slide_html_path"] = slide_html_path
+
+        return json.dumps(result, ensure_ascii=False)

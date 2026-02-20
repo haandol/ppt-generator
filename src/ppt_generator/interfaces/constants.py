@@ -5,8 +5,7 @@ PPT_GENERATOR_HOME = Path.home() / ".ppt-generator"
 BEDROCK_MODEL_ID = "global.anthropic.claude-opus-4-6-v1"
 BEDROCK_OUTLINE_MODEL_ID = "global.anthropic.claude-sonnet-4-6"
 BEDROCK_REGION = "us-east-1"
-BEDROCK_TEMPERATURE = 0.33
-BEDROCK_MAX_TOKENS = 48_000
+BEDROCK_MAX_TOKENS = 32_000
 BEDROCK_OUTLINE_MAX_TOKENS = 12_000
 BEDROCK_SCRIPT_MAX_TOKENS = 16_000
 
@@ -135,7 +134,7 @@ from ppt_generator.interfaces.prompts import (  # noqa: E402
 __all__ = [
     # Model/Bedrock settings
     "BEDROCK_MODEL_ID", "BEDROCK_OUTLINE_MODEL_ID", "BEDROCK_REGION",
-    "BEDROCK_TEMPERATURE", "BEDROCK_MAX_TOKENS", "BEDROCK_OUTLINE_MAX_TOKENS",
+    "BEDROCK_MAX_TOKENS", "BEDROCK_OUTLINE_MAX_TOKENS",
     "BEDROCK_SCRIPT_MAX_TOKENS",
     # Anthropic API settings
     "ANTHROPIC_MODEL_ID", "ANTHROPIC_OUTLINE_MODEL_ID",

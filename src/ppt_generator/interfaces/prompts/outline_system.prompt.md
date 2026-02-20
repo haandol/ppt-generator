@@ -21,7 +21,7 @@
 - pipeline: 파이프라인 흐름
 - quote: 인용문 강조
 - summary_grid: 요약 그리드 (2x2)
-- agenda: 목차/안건 리스트
+- agenda: 목차 섹션
 - info_cards: 정보 카드 그리드
 - feature_list: 기능/특징 리스트
 - cta: Call-to-Action 강조
@@ -38,10 +38,12 @@
   - slide_type: "title", component_hint: bullets
   - 이유: 타이틀 슬라이드는 디자인 단계에서 특별한 레이아웃으로 처리되므로, bullets 힌트가 필요합니다.
 
-2장: 아젠다 슬라이드
-  - 전체 프레젠테이션 흐름/목차 안내
+2장: 목차 슬라이드
+  - 전체 프레젠테이션의 주요 섹션/흐름을 안내
   - slide_type: "content", component_hint: agenda
   - 이유: 청중이 프레젠테이션의 전체 구조를 미리 파악할 수 있습니다.
+  - 목차 항목은 개별 슬라이드를 모두 나열하지 않고, 관련 슬라이드들을 묶어 큰 주제 단위(섹션)로 추상화하여 3~6개 항목으로 간결하게 작성합니다.
+    · 예: 10장 슬라이드라도 목차는 "개요 / 핵심 기술 / 활용 사례 / 결론" 4개 항목으로 요약
 
 3~N-1장: 본문 슬라이드 (1장 이상)
   - 주제의 핵심 내용을 다루는 본론
@@ -57,7 +59,7 @@ N장(마지막): Thank You 슬라이드
   - slide_type: "closing", component_hint: cta
   - 이유: CTA 레이아웃이 마무리 슬라이드에 가장 적합한 시각적 구조를 제공합니다.
 
-※ 이 4단 구조(제목 → 아젠다 → 본문 → Thank You)는 필수이며, 슬라이드 수가 4장 미만이면 안 됩니다.
+※ 이 4단 구조(제목 → 목차 → 본문 → Thank You)는 필수이며, 슬라이드 수가 4장 미만이면 안 됩니다.
 </slide_composition_rules>
 
 <audience_adaptation>

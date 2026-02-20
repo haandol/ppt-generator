@@ -6,7 +6,6 @@ from typing import Any, Optional
 from botocore.config import Config as BotocoreConfig
 from strands import Agent
 from strands.models.bedrock import BedrockModel
-from strands.models.model import CacheConfig
 from strands.types.content import Messages
 from strands.types.tools import ToolChoice, ToolSpec
 
@@ -114,7 +113,6 @@ class DIContainer:
             model_id=BEDROCK_MODEL_ID,
             region_name=BEDROCK_REGION,
             boto_client_config=self._build_client_config(),
-            cache_config=CacheConfig(strategy="auto"),
             temperature=1.0,
             max_tokens=BEDROCK_MAX_TOKENS,
             additional_request_fields={
@@ -204,11 +202,6 @@ class DIContainer:
 
     # ---- Agent creation (provider-aware) ----
 
-    @staticmethod
-    def _cacheable_system_prompt(text: str) -> list:
-        """시스템 프롬프트를 cachePoint가 포함된 SystemContentBlock 리스트로 변환."""
-        return [{"text": text}, {"cachePoint": {"type": "default"}}]
-
     def _create_script_agent(self) -> Agent:
         if self._provider == "anthropic":
             model = self._create_anthropic_outline_model(
@@ -252,13 +245,11 @@ class DIContainer:
     def _create_design_agent(self) -> Agent:
         if self._provider == "anthropic":
             model = self._create_anthropic_model()
-            system_prompt: str | list = DESIGN_SPEC_SYSTEM_PROMPT
         else:
             model = self._create_bedrock_model()
-            system_prompt = self._cacheable_system_prompt(DESIGN_SPEC_SYSTEM_PROMPT)
         return Agent(
             model=model,
-            system_prompt=system_prompt,
+            system_prompt=DESIGN_SPEC_SYSTEM_PROMPT,
             callback_handler=None,
             tools=[],
         )

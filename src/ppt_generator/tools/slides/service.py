@@ -63,6 +63,27 @@ class SlidesService:
         )
 
     @staticmethod
+    def render_single_slide_html(
+        slide_index: int,
+        spec: PptxSlideSpec,
+    ) -> str:
+        """단일 PptxSlideSpec을 완전한 HTML 문서로 변환한다 (외부 호출용).
+
+        title/closing 슬라이드의 배경 이미지·로고를 자동 처리한다.
+        """
+        bg_image_utils.reset_cache()
+        validated = validate_slide_spec(spec)
+        bg_b64: str | None = None
+        logo_b64: str | None = None
+        if validated.slide_type in ("title", "closing"):
+            bg_b64 = bg_image_utils.get_bg_image_base64(validated.background_color)
+            logo_b64 = bg_image_utils.get_logo_image_base64(validated.background_color)
+        return SlidesService._spec_to_html_document(
+            slide_index, validated,
+            bg_image_base64=bg_b64, logo_image_base64=logo_b64,
+        )
+
+    @staticmethod
     def _spec_to_html_document(
         slide_index: int,
         spec: PptxSlideSpec,
