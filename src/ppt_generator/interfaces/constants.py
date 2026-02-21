@@ -7,7 +7,7 @@ load_dotenv(Path(__file__).resolve().parents[3] / "env" / "local.env", override=
 
 PPT_GENERATOR_HOME = Path.home() / ".ppt-generator"
 
-DESIGN_SPEC_PARALLEL = int(os.environ.get("DESIGN_SPEC_PARALLEL", "8"))
+DESIGN_SPEC_PARALLEL = int(os.environ.get("DESIGN_SPEC_PARALLEL", "4"))
 
 # --- 디자인 스펙 생성 모델 ---
 BEDROCK_DESIGN_MODEL_ID = os.environ.get(

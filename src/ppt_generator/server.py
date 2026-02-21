@@ -30,7 +30,18 @@ def create_server() -> FastMCP:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+    fmt = "%(asctime)s %(name)s %(levelname)s %(message)s"
+    logging.basicConfig(level=logging.INFO, format=fmt)
+
+    # 파일 로그 (디버깅용) — 환경변수 PPT_LOG_FILE 로 경로 지정
+    import os
+
+    log_file = os.environ.get("PPT_LOG_FILE")
+    if log_file:
+        fh = logging.FileHandler(log_file, encoding="utf-8")
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(logging.Formatter(fmt))
+        logging.getLogger().addHandler(fh)
     mcp = create_server()
     mcp.run(transport="stdio")
 

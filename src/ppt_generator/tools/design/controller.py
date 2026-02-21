@@ -114,11 +114,24 @@ def register_design_tools(
         if parallel_indices:
             design_summary_for_batch = project_service.load_design_summary(project_dir)
             max_workers = min(DESIGN_SPEC_PARALLEL, len(parallel_indices))
+            logger.info(
+                "병렬 처리 설정: DESIGN_SPEC_PARALLEL=%d, 대상 슬라이드=%d개, max_workers=%d",
+                DESIGN_SPEC_PARALLEL, len(parallel_indices), max_workers,
+            )
+            active_threads: list[int] = [0]
+            peak_threads: list[int] = [0]
 
             def _generate_slide(idx: int) -> dict:
                 """worker 함수: 개별 슬라이드 생성."""
                 thread_name = threading.current_thread().name
-                logger.info("slide[%d] 생성 시작 (thread=%s)", idx, thread_name)
+                active_threads[0] += 1
+                current = active_threads[0]
+                if current > peak_threads[0]:
+                    peak_threads[0] = current
+                logger.info(
+                    "slide[%d] 생성 시작 (thread=%s, 동시실행=%d/%d)",
+                    idx, thread_name, current, max_workers,
+                )
                 t0 = time.monotonic()
                 svc = design_service_factory() if design_service_factory else design_service
                 try:
@@ -150,6 +163,7 @@ def register_design_tools(
                         html_path_str = str(hp)
 
                     elapsed = time.monotonic() - t0
+                    active_threads[0] -= 1
                     logger.info("slide[%d] 생성 완료 (thread=%s, %.1fs)", idx, thread_name, elapsed)
                     r: dict = {
                         "slide_index": idx,
@@ -161,6 +175,7 @@ def register_design_tools(
                     return r
                 except Exception as exc:
                     elapsed = time.monotonic() - t0
+                    active_threads[0] -= 1
                     logger.error("slide[%d] 생성 실패 (thread=%s, %.1fs): %s", idx, thread_name, elapsed, exc)
                     return {"slide_index": idx, "status": "error", "error": str(exc)}
 
@@ -183,6 +198,11 @@ def register_design_tools(
                         f"슬라이드 {completed}/{target_count} "
                         f"{'완료' if res['status'] == 'success' else '실패'}",
                     )
+
+            logger.info(
+                "병렬 처리 완료: 최대 동시실행 스레드=%d, 성공=%d, 실패=%d",
+                peak_threads[0], success_count, error_count,
+            )
 
         # 결과를 인덱스 순서로 정렬
         results = [results_map[i] for i in sorted(results_map)]
