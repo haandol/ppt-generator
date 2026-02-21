@@ -11,7 +11,11 @@ from mcp.server.fastmcp import Context, FastMCP
 from strands.types.exceptions import ModelThrottledException
 
 from ppt_generator.interfaces.constants import DESIGN_SPEC_PARALLEL
-from ppt_generator.interfaces.utils import parse_outline_json
+from ppt_generator.interfaces.utils import (
+    complexity_to_thinking_effort,
+    estimate_slide_complexity,
+    parse_outline_json,
+)
 from ppt_generator.tools.design.service import DesignService
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
@@ -21,10 +25,9 @@ logger = logging.getLogger(__name__)
 
 def register_design_tools(
     mcp: FastMCP,
-    design_service: DesignService,
     project_service: ProjectService,
+    design_service_factory: Callable[[str], DesignService],
     slides_service: SlidesService | None = None,
-    design_service_factory: Callable[[], DesignService] | None = None,
 ) -> None:
     @mcp.tool()
     async def generate_slides_design_spec(
@@ -104,13 +107,18 @@ def register_design_tools(
         existing_summary = project_service.load_design_summary(project_dir)
         if existing_summary is None:
             logger.info("design_summary 사전 생성 시작 (LLM 호출)")
-            summary = design_service.generate_design_summary(outline, color_theme)
+            summary_svc = design_service_factory("medium")
+            summary = summary_svc.generate_design_summary(outline, color_theme)
             project_service.save_design_summary(project_dir, summary)
             logger.info("design_summary 사전 생성 완료")
             await _report(0, "디자인 테마 생성 완료")
 
-        # --- Step 2: 모든 슬라이드 병렬 생성 ---
-        parallel_indices = indices
+        # --- Step 2: 모든 슬라이드 병렬 생성 (복잡도 내림차순 스케줄링) ---
+        parallel_indices = sorted(
+            indices,
+            key=lambda i: estimate_slide_complexity(outline.slides[i]),
+            reverse=True,
+        )
 
         if parallel_indices:
             design_summary_for_batch = project_service.load_design_summary(project_dir)
@@ -129,12 +137,14 @@ def register_design_tools(
                 current = active_threads[0]
                 if current > peak_threads[0]:
                     peak_threads[0] = current
+                complexity = estimate_slide_complexity(outline.slides[idx])
+                effort = complexity_to_thinking_effort(complexity)
                 logger.info(
-                    "slide[%d] 생성 시작 (thread=%s, 동시실행=%d/%d)",
-                    idx, thread_name, current, max_workers,
+                    "slide[%d] 생성 시작 (complexity=%d, effort=%s, thread=%s, 동시실행=%d/%d)",
+                    idx, complexity, effort, thread_name, current, max_workers,
                 )
                 t0 = time.monotonic()
-                svc = design_service_factory() if design_service_factory else design_service
+                svc = design_service_factory(effort)
                 try:
                     spec = svc.generate_single_slide(
                         outline.slides[idx],
@@ -272,7 +282,8 @@ def register_design_tools(
         design_summary: dict | None = None
         if action in ("add", "update") and slide_count > 0:
             first_slide = project_service.load_design_spec_slide(project_dir, 0)
-            design_summary = design_service.extract_design_summary(first_slide)
+            svc_for_summary = design_service_factory("medium")
+            design_summary = svc_for_summary.extract_design_summary(first_slide)
 
         slide_html_path: str | None = None
 
@@ -281,7 +292,10 @@ def register_design_tools(
                 raise ValueError("add 시 outline_json이 필수입니다.")
             outline = parse_outline_json(outline_json)
             slide_outline = outline.slides[0]
-            new_spec = design_service.generate_single_slide(
+            complexity = estimate_slide_complexity(slide_outline)
+            effort = complexity_to_thinking_effort(complexity)
+            svc = design_service_factory(effort)
+            new_spec = svc.generate_single_slide(
                 slide_outline, design_summary, color_theme=color_theme,
             )
             insert_idx = slide_index if 0 <= slide_index < slide_count else slide_count
@@ -300,7 +314,10 @@ def register_design_tools(
                 raise ValueError(f"유효하지 않은 slide_index: {slide_index} (전체 {slide_count}장)")
             outline = parse_outline_json(outline_json)
             slide_outline = outline.slides[0]
-            new_spec = design_service.generate_single_slide(
+            complexity = estimate_slide_complexity(slide_outline)
+            effort = complexity_to_thinking_effort(complexity)
+            svc = design_service_factory(effort)
+            new_spec = svc.generate_single_slide(
                 slide_outline, design_summary, color_theme=color_theme,
             )
             project_service.save_design_spec_slide(project_dir, slide_index, new_spec)

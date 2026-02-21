@@ -17,7 +17,6 @@ ANTHROPIC_DESIGN_MODEL_ID = os.environ.get(
     "ANTHROPIC_DESIGN_MODEL_ID", "claude-sonnet-4-6"
 )
 BEDROCK_DESIGN_MAX_TOKENS = int(os.environ.get("BEDROCK_DESIGN_MAX_TOKENS", "64000"))
-DESIGN_THINKING_EFFORT = os.environ.get("DESIGN_THINKING_EFFORT", "medium")
 
 # --- 아웃라인/스크립트 생성 모델 ---
 BEDROCK_OUTLINE_MODEL_ID = os.environ.get(
@@ -131,6 +130,25 @@ PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU = 45720   # ~0.05 inch
 PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU = 22860   # ~0.025 inch
 PX_TO_EMU = 9525                            # 914400 / 96
 
+COMPONENT_HINT_COMPLEXITY: dict[str, int] = {
+    "arch_diagram": 10,
+    "process_flow": 9,
+    "pipeline": 8,
+    "concept_list": 8,
+    "quote_code": 7,
+    "vs_comparison": 7,
+    "summary_grid": 7,
+    "step_cards": 6,
+    "info_cards": 6,
+    "code_block": 5,
+    "two_column": 5,
+    "feature_list": 4,
+    "agenda": 3,
+    "cta": 3,
+    "bullets": 2,
+    "quote": 1,
+}
+
 TEMPLATE_BG_IMAGES_DIR = Path(__file__).parent.parent / "templates" / "template_bg_images"
 
 SLIDES_TEMPLATE_PATH = Path(__file__).parent.parent / \
@@ -160,7 +178,7 @@ from ppt_generator.interfaces.prompts import (  # noqa: E402
 __all__ = [
     # Design model settings
     "BEDROCK_DESIGN_MODEL_ID", "ANTHROPIC_DESIGN_MODEL_ID",
-    "BEDROCK_DESIGN_MAX_TOKENS", "DESIGN_THINKING_EFFORT",
+    "BEDROCK_DESIGN_MAX_TOKENS",
     # Outline/Script model settings
     "BEDROCK_OUTLINE_MODEL_ID", "ANTHROPIC_OUTLINE_MODEL_ID",
     "BEDROCK_OUTLINE_MAX_TOKENS", "BEDROCK_SCRIPT_MAX_TOKENS",
@@ -201,4 +219,6 @@ __all__ = [
     "PPT_GENERATOR_HOME",
     # Parallelism
     "DESIGN_SPEC_PARALLEL",
+    # Complexity
+    "COMPONENT_HINT_COMPLEXITY",
 ]

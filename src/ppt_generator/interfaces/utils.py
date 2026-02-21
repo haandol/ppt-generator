@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import re
 
+from ppt_generator.interfaces.constants import COMPONENT_HINT_COMPLEXITY
 from ppt_generator.interfaces.schemas import OutlineResponse, SlideOutline
 
 
@@ -47,3 +48,22 @@ def parse_outline_json(outline_json: str) -> OutlineResponse:
             )
         )
     return OutlineResponse(slides=slides)
+
+
+def estimate_slide_complexity(slide: SlideOutline) -> int:
+    """슬라이드의 디자인 스펙 생성 복잡도를 추정."""
+    if slide.slide_type in ("title", "closing"):
+        return 1
+    base = COMPONENT_HINT_COMPLEXITY.get(slide.component_hint, 2)
+    content_bonus = min(len(slide.content_summary) // 200, 3)
+    return base + content_bonus
+
+
+def complexity_to_thinking_effort(complexity: int) -> str:
+    """복잡도 점수를 thinking effort 레벨로 변환."""
+    if complexity >= 7:
+        return "high"
+    elif complexity >= 4:
+        return "medium"
+    else:
+        return "low"

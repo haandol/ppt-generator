@@ -54,7 +54,7 @@ ppt-generator/
 │   │   ├── spec_utils.py          # PptxSlideSpec 파싱/검증/직렬화 공유 유틸리티
 │   │   ├── text_measurement.py    # 폰트 메트릭 기반 텍스트 크기 추정 (줄바꿈/높이 계산)
 │   │   ├── bg_image_utils.py      # 배경 이미지 유틸리티
-│   │   ├── utils.py               # parse_outline_json 등 공용 파싱 유틸리티
+│   │   ├── utils.py               # parse_outline_json, 슬라이드 복잡도 추정 등 공용 유틸리티
 │   │   └── prompts/                      # 프롬프트 템플릿 모듈
 │   │       ├── __init__.py               # .prompt.md 파일 로딩 + 상수 re-export
 │   │       ├── design_system.prompt.md   # 디자인 스펙 시스템 프롬프트
@@ -88,7 +88,7 @@ ppt-generator/
 - **Package Manager**: uv
 - **Build System**: hatchling
 - **Agent Framework**: AWS Strands SDK (`strands-agents`)
-- **LLM (디자인 스펙 생성)**: Claude Opus 4.6 (Bedrock: `global.anthropic.claude-opus-4-6-v1` / Anthropic: `claude-opus-4-6`, 64K tokens, effort: high)
+- **LLM (디자인 스펙 생성)**: Claude Opus 4.6 (Bedrock: `global.anthropic.claude-opus-4-6-v1` / Anthropic: `claude-opus-4-6`, 64K tokens, effort: adaptive — 복잡도 기반 high/medium/low)
 - **LLM (아웃라인/스크립트)**: Claude Sonnet 4.6 (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 16K tokens, effort: medium)
 - **Slide Framework**: 순수 HTML/CSS (인라인 스타일, 슬라이드별 개별 HTML + iframe 컨테이너)
 - **PPTX Export**: python-pptx (디자인 스펙 → SlideBuilder 직접 변환)
@@ -118,7 +118,7 @@ ppt-generator/
 | `BEDROCK_DESIGN_MODEL_ID`  | 모델 ID 문자열          | 디자인 스펙 생성 Bedrock 모델 (기본: `global.anthropic.claude-opus-4-6-v1`)                               |
 | `ANTHROPIC_DESIGN_MODEL_ID`| 모델 ID 문자열          | 디자인 스펙 생성 Anthropic 모델 (기본: `claude-opus-4-6`)                                                |
 | `BEDROCK_DESIGN_MAX_TOKENS`| 정수 (기본: 64000)      | 디자인 스펙 생성 max tokens                                                                              |
-| `DESIGN_THINKING_EFFORT`   | `high`/`medium`/`low`   | 디자인 스펙 생성 thinking effort (기본: high)                                                            |
+
 | `BEDROCK_OUTLINE_MODEL_ID` | 모델 ID 문자열          | 아웃라인/스크립트 Bedrock 모델 (기본: `global.anthropic.claude-sonnet-4-6`)                               |
 | `ANTHROPIC_OUTLINE_MODEL_ID`| 모델 ID 문자열         | 아웃라인/스크립트 Anthropic 모델 (기본: `claude-sonnet-4-6`)                                             |
 | `OUTLINE_THINKING_EFFORT`  | `high`/`medium`/`low`   | 아웃라인/스크립트 thinking effort (기본: medium)                                                         |
@@ -154,8 +154,13 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 **병렬 생성:**
 - `generate_slides_design_spec`에서 `ThreadPoolExecutor`로 슬라이드를 병렬 생성
 - `DESIGN_SPEC_PARALLEL` 환경변수(기본 8)로 최대 동시 워커 수 제어
-- 워커마다 `design_service_factory()`로 독립 Agent 인스턴스 생성 (strands Agent는 stateful이므로 공유 불가)
+- 워커마다 `design_service_factory(effort)`로 독립 Agent 인스턴스 생성 (strands Agent는 stateful이므로 공유 불가)
 - `ProjectService._metadata_lock`으로 `project.json` 동시 쓰기 보호
+
+**복잡도 기반 스케줄링 & Adaptive Thinking Effort:** ([ADR-0019](docs/adr/pipeline/0019-complexity-based-scheduling-and-adaptive-effort.md))
+- `component_hint` + `content_summary` 길이로 결정론적 복잡도 점수(1~13)를 산출 (`estimate_slide_complexity()`)
+- **Longest-job-first 스케줄링**: 복잡한 슬라이드부터 먼저 thread pool에 제출 → 워커 idle time 감소, wall-clock time 단축
+- **Adaptive thinking effort**: 복잡도에 따라 `high`(7~13), `medium`(4~6), `low`(1~3) effort를 동적 적용 → 단순 슬라이드 토큰 절약, 복잡한 슬라이드 품질 유지. `generate_slides_design_spec`과 `modify_design_spec` 모두에 적용
 
 **프롬프트 캐싱:**
 - Bedrock: `BedrockModel(cache_config=CacheConfig(strategy="auto"))` — 시스템 프롬프트에 자동 cache point 주입

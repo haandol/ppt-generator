@@ -108,4 +108,4 @@ class ProjectService:
 - Anthropic 캐싱: `src/ppt_generator/di/container.py` — `CachingAnthropicModel`
 - 메타데이터 Lock: `src/ppt_generator/tools/project/service.py` — `_metadata_lock`
 - 환경변수: `src/ppt_generator/interfaces/constants.py` — `DESIGN_SPEC_PARALLEL`
-- 관련 ADR: [0013-design-spec-pipeline](./0013-design-spec-pipeline.md), [0015-per-slide-file-separation](./0015-per-slide-file-separation.md)
+- 관련 ADR: [0013-design-spec-pipeline](./0013-design-spec-pipeline.md), [0015-per-slide-file-separation](./0015-per-slide-file-separation.md), [0019-complexity-based-scheduling-and-adaptive-effort](./0019-complexity-based-scheduling-and-adaptive-effort.md)

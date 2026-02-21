@@ -21,7 +21,6 @@ from ppt_generator.interfaces.constants import (
     BEDROCK_REGION,
     BEDROCK_SCRIPT_MAX_TOKENS,
     DESIGN_SPEC_SYSTEM_PROMPT,
-    DESIGN_THINKING_EFFORT,
     OUTLINE_JSON_SCHEMA,
     OUTLINE_SYSTEM_PROMPT,
     OUTLINE_THINKING_EFFORT,
@@ -74,7 +73,6 @@ class DIContainer:
         self._outline_service: OutlineService | None = None
         self._export_service: ExportService | None = None
         self._slides_service: SlidesService | None = None
-        self._design_service: DesignService | None = None
         self._project_service: ProjectService | None = None
 
     @staticmethod
@@ -117,7 +115,7 @@ class DIContainer:
             },
         }
 
-    def _create_bedrock_model(self) -> BedrockModel:
+    def _create_bedrock_model(self, thinking_effort: str) -> BedrockModel:
         return BedrockModel(
             model_id=BEDROCK_DESIGN_MODEL_ID,
             region_name=BEDROCK_REGION,
@@ -130,7 +128,7 @@ class DIContainer:
                     "type": "adaptive",
                 },
                 "output_config": {
-                    "effort": DESIGN_THINKING_EFFORT,
+                    "effort": thinking_effort,
                 },
             },
         )
@@ -167,7 +165,7 @@ class DIContainer:
     def _build_anthropic_client_args() -> dict[str, Any]:
         return {"timeout": httpx.Timeout(connect=5.0, read=300.0, write=300.0, pool=300.0)}
 
-    def _create_anthropic_model(self) -> Any:
+    def _create_anthropic_model(self, thinking_effort: str) -> Any:
         return CachingAnthropicModel(
             client_args=self._build_anthropic_client_args(),
             model_id=ANTHROPIC_DESIGN_MODEL_ID,
@@ -178,7 +176,7 @@ class DIContainer:
                     "type": "adaptive",
                 },
                 "output_config": {
-                    "effort": DESIGN_THINKING_EFFORT,
+                    "effort": thinking_effort,
                 },
             },
         )
@@ -258,11 +256,11 @@ class DIContainer:
             tools=[],
         )
 
-    def _create_design_agent(self) -> Agent:
+    def _create_design_agent(self, thinking_effort: str) -> Agent:
         if self._provider == "anthropic":
-            model = self._create_anthropic_model()
+            model = self._create_anthropic_model(thinking_effort=thinking_effort)
         else:
-            model = self._create_bedrock_model()
+            model = self._create_bedrock_model(thinking_effort=thinking_effort)
         return Agent(
             model=model,
             system_prompt=DESIGN_SPEC_SYSTEM_PROMPT,
@@ -298,16 +296,13 @@ class DIContainer:
             self._slides_service = SlidesService()
         return self._slides_service
 
-    @property
-    def design_service(self) -> DesignService:
-        if self._design_service is None:
-            agent = self._create_design_agent()
-            self._design_service = DesignService(agent=agent)
-        return self._design_service
+    def create_design_service(self, thinking_effort: str) -> DesignService:
+        """새 Agent를 포함한 DesignService 인스턴스를 생성한다.
 
-    def create_design_service(self) -> DesignService:
-        """새 Agent를 포함한 DesignService 인스턴스를 생성한다 (병렬 처리용)."""
-        agent = self._create_design_agent()
+        Args:
+            thinking_effort: "high", "medium", "low" — 복잡도 기반 adaptive effort
+        """
+        agent = self._create_design_agent(thinking_effort=thinking_effort)
         return DesignService(agent=agent)
 
     @property

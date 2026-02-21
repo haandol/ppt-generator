@@ -37,6 +37,7 @@ adr/
 - [0016: 슬라이드별 HTML 파일 분리 및 iframe 컨테이너](./pipeline/0016-per-slide-html-iframe.md)
 - [0017: 폰트 메트릭 기반 텍스트 오버플로우 방지](./pipeline/0017-font-metric-text-overflow-prevention.md)
 - [0018: 디자인 스펙 병렬 생성 및 프롬프트 캐싱](./pipeline/0018-parallel-design-spec-and-prompt-caching.md)
+- [0019: 슬라이드 복잡도 기반 스케줄링 및 Adaptive Thinking Effort](./pipeline/0019-complexity-based-scheduling-and-adaptive-effort.md)
 
 ## ADR 작성 가이드
 
