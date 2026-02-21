@@ -122,7 +122,7 @@ ppt-generator/
 | `BEDROCK_OUTLINE_MODEL_ID` | 모델 ID 문자열          | 아웃라인/스크립트 Bedrock 모델 (기본: `global.anthropic.claude-sonnet-4-6`)                               |
 | `ANTHROPIC_OUTLINE_MODEL_ID`| 모델 ID 문자열         | 아웃라인/스크립트 Anthropic 모델 (기본: `claude-sonnet-4-6`)                                             |
 | `OUTLINE_THINKING_EFFORT`  | `high`/`medium`/`low`   | 아웃라인/스크립트 thinking effort (기본: medium)                                                         |
-| `DESIGN_SPEC_PARALLEL`     | 정수 (기본: 4)          | `generate_slides_design_spec` 도구의 병렬 워커 수 제어                                                   |
+| `DESIGN_SPEC_PARALLEL`     | 정수 (기본: 8)          | `generate_slides_design_spec` 도구의 병렬 워커 수 제어                                                   |
 
 > **Auto-detect 로직**: `LLM_PROVIDER` 미설정 시, `ANTHROPIC_API_KEY`가 있으면 `anthropic`, 없으면 `bedrock`으로 자동 선택됩니다.
 
