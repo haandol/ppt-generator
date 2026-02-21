@@ -1,6 +1,7 @@
 import logging
 
 from strands import Agent
+from strands.types.exceptions import ModelThrottledException
 
 from ppt_generator.interfaces.constants import OUTLINE_USER_PROMPT_TEMPLATE
 from ppt_generator.interfaces.schemas import OutlineRequest, OutlineResponse, SlideOutline
@@ -28,7 +29,13 @@ class OutlineService:
 
         last_error: ValueError | None = None
         for attempt in range(1, MAX_RETRIES + 1):
-            result = str(self._agent(prompt))
+            try:
+                result = str(self._agent(prompt))
+            except ModelThrottledException:
+                logger.warning("아웃라인 생성 중 Bedrock 쓰로틀링 발생 (시도 %d/%d)", attempt, MAX_RETRIES)
+                if attempt == MAX_RETRIES:
+                    raise
+                continue
             try:
                 data = self._parse_json(result)
             except ValueError as e:

@@ -8,6 +8,7 @@ from dataclasses import replace
 from typing import Callable
 
 from mcp.server.fastmcp import Context, FastMCP
+from strands.types.exceptions import ModelThrottledException
 
 from ppt_generator.interfaces.constants import DESIGN_SPEC_PARALLEL
 from ppt_generator.interfaces.utils import parse_outline_json
@@ -173,6 +174,11 @@ def register_design_tools(
                     if html_path_str:
                         r["slide_html_path"] = html_path_str
                     return r
+                except ModelThrottledException as exc:
+                    elapsed = time.monotonic() - t0
+                    active_threads[0] -= 1
+                    logger.warning("slide[%d] Bedrock 쓰로틀링 발생 (thread=%s, %.1fs): %s", idx, thread_name, elapsed, exc)
+                    return {"slide_index": idx, "status": "error", "error": f"throttled: {exc}"}
                 except Exception as exc:
                     elapsed = time.monotonic() - t0
                     active_threads[0] -= 1

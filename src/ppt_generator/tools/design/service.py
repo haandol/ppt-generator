@@ -12,6 +12,7 @@ import re
 from dataclasses import replace
 
 from strands import Agent
+from strands.types.exceptions import ModelThrottledException
 
 from ppt_generator.interfaces.constants import (
     DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE,
@@ -111,7 +112,11 @@ class DesignService:
             outline_json=outline_json,
         )
 
-        result = self._agent(prompt)
+        try:
+            result = self._agent(prompt)
+        except ModelThrottledException:
+            logger.warning("design_summary 생성 중 Bedrock 쓰로틀링 발생")
+            raise
         raw_text = str(result)
 
         # JSON 블록 추출 (```json ... ``` 또는 순수 JSON)
@@ -171,7 +176,11 @@ class DesignService:
 
     def _generate_with_structured_output(self, prompt: str) -> PptxSlideSpec:
         """strands structured_output으로 슬라이드 스펙을 생성하고 검증."""
-        result = self._agent(prompt, structured_output_model=SlideSpecOutput)
+        try:
+            result = self._agent(prompt, structured_output_model=SlideSpecOutput)
+        except ModelThrottledException:
+            logger.warning("디자인 스펙 생성 중 Bedrock 쓰로틀링 발생")
+            raise
         output: SlideSpecOutput = result.structured_output
         spec = output.to_dataclass()
         return validate_slide_spec(spec)

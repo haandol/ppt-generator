@@ -1,10 +1,14 @@
 import json
+import logging
 
 from strands import Agent
+from strands.types.exceptions import ModelThrottledException
 
 from ppt_generator.interfaces.constants import SCRIPT_USER_PROMPT_TEMPLATE
 from ppt_generator.interfaces.schemas import ScriptRequest, ScriptResponse, SlideOutline
 from ppt_generator.interfaces.utils import extract_json_from_response
+
+logger = logging.getLogger(__name__)
 
 
 class ScriptService:
@@ -25,7 +29,11 @@ class ScriptService:
             num_slides=num_slides,
             minutes_per_slide=minutes_per_slide,
         )
-        result = str(self._agent(prompt))
+        try:
+            result = str(self._agent(prompt))
+        except ModelThrottledException:
+            logger.warning("스크립트 생성 중 Bedrock 쓰로틀링 발생")
+            raise
 
         scripts = self._parse_scripts(result)
         merged = self._merge_notes(request.outline.slides, scripts)
