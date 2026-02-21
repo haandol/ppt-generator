@@ -7,6 +7,7 @@ import httpx
 from botocore.config import Config as BotocoreConfig
 from strands import Agent
 from strands.models.bedrock import BedrockModel
+from strands.models.bedrock import CacheConfig
 from strands.types.content import Messages
 from strands.types.tools import ToolChoice, ToolSpec
 
@@ -123,6 +124,7 @@ class DIContainer:
             boto_client_config=self._build_client_config(),
             temperature=1.0,
             max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
+            cache_config=CacheConfig(strategy="auto"),
             additional_request_fields={
                 "thinking": {
                     "type": "adaptive",
