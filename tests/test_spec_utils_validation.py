@@ -22,11 +22,13 @@ from ppt_generator.interfaces.text_measurement import (
 def _make_slide(
     textboxes: list[PptxTextBox] | None = None,
     shapes: list[PptxShape] | None = None,
+    slide_type: str = "content",
 ) -> PptxSlideSpec:
     return PptxSlideSpec(
         background_color="#1a1a2e",
         textboxes=textboxes or [],
         shapes=shapes or [],
+        slide_type=slide_type,
     )
 
 
@@ -415,3 +417,87 @@ class TestOverlapDetection:
         tb_result = result.textboxes[0]
         shape_result = result.shapes[0]
         assert shape_result.top_px >= tb_result.top_px + tb_result.height_px
+
+    def test_overlap_gap_is_16px(self) -> None:
+        """겹침 해소 시 간격이 16px 이상이어야 한다."""
+        tb1 = PptxTextBox(
+            left_px=40, top_px=40, width_px=500, height_px=100,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="제목", font_size_pt=32)],
+                ),
+            ],
+        )
+        # tb1과 겹치게 배치
+        tb2 = PptxTextBox(
+            left_px=40, top_px=80, width_px=500, height_px=200,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="본문", font_size_pt=18)],
+                ),
+            ],
+        )
+        slide = _make_slide(textboxes=[tb1, tb2])
+        result = validate_slide_spec(slide)
+        tb1_bottom = result.textboxes[0].top_px + result.textboxes[0].height_px
+        tb2_top = result.textboxes[1].top_px
+        # 간격이 16px 이상이어야 함
+        assert tb2_top - tb1_bottom >= 16
+
+
+# ---------------------------------------------------------------------------
+# 수직 센터링 검증
+# ---------------------------------------------------------------------------
+
+
+class TestVerticalCentering:
+    def test_short_content_gets_centered(self) -> None:
+        """짧은 콘텐츠 → vertical_alignment이 "middle"로 변경되어야 한다."""
+        tb = PptxTextBox(
+            left_px=40, top_px=120, width_px=1200, height_px=540,
+            vertical_alignment="top",
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="짧은 본문", font_size_pt=20)],
+                    bullet_level=0,
+                ),
+            ],
+        )
+        slide = _make_slide(textboxes=[tb], slide_type="content")
+        result = validate_slide_spec(slide)
+        assert result.textboxes[0].vertical_alignment == "middle"
+
+    def test_long_content_stays_top(self) -> None:
+        """긴 콘텐츠 → vertical_alignment이 "top"으로 유지되어야 한다."""
+        # 많은 paragraph로 콘텐츠 높이를 height_px의 65% 이상으로 만듦
+        paras = [
+            PptxParagraph(
+                runs=[PptxTextRun(text=f"항목 {i}: 상세한 설명 텍스트가 여기에 길게 들어갑니다", font_size_pt=20)],
+                bullet_level=0,
+            )
+            for i in range(12)
+        ]
+        tb = PptxTextBox(
+            left_px=40, top_px=120, width_px=1200, height_px=540,
+            vertical_alignment="top",
+            paragraphs=paras,
+        )
+        slide = _make_slide(textboxes=[tb], slide_type="content")
+        result = validate_slide_spec(slide)
+        assert result.textboxes[0].vertical_alignment == "top"
+
+    def test_title_slide_no_centering(self) -> None:
+        """title 슬라이드 → 수직 센터링이 적용되지 않아야 한다."""
+        tb = PptxTextBox(
+            left_px=40, top_px=120, width_px=1200, height_px=540,
+            vertical_alignment="top",
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="짧은 본문", font_size_pt=20)],
+                    bullet_level=0,
+                ),
+            ],
+        )
+        slide = _make_slide(textboxes=[tb], slide_type="title")
+        result = validate_slide_spec(slide)
+        assert result.textboxes[0].vertical_alignment == "top"

@@ -14,6 +14,8 @@ from ppt_generator.interfaces.constants import (
     PPTX_VALIDATE_LINE_HEIGHT_FACTOR,
     SLIDES_HEIGHT_PX,
     SLIDES_WIDTH_PX,
+    SPEC_VALIDATE_CONTENT_CENTER_THRESHOLD,
+    SPEC_VALIDATE_OVERLAP_GAP_PX,
     TEXT_MEASURE_DEFAULT_SHAPE_PADDING_LR_PX,
     TEXT_MEASURE_DEFAULT_SHAPE_PADDING_TB_PX,
 )
@@ -354,7 +356,7 @@ def _validate_shapes(
     return validated
 
 
-_OVERLAP_GAP = 8  # 겹침 해소 시 요소 간 최소 간격 (px)
+_OVERLAP_GAP = SPEC_VALIDATE_OVERLAP_GAP_PX  # 겹침 해소 시 요소 간 최소 간격 (px)
 _OVERLAP_MAX_PASSES = 3  # 겹침 해소 최대 반복 횟수
 
 
@@ -446,6 +448,42 @@ def _resolve_overlaps(
     return new_textboxes, new_shapes
 
 
+def _center_content_vertically(
+    textboxes: list[PptxTextBox],
+    threshold: float = SPEC_VALIDATE_CONTENT_CENTER_THRESHOLD,
+) -> list[PptxTextBox]:
+    """본문 텍스트박스의 콘텐츠가 적으면 vertical_alignment을 "middle"로 변경한다.
+
+    대상 조건:
+    - vertical_alignment == "top"
+    - top_px >= 100 (제목 영역 아래의 본문)
+    - height_px >= 200 (충분히 큰 박스)
+    - 실제 콘텐츠 높이 < box height의 threshold (65%)
+    """
+    result: list[PptxTextBox] = []
+    for tb in textboxes:
+        if (
+            tb.vertical_alignment == "top"
+            and tb.top_px >= 100
+            and tb.height_px >= 200
+        ):
+            content_h = calculate_required_height(
+                tb.paragraphs, tb.width_px, tb.line_spacing_pt,
+            )
+            if content_h < tb.height_px * threshold:
+                tb = PptxTextBox(
+                    left_px=tb.left_px,
+                    top_px=tb.top_px,
+                    width_px=tb.width_px,
+                    height_px=tb.height_px,
+                    paragraphs=tb.paragraphs,
+                    line_spacing_pt=tb.line_spacing_pt,
+                    vertical_alignment="middle",
+                )
+        result.append(tb)
+    return result
+
+
 def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
     """LLM 출력 PptxSlideSpec을 검증하고 보정한다."""
     validated_textboxes = _validate_textboxes(spec.textboxes)
@@ -453,6 +491,9 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
     validated_textboxes, validated_shapes = _resolve_overlaps(
         validated_textboxes, validated_shapes,
     )
+
+    if spec.slide_type == "content":
+        validated_textboxes = _center_content_vertically(validated_textboxes)
 
     return PptxSlideSpec(
         background_color=spec.background_color,

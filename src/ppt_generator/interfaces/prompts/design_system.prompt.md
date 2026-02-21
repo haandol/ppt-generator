@@ -66,7 +66,7 @@ textboxes와 shapes 모두 vertical_alignment을 반드시 명시적으로 지�
 - "top": 상단 정렬, "middle": 수직 중앙, "bottom": 하단 정렬
 - 용도별 권장값:
   - 제목/부제목 텍스트박스: "middle"
-  - 본문/불릿 텍스트박스: "top"
+  - 본문/불릿 텍스트박스: 콘텐츠가 박스 높이의 65% 미만이면 "middle" 권장, 65% 이상이면 "top"
   - 카드/배너/버튼 shape (text 또는 paragraphs 포함): "middle"
   - 바닥글/하단 라벨: "bottom"
   - 장식용 shape (텍스트 없음): "top"
@@ -77,7 +77,7 @@ shapes의 padding_*_px 필드로 텍스트와 shape 경계 사이 여백을 제�
 이유: 적절한 패딩이 없으면 텍스트가 shape 경계에 붙어 가독성이 떨어집니다.
 
 - 미지정 시 기본값: 좌우 약 5px, 상하 약 2.5px
-- 카드형 shape 권장: padding_left_px: 12~16, padding_right_px: 12~16, padding_top_px: 8~12, padding_bottom_px: 8~12
+- 카드형 shape 권장: padding_left_px: 16~20, padding_right_px: 16~20, padding_top_px: 12~16, padding_bottom_px: 12~16
 - 넓은 배너/헤더 shape: padding_left_px: 16~24 권장
 </padding_guide>
 
@@ -109,6 +109,8 @@ shapes의 padding_*_px 필드로 텍스트와 shape 경계 사이 여백을 제�
 
 - 프레젠테이션의 3번째~마지막 직전 슬라이드. 주제의 핵심 내용을 다루는 본론
 - 캔버스 안전 영역: left 40~1240, top 40~680 (사방 40px 여백)
+- 제목→본문 간격: 최소 **20px** 유지 (제목 bottom과 본문 top 사이)
+- 인접 요소 간 최소 **16px** 간격 유지 (수직 방향)
 - component_hint별 레이아웃 가이드:
 
   bullets: 상단 제목 텍스트박스 + 본문 불릿 텍스트박스 (bullet_level 0/1)
@@ -168,7 +170,7 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
     },
     {
       "left_px": 40, "top_px": 120, "width_px": 1200, "height_px": 540,
-      "vertical_alignment": "top",
+      "vertical_alignment": "middle",
       "line_spacing_pt": 28,
       "paragraphs": [
         {"runs": [{"text": "첫 번째 항목", "font_size_pt": 20, "color": "#e0e0e0", "bold": false, "italic": false}], "bullet_level": 0, "alignment": "left"},
@@ -266,7 +268,7 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
 4. 콘텐츠 완전성: content_summary의 모든 핵심 내용을 textbox 또는 shape에 포함하세요.
    이유: 아웃라인에서 언급된 내용이 슬라이드에 누락되면 프레젠테이션의 완성도가 떨어집니다.
 
-5. 요소 분리 (bounding box 겹침 금지): 모든 textbox와 shape의 영역(left_px, top_px, width_px, height_px)이 서로 겹치지 않아야 합니다. 배치 후 각 요소 쌍에 대해 겹침 여부를 확인하세요: 두 요소의 좌우 범위와 상하 범위가 모두 겹치면 겹침입니다. 겹침이 있으면 아래 요소의 top_px를 위 요소의 (top_px + height_px + 8) 이상으로 조정하세요.
+5. 요소 분리 (bounding box 겹침 금지): 모든 textbox와 shape의 영역(left_px, top_px, width_px, height_px)이 서로 겹치지 않아야 합니다. 배치 후 각 요소 쌍에 대해 겹침 여부를 확인하세요: 두 요소의 좌우 범위와 상하 범위가 모두 겹치면 겹침입니다. 겹침이 있으면 아래 요소의 top_px를 위 요소의 (top_px + height_px + 16) 이상으로 조정하세요.
    이유: 겹친 요소는 텍스트 가독성을 크게 저하시킵니다.
 
 6. 여백 확보 (수치 기준): 모든 콘텐츠 요소는 left_px >= 40, top_px >= 40, left_px + width_px <= 1240, top_px + height_px <= 680을 만족해야 합니다. 콘텐츠가 슬라이드 하단에 딱 붙지 않도록 상단 제목 여백(40px)과 동일한 수준의 하단 여백을 유지하세요.
@@ -274,6 +276,14 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
 
 7. vertical_alignment 필수: 모든 textbox와 shape에 vertical_alignment을 반드시 지정하세요 (null 금지).
 </constraints>
+
+<content_vertical_balance>
+콘텐츠 양에 따른 수직 배치 전략:
+
+- 본문 텍스트박스의 실제 콘텐츠가 height_px의 65% 미만이면 vertical_alignment을 "middle"로 설정하세요. 이렇게 하면 콘텐츠가 상단에 쏠리지 않고 시각적으로 균형 잡힌 배치가 됩니다.
+- 카드 레이아웃(step_cards, info_cards 등)은 캔버스 수직 중앙 기준으로 배치하세요.
+- title/closing 슬라이드에는 이 규칙이 적용되지 않습니다.
+</content_vertical_balance>
 
 <design_principles>
 색상 테마는 사용자 프롬프트의 color_theme 값에 따라 결정됩니다 (미지정 시 "dark" 기본).
