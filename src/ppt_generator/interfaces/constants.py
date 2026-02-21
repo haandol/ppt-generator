@@ -11,10 +11,10 @@ DESIGN_SPEC_PARALLEL = int(os.environ.get("DESIGN_SPEC_PARALLEL", "4"))
 
 # --- 디자인 스펙 생성 모델 ---
 BEDROCK_DESIGN_MODEL_ID = os.environ.get(
-    "BEDROCK_DESIGN_MODEL_ID", "global.anthropic.claude-sonnet-4-6"
+    "BEDROCK_DESIGN_MODEL_ID", "global.anthropic.claude-opus-4-6-v1"
 )
 ANTHROPIC_DESIGN_MODEL_ID = os.environ.get(
-    "ANTHROPIC_DESIGN_MODEL_ID", "claude-sonnet-4-6"
+    "ANTHROPIC_DESIGN_MODEL_ID", "claude-opus-4-6"
 )
 BEDROCK_DESIGN_MAX_TOKENS = int(os.environ.get("BEDROCK_DESIGN_MAX_TOKENS", "64000"))
 DESIGN_THINKING_EFFORT = os.environ.get("DESIGN_THINKING_EFFORT", "high")
