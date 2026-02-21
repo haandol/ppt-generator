@@ -98,8 +98,8 @@ shapes의 padding_*_px 필드로 텍스트와 shape 경계 사이 여백을 제�
 - 프레젠테이션의 두 번째 슬라이드. 전체 발표의 주요 섹션/흐름을 안내
 - 목차 항목은 개별 슬라이드를 모두 나열하지 않고, 관련 슬라이드들을 묶어 큰 주제 단위(섹션)로 추상화하여 3~6개 항목으로 간결하게 작성
 - 레이아웃: 반드시 1열 레이아웃만 사용
-  · 제목: left=40, top=40, width=1200, height=60
-  · 본문: 제목 아래 단일 텍스트박스에 번호+항목을 세로로 나열 (left=40, top=120, width=1200, height=540)
+  · 제목: left=64, top=96, width=1152, height=56
+  · 본문: 제목 아래 단일 텍스트박스에 번호+항목을 세로로 나열 (left=64, top=180, width=1152, height=콘텐츠에 맞게 조절)
 - 각 항목은 번호 + 섹션 제목 형태로, 간결하게 작성
 - 시각적 구분을 위해 번호에 강조색 적용 권장
 </slide_type_agenda>
@@ -108,26 +108,27 @@ shapes의 padding_*_px 필드로 텍스트와 shape 경계 사이 여백을 제�
 본문 슬라이드 (slide_type: "content") 디자인 규칙:
 
 - 프레젠테이션의 3번째~마지막 직전 슬라이드. 주제의 핵심 내용을 다루는 본론
-- 캔버스 안전 영역: left 40~1240, top 40~680 (사방 40px 여백)
-- 제목→본문 간격: 최소 **20px** 유지 (제목 bottom과 본문 top 사이)
+- 캔버스 안전 영역: left 64~1216, top 64~656 (사방 64px 여백)
+- 제목→본문 간격: 최소 **28px** 유지 (제목 bottom과 본문 top 사이)
 - 인접 요소 간 최소 **16px** 간격 유지 (수직 방향)
+- 본문 높이: 540px 고정이 아니라 **콘텐츠 양에 맞게 조절** (필요 높이를 추정하여 height_px 설정)
 - component_hint별 레이아웃 가이드:
 
   bullets: 상단 제목 텍스트박스 + 본문 불릿 텍스트박스 (bullet_level 0/1)
-    · 제목: left=40, top=40, width=1200, height=60
-    · 본문: left=40, top=120, width=1200, height=540
+    · 제목: left=64, top=96, width=1152, height=56
+    · 본문: left=64, top=180, width=1152, height=콘텐츠에 맞게 조절 (최대 476)
 
-  two_column: 제목 + 좌우 2개 텍스트박스 (각 width 약 576px, gap 32px)
-    · 제목: left=40, top=40, width=1200, height=60
-    · 좌측: left=40, top=130, width=576, height=520
-    · 우측: left=648, top=130, width=576, height=520
+  two_column: 제목 + 좌우 2개 텍스트박스 (각 width 약 552px, gap 48px)
+    · 제목: left=64, top=96, width=1152, height=56
+    · 좌측: left=64, top=180, width=552, height=콘텐츠에 맞게 조절
+    · 우측: left=664, top=180, width=552, height=콘텐츠에 맞게 조절
 
   vs_comparison: 제목 + 좌우 2개 카드(shape) + 중앙 VS 라벨
-    · 좌측: left=40, width=540 / VS: left=600, width=80 / 우측: left=700, width=540
+    · 좌측: left=64, width=508 / VS: left=596, width=88 / 우측: left=708, width=508
 
   step_cards: 제목 + 3~4개 가로 배치 카드(shape), 각 카드에 번호+제목+설명
-    · 3개 카드: width=380, gap=30px → left: 40, 450, 860
-    · 4개 카드: width=280, gap=26px → left: 40, 346, 652, 958
+    · 3개 카드: width=352, gap=32px → left: 64, 448, 832
+    · 4개 카드: width=260, gap=24px → left: 64, 348, 632, 916
 
   code_block: 제목 + 코드 영역(shape, 어두운 배경, monospace 폰트)
   arch_diagram: 제목 + 블록(shape)들을 화살표(line shape)로 연결한 다이어그램
@@ -135,10 +136,10 @@ shapes의 padding_*_px 필드로 텍스트와 shape 경계 사이 여백을 제�
   quote: 큰 인용 부호 + 인용문 텍스트박스 + 출처
 
   summary_grid: 제목 + 2x2 카드(shape) 그리드
-    · 좌상: left=40, top=130, width=576, height=250
-    · 우상: left=648, top=130, width=576, height=250
-    · 좌하: left=40, top=410, width=576, height=250
-    · 우하: left=648, top=410, width=576, height=250
+    · 좌상: left=64, top=180, width=552, height=220
+    · 우상: left=664, top=180, width=552, height=220
+    · 좌하: left=64, top=428, width=552, height=220
+    · 우하: left=664, top=428, width=552, height=220
 
   info_cards: 제목 + 3~4개 정보 카드(shape) 가로 배치
   feature_list: 제목 + 아이콘/불릿 + 기능 설명 텍스트
@@ -162,14 +163,14 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
   "speaker_notes": "이 슬라이드에서는...",
   "textboxes": [
     {
-      "left_px": 40, "top_px": 40, "width_px": 1200, "height_px": 60,
+      "left_px": 64, "top_px": 96, "width_px": 1152, "height_px": 56,
       "vertical_alignment": "middle",
       "paragraphs": [
         {"runs": [{"text": "슬라이드 제목", "font_size_pt": 32, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"}
       ]
     },
     {
-      "left_px": 40, "top_px": 120, "width_px": 1200, "height_px": 540,
+      "left_px": 64, "top_px": 180, "width_px": 1152, "height_px": 346,
       "vertical_alignment": "middle",
       "line_spacing_pt": 28,
       "paragraphs": [
@@ -189,7 +190,7 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
   "speaker_notes": "",
   "textboxes": [
     {
-      "left_px": 40, "top_px": 40, "width_px": 1200, "height_px": 60,
+      "left_px": 64, "top_px": 96, "width_px": 1152, "height_px": 56,
       "vertical_alignment": "middle",
       "paragraphs": [
         {"runs": [{"text": "진행 단계", "font_size_pt": 32, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"}
@@ -198,7 +199,7 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
   ],
   "shapes": [
     {
-      "left_px": 40, "top_px": 130, "width_px": 380, "height_px": 520,
+      "left_px": 64, "top_px": 180, "width_px": 352, "height_px": 440,
       "shape_type": "rounded_rectangle", "fill_color": "#2a2a4e", "corner_radius_px": 12,
       "vertical_alignment": "top",
       "padding_left_px": 16, "padding_right_px": 16, "padding_top_px": 12, "padding_bottom_px": 12,
@@ -209,7 +210,7 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
       ]
     },
     {
-      "left_px": 450, "top_px": 130, "width_px": 380, "height_px": 520,
+      "left_px": 448, "top_px": 180, "width_px": 352, "height_px": 440,
       "shape_type": "rounded_rectangle", "fill_color": "#2a2a4e", "corner_radius_px": 12,
       "vertical_alignment": "top",
       "padding_left_px": 16, "padding_right_px": 16, "padding_top_px": 12, "padding_bottom_px": 12,
@@ -220,7 +221,7 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
       ]
     },
     {
-      "left_px": 860, "top_px": 130, "width_px": 380, "height_px": 520,
+      "left_px": 832, "top_px": 180, "width_px": 352, "height_px": 440,
       "shape_type": "rounded_rectangle", "fill_color": "#2a2a4e", "corner_radius_px": 12,
       "vertical_alignment": "top",
       "padding_left_px": 16, "padding_right_px": 16, "padding_top_px": 12, "padding_bottom_px": 12,
@@ -271,7 +272,7 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
 5. 요소 분리 (bounding box 겹침 금지): 모든 textbox와 shape의 영역(left_px, top_px, width_px, height_px)이 서로 겹치지 않아야 합니다. 배치 후 각 요소 쌍에 대해 겹침 여부를 확인하세요: 두 요소의 좌우 범위와 상하 범위가 모두 겹치면 겹침입니다. 겹침이 있으면 아래 요소의 top_px를 위 요소의 (top_px + height_px + 16) 이상으로 조정하세요.
    이유: 겹친 요소는 텍스트 가독성을 크게 저하시킵니다.
 
-6. 여백 확보 (수치 기준): 모든 콘텐츠 요소는 left_px >= 40, top_px >= 40, left_px + width_px <= 1240, top_px + height_px <= 680을 만족해야 합니다. 콘텐츠가 슬라이드 하단에 딱 붙지 않도록 상단 제목 여백(40px)과 동일한 수준의 하단 여백을 유지하세요.
+6. 여백 확보 (수치 기준): 모든 콘텐츠 요소는 left_px >= 64, top_px >= 64, left_px + width_px <= 1216, top_px + height_px <= 656을 만족해야 합니다. 콘텐츠가 슬라이드 가장자리에 딱 붙지 않도록 사방 64px 여백을 유지하세요.
    ※ slide_type "title"/"closing"의 배경 이미지/로고 관련 규칙은 <slide_type_title>, <slide_type_closing> 섹션을 참고하세요.
 
 7. vertical_alignment 필수: 모든 textbox와 shape에 vertical_alignment을 반드시 지정하세요 (null 금지).
@@ -280,6 +281,7 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
 <content_vertical_balance>
 콘텐츠 양에 따른 수직 배치 전략:
 
+- **본문 높이를 콘텐츠에 맞게 조절하세요.** height_px를 항상 540으로 고정하지 말고, 실제 텍스트 양에 맞는 높이를 계산하여 설정하세요 (최대 476px = 656 - 180). 참고: 우수한 프레젠테이션의 본문 높이는 평균 300px대이며, 540px 고정은 빈 공간이 과도하게 발생합니다.
 - 본문 텍스트박스의 실제 콘텐츠가 height_px의 65% 미만이면 vertical_alignment을 "middle"로 설정하세요. 이렇게 하면 콘텐츠가 상단에 쏠리지 않고 시각적으로 균형 잡힌 배치가 됩니다.
 - 카드 레이아웃(step_cards, info_cards 등)은 캔버스 수직 중앙 기준으로 배치하세요.
 - title/closing 슬라이드에는 이 규칙이 적용되지 않습니다.

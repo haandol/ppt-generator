@@ -229,7 +229,6 @@ def register_design_tools(
                         color_theme=color_theme,
                     )
                     project_service.create_design_spec_slide(project_dir, idx, spec)
-                    project_service.update_step(project_dir, "design_spec")
 
                     html_path_str: str | None = None
                     if slides_service is not None:
@@ -269,6 +268,7 @@ def register_design_tools(
                         f"{'완료' if res['status'] == 'success' else '실패'}",
                     )
 
+        project_service.update_step(project_dir, "design_spec")
         slide_count = project_service.get_design_spec_slide_count(project_dir)
 
         return json.dumps(

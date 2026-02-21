@@ -132,7 +132,7 @@ def shape_to_html(shape: PptxShape) -> str:
 
     # 수직 정렬 (shape.text만 있을 때는 PPTX가 무조건 anchor="ctr")
     if shape.text and not shape.paragraphs:
-        style += "display:flex;flex-direction:column;justify-content:center;"
+        style += "display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;"
     elif shape.vertical_alignment == "middle":
         style += "display:flex;flex-direction:column;justify-content:center;"
     elif shape.vertical_alignment == "bottom":

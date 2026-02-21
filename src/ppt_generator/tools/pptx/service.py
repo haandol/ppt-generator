@@ -57,7 +57,6 @@ class ExportService:
             if spec.background_color:
                 self._builder.set_slide_background(slide, spec.background_color)
 
-            # 타이틀/클로징 슬라이드에 배경 이미지 + 로고 삽입
             if spec.slide_type in ("title", "closing"):
                 bg_bytes = bg_image_utils.get_bg_image_bytes(spec.background_color)
                 if bg_bytes:
@@ -65,12 +64,6 @@ class ExportService:
 
             self._builder.build_slide_from_spec(slide, spec)
             self._builder.ensure_textboxes_on_top(slide)
-
-            # 로고는 z-order 최상단이어야 하므로 ensure_textboxes_on_top 이후 추가
-            if spec.slide_type in ("title", "closing"):
-                logo_bytes = bg_image_utils.get_logo_image_bytes(spec.background_color)
-                if logo_bytes:
-                    self._builder.add_logo_image(slide, logo_bytes)
 
             if spec.speaker_notes:
                 self._builder.set_speaker_notes(slide, spec.speaker_notes)

@@ -1,7 +1,9 @@
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from pptx import Presentation
+from pptx.oxml.ns import qn
 
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
@@ -119,3 +121,75 @@ class TestExportFromDesignSpec:
         path = Path(response.pptx_path)
         assert path.exists()
         assert path.name == "presentation.pptx"
+
+
+class TestBackgroundImage:
+    """배경 이미지가 슬라이드 배경 속성(p:bg/a:blipFill)으로 설정되는지 검증."""
+
+    @staticmethod
+    def _make_title_spec() -> DesignSpec:
+        return DesignSpec(slides=[
+            PptxSlideSpec(
+                background_color="#1a1a2e",
+                slide_type="title",
+                textboxes=[
+                    PptxTextBox(
+                        left_px=100, top_px=200, width_px=1080, height_px=80,
+                        paragraphs=[PptxParagraph(runs=[PptxTextRun(
+                            text="Title", font_size_pt=40, bold=True, color="#ffffff",
+                        )])],
+                    ),
+                ],
+                shapes=[
+                    PptxShape(
+                        left_px=100, top_px=400, width_px=200, height_px=4,
+                        fill_color="#4a90d9", shape_type="rectangle",
+                    ),
+                ],
+            ),
+        ])
+
+    def test_bg_image_set_as_background_property(self, service, tmp_path):
+        """배경 이미지는 shape이 아닌 슬라이드 배경 속성(a:blipFill)으로 설정되어야 한다."""
+        from io import BytesIO
+        from PIL import Image
+
+        buf = BytesIO()
+        Image.new("RGB", (4, 4), color="white").save(buf, format="PNG")
+        fake_png = buf.getvalue()
+
+        with patch(
+            "ppt_generator.tools.pptx.service.bg_image_utils.get_bg_image_bytes",
+            return_value=fake_png,
+        ):
+            spec = self._make_title_spec()
+            response = service.export_from_design_spec(spec, output_dir=tmp_path)
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+
+        # 배경에 blipFill이 설정되어 있어야 함
+        cSld = slide._element.find(qn("p:cSld"))
+        bgEl = cSld.find(qn("p:bg"))
+        assert bgEl is not None, "p:bg 요소가 존재해야 함"
+        bgPr = bgEl.find(qn("p:bgPr"))
+        assert bgPr is not None, "p:bgPr 요소가 존재해야 함"
+        blipFill = bgPr.find(qn("a:blipFill"))
+        assert blipFill is not None, "a:blipFill이 배경에 설정되어야 함"
+
+        # blip의 r:embed가 존재해야 함
+        blip = blipFill.find(qn("a:blip"))
+        assert blip is not None, "a:blip 요소가 존재해야 함"
+        assert blip.get(qn("r:embed")), "r:embed 속성이 있어야 함"
+
+        # shapes에 전체 크기 배경 이미지가 없어야 함 (shape으로 추가되면 안 됨)
+        pic_tag = qn("p:pic")
+        sp_tree = slide.shapes._spTree
+        bg_pics = [
+            c for c in sp_tree if c.tag == pic_tag
+            and any(
+                s.left == 0 and s.top == 0 and s.width > 12_000_000
+                for s in slide.shapes if id(s._element) == id(c)
+            )
+        ]
+        assert len(bg_pics) == 0, "배경 이미지가 shape으로 존재하면 안 됨"

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from io import BytesIO
 
+from lxml.etree import SubElement
 from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE
 from pptx.enum.text import MSO_AUTO_SIZE
 from pptx.oxml.ns import qn
@@ -15,8 +16,6 @@ from ppt_generator.interfaces.constants import (
     PPTX_FONT_NAME,
     PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU,
     PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU,
-    PPTX_SLIDE_HEIGHT_EMU,
-    PPTX_SLIDE_WIDTH_EMU,
     PX_TO_EMU,
 )
 from ppt_generator.interfaces.schemas import (
@@ -90,53 +89,32 @@ class SlideBuilder:
 
     @staticmethod
     def set_slide_background_image(slide, image_bytes: bytes) -> None:
-        """슬라이드 배경에 이미지를 설정한다.
+        """슬라이드 배경(p:bg)에 이미지를 설정한다.
 
-        전체 슬라이드 크기의 이미지를 z-order 최하단(spTree 맨 앞)에 삽입한다.
+        shape이 아닌 슬라이드 배경 속성(a:blipFill)으로 설정하므로
+        z-order 조작이 불필요하고 shapes 컬렉션에 포함되지 않는다.
         """
         image_stream = BytesIO(image_bytes)
-        pic = slide.shapes.add_picture(
-            image_stream,
-            Emu(0),
-            Emu(0),
-            Emu(PPTX_SLIDE_WIDTH_EMU),
-            Emu(PPTX_SLIDE_HEIGHT_EMU),
-        )
-        # z-order 최하단으로 이동: spTree에서 제거 후 맨 앞(nvGrpSpPr 뒤)에 삽입
-        sp_tree = slide.shapes._spTree
-        sp_tree.remove(pic._element)
-        # spTree의 첫 번째 자식은 nvGrpSpPr이므로 그 뒤에 삽입
-        sp_tree.insert(1, pic._element)
+        image_part, rId = slide.part.get_or_add_image_part(image_stream)
 
-    @staticmethod
-    def add_logo_image(slide, image_bytes: bytes, width_px: int = 100) -> None:
-        """슬라이드 우측 하단에 로고 이미지를 배치한다.
+        # bgPr 접근 (fill 호출 시 자동 생성)
+        bg = slide.background
+        _ = bg.fill
 
-        width_px 기준으로 크기를 설정하고, 높이는 원본 비율에 맞춰 자동 계산된다.
-        z-order 최상단에 위치하도록 spTree 맨 끝에 추가한다.
-        """
-        import struct
+        cSld = slide._element.find(qn("p:cSld"))
+        bgEl = cSld.find(qn("p:bg"))
+        bgPr = bgEl.find(qn("p:bgPr"))
 
-        # PNG IHDR 청크에서 width/height 읽기 (offset 16~24)
-        orig_w, orig_h = struct.unpack(">II", image_bytes[16:24])
-        aspect_ratio = orig_h / orig_w
+        # blipFill로 전환 (기존 solidFill 등 제거)
+        blipFill = bgPr.get_or_change_to_blipFill()
 
-        width_emu = int(width_px * PX_TO_EMU)
-        height_emu = int(width_emu * aspect_ratio)
+        # blip 요소: 이미지 파트 참조
+        blip = SubElement(blipFill, qn("a:blip"))
+        blip.set(qn("r:embed"), rId)
 
-        margin_right_px = 50
-        margin_bottom_px = 45
-        left_emu = PPTX_SLIDE_WIDTH_EMU - width_emu - int(margin_right_px * PX_TO_EMU)
-        top_emu = PPTX_SLIDE_HEIGHT_EMU - height_emu - int(margin_bottom_px * PX_TO_EMU)
-
-        image_stream = BytesIO(image_bytes)
-        slide.shapes.add_picture(
-            image_stream,
-            Emu(left_emu),
-            Emu(top_emu),
-            Emu(width_emu),
-            Emu(height_emu),
-        )
+        # stretch + fillRect: 전체 배경에 이미지 채움
+        stretch = SubElement(blipFill, qn("a:stretch"))
+        SubElement(stretch, qn("a:fillRect"))
 
     @staticmethod
     def set_slide_background(slide, color: str) -> None:
