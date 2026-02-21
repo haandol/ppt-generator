@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import replace
 
 from strands import Agent
@@ -15,9 +16,11 @@ from strands import Agent
 from ppt_generator.interfaces.constants import (
     DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE,
     DESIGN_SPEC_USER_PROMPT_TEMPLATE,
+    DESIGN_SUMMARY_USER_PROMPT_TEMPLATE,
 )
 from ppt_generator.interfaces.llm_output_models import SlideSpecOutput
 from ppt_generator.interfaces.schemas import (
+    OutlineResponse,
     PptxSlideSpec,
     SlideOutline,
 )
@@ -73,6 +76,52 @@ class DesignService:
 
         spec = self._generate_with_structured_output(prompt)
         return replace(spec, slide_type=slide_outline.slide_type)
+
+    def generate_design_summary(
+        self,
+        outline: OutlineResponse,
+        color_theme: str = "dark",
+    ) -> dict:
+        """전체 아웃라인을 기반으로 design_summary를 LLM으로 사전 생성한다.
+
+        Args:
+            outline: 전체 아웃라인 (OutlineResponse)
+            color_theme: 색상 테마 ("dark" 또는 "light")
+
+        Returns:
+            extract_design_summary()와 동일한 형식의 dict
+        """
+        outline_json = json.dumps(
+            [
+                {
+                    "title": s.title,
+                    "content_summary": s.content_summary,
+                    "component_hint": s.component_hint,
+                    "slide_type": s.slide_type,
+                }
+                for s in outline.slides
+            ],
+            ensure_ascii=False,
+            indent=2,
+        )
+
+        prompt = DESIGN_SUMMARY_USER_PROMPT_TEMPLATE.format(
+            total_slides=len(outline.slides),
+            color_theme=color_theme,
+            outline_json=outline_json,
+        )
+
+        result = self._agent(prompt)
+        raw_text = str(result)
+
+        # JSON 블록 추출 (```json ... ``` 또는 순수 JSON)
+        json_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", raw_text, re.DOTALL)
+        if json_match:
+            raw_text = json_match.group(1)
+
+        summary = json.loads(raw_text.strip())
+        logger.info("design_summary LLM 생성 완료: %s", summary)
+        return summary
 
     @staticmethod
     def extract_design_summary(spec: PptxSlideSpec) -> dict:

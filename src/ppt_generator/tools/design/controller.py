@@ -1,7 +1,10 @@
 import asyncio
 import json
 import logging
-from concurrent.futures import ThreadPoolExecutor
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import replace
 from typing import Callable
 
 from mcp.server.fastmcp import Context, FastMCP
@@ -38,9 +41,8 @@ def register_design_tools(
         환경변수 DESIGN_SPEC_PARALLEL(기본 4)로 동시 생성 수를 제어합니다.
 
         **처리 순서:**
-        1. slide_indices에 인덱스 0이 포함되고 design_summary가 없으면,
-           slide[0]을 먼저 생성하여 design_summary(디자인 테마)를 추출합니다.
-        2. 나머지 슬라이드를 병렬로 생성합니다 (각 슬라이드의 HTML 미리보기도 자동 생성).
+        1. design_summary가 없으면 LLM으로 디자인 테마를 사전 생성합니다.
+        2. 모든 슬라이드를 병렬로 생성합니다 (각 슬라이드의 HTML 미리보기도 자동 생성).
         3. 일부 슬라이드가 실패해도 나머지는 정상 저장됩니다.
            실패한 슬라이드는 이 도구에 해당 slide_indices만 지정하여 재시도할 수 있습니다.
 
@@ -97,47 +99,17 @@ def register_design_tools(
             if ctx is not None:
                 await ctx.report_progress(progress, target_count, message)
 
-        # design_summary 존재 여부 확인
+        # --- Step 1: design_summary 사전 생성 ---
         existing_summary = project_service.load_design_summary(project_dir)
-        needs_summary_generation = 0 in indices and existing_summary is None
+        if existing_summary is None:
+            logger.info("design_summary 사전 생성 시작 (LLM 호출)")
+            summary = design_service.generate_design_summary(outline, color_theme)
+            project_service.save_design_summary(project_dir, summary)
+            logger.info("design_summary 사전 생성 완료")
+            await _report(0, "디자인 테마 생성 완료")
 
-        # --- Phase 1: slide[0] 순차 생성 (design_summary 추출이 필요한 경우) ---
-        if needs_summary_generation:
-            slide0_outline = outline.slides[0]
-            try:
-                spec0 = design_service.generate_single_slide(
-                    slide0_outline,
-                    design_summary=None,
-                    slide_index=1,
-                    total_slides=total_slides,
-                    color_theme=color_theme,
-                )
-                project_service.create_design_spec_slide(project_dir, 0, spec0)
-                summary = design_service.extract_design_summary(spec0)
-                project_service.save_design_summary(project_dir, summary)
-                project_service.update_step(project_dir, "design_spec")
-
-                slide_html_path: str | None = None
-                if slides_service is not None:
-                    slide_html = slides_service.render_single_slide_html(0, spec0)
-                    html_path = project_service.save_single_slide_html(project_dir, 0, slide_html)
-                    slide_html_path = str(html_path)
-
-                r0: dict = {"slide_index": 0, "status": "success", "slide_file": "slide_01.json"}
-                if slide_html_path:
-                    r0["slide_html_path"] = slide_html_path
-                results_map[0] = r0
-                success_count += 1
-                logger.info("slide[0] 생성 완료 (design_summary 추출됨)")
-                await _report(success_count + error_count, f"슬라이드 1/{total_slides} 완료 (디자인 테마 추출)")
-            except Exception as e:
-                logger.error("slide[0] 생성 실패: %s", e)
-                results_map[0] = {"slide_index": 0, "status": "error", "error": str(e)}
-                error_count += 1
-                await _report(success_count + error_count, f"슬라이드 1/{total_slides} 실패")
-
-        # --- Phase 2: 나머지 슬라이드 병렬 생성 ---
-        parallel_indices = [i for i in indices if i not in results_map]
+        # --- Step 2: 모든 슬라이드 병렬 생성 ---
+        parallel_indices = indices
 
         if parallel_indices:
             design_summary_for_batch = project_service.load_design_summary(project_dir)
@@ -145,6 +117,9 @@ def register_design_tools(
 
             def _generate_slide(idx: int) -> dict:
                 """worker 함수: 개별 슬라이드 생성."""
+                thread_name = threading.current_thread().name
+                logger.info("slide[%d] 생성 시작 (thread=%s)", idx, thread_name)
+                t0 = time.monotonic()
                 svc = design_service_factory() if design_service_factory else design_service
                 try:
                     spec = svc.generate_single_slide(
@@ -154,6 +129,18 @@ def register_design_tools(
                         total_slides=total_slides,
                         color_theme=color_theme,
                     )
+                    # content 슬라이드의 배경색을 design_summary 값으로 강제 보정
+                    if (
+                        design_summary_for_batch
+                        and spec.slide_type == "content"
+                        and design_summary_for_batch.get("background_color")
+                        and spec.background_color != design_summary_for_batch["background_color"]
+                    ):
+                        logger.info(
+                            "slide[%d] 배경색 보정: %s → %s",
+                            idx, spec.background_color, design_summary_for_batch["background_color"],
+                        )
+                        spec = replace(spec, background_color=design_summary_for_batch["background_color"])
                     project_service.create_design_spec_slide(project_dir, idx, spec)
 
                     html_path_str: str | None = None
@@ -162,6 +149,8 @@ def register_design_tools(
                         hp = project_service.save_single_slide_html(project_dir, idx, html)
                         html_path_str = str(hp)
 
+                    elapsed = time.monotonic() - t0
+                    logger.info("slide[%d] 생성 완료 (thread=%s, %.1fs)", idx, thread_name, elapsed)
                     r: dict = {
                         "slide_index": idx,
                         "status": "success",
@@ -171,26 +160,27 @@ def register_design_tools(
                         r["slide_html_path"] = html_path_str
                     return r
                 except Exception as exc:
-                    logger.error("slide[%d] 생성 실패: %s", idx, exc)
+                    elapsed = time.monotonic() - t0
+                    logger.error("slide[%d] 생성 실패 (thread=%s, %.1fs): %s", idx, thread_name, elapsed, exc)
                     return {"slide_index": idx, "status": "error", "error": str(exc)}
 
-            loop = asyncio.get_running_loop()
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 future_to_idx = {
-                    loop.run_in_executor(executor, _generate_slide, i): i
+                    executor.submit(_generate_slide, i): i
                     for i in parallel_indices
                 }
-                for coro in asyncio.as_completed(future_to_idx):
-                    res = await coro
+                for future in as_completed(future_to_idx):
+                    res = future.result()
                     idx = res["slide_index"]
                     results_map[idx] = res
                     if res["status"] == "success":
                         success_count += 1
                     else:
                         error_count += 1
+                    completed = success_count + error_count
                     await _report(
-                        success_count + error_count,
-                        f"슬라이드 {idx + 1}/{total_slides} "
+                        completed,
+                        f"슬라이드 {completed}/{target_count} "
                         f"{'완료' if res['status'] == 'success' else '실패'}",
                     )
 
@@ -200,18 +190,28 @@ def register_design_tools(
         project_service.update_step(project_dir, "design_spec")
         slide_count = project_service.get_design_spec_slide_count(project_dir)
 
-        return json.dumps(
-            {
-                "design_spec_dir": str(project_dir / "design_spec"),
-                "slide_count": slide_count,
-                "total_slides": total_slides,
-                "project_id": project_id,
-                "success_count": success_count,
-                "error_count": error_count,
-                "results": results,
-            },
-            ensure_ascii=False,
-        )
+        # --- Step 3: slides.html 컨테이너 생성 ---
+        slides_html_path: str | None = None
+        if slides_service is not None and slide_count > 0:
+            container_html = SlidesService._build_container_html(slide_count)
+            path = project_dir / "slides.html"
+            path.write_text(container_html, encoding="utf-8")
+            slides_html_path = str(path)
+            logger.info("slides.html 컨테이너 생성 완료: %s", path)
+
+        resp: dict = {
+            "design_spec_dir": str(project_dir / "design_spec"),
+            "slide_count": slide_count,
+            "total_slides": total_slides,
+            "project_id": project_id,
+            "success_count": success_count,
+            "error_count": error_count,
+            "results": results,
+        }
+        if slides_html_path:
+            resp["slides_html_path"] = slides_html_path
+
+        return json.dumps(resp, ensure_ascii=False)
 
     @mcp.tool()
     def modify_design_spec(

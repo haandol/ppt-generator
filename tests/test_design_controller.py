@@ -86,6 +86,7 @@ def mcp_tools(project_service: ProjectService) -> dict:
     design_service = MagicMock()
     design_service.generate_single_slide.return_value = _make_slide_spec("새로 생성됨")
     design_service.extract_design_summary.return_value = {"background_color": "#1a1a2e", "text_colors": ["#ffffff"]}
+    design_service.generate_design_summary.return_value = {"background_color": "#1a1a2e", "text_colors": ["#ffffff"], "title_font_pt": 32, "body_font_pt": 18, "card_fills": [], "card_borders": []}
 
     design_service_factory = lambda: design_service  # noqa: E731
 
@@ -456,7 +457,7 @@ class TestGenerateSlidesDesignSpec:
         import ppt_generator.tools.design.controller as ctrl_module
         monkeypatch.setattr(ctrl_module, "DESIGN_SPEC_PARALLEL", 2)
 
-        # 10장짜리 아웃라인 (slide[0] 순차 + slide[1..9] 병렬)
+        # 10장짜리 아웃라인 (모든 슬라이드 병렬 생성)
         outline_10 = json.dumps(
             {
                 "slides": [
@@ -493,10 +494,7 @@ class TestGenerateSlidesDesignSpec:
 
         assert result["success_count"] == 10
         assert result["error_count"] == 0
-        # Phase 1(slide[0])은 순차이므로 Phase 2의 peak만 검증
-        # peak_concurrent에는 Phase 1의 1도 포함될 수 있으나
-        # Phase 2에서 max_workers=2이므로 동시 최대 2를 초과하면 안 됨
-        # (Phase 1은 이미 완료된 후 Phase 2 시작)
+        # 모든 슬라이드가 병렬 생성되며, max_workers=2이므로 동시 최대 2를 초과하면 안 됨
         assert peak_concurrent <= 2, f"동시 실행 peak={peak_concurrent}, 제한=2"
 
     def test_batch_reports_progress(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
@@ -514,8 +512,8 @@ class TestGenerateSlidesDesignSpec:
         )))
 
         assert result["success_count"] == 5
-        # report_progress가 total_slides(5)번 호출되어야 함
-        assert ctx.report_progress.await_count == 5
+        # report_progress: design_summary 생성 1회 + 슬라이드 5회 = 총 6회
+        assert ctx.report_progress.await_count == 6
         # 마지막 호출의 progress 값은 target_count와 같아야 함
         last_call = ctx.report_progress.await_args
         assert last_call[0][0] == 5  # progress
@@ -551,7 +549,7 @@ class TestGenerateSlidesDesignSpec:
         assert indices == [1, 3]
 
     def test_batch_slide_indices_with_index_zero(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
-        """slide_indices에 인덱스 0 포함 시 design_summary가 없으면 순차 생성 후 나머지 병렬."""
+        """slide_indices에 인덱스 0 포함 시 design_summary가 없으면 LLM으로 사전 생성 후 전체 병렬."""
         project_id = self._setup_project(tmp_path, monkeypatch)
 
         result = json.loads(self._run(mcp_tools["generate_slides_design_spec"](
@@ -571,9 +569,9 @@ class TestGenerateSlidesDesignSpec:
         summary_path = tmp_path / project_id / "design_spec" / "design_summary.json"
         assert summary_path.exists()
 
-        # design_service.extract_design_summary가 호출되었는지 확인 (slide[0]에서 추출)
+        # design_service.generate_design_summary가 호출되었는지 확인 (LLM으로 사전 생성)
         design_service = mcp_tools["_design_service"]
-        assert design_service.extract_design_summary.called
+        assert design_service.generate_design_summary.called
 
     def test_batch_slide_indices_without_index_zero(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
         """slide_indices에 인덱스 0 미포함 시 기존 design_summary를 로드하여 전부 병렬 생성."""
@@ -587,7 +585,7 @@ class TestGenerateSlidesDesignSpec:
         ))
 
         design_service = mcp_tools["_design_service"]
-        design_service.extract_design_summary.reset_mock()
+        design_service.generate_design_summary.reset_mock()
 
         # 인덱스 0 없이 재생성
         result = json.loads(self._run(mcp_tools["generate_slides_design_spec"](
@@ -601,8 +599,8 @@ class TestGenerateSlidesDesignSpec:
         assert result["error_count"] == 0
         assert len(result["results"]) == 2
 
-        # extract_design_summary가 호출되지 않았는지 확인 (Phase 1 스킵)
-        assert not design_service.extract_design_summary.called
+        # design_summary가 이미 존재하므로 generate_design_summary가 호출되지 않아야 함
+        assert not design_service.generate_design_summary.called
 
     def test_batch_single_index(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
         """단일 인덱스만 지정하여 1장 생성."""
@@ -642,3 +640,123 @@ class TestGenerateSlidesDesignSpec:
                 project_id=project_id,
                 slide_indices="0,10",
             ))
+
+    def test_batch_enforces_background_color_from_design_summary(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        """content 슬라이드의 배경색이 design_summary의 background_color로 강제 보정된다."""
+        project_id = self._setup_project(tmp_path, monkeypatch)
+
+        design_service = mcp_tools["_design_service"]
+        # design_summary에는 #1a1a2e를 반환하지만 슬라이드 스펙에는 #ffffff를 사용
+        design_service.generate_design_summary.return_value = {
+            "background_color": "#1a1a2e",
+            "text_colors": ["#ffffff"],
+            "title_font_pt": 32,
+            "body_font_pt": 18,
+            "card_fills": [],
+            "card_borders": [],
+        }
+        wrong_bg_spec = PptxSlideSpec(
+            background_color="#ffffff",  # 잘못된 밝은 배경
+            textboxes=[
+                PptxTextBox(
+                    left_px=40, top_px=40, width_px=600, height_px=60,
+                    paragraphs=[PptxParagraph(runs=[PptxTextRun(text="테스트", font_size_pt=32, bold=True)])],
+                ),
+            ],
+            shapes=[], images=[], speaker_notes="",
+            slide_type="content",
+        )
+        design_service.generate_single_slide.return_value = wrong_bg_spec
+
+        self._run(mcp_tools["generate_slides_design_spec"](
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
+        ))
+
+        # 저장된 스펙의 배경색이 design_summary 값으로 보정되었는지 확인
+        project_service = mcp_tools["_project_service"]
+        proj_dir = tmp_path / project_id
+        for i in range(5):
+            saved_spec = project_service.load_design_spec_slide(proj_dir, i)
+            assert saved_spec.background_color == "#1a1a2e", (
+                f"slide[{i}] 배경색이 보정되지 않음: {saved_spec.background_color}"
+            )
+
+
+class TestGenerateSlidesDesignSpecWithSlidesService:
+    """slides_service가 제공될 때 slides.html 컨테이너 생성 테스트."""
+
+    @staticmethod
+    def _run(coro):
+        return asyncio.run(coro)
+
+    def _setup_project(self, tmp_path: Path, monkeypatch) -> str:
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+        proj_dir = tmp_path / "slides-html-proj"
+        proj_dir.mkdir()
+        (proj_dir / "project.json").write_text(
+            json.dumps({"topic": "", "num_slides": 0, "steps_completed": {}}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        return "slides-html-proj"
+
+    def test_generates_slides_html_container(self, tmp_path: Path, monkeypatch) -> None:
+        """전체 슬라이드 생성 완료 시 slides.html 컨테이너가 자동 생성된다."""
+        project_id = self._setup_project(tmp_path, monkeypatch)
+
+        mcp = MagicMock()
+        tools = {}
+
+        def tool_decorator():
+            def decorator(func):
+                tools[func.__name__] = func
+                return func
+            return decorator
+
+        mcp.tool = tool_decorator
+
+        design_service = MagicMock()
+        design_service.generate_single_slide.return_value = _make_slide_spec("생성됨")
+        design_service.generate_design_summary.return_value = {
+            "background_color": "#1a1a2e", "text_colors": ["#ffffff"],
+            "title_font_pt": 32, "body_font_pt": 18, "card_fills": [], "card_borders": [],
+        }
+
+        from ppt_generator.tools.slides.service import SlidesService
+        slides_service = SlidesService()
+        project_service = ProjectService()
+
+        register_design_tools(
+            mcp, design_service, project_service,
+            slides_service=slides_service,
+            design_service_factory=lambda: design_service,
+        )
+
+        outline_3 = json.dumps(
+            {"slides": [
+                {"title": f"슬라이드 {i+1}", "content_summary": f"내용 {i+1}", "component_hint": "bullets", "speaker_notes": ""}
+                for i in range(3)
+            ]},
+            ensure_ascii=False,
+        )
+
+        result = json.loads(self._run(tools["generate_slides_design_spec"](
+            outline_json=outline_3,
+            total_slides=3,
+            project_id=project_id,
+        )))
+
+        assert result["success_count"] == 3
+        assert "slides_html_path" in result
+
+        # slides.html 파일이 생성되었는지 확인
+        slides_html_path = tmp_path / project_id / "slides.html"
+        assert slides_html_path.exists()
+
+        # 컨테이너 HTML에 iframe 참조가 포함되어 있는지 확인
+        content = slides_html_path.read_text(encoding="utf-8")
+        assert "slide_01.html" in content
+        assert "slide_02.html" in content
+        assert "slide_03.html" in content

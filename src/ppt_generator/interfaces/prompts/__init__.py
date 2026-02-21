@@ -22,11 +22,13 @@ SCRIPT_USER_PROMPT_TEMPLATE = _load("script_user.prompt.md")
 DESIGN_SPEC_SYSTEM_PROMPT = _load("design_system.prompt.md")
 DESIGN_SPEC_USER_PROMPT_TEMPLATE = _load("design_user.prompt.md")
 DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE = _load("design_batch_user.prompt.md")
+DESIGN_SUMMARY_USER_PROMPT_TEMPLATE = _load("design_summary_user.prompt.md")
 
 __all__ = [
     "DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE",
     "DESIGN_SPEC_SYSTEM_PROMPT",
     "DESIGN_SPEC_USER_PROMPT_TEMPLATE",
+    "DESIGN_SUMMARY_USER_PROMPT_TEMPLATE",
     "OUTLINE_SYSTEM_PROMPT",
     "OUTLINE_USER_PROMPT_TEMPLATE",
     "SCRIPT_SYSTEM_PROMPT",

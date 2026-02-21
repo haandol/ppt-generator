@@ -58,8 +58,9 @@ ppt-generator/
 │   │   └── prompts/                      # 프롬프트 템플릿 모듈
 │   │       ├── __init__.py               # .prompt.md 파일 로딩 + 상수 re-export
 │   │       ├── design_system.prompt.md   # 디자인 스펙 시스템 프롬프트
-│   │       ├── design_user.prompt.md     # 디자인 스펙 사용자 프롬프트
-│   │       ├── design_batch_user.prompt.md # 디자인 스펙 배치 사용자 프롬프트
+│   │       ├── design_user.prompt.md     # 디자인 스펙 사용자 프롬프트 (첫 슬라이드용)
+│   │       ├── design_batch_user.prompt.md # 디자인 스펙 배치 사용자 프롬프트 (design_summary 참조)
+│   │       ├── design_summary_user.prompt.md # design_summary 사전 생성 프롬프트
 │   │       ├── outline_system.prompt.md  # 아웃라인 시스템 프롬프트
 │   │       ├── outline_user.prompt.md    # 아웃라인 사용자 프롬프트
 │   │       ├── script_system.prompt.md   # 스크립트 시스템 프롬프트
@@ -182,8 +183,10 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
     디자인 스펙 생성:
       generate_slides_design_spec(project_id=..., total_slides=N)
         → 전체 생성 (기본) 또는 slide_indices="0,2,4"로 선택적 생성
-        → slide[0] 순차 생성 (design_summary 추출)
-        → 나머지 서버 내부 병렬 생성 (DESIGN_SPEC_PARALLEL 워커)
+        → design_summary가 없으면 LLM으로 사전 생성 (전체 아웃라인 기반)
+        → 모든 슬라이드를 서버 내부 병렬 생성 (DESIGN_SPEC_PARALLEL 워커)
+        → content 슬라이드의 배경색을 design_summary 값으로 강제 보정
+        → 완료 시 slides.html (iframe 컨테이너) 자동 생성
     ↓
     ⏸ (선택) modify_design_spec → 개별 슬라이드 추가/수정/삭제 (project_id로 참조)
     ↓
@@ -196,7 +199,9 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 * project_id 기반 체이닝 (권장): generate_slides_design_spec → generate_slides/export_pptx(project_id=...)
 * 모든 도구가 project_id를 자동 생성하여 ~/.ppt-generator/<UUID>/에 결과물을 저장
 * load_* 도구에 project_id를 전달하여 저장된 결과물을 로드, 중간 단계부터 재개 가능
-* generate_slides_design_spec은 첫 슬라이드에서 design_summary.json를 생성하여 후속 슬라이드의 테마 일관성 유지
+* generate_slides_design_spec은 전체 아웃라인 기반으로 design_summary.json을 LLM으로 사전 생성하여 모든 슬라이드의 테마 일관성 유지
+* content 슬라이드의 배경색은 design_summary의 background_color로 강제 보정 (title/closing 슬라이드는 null 유지)
+* 디자인 스펙 생성 완료 시 slides.html (iframe 컨테이너)도 자동 생성하여 별도 generate_slides 호출 없이 미리보기 가능
 ```
 
 ## Available Tools
