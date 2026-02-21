@@ -11,17 +11,19 @@ from strands.types.content import Messages
 from strands.types.tools import ToolChoice, ToolSpec
 
 from ppt_generator.interfaces.constants import (
-    ANTHROPIC_MODEL_ID,
+    ANTHROPIC_DESIGN_MODEL_ID,
     ANTHROPIC_OUTLINE_MODEL_ID,
-    BEDROCK_MAX_TOKENS,
-    BEDROCK_MODEL_ID,
+    BEDROCK_DESIGN_MAX_TOKENS,
+    BEDROCK_DESIGN_MODEL_ID,
     BEDROCK_OUTLINE_MAX_TOKENS,
     BEDROCK_OUTLINE_MODEL_ID,
     BEDROCK_REGION,
     BEDROCK_SCRIPT_MAX_TOKENS,
     DESIGN_SPEC_SYSTEM_PROMPT,
+    DESIGN_THINKING_EFFORT,
     OUTLINE_JSON_SCHEMA,
     OUTLINE_SYSTEM_PROMPT,
+    OUTLINE_THINKING_EFFORT,
     SCRIPT_JSON_SCHEMA,
     SCRIPT_SYSTEM_PROMPT,
 )
@@ -116,17 +118,17 @@ class DIContainer:
 
     def _create_bedrock_model(self) -> BedrockModel:
         return BedrockModel(
-            model_id=BEDROCK_MODEL_ID,
+            model_id=BEDROCK_DESIGN_MODEL_ID,
             region_name=BEDROCK_REGION,
             boto_client_config=self._build_client_config(),
             temperature=1.0,
-            max_tokens=BEDROCK_MAX_TOKENS,
+            max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
             additional_request_fields={
                 "thinking": {
                     "type": "adaptive",
                 },
                 "output_config": {
-                    "effort": "high",
+                    "effort": DESIGN_THINKING_EFFORT,
                 },
             },
         )
@@ -151,7 +153,7 @@ class DIContainer:
                     "type": "adaptive",
                 },
                 "output_config": {
-                    "effort": "high",
+                    "effort": OUTLINE_THINKING_EFFORT,
                 },
             },
             additional_args=additional_args,
@@ -166,15 +168,15 @@ class DIContainer:
     def _create_anthropic_model(self) -> Any:
         return CachingAnthropicModel(
             client_args=self._build_anthropic_client_args(),
-            model_id=ANTHROPIC_MODEL_ID,
-            max_tokens=BEDROCK_MAX_TOKENS,
+            model_id=ANTHROPIC_DESIGN_MODEL_ID,
+            max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
             params={
                 "temperature": 1.0,
                 "thinking": {
                     "type": "adaptive",
                 },
                 "output_config": {
-                    "effort": "high",
+                    "effort": DESIGN_THINKING_EFFORT,
                 },
             },
         )
@@ -193,7 +195,7 @@ class DIContainer:
                 "type": "adaptive",
             },
             "output_config": {
-                "effort": "high",
+                "effort": OUTLINE_THINKING_EFFORT,
             },
         }
         if json_schema and json_schema_name:

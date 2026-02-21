@@ -157,7 +157,7 @@ flowchart TD
 |-----------|-----------|------|------|
 | `generate_outline` | F1 | 주제, 슬라이드 수 | 아웃라인 JSON (제목, 본문, 이미지 아이디어, 레이아웃 타입, speaker_notes 비어있음) |
 | `generate_script` | F2 | 아웃라인 JSON | 아웃라인 JSON (speaker_notes 채워짐) |
-| `generate_slide_design_spec` | 슬라이드별 디자인 스펙 | 아웃라인 JSON, slide_index, total_slides | design_spec_dir, slide_file, slide_count, project_id |
+| `generate_slides_design_spec` | 슬라이드 디자인 스펙 생성 (전체/선택적) | project_id 또는 outline_json, total_slides, slide_indices(선택) | design_spec_dir, slide_count, total_slides, project_id, results |
 | `modify_design_spec` | 디자인 스펙 수정 | project_id, action, slide_index, outline_json | design_spec_dir, slide_count, project_id |
 | `generate_slides` | F3 | design_spec_json 또는 project_id | HTML 슬라이드 (디자인 스펙 시 결정론적 변환) |
 | `modify_slides` | F4 | 세션 ID, 수정 요청 (자연어) | 수정된 HTML 슬라이드 |
@@ -184,13 +184,13 @@ sequenceDiagram
     Bedrock-->>MCPServer: 슬라이드별 speaker_notes
     MCPServer-->>MCPClient: speaker_notes가 채워진 아웃라인 JSON
 
-    Note over MCPClient,MCPServer: 디자인 스펙 경로 (슬라이드별 생성)
-    loop 슬라이드별
-        MCPClient->>MCPServer: generate_slide_design_spec(아웃라인 JSON, slide_index, total_slides)
-        MCPServer->>Bedrock: PptxSlideSpec JSON 생성 요청
-        Bedrock-->>MCPServer: PptxSlideSpec JSON
-        MCPServer-->>MCPClient: design_spec_dir, slide_file, slide_count, project_id 반환
-    end
+    Note over MCPClient,MCPServer: 디자인 스펙 생성 (서버 내부 병렬 처리)
+    MCPClient->>MCPServer: generate_slides_design_spec(project_id, total_slides)
+    MCPServer->>Bedrock: slide[0] PptxSlideSpec 생성 (design_summary 추출)
+    Bedrock-->>MCPServer: PptxSlideSpec JSON
+    MCPServer->>Bedrock: slide[1..N-1] 병렬 생성
+    Bedrock-->>MCPServer: PptxSlideSpec JSON (각 슬라이드)
+    MCPServer-->>MCPClient: design_spec_dir, slide_count, total_slides, project_id, results
 
     MCPClient->>MCPServer: generate_slides(project_id=...)
     MCPServer->>MCPServer: DesignSpec → HTML 결정론적 변환

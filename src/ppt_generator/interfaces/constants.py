@@ -1,19 +1,37 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[3] / "env" / "local.env", override=False)
+
 PPT_GENERATOR_HOME = Path.home() / ".ppt-generator"
 
 DESIGN_SPEC_PARALLEL = int(os.environ.get("DESIGN_SPEC_PARALLEL", "4"))
 
-BEDROCK_MODEL_ID = "global.anthropic.claude-opus-4-6-v1"
-BEDROCK_OUTLINE_MODEL_ID = "global.anthropic.claude-sonnet-4-6"
-BEDROCK_REGION = "us-east-1"
-BEDROCK_MAX_TOKENS = 64_000
-BEDROCK_OUTLINE_MAX_TOKENS = 32_000
-BEDROCK_SCRIPT_MAX_TOKENS = 32_000
+# --- 디자인 스펙 생성 모델 ---
+BEDROCK_DESIGN_MODEL_ID = os.environ.get(
+    "BEDROCK_DESIGN_MODEL_ID", "global.anthropic.claude-sonnet-4-6"
+)
+ANTHROPIC_DESIGN_MODEL_ID = os.environ.get(
+    "ANTHROPIC_DESIGN_MODEL_ID", "claude-sonnet-4-6"
+)
+BEDROCK_DESIGN_MAX_TOKENS = int(os.environ.get("BEDROCK_DESIGN_MAX_TOKENS", "64000"))
+DESIGN_THINKING_EFFORT = os.environ.get("DESIGN_THINKING_EFFORT", "high")
 
-ANTHROPIC_MODEL_ID = "claude-opus-4-6"
-ANTHROPIC_OUTLINE_MODEL_ID = "claude-sonnet-4-6"
+# --- 아웃라인/스크립트 생성 모델 ---
+BEDROCK_OUTLINE_MODEL_ID = os.environ.get(
+    "BEDROCK_OUTLINE_MODEL_ID", "global.anthropic.claude-sonnet-4-6"
+)
+ANTHROPIC_OUTLINE_MODEL_ID = os.environ.get(
+    "ANTHROPIC_OUTLINE_MODEL_ID", "claude-sonnet-4-6"
+)
+BEDROCK_OUTLINE_MAX_TOKENS = int(os.environ.get("BEDROCK_OUTLINE_MAX_TOKENS", "32000"))
+BEDROCK_SCRIPT_MAX_TOKENS = int(os.environ.get("BEDROCK_SCRIPT_MAX_TOKENS", "32000"))
+OUTLINE_THINKING_EFFORT = os.environ.get("OUTLINE_THINKING_EFFORT", "medium")
+
+# --- 공통 ---
+BEDROCK_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 DEFAULT_NUM_SLIDES = 5
 MIN_NUM_SLIDES = 3
@@ -139,12 +157,15 @@ from ppt_generator.interfaces.prompts import (  # noqa: E402
 )
 
 __all__ = [
-    # Model/Bedrock settings
-    "BEDROCK_MODEL_ID", "BEDROCK_OUTLINE_MODEL_ID", "BEDROCK_REGION",
-    "BEDROCK_MAX_TOKENS", "BEDROCK_OUTLINE_MAX_TOKENS",
-    "BEDROCK_SCRIPT_MAX_TOKENS",
-    # Anthropic API settings
-    "ANTHROPIC_MODEL_ID", "ANTHROPIC_OUTLINE_MODEL_ID",
+    # Design model settings
+    "BEDROCK_DESIGN_MODEL_ID", "ANTHROPIC_DESIGN_MODEL_ID",
+    "BEDROCK_DESIGN_MAX_TOKENS", "DESIGN_THINKING_EFFORT",
+    # Outline/Script model settings
+    "BEDROCK_OUTLINE_MODEL_ID", "ANTHROPIC_OUTLINE_MODEL_ID",
+    "BEDROCK_OUTLINE_MAX_TOKENS", "BEDROCK_SCRIPT_MAX_TOKENS",
+    "OUTLINE_THINKING_EFFORT",
+    # Common
+    "BEDROCK_REGION",
     # Numeric constants
     "DEFAULT_NUM_SLIDES", "MIN_NUM_SLIDES", "MAX_NUM_SLIDES",
     "VALID_AUDIENCE_LEVELS", "DEFAULT_AUDIENCE_LEVEL",

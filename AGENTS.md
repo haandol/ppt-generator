@@ -87,8 +87,8 @@ ppt-generator/
 - **Package Manager**: uv
 - **Build System**: hatchling
 - **Agent Framework**: AWS Strands SDK (`strands-agents`)
-- **LLM (디자인 스펙 생성)**: Claude Opus 4.6 (Bedrock: `global.anthropic.claude-opus-4-6-v1` / Anthropic: `claude-opus-4-6`, 48K tokens)
-- **LLM (아웃라인/스크립트)**: Claude Sonnet 4.6 (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 16K tokens)
+- **LLM (디자인 스펙 생성)**: Claude Sonnet 4.6 (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 48K tokens, effort: high)
+- **LLM (아웃라인/스크립트)**: Claude Sonnet 4.6 (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 16K tokens, effort: medium)
 - **Slide Framework**: 순수 HTML/CSS (인라인 스타일, 슬라이드별 개별 HTML + iframe 컨테이너)
 - **PPTX Export**: python-pptx (디자인 스펙 → SlideBuilder 직접 변환)
 
@@ -99,7 +99,7 @@ ppt-generator/
 - LLM 인증 (아래 중 하나 선택):
   - **Anthropic API** (권장): `ANTHROPIC_API_KEY` 환경변수 설정
   - **AWS Bedrock (기본)**: 별도 설정 없이 기본 AWS credential chain 사용 (`~/.aws/credentials`, 환경변수, IAM role 등)
-    - Amazon Bedrock 모델 접근 권한 필요 (Claude Opus 4.6, Claude Sonnet 4.6)
+    - Amazon Bedrock 모델 접근 권한 필요 (Claude Sonnet 4.6)
     - 리전: `us-east-1` (기본값)
   - **AWS Bedrock (API key)**: `AWS_BEARER_TOKEN_BEDROCK` 환경변수로 bearer token 설정 시 SigV4 대신 bearer token 인증 사용
     - 리전: `us-east-1` (기본값)
@@ -114,6 +114,13 @@ ppt-generator/
 | `AWS_SECRET_ACCESS_KEY`    | AWS Secret Key          | Bedrock IAM 인증                                                                                         |
 | `AWS_REGION`               | AWS 리전                | Bedrock 리전 (기본: us-east-1)                                                                           |
 | `AWS_BEARER_TOKEN_BEDROCK` | Bearer Token 문자열     | Bedrock API key (bearer token) 인증. 설정 시 bearer token 우선, 미설정 시 기본 AWS credential chain 사용 |
+| `BEDROCK_DESIGN_MODEL_ID`  | 모델 ID 문자열          | 디자인 스펙 생성 Bedrock 모델 (기본: `global.anthropic.claude-sonnet-4-6`)                                |
+| `ANTHROPIC_DESIGN_MODEL_ID`| 모델 ID 문자열          | 디자인 스펙 생성 Anthropic 모델 (기본: `claude-sonnet-4-6`)                                              |
+| `BEDROCK_DESIGN_MAX_TOKENS`| 정수 (기본: 64000)      | 디자인 스펙 생성 max tokens                                                                              |
+| `DESIGN_THINKING_EFFORT`   | `high`/`medium`/`low`   | 디자인 스펙 생성 thinking effort (기본: high)                                                            |
+| `BEDROCK_OUTLINE_MODEL_ID` | 모델 ID 문자열          | 아웃라인/스크립트 Bedrock 모델 (기본: `global.anthropic.claude-sonnet-4-6`)                               |
+| `ANTHROPIC_OUTLINE_MODEL_ID`| 모델 ID 문자열         | 아웃라인/스크립트 Anthropic 모델 (기본: `claude-sonnet-4-6`)                                             |
+| `OUTLINE_THINKING_EFFORT`  | `high`/`medium`/`low`   | 아웃라인/스크립트 thinking effort (기본: medium)                                                         |
 | `DESIGN_SPEC_PARALLEL`     | 정수 (기본: 4)          | `generate_slides_design_spec` 도구의 병렬 워커 수 제어                                                   |
 
 > **Auto-detect 로직**: `LLM_PROVIDER` 미설정 시, `ANTHROPIC_API_KEY`가 있으면 `anthropic`, 없으면 `bedrock`으로 자동 선택됩니다.
@@ -172,18 +179,11 @@ F1: generate_outline       → 슬라이드 아웃라인 JSON 생성 (LLM, title
     ↓
 F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크립트 생성
     ↓
-    디자인 스펙 생성 (아래 중 택 1)
-    ↓
-    [방법 A] 일괄 생성 (권장):
-      generate_slides_design_spec(outline_json=전체, total_slides=N)
+    디자인 스펙 생성:
+      generate_slides_design_spec(project_id=..., total_slides=N)
+        → 전체 생성 (기본) 또는 slide_indices="0,2,4"로 선택적 생성
         → slide[0] 순차 생성 (design_summary 추출)
-        → slide[1..N-1] 서버 내부 병렬 생성 (DESIGN_SPEC_PARALLEL 워커)
-    ↓
-    [방법 B] 개별 생성:
-      for i in 0..N-1:
-        generate_slide_design_spec(slide[i], slide_index=i, total=N)
-        ⏸ 사용자 검토
-        (선택) modify_design_spec(action="update", slide_index=i)
+        → 나머지 서버 내부 병렬 생성 (DESIGN_SPEC_PARALLEL 워커)
     ↓
     ⏸ (선택) modify_design_spec → 개별 슬라이드 추가/수정/삭제 (project_id로 참조)
     ↓
@@ -193,10 +193,10 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
     ↓
 출력: 편집 가능한 .pptx 파일
 
-* project_id 기반 체이닝 (권장): generate_slide_design_spec → generate_slides/export_pptx(project_id=...)
+* project_id 기반 체이닝 (권장): generate_slides_design_spec → generate_slides/export_pptx(project_id=...)
 * 모든 도구가 project_id를 자동 생성하여 ~/.ppt-generator/<UUID>/에 결과물을 저장
 * load_* 도구에 project_id를 전달하여 저장된 결과물을 로드, 중간 단계부터 재개 가능
-* generate_slide_design_spec은 첫 슬라이드에서 design_summary.json를 생성하여 후속 슬라이드의 테마 일관성 유지
+* generate_slides_design_spec은 첫 슬라이드에서 design_summary.json를 생성하여 후속 슬라이드의 테마 일관성 유지
 ```
 
 ## Available Tools
@@ -205,8 +205,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 | ---------------------------- | ---------------- | -------------------------------------------------------------------------------------------------- |
 | `generate_outline`           | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (title, content_summary, component_hint) |
 | `generate_script`            | `tools/script/`  | 아웃라인 JSON을 기반으로 슬라이드별 발표 스크립트 생성                                             |
-| `generate_slide_design_spec`  | `tools/design/`  | 단일 슬라이드 디자인 스펙 생성 (슬라이드별 검토/수정 가능)                                         |
-| `generate_slides_design_spec` | `tools/design/`  | 전체 슬라이드 디자인 스펙 일괄 생성 (서버 내부 병렬 처리, DESIGN_SPEC_PARALLEL 제어)               |
+| `generate_slides_design_spec` | `tools/design/`  | 슬라이드 디자인 스펙 생성 — 전체 또는 slide_indices로 선택적 생성 (서버 내부 병렬 처리)            |
 | `modify_design_spec`          | `tools/design/`  | 디자인 스펙의 개별 슬라이드 추가/수정/삭제 (CRUD)                                                  |
 | `generate_slides`            | `tools/slides/`  | 디자인 스펙 또는 project_id 기반 HTML 슬라이드 생성 (결정론적 변환)                                |
 | `export_pptx`                | `tools/pptx/`    | 디자인 스펙 또는 project_id 기반 편집 가능한 PPTX 내보내기 (결정론적 변환)                         |

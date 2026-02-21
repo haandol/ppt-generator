@@ -39,7 +39,7 @@ def register_pptx_tools(mcp: FastMCP, export_service: ExportService, project_ser
             except FileNotFoundError:
                 raise ValueError(
                     "design_spec_json을 제공하거나, "
-                    "generate_slide_design_spec을 먼저 실행하여 프로젝트에 디자인 스펙을 저장하세요."
+                    "generate_slides_design_spec을 먼저 실행하여 프로젝트에 디자인 스펙을 저장하세요."
                 )
 
         project_service.update_step(project_dir, "pptx")

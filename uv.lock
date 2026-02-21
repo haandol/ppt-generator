@@ -985,6 +985,7 @@ source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
     { name = "mcp" },
+    { name = "python-dotenv" },
     { name = "python-pptx" },
     { name = "strands-agents" },
     { name = "strands-agents-tools" },
@@ -999,6 +1000,7 @@ dev = [
 requires-dist = [
     { name = "anthropic" },
     { name = "mcp" },
+    { name = "python-dotenv" },
     { name = "python-pptx", specifier = ">=1.0.2" },
     { name = "strands-agents" },
     { name = "strands-agents-tools" },
