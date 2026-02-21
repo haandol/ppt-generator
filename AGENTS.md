@@ -147,6 +147,20 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 - **Service** (`service.py`): 비즈니스 로직. Request 데이터클래스를 받아 Response 데이터클래스를 반환합니다.
 - **DIContainer** (`di/container.py`): 프로바이더 자동 감지(Anthropic/Bedrock), 모델, Agent, Service 인스턴스를 생성하고 연결합니다. 지연 초기화(lazy init) 패턴을 사용합니다.
 
+### Concurrency & Prompt Caching
+
+디자인 스펙 생성은 슬라이드별 독립 LLM 호출이므로 병렬 처리와 프롬프트 캐싱을 적용합니다. ([ADR-0018](docs/adr/pipeline/0018-parallel-design-spec-and-prompt-caching.md))
+
+**병렬 생성:**
+- `generate_slides_design_spec`에서 `ThreadPoolExecutor`로 슬라이드를 병렬 생성
+- `DESIGN_SPEC_PARALLEL` 환경변수(기본 8)로 최대 동시 워커 수 제어
+- 워커마다 `design_service_factory()`로 독립 Agent 인스턴스 생성 (strands Agent는 stateful이므로 공유 불가)
+- `ProjectService._metadata_lock`으로 `project.json` 동시 쓰기 보호
+
+**프롬프트 캐싱:**
+- Bedrock: `BedrockModel(cache_config=CacheConfig(strategy="auto"))` — 시스템 프롬프트에 자동 cache point 주입
+- Anthropic: `CachingAnthropicModel` — `format_request()` 오버라이드로 `cache_control: {"type": "ephemeral"}` 적용
+
 ### Pipeline Design Philosophy: Progressive Refinement
 
 파이프라인은 **추상에서 구체로의 점진적 구체화(Progressive Refinement)** 원칙으로 설계되었습니다. 각 단계는 이전 단계의 출력을 더 구체적인 형태로 변환하며, 디자인 자유도를 최대한 보존합니다.
