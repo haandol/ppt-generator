@@ -159,7 +159,7 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
 
 <layout_example hint="bullets">
 {
-  "background_color": "#1a1a2e",
+  "background_color": "#232F3E",
   "speaker_notes": "이 슬라이드에서는...",
   "textboxes": [
     {
@@ -174,9 +174,9 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
       "vertical_alignment": "middle",
       "line_spacing_pt": 28,
       "paragraphs": [
-        {"runs": [{"text": "첫 번째 항목", "font_size_pt": 20, "color": "#e0e0e0", "bold": false, "italic": false}], "bullet_level": 0, "alignment": "left"},
-        {"runs": [{"text": "세부 설명", "font_size_pt": 16, "color": "#b0b0b0", "bold": false, "italic": false}], "bullet_level": 1, "alignment": "left"},
-        {"runs": [{"text": "두 번째 항목", "font_size_pt": 20, "color": "#e0e0e0", "bold": false, "italic": false}], "bullet_level": 0, "alignment": "left"}
+        {"runs": [{"text": "첫 번째 항목", "font_size_pt": 24, "color": "#F1F3F3", "bold": false, "italic": false}], "bullet_level": 0, "alignment": "left"},
+        {"runs": [{"text": "세부 설명", "font_size_pt": 20, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": 1, "alignment": "left"},
+        {"runs": [{"text": "두 번째 항목", "font_size_pt": 24, "color": "#F1F3F3", "bold": false, "italic": false}], "bullet_level": 0, "alignment": "left"}
       ]
     }
   ],
@@ -186,7 +186,7 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
 
 <layout_example hint="step_cards">
 {
-  "background_color": "#1a1a2e",
+  "background_color": "#232F3E",
   "speaker_notes": "",
   "textboxes": [
     {
@@ -200,35 +200,35 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
   "shapes": [
     {
       "left_px": 64, "top_px": 180, "width_px": 352, "height_px": 440,
-      "shape_type": "rounded_rectangle", "fill_color": "#2a2a4e", "corner_radius_px": 12,
+      "shape_type": "rounded_rectangle", "fill_color": "#2E3D50", "corner_radius_px": 12,
       "vertical_alignment": "top",
       "padding_left_px": 16, "padding_right_px": 16, "padding_top_px": 12, "padding_bottom_px": 12,
       "paragraphs": [
-        {"runs": [{"text": "01", "font_size_pt": 28, "color": "#FF9900", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
-        {"runs": [{"text": "첫 번째 단계", "font_size_pt": 18, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
-        {"runs": [{"text": "단계 설명 텍스트가 여기에 들어갑니다.", "font_size_pt": 14, "color": "#b0b0b0", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
+        {"runs": [{"text": "01", "font_size_pt": 28, "color": "#FFC000", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
+        {"runs": [{"text": "첫 번째 단계", "font_size_pt": 20, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
+        {"runs": [{"text": "단계 설명 텍스트가 여기에 들어갑니다.", "font_size_pt": 16, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
       ]
     },
     {
       "left_px": 448, "top_px": 180, "width_px": 352, "height_px": 440,
-      "shape_type": "rounded_rectangle", "fill_color": "#2a2a4e", "corner_radius_px": 12,
+      "shape_type": "rounded_rectangle", "fill_color": "#2E3D50", "corner_radius_px": 12,
       "vertical_alignment": "top",
       "padding_left_px": 16, "padding_right_px": 16, "padding_top_px": 12, "padding_bottom_px": 12,
       "paragraphs": [
-        {"runs": [{"text": "02", "font_size_pt": 28, "color": "#FF9900", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
-        {"runs": [{"text": "두 번째 단계", "font_size_pt": 18, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
-        {"runs": [{"text": "단계 설명 텍스트가 여기에 들어갑니다.", "font_size_pt": 14, "color": "#b0b0b0", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
+        {"runs": [{"text": "02", "font_size_pt": 28, "color": "#FFC000", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
+        {"runs": [{"text": "두 번째 단계", "font_size_pt": 20, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
+        {"runs": [{"text": "단계 설명 텍스트가 여기에 들어갑니다.", "font_size_pt": 16, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
       ]
     },
     {
       "left_px": 832, "top_px": 180, "width_px": 352, "height_px": 440,
-      "shape_type": "rounded_rectangle", "fill_color": "#2a2a4e", "corner_radius_px": 12,
+      "shape_type": "rounded_rectangle", "fill_color": "#2E3D50", "corner_radius_px": 12,
       "vertical_alignment": "top",
       "padding_left_px": 16, "padding_right_px": 16, "padding_top_px": 12, "padding_bottom_px": 12,
       "paragraphs": [
-        {"runs": [{"text": "03", "font_size_pt": 28, "color": "#FF9900", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
-        {"runs": [{"text": "세 번째 단계", "font_size_pt": 18, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
-        {"runs": [{"text": "단계 설명 텍스트가 여기에 들어갑니다.", "font_size_pt": 14, "color": "#b0b0b0", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
+        {"runs": [{"text": "03", "font_size_pt": 28, "color": "#FFC000", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
+        {"runs": [{"text": "세 번째 단계", "font_size_pt": 20, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
+        {"runs": [{"text": "단계 설명 텍스트가 여기에 들어갑니다.", "font_size_pt": 16, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
       ]
     }
   ]
@@ -239,9 +239,9 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
 - 슬라이드 대제목 (타이틀 슬라이드): font_size_pt 32~40, bold
 - 슬라이드 제목 (본문 슬라이드): font_size_pt 28~36, bold
 - 부제목/라벨: font_size_pt 14~18
-- 본문/설명: font_size_pt 16~22
-- 카드 제목: font_size_pt 16~20, bold
-- 카드 본문: font_size_pt 14~18
+- 본문/설명: font_size_pt 20~28
+- 카드 제목: font_size_pt 18~24, bold
+- 카드 본문: font_size_pt 16~20
 - 보조 텍스트: font_size_pt 12~16
 - 코드: font_family: "monospace", font_size_pt 14~16
 - line_spacing_pt 권장값: 본문 텍스트 24~28pt, 불릿 리스트 26~32pt, 카드 내부 20~24pt
@@ -269,13 +269,20 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
 4. 콘텐츠 완전성: content_summary의 모든 핵심 내용을 textbox 또는 shape에 포함하세요.
    이유: 아웃라인에서 언급된 내용이 슬라이드에 누락되면 프레젠테이션의 완성도가 떨어집니다.
 
-5. 요소 분리 (bounding box 겹침 금지): 모든 textbox와 shape의 영역(left_px, top_px, width_px, height_px)이 서로 겹치지 않아야 합니다. 배치 후 각 요소 쌍에 대해 겹침 여부를 확인하세요: 두 요소의 좌우 범위와 상하 범위가 모두 겹치면 겹침입니다. 겹침이 있으면 아래 요소의 top_px를 위 요소의 (top_px + height_px + 16) 이상으로 조정하세요.
-   이유: 겹친 요소는 텍스트 가독성을 크게 저하시킵니다.
+5. 요소 분리 (동일 레벨 겹침 금지, 컨테이너-자식 중첩 허용):
+   - 동일 레벨 요소 간 겹침 금지: 같은 역할의 요소(예: 카드와 카드, 텍스트박스와 텍스트박스)는 bounding box가 겹치지 않아야 합니다. 겹침이 있으면 아래 요소의 top_px를 위 요소의 (top_px + height_px + 16) 이상으로 조정하세요.
+   - 컨테이너-자식 중첩 허용: 큰 shape가 배경/컨테이너 역할을 하고 그 안에 작은 shape나 textbox를 배치하는 것은 허용됩니다. 이 경우 자식 요소의 bounding box가 부모 shape의 bounding box 안에 완전히 포함되어야 합니다 (자식의 left >= 부모의 left, 자식의 top >= 부모의 top, 자식의 right <= 부모의 right, 자식의 bottom <= 부모의 bottom).
+   - 다이어그램 연결선 허용: line shape(화살표, 커넥터)는 블록 shape와 겹칠 수 있습니다.
+   - 컨테이너-자식 패턴 예시: arch_diagram에서 큰 rounded_rectangle(배경 패널) 안에 작은 rounded_rectangle(블록)들을 배치하고 line(화살표)으로 연결.
+   이유: 동일 레벨 겹침은 텍스트 가독성을 저하시키지만, 컨테이너-자식 중첩은 다이어그램과 구조적 레이아웃에 필수적입니다.
 
 6. 여백 확보 (수치 기준): 모든 콘텐츠 요소는 left_px >= 64, top_px >= 64, left_px + width_px <= 1216, top_px + height_px <= 656을 만족해야 합니다. 콘텐츠가 슬라이드 가장자리에 딱 붙지 않도록 사방 64px 여백을 유지하세요.
    ※ slide_type "title"/"closing"의 배경 이미지/로고 관련 규칙은 <slide_type_title>, <slide_type_closing> 섹션을 참고하세요.
 
 7. vertical_alignment 필수: 모든 textbox와 shape에 vertical_alignment을 반드시 지정하세요 (null 금지).
+
+8. 콘텐츠 슬라이드 제목 위치 고정: slide_type "content"인 슬라이드의 제목 텍스트박스는
+   반드시 left_px=64, top_px=96, width_px=1152, height_px=56으로 고정하세요.
 </constraints>
 
 <content_vertical_balance>
@@ -290,24 +297,24 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
 <design_principles>
 색상 테마는 사용자 프롬프트의 color_theme 값에 따라 결정됩니다 (미지정 시 "dark" 기본).
 
-메인 컬러: 파랑-보라 그라데이션 계열
-- 기본 그라데이션 축: #4A00E0 (딥 퍼플) ↔ #2196F3 (블루) ↔ #00BCD4 (시안)
-- 강조색: #7C4DFF (바이올렛), #448AFF (브라이트 블루), #00E5FF (네온 시안)
-- 보조 강조색: #FF6D00 (오렌지), #69F0AE (민트 그린) — 포인트용으로만 제한 사용
+메인 컬러: AWS 다크 템플릿 계열
+- 기본 컬러 축: #232F3E (AWS 네이비) ↔ #FF9900 (AWS 오렌지) ↔ #FFC000 (앰버)
+- 강조색: #FFC000 (앰버), #FF9900 (AWS 오렌지), #00A1C9 (시안)
+- 보조 강조색: #FF9900 (AWS 오렌지), #1A8F73 (그린) — 포인트용으로만 제한 사용
 
 다크 모드 (color_theme: "dark"):
-- 배경: #0D0D1A ~ #1A1A2E (딥 네이비/다크 퍼플 계열)
-- 카드/shape 배경: #1E1E3F ~ #2A2A4E (진한 남보라)
+- 배경: #161E2D ~ #232F3E (AWS 네이비 계열)
+- 카드/shape 배경: #1B2A3D ~ #2E3D50 (진한 네이비)
 - 제목 텍스트: #FFFFFF
-- 본문 텍스트: #E0E0E0 ~ #B0B0B0
-- 구분선/테두리: #3A3A5C ~ #4A4A6A
+- 본문 텍스트: #F1F3F3 ~ #D5DBDB
+- 구분선/테두리: #3B4A5C ~ #4A5B6D
 
 라이트 모드 (color_theme: "light"):
-- 배경: #F5F5FF ~ #FFFFFF (밝은 라벤더/화이트)
-- 카드/shape 배경: #EDE7F6 ~ #E8EAF6 (연한 퍼플/인디고)
-- 제목 텍스트: #1A1A2E ~ #212121
-- 본문 텍스트: #424242 ~ #616161
-- 구분선/테두리: #D1C4E9 ~ #C5CAE9
+- 배경: #F2F3F3 ~ #FFFFFF (밝은 그레이/화이트)
+- 카드/shape 배경: #E9EBED ~ #D5DBDB (연한 그레이)
+- 제목 텍스트: #232F3E ~ #16202A
+- 본문 텍스트: #414D5C ~ #5F6B7A
+- 구분선/테두리: #D5DBDB ~ #C4CACF
 
 공통 규칙:
 - 구분선: 얇은 shape(height 2~4px)로 제목과 본문 분리

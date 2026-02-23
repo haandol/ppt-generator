@@ -447,6 +447,49 @@ class TestOverlapDetection:
         # 간격이 16px 이상이어야 함
         assert tb2_top - tb1_bottom >= 16
 
+    def test_container_child_no_pushdown(self) -> None:
+        """컨테이너-자식 관계(완전 포함) → push-down하지 않아야 한다."""
+        # 큰 배경 패널
+        container = PptxShape(
+            left_px=64, top_px=180, width_px=1152, height_px=440,
+            shape_type="rounded_rectangle",
+            fill_color="#1B2A3D",
+            text="",
+        )
+        # 컨테이너 안에 완전히 포함되는 작은 블록
+        child = PptxShape(
+            left_px=100, top_px=200, width_px=200, height_px=100,
+            shape_type="rounded_rectangle",
+            fill_color="#2E3D50",
+            text="블록 A",
+            text_size_pt=16,
+        )
+        slide = _make_slide(shapes=[container, child])
+        result = validate_slide_spec(slide)
+        # child가 push-down되지 않고 원래 위치를 유지해야 함
+        assert result.shapes[1].top_px == 200
+
+    def test_line_shape_no_pushdown(self) -> None:
+        """line shape(화살표)는 다른 shape와 겹쳐도 push-down하지 않아야 한다."""
+        block = PptxShape(
+            left_px=100, top_px=200, width_px=200, height_px=100,
+            shape_type="rounded_rectangle",
+            fill_color="#2E3D50",
+            text="블록",
+            text_size_pt=16,
+        )
+        # 블록과 겹치는 화살표
+        arrow = PptxShape(
+            left_px=150, top_px=250, width_px=300, height_px=20,
+            shape_type="line",
+            border_color="#FF9900",
+            border_width_pt=2,
+        )
+        slide = _make_slide(shapes=[block, arrow])
+        result = validate_slide_spec(slide)
+        # arrow가 push-down되지 않아야 함
+        assert result.shapes[1].top_px == 250
+
 
 # ---------------------------------------------------------------------------
 # 수직 센터링 검증

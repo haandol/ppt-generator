@@ -357,8 +357,62 @@ def _validate_shapes(
     return validated
 
 
+# --- 콘텐츠 슬라이드 제목 위치 고정 ---
+_CONTENT_TITLE_LEFT = 64
+_CONTENT_TITLE_TOP = 96
+_CONTENT_TITLE_WIDTH = 1152
+_CONTENT_TITLE_HEIGHT = 56
+_CONTENT_TITLE_MIN_FONT = 24
+
+
+def _fix_content_title_position(
+    textboxes: list[PptxTextBox],
+) -> list[PptxTextBox]:
+    """content 슬라이드의 첫 번째 제목 텍스트박스 위치를 고정값으로 보정한다.
+
+    제목 판별 조건: 첫 번째 텍스트박스이면서 bold + font_size_pt >= 24pt인 run이 있는 경우.
+    """
+    if not textboxes:
+        return textboxes
+
+    tb = textboxes[0]
+    is_title = any(
+        run.bold and run.font_size_pt and run.font_size_pt >= _CONTENT_TITLE_MIN_FONT
+        for para in tb.paragraphs
+        for run in para.runs
+    )
+    if not is_title:
+        return textboxes
+
+    fixed_tb = PptxTextBox(
+        left_px=_CONTENT_TITLE_LEFT,
+        top_px=_CONTENT_TITLE_TOP,
+        width_px=_CONTENT_TITLE_WIDTH,
+        height_px=_CONTENT_TITLE_HEIGHT,
+        paragraphs=tb.paragraphs,
+        line_spacing_pt=tb.line_spacing_pt,
+        vertical_alignment=tb.vertical_alignment,
+    )
+    return [fixed_tb, *textboxes[1:]]
+
+
 _OVERLAP_GAP = SPEC_VALIDATE_OVERLAP_GAP_PX  # 겹침 해소 시 요소 간 최소 간격 (px)
 _OVERLAP_MAX_PASSES = 3  # 겹침 해소 최대 반복 횟수
+
+
+def _is_contained(
+    outer: tuple[float, float, float, float],
+    inner: tuple[float, float, float, float],
+) -> bool:
+    """inner의 bounding box가 outer 안에 완전히 포함되는지 확인한다."""
+    ol, ot, ow, oh = outer
+    il, it, iw, ih = inner
+    return il >= ol and it >= ot and il + iw <= ol + ow and it + ih <= ot + oh
+
+
+def _is_line_shape(shapes: list[PptxShape], kind: str, orig_idx: int) -> bool:
+    """해당 요소가 line shape인지 확인한다."""
+    return kind == "sh" and shapes[orig_idx].shape_type == "line"
 
 
 def _resolve_overlaps(
@@ -371,12 +425,16 @@ def _resolve_overlaps(
 ) -> tuple[list[PptxTextBox], list[PptxShape]]:
     """비장식 요소 간 수직 겹침을 해소한다.
 
+    컨테이너-자식 관계(한 요소가 다른 요소를 완전히 포함)와
+    line shape(화살표/커넥터)의 겹침은 의도적 중첩으로 간주하여 건너뛴다.
+
     알고리즘:
     1. 비장식 요소의 bounding box를 수집
     2. top_px 오름차순 정렬
-    3. 겹치는 쌍 → 아래 요소를 push-down (위 요소의 bottom + gap)
-    4. push-down 후 캔버스 초과 시 height 축소 (최소 10px)
-    5. 최대 max_passes회 반복
+    3. 겹치는 쌍 → 컨테이너-자식 또는 line shape이면 건너뜀
+    4. 그 외 겹침 → 아래 요소를 push-down (위 요소의 bottom + gap)
+    5. push-down 후 캔버스 초과 시 height 축소 (최소 10px)
+    6. 최대 max_passes회 반복
 
     한계: 수평 겹침은 해소하지 않음 (수평 이동은 레이아웃을 크게 망가뜨릴 수 있음).
     """
@@ -403,16 +461,24 @@ def _resolve_overlaps(
             a_kind, a_orig, a_l, a_t, a_w, a_h = items[a_idx]
             a_right = a_l + a_w
             a_bottom = a_t + a_h
+            a_box = (a_l, a_t, a_w, a_h)
             for b_idx in range(a_idx + 1, len(items)):
                 b_kind, b_orig, b_l, b_t, b_w, b_h = items[b_idx]
                 b_right = b_l + b_w
+                b_box = (b_l, b_t, b_w, b_h)
                 # 수평 겹침 확인
                 if a_l >= b_right or b_l >= a_right:
                     continue
                 # 수직 겹침 확인
                 if a_bottom <= b_t:
                     continue
-                # 겹침 → 아래 요소 push-down
+                # 컨테이너-자식 관계 → 의도적 중첩, 건너뜀
+                if _is_contained(a_box, b_box) or _is_contained(b_box, a_box):
+                    continue
+                # line shape → 다이어그램 연결선, 건너뜀
+                if _is_line_shape(shapes, a_kind, a_orig) or _is_line_shape(shapes, b_kind, b_orig):
+                    continue
+                # 동일 레벨 겹침 → 아래 요소 push-down
                 new_top = a_bottom + gap
                 if new_top + b_h > max_bottom:
                     # 캔버스 초과 시 height 축소
@@ -489,6 +555,10 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
     """LLM 출력 PptxSlideSpec을 검증하고 보정한다."""
     validated_textboxes = _validate_textboxes(spec.textboxes)
     validated_shapes = _validate_shapes(spec.shapes)
+
+    if spec.slide_type == "content":
+        validated_textboxes = _fix_content_title_position(validated_textboxes)
+
     validated_textboxes, validated_shapes = _resolve_overlaps(
         validated_textboxes, validated_shapes,
     )
