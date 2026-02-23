@@ -5,7 +5,7 @@ from strands.types.exceptions import ModelThrottledException
 
 from ppt_generator.interfaces.constants import OUTLINE_USER_PROMPT_TEMPLATE
 from ppt_generator.interfaces.schemas import OutlineRequest, OutlineResponse, SlideOutline
-from ppt_generator.interfaces.utils import extract_json_from_response
+from ppt_generator.interfaces.utils import extract_json_from_response, log_token_usage
 
 MAX_RETRIES = 3
 
@@ -15,6 +15,12 @@ logger = logging.getLogger(__name__)
 class OutlineService:
     def __init__(self, agent: Agent) -> None:
         self._agent = agent
+        self._last_token_usage: dict[str, int] = {}
+
+    @property
+    def last_token_usage(self) -> dict[str, int]:
+        """직전 LLM 호출의 토큰 사용량."""
+        return self._last_token_usage
 
     def generate(self, request: OutlineRequest) -> OutlineResponse:
         if not request.topic.strip():
@@ -30,7 +36,9 @@ class OutlineService:
         last_error: ValueError | None = None
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                result = str(self._agent(prompt))
+                agent_result = self._agent(prompt)
+                self._last_token_usage = log_token_usage(agent_result, f"outline (시도 {attempt}/{MAX_RETRIES})")
+                result = str(agent_result)
             except ModelThrottledException:
                 logger.warning("아웃라인 생성 중 Bedrock 쓰로틀링 발생 (시도 %d/%d)", attempt, MAX_RETRIES)
                 if attempt == MAX_RETRIES:

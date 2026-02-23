@@ -6,7 +6,7 @@ from strands.types.exceptions import ModelThrottledException
 
 from ppt_generator.interfaces.constants import SCRIPT_USER_PROMPT_TEMPLATE
 from ppt_generator.interfaces.schemas import ScriptRequest, ScriptResponse, SlideOutline
-from ppt_generator.interfaces.utils import extract_json_from_response
+from ppt_generator.interfaces.utils import extract_json_from_response, log_token_usage
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +14,12 @@ logger = logging.getLogger(__name__)
 class ScriptService:
     def __init__(self, agent: Agent) -> None:
         self._agent = agent
+        self._last_token_usage: dict[str, int] = {}
+
+    @property
+    def last_token_usage(self) -> dict[str, int]:
+        """직전 LLM 호출의 토큰 사용량."""
+        return self._last_token_usage
 
     def generate(self, request: ScriptRequest) -> ScriptResponse:
         if not request.outline.slides:
@@ -30,7 +36,9 @@ class ScriptService:
             minutes_per_slide=minutes_per_slide,
         )
         try:
-            result = str(self._agent(prompt))
+            agent_result = self._agent(prompt)
+            self._last_token_usage = log_token_usage(agent_result, "script")
+            result = str(agent_result)
         except ModelThrottledException:
             logger.warning("스크립트 생성 중 Bedrock 쓰로틀링 발생")
             raise

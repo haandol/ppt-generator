@@ -13,6 +13,7 @@ from ppt_generator.interfaces.constants import (
     VALID_AUDIENCE_LEVELS,
 )
 from ppt_generator.interfaces.schemas import OutlineRequest, ProjectMetadata
+from ppt_generator.interfaces.utils import format_token_usage
 from ppt_generator.tools.outline.service import OutlineService
 from ppt_generator.tools.project.service import ProjectService
 
@@ -78,10 +79,11 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
         project_service.save_outline(project_dir, result)
         project_service.update_step(project_dir, "outline")
 
-        return json.dumps(
-            {
-                "outline_path": str(project_dir / "outline.json"),
-                "project_id": project_id,
-            },
-            ensure_ascii=False,
-        )
+        resp: dict = {
+            "outline_path": str(project_dir / "outline.json"),
+            "project_id": project_id,
+        }
+        usage = format_token_usage(outline_service.last_token_usage)
+        if usage:
+            resp["token_usage"] = usage
+        return json.dumps(resp, ensure_ascii=False)

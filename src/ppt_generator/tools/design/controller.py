@@ -10,10 +10,12 @@ from typing import Callable
 from mcp.server.fastmcp import Context, FastMCP
 from strands.types.exceptions import ModelThrottledException
 
-from ppt_generator.interfaces.constants import DESIGN_SPEC_PARALLEL
+from ppt_generator.interfaces.constants import BEDROCK_DESIGN_MODEL_ID, DESIGN_SPEC_PARALLEL
 from ppt_generator.interfaces.utils import (
     complexity_to_thinking_effort,
+    estimate_cost,
     estimate_slide_complexity,
+    format_token_usage,
     parse_outline_json,
 )
 from ppt_generator.tools.design.service import DesignService
@@ -98,6 +100,10 @@ def register_design_tools(
         results_map: dict[int, dict] = {}
         success_count = 0
         error_count = 0
+        total_input_tokens = 0
+        total_output_tokens = 0
+        total_cache_read_tokens = 0
+        total_cache_write_tokens = 0
 
         async def _report(progress: int, message: str) -> None:
             if ctx is not None:
@@ -180,6 +186,7 @@ def register_design_tools(
                         "slide_index": idx,
                         "status": "success",
                         "slide_file": f"slide_{idx + 1:02d}.json",
+                        "_token_usage": svc.last_token_usage,
                     }
                     if html_path_str:
                         r["slide_html_path"] = html_path_str
@@ -203,6 +210,12 @@ def register_design_tools(
                 for future in as_completed(future_to_idx):
                     res = future.result()
                     idx = res["slide_index"]
+                    usage = res.pop("_token_usage", None)
+                    if isinstance(usage, dict) and usage:
+                        total_input_tokens += usage.get("inputTokens", 0)
+                        total_output_tokens += usage.get("outputTokens", 0)
+                        total_cache_read_tokens += usage.get("cacheReadInputTokens", 0)
+                        total_cache_write_tokens += usage.get("cacheWriteInputTokens", 0)
                     results_map[idx] = res
                     if res["status"] == "success":
                         success_count += 1
@@ -215,9 +228,14 @@ def register_design_tools(
                         f"{'완료' if res['status'] == 'success' else '실패'}",
                     )
 
+            total_all_tokens = total_input_tokens + total_output_tokens
             logger.info(
                 "병렬 처리 완료: 최대 동시실행 스레드=%d, 성공=%d, 실패=%d",
                 peak_threads[0], success_count, error_count,
+            )
+            logger.info(
+                "[tokens] design_spec 합산: input=%s, output=%s, total=%s",
+                f"{total_input_tokens:,}", f"{total_output_tokens:,}", f"{total_all_tokens:,}",
             )
 
         # 결과를 인덱스 순서로 정렬
@@ -235,6 +253,19 @@ def register_design_tools(
             slides_html_path = str(path)
             logger.info("slides.html 컨테이너 생성 완료: %s", path)
 
+        # --- 토큰 사용량 & 예상 비용 ---
+        aggregated_usage: dict[str, int] = {}
+        if total_input_tokens or total_output_tokens:
+            aggregated_usage = {
+                "inputTokens": total_input_tokens,
+                "outputTokens": total_output_tokens,
+                "totalTokens": total_input_tokens + total_output_tokens,
+            }
+            if total_cache_read_tokens:
+                aggregated_usage["cacheReadInputTokens"] = total_cache_read_tokens
+            if total_cache_write_tokens:
+                aggregated_usage["cacheWriteInputTokens"] = total_cache_write_tokens
+
         resp: dict = {
             "design_spec_dir": str(project_dir / "design_spec"),
             "slide_count": slide_count,
@@ -246,6 +277,9 @@ def register_design_tools(
         }
         if slides_html_path:
             resp["slides_html_path"] = slides_html_path
+        if aggregated_usage:
+            resp["token_usage"] = format_token_usage(aggregated_usage)
+            resp["estimated_cost"] = estimate_cost(aggregated_usage, BEDROCK_DESIGN_MODEL_ID)
 
         return json.dumps(resp, ensure_ascii=False)
 

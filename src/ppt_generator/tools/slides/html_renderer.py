@@ -36,7 +36,7 @@ def run_to_html(run: PptxTextRun) -> str:
     if run.italic:
         styles.append("font-style:italic")
     if run.font_family == "monospace":
-        styles.append("font-family:Consolas,'Courier New',monospace")
+        styles.append("font-family:'Source Code Pro',Consolas,'Courier New',monospace")
 
     text = escape_html(run.text)
     if styles:

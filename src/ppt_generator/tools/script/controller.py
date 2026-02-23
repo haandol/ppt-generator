@@ -5,7 +5,7 @@ from mcp.server.fastmcp import FastMCP
 
 from ppt_generator.interfaces.constants import DEFAULT_AUDIENCE_LEVEL, DEFAULT_PRESENTATION_MINUTES
 from ppt_generator.interfaces.schemas import ScriptRequest
-from ppt_generator.interfaces.utils import parse_outline_json
+from ppt_generator.interfaces.utils import format_token_usage, parse_outline_json
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.script.service import ScriptService
 
@@ -65,12 +65,13 @@ def register_script_tools(mcp: FastMCP, script_service: ScriptService, project_s
         project_service.save_script(project_dir, result)
         project_service.update_step(project_dir, "script")
 
-        return json.dumps(
-            {
-                "script_path": str(project_dir / "script.json"),
-                "project_id": project_id,
-            },
-            ensure_ascii=False,
-        )
+        resp: dict = {
+            "script_path": str(project_dir / "script.json"),
+            "project_id": project_id,
+        }
+        usage = format_token_usage(script_service.last_token_usage)
+        if usage:
+            resp["token_usage"] = usage
+        return json.dumps(resp, ensure_ascii=False)
 
 

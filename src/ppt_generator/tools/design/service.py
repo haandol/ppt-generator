@@ -26,6 +26,7 @@ from ppt_generator.interfaces.schemas import (
     SlideOutline,
 )
 from ppt_generator.interfaces.spec_utils import validate_slide_spec
+from ppt_generator.interfaces.utils import log_token_usage
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ class DesignService:
 
     def __init__(self, agent: Agent) -> None:
         self._agent = agent
+        self._last_token_usage: dict[str, int] = {}
 
     def generate_single_slide(
         self,
@@ -75,7 +77,9 @@ class DesignService:
                 color_theme=color_theme,
             )
 
-        spec = self._generate_with_structured_output(prompt)
+        spec = self._generate_with_structured_output(
+            prompt, label=f"slide[{slide_index}/{total_slides}]",
+        )
         return replace(spec, slide_type=slide_outline.slide_type)
 
     def generate_design_summary(
@@ -114,6 +118,7 @@ class DesignService:
 
         try:
             result = self._agent(prompt)
+            log_token_usage(result, "design_summary")
         except ModelThrottledException:
             logger.warning("design_summary 생성 중 Bedrock 쓰로틀링 발생")
             raise
@@ -174,10 +179,16 @@ class DesignService:
             "card_borders": sorted(card_borders) if card_borders else [],
         }
 
-    def _generate_with_structured_output(self, prompt: str) -> PptxSlideSpec:
+    @property
+    def last_token_usage(self) -> dict[str, int]:
+        """직전 LLM 호출의 토큰 사용량. 호출 전이면 빈 dict."""
+        return self._last_token_usage
+
+    def _generate_with_structured_output(self, prompt: str, *, label: str = "design_spec") -> PptxSlideSpec:
         """strands structured_output으로 슬라이드 스펙을 생성하고 검증."""
         try:
             result = self._agent(prompt, structured_output_model=SlideSpecOutput)
+            self._last_token_usage = log_token_usage(result, label)
         except ModelThrottledException:
             logger.warning("디자인 스펙 생성 중 Bedrock 쓰로틀링 발생")
             raise

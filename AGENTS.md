@@ -54,7 +54,7 @@ ppt-generator/
 │   │   ├── spec_utils.py          # PptxSlideSpec 파싱/검증/직렬화 공유 유틸리티
 │   │   ├── text_measurement.py    # 폰트 메트릭 기반 텍스트 크기 추정 (줄바꿈/높이 계산)
 │   │   ├── bg_image_utils.py      # 배경 이미지 유틸리티
-│   │   ├── utils.py               # parse_outline_json, 슬라이드 복잡도 추정 등 공용 유틸리티
+│   │   ├── utils.py               # parse_outline_json, 슬라이드 복잡도 추정, 토큰 로깅/가격 계산 등 공용 유틸리티
 │   │   └── prompts/                      # 프롬프트 템플릿 모듈
 │   │       ├── __init__.py               # .prompt.md 파일 로딩 + 상수 re-export
 │   │       ├── design_system.prompt.md   # 디자인 스펙 시스템 프롬프트
@@ -123,6 +123,7 @@ ppt-generator/
 | `ANTHROPIC_OUTLINE_MODEL_ID`| 모델 ID 문자열         | 아웃라인/스크립트 Anthropic 모델 (기본: `claude-sonnet-4-6`)                                             |
 | `OUTLINE_THINKING_EFFORT`  | `high`/`medium`/`low`   | 아웃라인/스크립트 thinking effort (기본: medium)                                                         |
 | `DESIGN_SPEC_PARALLEL`     | 정수 (기본: 8)          | `generate_slides_design_spec` 도구의 병렬 워커 수 제어                                                   |
+| `PPT_LOG_FILE`             | 파일 경로 문자열        | 로그 파일 경로 (설정 시 DEBUG 레벨로 파일에 기록, 토큰 사용량 포함)                                      |
 
 > **Auto-detect 로직**: `LLM_PROVIDER` 미설정 시, `ANTHROPIC_API_KEY`가 있으면 `anthropic`, 없으면 `bedrock`으로 자동 선택됩니다.
 
@@ -165,6 +166,39 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 **프롬프트 캐싱:**
 - Bedrock: `BedrockModel(cache_config=CacheConfig(strategy="auto"))` — 시스템 프롬프트에 자동 cache point 주입
 - Anthropic: `CachingAnthropicModel` — `format_request()` 오버라이드로 `cache_control: {"type": "ephemeral"}` 적용
+
+### Token Usage Tracking & Cost Estimation
+
+모든 LLM 호출 도구는 응답에 `token_usage`를 포함하며, `generate_slides_design_spec`은 추가로 `estimated_cost`(USD)를 반환합니다.
+
+**서비스 레이어:**
+- `OutlineService`, `ScriptService`, `DesignService` 모두 `last_token_usage` 프로퍼티를 제공
+- `log_token_usage()` 헬퍼가 strands `result.metrics.accumulated_usage`에서 토큰 정보를 추출, INFO 로깅 후 dict 반환
+
+**컨트롤러 레이어:**
+- `generate_outline`, `generate_script`: 응답 JSON에 `token_usage` 필드 포함
+- `generate_slides_design_spec`: 모든 슬라이드의 토큰을 합산하여 `token_usage` + `estimated_cost` 포함
+
+**가격 계산 (`estimate_cost()`):**
+- `interfaces/utils.py`의 `_MODEL_PRICING` 딕셔너리에 모델별 가격 정의 (USD / 1M tokens)
+- Bedrock 모델 ID (`global.anthropic.claude-sonnet-4-6` 등)는 `_MODEL_ID_ALIASES`로 정규화
+- `inputTokens`, `outputTokens`, `cacheReadInputTokens`, `cacheWriteInputTokens` 각각 별도 단가 적용
+
+**응답 예시:**
+```json
+{
+  "token_usage": {
+    "inputTokens": 63335,
+    "outputTokens": 57853,
+    "totalTokens": 121188
+  },
+  "estimated_cost": {
+    "input_cost": 0.190005,
+    "output_cost": 0.867795,
+    "total_cost": 1.0578
+  }
+}
+```
 
 ### Pipeline Design Philosophy: Progressive Refinement
 
@@ -227,9 +261,9 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 
 | Tool                         | Module           | Description                                                                                        |
 | ---------------------------- | ---------------- | -------------------------------------------------------------------------------------------------- |
-| `generate_outline`           | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (title, content_summary, component_hint) |
-| `generate_script`            | `tools/script/`  | 아웃라인 JSON을 기반으로 슬라이드별 발표 스크립트 생성                                             |
-| `generate_slides_design_spec` | `tools/design/`  | 슬라이드 디자인 스펙 생성 — 전체 또는 slide_indices로 선택적 생성 (서버 내부 병렬 처리)            |
+| `generate_outline`           | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (token_usage 포함) |
+| `generate_script`            | `tools/script/`  | 아웃라인 JSON을 기반으로 슬라이드별 발표 스크립트 생성 (token_usage 포함)                           |
+| `generate_slides_design_spec` | `tools/design/`  | 슬라이드 디자인 스펙 생성 — 서버 내부 병렬 처리, token_usage 합산 + estimated_cost(USD) 포함       |
 | `modify_design_spec`          | `tools/design/`  | 디자인 스펙의 개별 슬라이드 추가/수정/삭제 (CRUD)                                                  |
 | `generate_slides`            | `tools/slides/`  | 디자인 스펙 또는 project_id 기반 HTML 슬라이드 생성 (결정론적 변환)                                |
 | `export_pptx`                | `tools/pptx/`    | 디자인 스펙 또는 project_id 기반 편집 가능한 PPTX 내보내기 (결정론적 변환)                         |
@@ -343,7 +377,8 @@ Anthropic API 사용 시:
       "command": "uv",
       "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"],
       "env": {
-        "ANTHROPIC_API_KEY": "sk-ant-..."
+        "ANTHROPIC_API_KEY": "sk-ant-...",
+        "PPT_LOG_FILE": "/tmp/ppt-generator.log"
       }
     }
   }
@@ -357,7 +392,10 @@ AWS Bedrock 사용 시 (`~/.aws/credentials` 설정 완료 가정):
   "mcpServers": {
     "ppt-generator": {
       "command": "uv",
-      "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"]
+      "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"],
+      "env": {
+        "PPT_LOG_FILE": "/tmp/ppt-generator.log"
+      }
     }
   }
 }
