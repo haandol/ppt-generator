@@ -68,6 +68,10 @@ def project_dir(tmp_path: Path) -> Path:
 def project_with_design_spec(project_service: ProjectService, project_dir: Path) -> tuple[str, Path]:
     spec = _make_design_spec(3)
     project_service.save_design_spec(project_dir, spec)
+    project_service.save_design_summary(
+        project_dir,
+        {"background_color": "#1a1a2e", "text_colors": ["#ffffff"], "title_font_pt": 32, "body_font_pt": 18, "card_fills": [], "card_borders": []},
+    )
     return project_dir.name, project_dir
 
 
@@ -87,7 +91,7 @@ def mcp_tools(project_service: ProjectService) -> dict:
 
     design_service = MagicMock()
     design_service.generate_single_slide.return_value = _make_slide_spec("새로 생성됨")
-    design_service.extract_design_summary.return_value = {"background_color": "#1a1a2e", "text_colors": ["#ffffff"]}
+    design_service.last_token_usage = {}
     design_service.generate_design_summary.return_value = {"background_color": "#1a1a2e", "text_colors": ["#ffffff"], "title_font_pt": 32, "body_font_pt": 18, "card_fills": [], "card_borders": []}
 
     design_service_factory = lambda effort: design_service  # noqa: E731
@@ -218,6 +222,74 @@ class TestModifyDesignSpec:
                 project_id=project_id,
                 action="add",
             )
+
+    def test_add_returns_token_usage(self, mcp_tools: dict, project_with_design_spec: tuple, monkeypatch, tmp_path: Path) -> None:
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        project_id, project_dir = project_with_design_spec
+        import shutil
+        dest = tmp_path / project_id
+        if not dest.exists():
+            shutil.copytree(project_dir, dest)
+
+        design_service = mcp_tools["_design_service"]
+        design_service.last_token_usage = {"inputTokens": 500, "outputTokens": 200, "totalTokens": 700}
+
+        result = json.loads(mcp_tools["modify_design_spec"](
+            project_id=project_id,
+            action="add",
+            slide_index=-1,
+            outline_json=SAMPLE_OUTLINE_JSON,
+        ))
+        assert "token_usage" in result
+        assert result["token_usage"]["inputTokens"] == 500
+        assert result["token_usage"]["outputTokens"] == 200
+        assert "estimated_cost" in result
+        assert "total_cost" in result["estimated_cost"]
+
+    def test_update_returns_token_usage(self, mcp_tools: dict, project_with_design_spec: tuple, monkeypatch, tmp_path: Path) -> None:
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        project_id, project_dir = project_with_design_spec
+        import shutil
+        dest = tmp_path / project_id
+        if not dest.exists():
+            shutil.copytree(project_dir, dest)
+
+        design_service = mcp_tools["_design_service"]
+        design_service.last_token_usage = {"inputTokens": 300, "outputTokens": 150, "totalTokens": 450}
+
+        result = json.loads(mcp_tools["modify_design_spec"](
+            project_id=project_id,
+            action="update",
+            slide_index=0,
+            outline_json=SAMPLE_OUTLINE_JSON,
+        ))
+        assert "token_usage" in result
+        assert result["token_usage"]["inputTokens"] == 300
+        assert result["token_usage"]["outputTokens"] == 150
+        assert "estimated_cost" in result
+        assert "total_cost" in result["estimated_cost"]
+
+    def test_delete_has_no_token_usage(self, mcp_tools: dict, project_with_design_spec: tuple, monkeypatch, tmp_path: Path) -> None:
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        project_id, project_dir = project_with_design_spec
+        import shutil
+        dest = tmp_path / project_id
+        if not dest.exists():
+            shutil.copytree(project_dir, dest)
+
+        result = json.loads(mcp_tools["modify_design_spec"](
+            project_id=project_id,
+            action="delete",
+            slide_index=1,
+        ))
+        assert "token_usage" not in result
+        assert "estimated_cost" not in result
 
 
 class TestGenerateSlidesDesignSpecFromProject:
@@ -456,8 +528,8 @@ class TestGenerateSlidesDesignSpec:
         project_id = self._setup_project(tmp_path, monkeypatch)
 
         # DESIGN_SPEC_PARALLEL을 2로 제한
-        import ppt_generator.tools.design.controller as ctrl_module
-        monkeypatch.setattr(ctrl_module, "DESIGN_SPEC_PARALLEL", 2)
+        import ppt_generator.tools.design.parallel_runner as runner_module
+        monkeypatch.setattr(runner_module, "DESIGN_SPEC_PARALLEL", 2)
 
         # 10장짜리 아웃라인 (모든 슬라이드 병렬 생성)
         outline_10 = json.dumps(

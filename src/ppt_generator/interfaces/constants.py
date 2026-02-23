@@ -42,49 +42,9 @@ DEFAULT_PRESENTATION_MINUTES = 15
 MIN_PRESENTATION_MINUTES = 3
 MAX_PRESENTATION_MINUTES = 60
 
-# --- Bedrock Structured Output JSON Schemas ---
+# --- Bedrock Structured Output JSON Schemas (re-export) ---
 
-OUTLINE_JSON_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "slides": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "title": {"type": "string"},
-                    "content_summary": {"type": "string"},
-                    "component_hint": {"type": "string"},
-                    "slide_type": {"type": "string", "enum": ["title", "closing", "content"]},
-                },
-                "required": ["title", "content_summary", "component_hint", "slide_type"],
-                "additionalProperties": False,
-            },
-        },
-    },
-    "required": ["slides"],
-    "additionalProperties": False,
-}
-
-SCRIPT_JSON_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "scripts": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "slide_index": {"type": "integer"},
-                    "speaker_notes": {"type": "string"},
-                },
-                "required": ["slide_index", "speaker_notes"],
-                "additionalProperties": False,
-            },
-        },
-    },
-    "required": ["scripts"],
-    "additionalProperties": False,
-}
+from ppt_generator.interfaces.json_schemas import OUTLINE_JSON_SCHEMA, SCRIPT_JSON_SCHEMA  # noqa: E402
 
 # --- PPTX 수치 상수 ---
 

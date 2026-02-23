@@ -23,7 +23,8 @@ ppt-generator/
 ├── src/ppt_generator/
 │   ├── server.py                  # MCP 서버 진입점 + 도구 등록
 │   ├── di/
-│   │   └── container.py           # 의존성 주입 컨테이너
+│   │   ├── container.py           # 의존성 주입 컨테이너
+│   │   └── model_factory.py       # LLM 모델 생성 팩토리 (Bedrock/Anthropic)
 │   ├── tools/
 │   │   ├── outline/               # 슬라이드 아웃라인 생성 도구 (F1)
 │   │   │   ├── controller.py      # MCP 인터페이스
@@ -33,7 +34,8 @@ ppt-generator/
 │   │   │   └── service.py
 │   │   ├── design/                # 디자인 스펙 생성 도구
 │   │   │   ├── controller.py      # MCP 인터페이스
-│   │   │   └── service.py         # LLM 기반 디자인 스펙 생성
+│   │   │   ├── service.py         # LLM 기반 디자인 스펙 생성
+│   │   │   └── parallel_runner.py # ThreadPoolExecutor 기반 병렬 생성 러너
 │   │   ├── pptx/                  # PPTX 내보내기 도구 (F5)
 │   │   │   ├── controller.py      # MCP 인터페이스
 │   │   │   ├── service.py         # ExportService (디자인 스펙 → PPTX)
@@ -51,7 +53,12 @@ ppt-generator/
 │   │   ├── constants.py           # 모델 설정, 수치 상수, 프롬프트 re-export
 │   │   ├── schemas.py             # 내부 도메인 모델 (dataclass)
 │   │   ├── llm_output_models.py   # LLM structured_output용 Pydantic 모델
-│   │   ├── spec_utils.py          # PptxSlideSpec 파싱/검증/직렬화 공유 유틸리티
+│   │   ├── spec_utils/             # PptxSlideSpec 파싱/검증/직렬화 공유 유틸리티
+│   │   │   ├── __init__.py        # 하위 모듈 re-export
+│   │   │   ├── parser.py          # JSON → PptxSlideSpec 파싱
+│   │   │   ├── serializer.py      # PptxSlideSpec → JSON 직렬화
+│   │   │   └── validator.py       # 디자인 스펙 검증 (좌표, 중첩, 겹침 등)
+│   │   ├── json_schemas.py        # Bedrock Structured Output용 JSON 스키마 정의
 │   │   ├── text_measurement.py    # 폰트 메트릭 기반 텍스트 크기 추정 (줄바꿈/높이 계산)
 │   │   ├── bg_image_utils.py      # 배경 이미지 유틸리티
 │   │   ├── utils.py               # parse_outline_json, 슬라이드 복잡도 추정, 토큰 로깅/가격 계산 등 공용 유틸리티
@@ -145,7 +152,8 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 
 - **Controller** (`controller.py`): MCP 도구 인터페이스. `register_*_tools(mcp, service, project_service)` 함수로 도구를 등록하며, 내부에 `@mcp.tool()` 데코레이터가 적용된 함수를 정의합니다. docstring이 MCP 클라이언트에 도구 설명으로 노출됩니다.
 - **Service** (`service.py`): 비즈니스 로직. Request 데이터클래스를 받아 Response 데이터클래스를 반환합니다.
-- **DIContainer** (`di/container.py`): 프로바이더 자동 감지(Anthropic/Bedrock), 모델, Agent, Service 인스턴스를 생성하고 연결합니다. 지연 초기화(lazy init) 패턴을 사용합니다.
+- **DIContainer** (`di/container.py`): 프로바이더 자동 감지(Anthropic/Bedrock), Agent, Service 인스턴스를 생성하고 연결합니다. 지연 초기화(lazy init) 패턴을 사용합니다.
+- **ModelFactory** (`di/model_factory.py`): Bedrock/Anthropic 프로바이더별 모델 인스턴스 생성 로직을 담당합니다. DIContainer에서 분리.
 
 ### Key Modules
 
@@ -155,10 +163,13 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 | `interfaces/llm_output_models.py` | LLM structured_output용 Pydantic 모델, `to_dataclass()`로 변환 |
 | `interfaces/constants.py` | 모델 설정, 수치 상수, 프롬프트 re-export |
 | `interfaces/prompts/*.prompt.md` | 프롬프트 템플릿 (`.prompt.md` 파일 → `__init__.py`에서 로딩) |
-| `interfaces/spec_utils.py` | PptxSlideSpec 파싱/검증/직렬화 공유 유틸리티 |
+| `interfaces/spec_utils/` | PptxSlideSpec 파싱/검증/직렬화 공유 유틸리티 (패키지: parser, serializer, validator) |
+| `interfaces/json_schemas.py` | Bedrock Structured Output용 JSON 스키마 정의 |
 | `interfaces/text_measurement.py` | 폰트 메트릭 기반 텍스트 크기 추정 |
 | `templates/layout_mapping.py` | layout_index → 슬라이드 레이아웃 매핑 (97종) |
-| `tools/design/service.py` | 디자인 스펙 생성 — 병렬 처리, 복잡도 기반 adaptive effort |
+| `tools/design/service.py` | 디자인 스펙 생성 — 복잡도 기반 adaptive effort |
+| `tools/design/parallel_runner.py` | ThreadPoolExecutor 기반 슬라이드 병렬 생성, 토큰 집계 |
+| `di/model_factory.py` | LLM 모델 생성 팩토리 (Bedrock/Anthropic 프로바이더별) |
 | `tools/pptx/slide_builder.py` | PptxSlideSpec → python-pptx 변환 |
 | `tools/slides/html_renderer.py` | PptxSlideSpec → HTML 변환 |
 
@@ -166,11 +177,12 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 
 디자인 스펙 생성은 슬라이드별 독립 LLM 호출이므로 병렬 처리와 프롬프트 캐싱을 적용합니다. ([ADR-0018](docs/adr/pipeline/0018-parallel-design-spec-and-prompt-caching.md))
 
-**병렬 생성:**
-- `generate_slides_design_spec`에서 `ThreadPoolExecutor`로 슬라이드를 병렬 생성
+**병렬 생성** (`tools/design/parallel_runner.py`):
+- `generate_slides_design_spec`에서 `run_parallel_generation()`을 호출하여 `ThreadPoolExecutor`로 슬라이드를 병렬 생성
 - `DESIGN_SPEC_PARALLEL` 환경변수(기본 8)로 최대 동시 워커 수 제어
 - 워커마다 `design_service_factory(effort)`로 독립 Agent 인스턴스 생성 (strands Agent는 stateful이므로 공유 불가)
 - `ProjectService._metadata_lock`으로 `project.json` 동시 쓰기 보호
+- 토큰 사용량을 워커별로 수집하여 합산 (`ParallelResult` 반환)
 
 **복잡도 기반 스케줄링 & Adaptive Thinking Effort:** ([ADR-0019](docs/adr/pipeline/0019-complexity-based-scheduling-and-adaptive-effort.md))
 - `component_hint` + `content_summary` 길이로 결정론적 복잡도 점수(1~13)를 산출 (`estimate_slide_complexity()`)
@@ -183,7 +195,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 
 ### Token Usage Tracking & Cost Estimation
 
-모든 LLM 호출 도구는 응답에 `token_usage`를 포함하며, `generate_slides_design_spec`은 추가로 `estimated_cost`(USD)를 반환합니다.
+모든 LLM 호출 도구는 응답에 `token_usage`와 `estimated_cost`(USD)를 포함합니다.
 
 **서비스 레이어:**
 - `OutlineService`, `ScriptService`, `DesignService` 모두 `last_token_usage` 프로퍼티를 제공
@@ -192,6 +204,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 **컨트롤러 레이어:**
 - `generate_outline`, `generate_script`: 응답 JSON에 `token_usage` 필드 포함
 - `generate_slides_design_spec`: 모든 슬라이드의 토큰을 합산하여 `token_usage` + `estimated_cost` 포함
+- `modify_design_spec`: add/update 시 `svc.last_token_usage`에서 토큰을 수집하여 `token_usage` + `estimated_cost` 포함 (delete 시에는 LLM 호출이 없으므로 미포함)
 
 **가격 계산 (`estimate_cost()`):**
 - `interfaces/utils.py`의 `_MODEL_PRICING` 딕셔너리에 모델별 가격 정의 (USD / 1M tokens)
@@ -255,7 +268,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
         → content 슬라이드의 배경색을 design_summary 값으로 강제 보정
         → 완료 시 slides.html (iframe 컨테이너) 자동 생성
     ↓
-    ⏸ (선택) modify_design_spec → 개별 슬라이드 추가/수정/삭제 (project_id로 참조)
+    ⏸ (선택) modify_design_spec → 개별 슬라이드 추가/수정/삭제 (design_summary.json 파일 기반 스타일 참조)
     ↓
     ├→ generate_slides(project_id=...)       → 디자인 스펙 자동 로드 → HTML 변환 (결정론적)
     │
@@ -278,7 +291,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 | `generate_outline`           | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (token_usage 포함) |
 | `generate_script`            | `tools/script/`  | 아웃라인 JSON을 기반으로 슬라이드별 발표 스크립트 생성 (token_usage 포함)                           |
 | `generate_slides_design_spec` | `tools/design/`  | 슬라이드 디자인 스펙 생성 — 서버 내부 병렬 처리, token_usage 합산 + estimated_cost(USD) 포함       |
-| `modify_design_spec`          | `tools/design/`  | 디자인 스펙의 개별 슬라이드 추가/수정/삭제 (CRUD)                                                  |
+| `modify_design_spec`          | `tools/design/`  | 디자인 스펙의 개별 슬라이드 추가/수정/삭제 (CRUD), add/update 시 token_usage + estimated_cost 포함  |
 | `generate_slides`            | `tools/slides/`  | 디자인 스펙 또는 project_id 기반 HTML 슬라이드 생성 (결정론적 변환)                                |
 | `export_pptx`                | `tools/pptx/`    | 디자인 스펙 또는 project_id 기반 편집 가능한 PPTX 내보내기 (결정론적 변환)                         |
 | `list_projects`              | `tools/project/` | 기존 프로젝트 목록 조회 (파이프라인 시작 전 호출 권장)                                             |

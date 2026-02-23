@@ -1,16 +1,10 @@
-import asyncio
 import json
 import logging
-import threading
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import replace
 from typing import Callable
 
 from mcp.server.fastmcp import Context, FastMCP
-from strands.types.exceptions import ModelThrottledException
 
-from ppt_generator.interfaces.constants import BEDROCK_DESIGN_MODEL_ID, DESIGN_SPEC_PARALLEL
+from ppt_generator.interfaces.constants import BEDROCK_DESIGN_MODEL_ID
 from ppt_generator.interfaces.utils import (
     complexity_to_thinking_effort,
     estimate_cost,
@@ -18,6 +12,7 @@ from ppt_generator.interfaces.utils import (
     format_token_usage,
     parse_outline_json,
 )
+from ppt_generator.tools.design.parallel_runner import run_parallel_generation
 from ppt_generator.tools.design.service import DesignService
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
@@ -66,6 +61,7 @@ def register_design_tools(
         Returns:
             design_spec_dir, slide_count, total_slides, project_id, success_count, error_count, results를 포함하는 JSON 문자열
         """
+        # --- 아웃라인 로드 ---
         if outline_json:
             outline = parse_outline_json(outline_json)
         elif project_id:
@@ -78,14 +74,13 @@ def register_design_tools(
         if total_slides == 0:
             total_slides = len(outline.slides)
 
-        # slide_indices 미지정 시에만 total_slides 불일치 검증
+        # --- slide_indices 파싱 및 검증 ---
         if not slide_indices and len(outline.slides) != total_slides:
             raise ValueError(
                 f"outline의 slides 수({len(outline.slides)})와 "
                 f"total_slides({total_slides})가 일치하지 않습니다."
             )
 
-        # slide_indices 파싱
         if slide_indices:
             indices = sorted(set(int(x.strip()) for x in slide_indices.split(",")))
             for idx in indices:
@@ -96,18 +91,6 @@ def register_design_tools(
 
         project_id, project_dir = project_service.resolve_project_dir(project_id)
         target_count = len(indices)
-        results: list[dict] = []
-        results_map: dict[int, dict] = {}
-        success_count = 0
-        error_count = 0
-        total_input_tokens = 0
-        total_output_tokens = 0
-        total_cache_read_tokens = 0
-        total_cache_write_tokens = 0
-
-        async def _report(progress: int, message: str) -> None:
-            if ctx is not None:
-                await ctx.report_progress(progress, target_count, message)
 
         # --- Step 1: design_summary 사전 생성 ---
         existing_summary = project_service.load_design_summary(project_dir)
@@ -117,133 +100,38 @@ def register_design_tools(
             summary = summary_svc.generate_design_summary(outline, color_theme)
             project_service.save_design_summary(project_dir, summary)
             logger.info("design_summary 사전 생성 완료")
-            await _report(0, "디자인 테마 생성 완료")
+            if ctx is not None:
+                await ctx.report_progress(0, target_count, "디자인 테마 생성 완료")
 
-        # --- Step 2: 모든 슬라이드 병렬 생성 (복잡도 내림차순 스케줄링) ---
-        parallel_indices = sorted(
-            indices,
-            key=lambda i: estimate_slide_complexity(outline.slides[i]),
-            reverse=True,
+        # --- Step 2: 병렬 생성 ---
+        design_summary = project_service.load_design_summary(project_dir)
+
+        async def _report(progress: int, message: str) -> None:
+            if ctx is not None:
+                await ctx.report_progress(progress, target_count, message)
+
+        # report_progress를 동기 콜백으로 래핑 (runner는 동기)
+        progress_calls: list[tuple[int, str]] = []
+
+        def sync_report(progress: int, message: str) -> None:
+            progress_calls.append((progress, message))
+
+        parallel_result = run_parallel_generation(
+            outline=outline,
+            indices=indices,
+            total_slides=total_slides,
+            color_theme=color_theme,
+            design_summary=design_summary,
+            design_service_factory=design_service_factory,
+            project_service=project_service,
+            project_dir=project_dir,
+            slides_service=slides_service,
+            report_progress=sync_report,
         )
 
-        if parallel_indices:
-            design_summary_for_batch = project_service.load_design_summary(project_dir)
-            max_workers = min(DESIGN_SPEC_PARALLEL, len(parallel_indices))
-            logger.info(
-                "병렬 처리 설정: DESIGN_SPEC_PARALLEL=%d, 대상 슬라이드=%d개, max_workers=%d",
-                DESIGN_SPEC_PARALLEL, len(parallel_indices), max_workers,
-            )
-            active_threads: list[int] = [0]
-            peak_threads: list[int] = [0]
-
-            def _generate_slide(idx: int) -> dict:
-                """worker 함수: 개별 슬라이드 생성."""
-                thread_name = threading.current_thread().name
-                active_threads[0] += 1
-                current = active_threads[0]
-                if current > peak_threads[0]:
-                    peak_threads[0] = current
-                complexity = estimate_slide_complexity(outline.slides[idx])
-                effort = complexity_to_thinking_effort(complexity)
-                logger.info(
-                    "slide[%d] 생성 시작 (complexity=%d, effort=%s, thread=%s, 동시실행=%d/%d)",
-                    idx, complexity, effort, thread_name, current, max_workers,
-                )
-                t0 = time.monotonic()
-                svc = design_service_factory(effort)
-                prev_outline = outline.slides[idx - 1] if idx > 0 else None
-                next_outline = outline.slides[idx + 1] if idx + 1 < len(outline.slides) else None
-                try:
-                    spec = svc.generate_single_slide(
-                        outline.slides[idx],
-                        design_summary=design_summary_for_batch,
-                        slide_index=idx + 1,
-                        total_slides=total_slides,
-                        color_theme=color_theme,
-                        prev_outline=prev_outline,
-                        next_outline=next_outline,
-                    )
-                    # content 슬라이드의 배경색을 design_summary 값으로 강제 보정
-                    if (
-                        design_summary_for_batch
-                        and spec.slide_type == "content"
-                        and design_summary_for_batch.get("background_color")
-                        and spec.background_color != design_summary_for_batch["background_color"]
-                    ):
-                        logger.info(
-                            "slide[%d] 배경색 보정: %s → %s",
-                            idx, spec.background_color, design_summary_for_batch["background_color"],
-                        )
-                        spec = replace(spec, background_color=design_summary_for_batch["background_color"])
-                    project_service.create_design_spec_slide(project_dir, idx, spec)
-
-                    html_path_str: str | None = None
-                    if slides_service is not None:
-                        html = slides_service.render_single_slide_html(idx, spec)
-                        hp = project_service.save_single_slide_html(project_dir, idx, html)
-                        html_path_str = str(hp)
-
-                    elapsed = time.monotonic() - t0
-                    active_threads[0] -= 1
-                    logger.info("slide[%d] 생성 완료 (thread=%s, %.1fs)", idx, thread_name, elapsed)
-                    r: dict = {
-                        "slide_index": idx,
-                        "status": "success",
-                        "slide_file": f"slide_{idx + 1:02d}.json",
-                        "_token_usage": svc.last_token_usage,
-                    }
-                    if html_path_str:
-                        r["slide_html_path"] = html_path_str
-                    return r
-                except ModelThrottledException as exc:
-                    elapsed = time.monotonic() - t0
-                    active_threads[0] -= 1
-                    logger.warning("slide[%d] Bedrock 쓰로틀링 발생 (thread=%s, %.1fs): %s", idx, thread_name, elapsed, exc)
-                    return {"slide_index": idx, "status": "error", "error": f"throttled: {exc}"}
-                except Exception as exc:
-                    elapsed = time.monotonic() - t0
-                    active_threads[0] -= 1
-                    logger.error("slide[%d] 생성 실패 (thread=%s, %.1fs): %s", idx, thread_name, elapsed, exc)
-                    return {"slide_index": idx, "status": "error", "error": str(exc)}
-
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                future_to_idx = {
-                    executor.submit(_generate_slide, i): i
-                    for i in parallel_indices
-                }
-                for future in as_completed(future_to_idx):
-                    res = future.result()
-                    idx = res["slide_index"]
-                    usage = res.pop("_token_usage", None)
-                    if isinstance(usage, dict) and usage:
-                        total_input_tokens += usage.get("inputTokens", 0)
-                        total_output_tokens += usage.get("outputTokens", 0)
-                        total_cache_read_tokens += usage.get("cacheReadInputTokens", 0)
-                        total_cache_write_tokens += usage.get("cacheWriteInputTokens", 0)
-                    results_map[idx] = res
-                    if res["status"] == "success":
-                        success_count += 1
-                    else:
-                        error_count += 1
-                    completed = success_count + error_count
-                    await _report(
-                        completed,
-                        f"슬라이드 {completed}/{target_count} "
-                        f"{'완료' if res['status'] == 'success' else '실패'}",
-                    )
-
-            total_all_tokens = total_input_tokens + total_output_tokens
-            logger.info(
-                "병렬 처리 완료: 최대 동시실행 스레드=%d, 성공=%d, 실패=%d",
-                peak_threads[0], success_count, error_count,
-            )
-            logger.info(
-                "[tokens] design_spec 합산: input=%s, output=%s, total=%s",
-                f"{total_input_tokens:,}", f"{total_output_tokens:,}", f"{total_all_tokens:,}",
-            )
-
-        # 결과를 인덱스 순서로 정렬
-        results = [results_map[i] for i in sorted(results_map)]
+        # 비동기 진행 보고 전달
+        for progress, message in progress_calls:
+            await _report(progress, message)
 
         project_service.update_step(project_dir, "design_spec")
         slide_count = project_service.get_design_spec_slide_count(project_dir)
@@ -259,25 +147,26 @@ def register_design_tools(
 
         # --- 토큰 사용량 & 예상 비용 ---
         aggregated_usage: dict[str, int] = {}
-        if total_input_tokens or total_output_tokens:
+        pr = parallel_result
+        if pr.total_input_tokens or pr.total_output_tokens:
             aggregated_usage = {
-                "inputTokens": total_input_tokens,
-                "outputTokens": total_output_tokens,
-                "totalTokens": total_input_tokens + total_output_tokens,
+                "inputTokens": pr.total_input_tokens,
+                "outputTokens": pr.total_output_tokens,
+                "totalTokens": pr.total_input_tokens + pr.total_output_tokens,
             }
-            if total_cache_read_tokens:
-                aggregated_usage["cacheReadInputTokens"] = total_cache_read_tokens
-            if total_cache_write_tokens:
-                aggregated_usage["cacheWriteInputTokens"] = total_cache_write_tokens
+            if pr.total_cache_read_tokens:
+                aggregated_usage["cacheReadInputTokens"] = pr.total_cache_read_tokens
+            if pr.total_cache_write_tokens:
+                aggregated_usage["cacheWriteInputTokens"] = pr.total_cache_write_tokens
 
         resp: dict = {
             "design_spec_dir": str(project_dir / "design_spec"),
             "slide_count": slide_count,
             "total_slides": total_slides,
             "project_id": project_id,
-            "success_count": success_count,
-            "error_count": error_count,
-            "results": results,
+            "success_count": pr.success_count,
+            "error_count": pr.error_count,
+            "results": pr.results,
         }
         if slides_html_path:
             resp["slides_html_path"] = slides_html_path
@@ -316,14 +205,12 @@ def register_design_tools(
         _, project_dir = project_service.resolve_project_dir(project_id)
         slide_count = project_service.get_design_spec_slide_count(project_dir)
 
-        # 디자인 요약 추출 (add/update 시 일관성 유지)
         design_summary: dict | None = None
-        if action in ("add", "update") and slide_count > 0:
-            first_slide = project_service.load_design_spec_slide(project_dir, 0)
-            svc_for_summary = design_service_factory("medium")
-            design_summary = svc_for_summary.extract_design_summary(first_slide)
+        if action in ("add", "update"):
+            design_summary = project_service.load_design_summary(project_dir)
 
         slide_html_path: str | None = None
+        token_usage: dict[str, int] = {}
 
         if action == "add":
             if not outline_json:
@@ -336,6 +223,7 @@ def register_design_tools(
             new_spec = svc.generate_single_slide(
                 slide_outline, design_summary, color_theme=color_theme,
             )
+            token_usage = svc.last_token_usage
             insert_idx = slide_index if 0 <= slide_index < slide_count else slide_count
             project_service.insert_design_spec_slide(project_dir, insert_idx, new_spec)
             if slides_service is not None:
@@ -358,6 +246,7 @@ def register_design_tools(
             new_spec = svc.generate_single_slide(
                 slide_outline, design_summary, color_theme=color_theme,
             )
+            token_usage = svc.last_token_usage
             project_service.save_design_spec_slide(project_dir, slide_index, new_spec)
             if slides_service is not None:
                 html = slides_service.render_single_slide_html(slide_index, new_spec)
@@ -374,12 +263,15 @@ def register_design_tools(
         project_service.update_step(project_dir, "design_spec_modified")
         new_count = project_service.get_design_spec_slide_count(project_dir)
 
-        result = {
+        result: dict = {
             "design_spec_dir": str(project_dir / "design_spec"),
             "project_id": project_id,
             "slide_count": new_count,
         }
         if slide_html_path:
             result["slide_html_path"] = slide_html_path
+        if token_usage:
+            result["token_usage"] = format_token_usage(token_usage)
+            result["estimated_cost"] = estimate_cost(token_usage, BEDROCK_DESIGN_MODEL_ID)
 
         return json.dumps(result, ensure_ascii=False)

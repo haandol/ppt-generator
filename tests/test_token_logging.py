@@ -451,7 +451,7 @@ class TestDesignControllerTokenAggregation:
             ensure_ascii=False,
         )
 
-        with caplog.at_level(logging.INFO, logger="ppt_generator.tools.design.controller"):
+        with caplog.at_level(logging.INFO, logger="ppt_generator.tools.design.parallel_runner"):
             result = json.loads(self._run(tools["generate_slides_design_spec"](
                 outline_json=outline_3,
                 total_slides=3,
@@ -560,7 +560,7 @@ class TestDesignControllerTokenAggregation:
             ensure_ascii=False,
         )
 
-        with caplog.at_level(logging.INFO, logger="ppt_generator.tools.design.controller"):
+        with caplog.at_level(logging.INFO, logger="ppt_generator.tools.design.parallel_runner"):
             result = json.loads(self._run(tools["generate_slides_design_spec"](
                 outline_json=outline_2,
                 total_slides=2,
