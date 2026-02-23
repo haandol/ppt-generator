@@ -11,7 +11,7 @@
 <design_summary>
 {design_summary}
 </design_summary>
-
+{adjacent_context}
 <input>
 {outline_json}
 </input>

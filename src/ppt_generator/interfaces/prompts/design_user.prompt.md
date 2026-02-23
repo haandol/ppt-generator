@@ -6,7 +6,7 @@
 슬라이드 위치: {slide_index}/{total_slides}장 중
 색상 테마: {color_theme}
 </context>
-
+{adjacent_context}
 <input>
 {outline_json}
 </input>

@@ -151,6 +151,8 @@ def register_design_tools(
                 )
                 t0 = time.monotonic()
                 svc = design_service_factory(effort)
+                prev_outline = outline.slides[idx - 1] if idx > 0 else None
+                next_outline = outline.slides[idx + 1] if idx + 1 < len(outline.slides) else None
                 try:
                     spec = svc.generate_single_slide(
                         outline.slides[idx],
@@ -158,6 +160,8 @@ def register_design_tools(
                         slide_index=idx + 1,
                         total_slides=total_slides,
                         color_theme=color_theme,
+                        prev_outline=prev_outline,
+                        next_outline=next_outline,
                     )
                     # content 슬라이드의 배경색을 design_summary 값으로 강제 보정
                     if (

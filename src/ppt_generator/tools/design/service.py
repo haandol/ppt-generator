@@ -45,6 +45,8 @@ class DesignService:
         slide_index: int = 1,
         total_slides: int = 1,
         color_theme: str = "dark",
+        prev_outline: SlideOutline | None = None,
+        next_outline: SlideOutline | None = None,
     ) -> PptxSlideSpec:
         """단일 슬라이드의 디자인 스펙을 생성한다.
 
@@ -54,11 +56,14 @@ class DesignService:
             slide_index: 슬라이드 번호 (1-based)
             total_slides: 전체 슬라이드 수
             color_theme: 색상 테마 ("dark" 또는 "light", 기본값: "dark")
+            prev_outline: 이전 슬라이드 아웃라인 (첫 슬라이드면 None)
+            next_outline: 다음 슬라이드 아웃라인 (마지막 슬라이드면 None)
 
         Returns:
             생성된 PptxSlideSpec
         """
         outline_json = self._outline_to_json(slide_outline)
+        adjacent_context = self._adjacent_context_section(prev_outline, next_outline)
 
         if design_summary:
             summary_text = json.dumps(design_summary, ensure_ascii=False, indent=2)
@@ -68,6 +73,7 @@ class DesignService:
                 design_summary=summary_text,
                 outline_json=outline_json,
                 color_theme=color_theme,
+                adjacent_context=adjacent_context,
             )
         else:
             prompt = DESIGN_SPEC_USER_PROMPT_TEMPLATE.format(
@@ -75,6 +81,7 @@ class DesignService:
                 total_slides=total_slides,
                 outline_json=outline_json,
                 color_theme=color_theme,
+                adjacent_context=adjacent_context,
             )
 
         spec = self._generate_with_structured_output(
@@ -195,6 +202,37 @@ class DesignService:
         output: SlideSpecOutput = result.structured_output
         spec = output.to_dataclass()
         return validate_slide_spec(spec)
+
+    @staticmethod
+    def _adjacent_context_section(
+        prev_outline: SlideOutline | None,
+        next_outline: SlideOutline | None,
+    ) -> str:
+        """인접 슬라이드의 아웃라인 요약을 프롬프트 섹션으로 생성한다.
+
+        speaker_notes는 제외하여 토큰을 절약한다.
+        둘 다 None이면 빈 문자열을 반환한다.
+        """
+        if prev_outline is None and next_outline is None:
+            return ""
+
+        def _summarize(outline: SlideOutline) -> dict:
+            return {
+                "title": outline.title,
+                "content_summary": outline.content_summary,
+                "component_hint": outline.component_hint,
+                "slide_type": outline.slide_type,
+            }
+
+        parts: list[str] = ["<adjacent_slides>"]
+        if prev_outline is not None:
+            prev_json = json.dumps(_summarize(prev_outline), ensure_ascii=False, indent=2)
+            parts.append(f"<previous_slide>\n{prev_json}\n</previous_slide>")
+        if next_outline is not None:
+            next_json = json.dumps(_summarize(next_outline), ensure_ascii=False, indent=2)
+            parts.append(f"<next_slide>\n{next_json}\n</next_slide>")
+        parts.append("</adjacent_slides>")
+        return "\n".join(parts)
 
     @staticmethod
     def _outline_to_json(slide: SlideOutline) -> str:

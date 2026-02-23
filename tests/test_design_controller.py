@@ -15,9 +15,11 @@ from ppt_generator.interfaces.schemas import (
     PptxSlideSpec,
     PptxTextBox,
     PptxTextRun,
+    SlideOutline,
 )
 from ppt_generator.interfaces.spec_utils import design_spec_to_json  # noqa: F401 — 하위 호환 확인용
 from ppt_generator.tools.design.controller import register_design_tools
+from ppt_generator.tools.design.service import DesignService
 from ppt_generator.tools.project.service import ProjectService
 
 
@@ -760,3 +762,85 @@ class TestGenerateSlidesDesignSpecWithSlidesService:
         assert "slide_01.html" in content
         assert "slide_02.html" in content
         assert "slide_03.html" in content
+
+
+class TestAdjacentContextSection:
+    """DesignService._adjacent_context_section 단위 테스트."""
+
+    def test_both_none_returns_empty(self) -> None:
+        """prev와 next 모두 None이면 빈 문자열을 반환한다."""
+        assert DesignService._adjacent_context_section(None, None) == ""
+
+    def test_prev_only(self) -> None:
+        """prev만 제공되면 previous_slide 섹션만 포함한다."""
+        prev = SlideOutline(
+            title="이전 슬라이드",
+            content_summary="이전 내용",
+            component_hint="bullets",
+            speaker_notes="노트는 제외되어야 함",
+            slide_type="content",
+        )
+        result = DesignService._adjacent_context_section(prev, None)
+        assert "<adjacent_slides>" in result
+        assert "<previous_slide>" in result
+        assert "</previous_slide>" in result
+        assert "<next_slide>" not in result
+        assert "이전 슬라이드" in result
+        assert "이전 내용" in result
+        assert "노트는 제외되어야 함" not in result
+
+    def test_next_only(self) -> None:
+        """next만 제공되면 next_slide 섹션만 포함한다."""
+        nxt = SlideOutline(
+            title="다음 슬라이드",
+            content_summary="다음 내용",
+            component_hint="two_column",
+            speaker_notes="이것도 제외",
+            slide_type="content",
+        )
+        result = DesignService._adjacent_context_section(None, nxt)
+        assert "<adjacent_slides>" in result
+        assert "<next_slide>" in result
+        assert "</next_slide>" in result
+        assert "<previous_slide>" not in result
+        assert "다음 슬라이드" in result
+        assert "다음 내용" in result
+        assert "이것도 제외" not in result
+
+    def test_both_provided(self) -> None:
+        """prev와 next 모두 제공되면 양쪽 섹션을 포함한다."""
+        prev = SlideOutline(
+            title="이전",
+            content_summary="이전 요약",
+            component_hint="bullets",
+            slide_type="content",
+        )
+        nxt = SlideOutline(
+            title="다음",
+            content_summary="다음 요약",
+            component_hint="step_cards",
+            slide_type="content",
+        )
+        result = DesignService._adjacent_context_section(prev, nxt)
+        assert "<adjacent_slides>" in result
+        assert "</adjacent_slides>" in result
+        assert "<previous_slide>" in result
+        assert "<next_slide>" in result
+        assert "이전" in result
+        assert "다음" in result
+
+    def test_includes_slide_type_and_component_hint(self) -> None:
+        """slide_type과 component_hint가 포함되는지 확인한다."""
+        prev = SlideOutline(
+            title="타이틀",
+            content_summary="요약",
+            component_hint="arch_diagram",
+            slide_type="title",
+        )
+        result = DesignService._adjacent_context_section(prev, None)
+        parsed = json.loads(
+            result.split("<previous_slide>")[1].split("</previous_slide>")[0].strip()
+        )
+        assert parsed["slide_type"] == "title"
+        assert parsed["component_hint"] == "arch_diagram"
+        assert "speaker_notes" not in parsed
