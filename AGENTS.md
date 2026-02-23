@@ -88,8 +88,8 @@ ppt-generator/
 - **Package Manager**: uv
 - **Build System**: hatchling
 - **Agent Framework**: AWS Strands SDK (`strands-agents`)
-- **LLM (디자인 스펙 생성)**: Claude Opus 4.6 (Bedrock: `global.anthropic.claude-opus-4-6-v1` / Anthropic: `claude-opus-4-6`, 64K tokens, effort: adaptive — 복잡도 기반 high/medium/low)
-- **LLM (아웃라인/스크립트)**: Claude Sonnet 4.6 (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 16K tokens, effort: medium)
+- **LLM (디자인 스펙 생성)**: Claude Sonnet 4.6 Extended Thinking (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 64K tokens, effort: adaptive — 슬라이드 복잡도 기반 high/medium/low 동적 적용)
+- **LLM (아웃라인/스크립트)**: Claude Sonnet 4.6 Extended Thinking (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 32K tokens, effort: medium, `OUTLINE_THINKING_EFFORT`로 변경 가능)
 - **Slide Framework**: 순수 HTML/CSS (인라인 스타일, 슬라이드별 개별 HTML + iframe 컨테이너)
 - **PPTX Export**: python-pptx (디자인 스펙 → SlideBuilder 직접 변환)
 
@@ -115,8 +115,8 @@ ppt-generator/
 | `AWS_SECRET_ACCESS_KEY`    | AWS Secret Key          | Bedrock IAM 인증                                                                                         |
 | `AWS_REGION`               | AWS 리전                | Bedrock 리전 (기본: us-east-1)                                                                           |
 | `AWS_BEARER_TOKEN_BEDROCK` | Bearer Token 문자열     | Bedrock API key (bearer token) 인증. 설정 시 bearer token 우선, 미설정 시 기본 AWS credential chain 사용 |
-| `BEDROCK_DESIGN_MODEL_ID`  | 모델 ID 문자열          | 디자인 스펙 생성 Bedrock 모델 (기본: `global.anthropic.claude-opus-4-6-v1`)                               |
-| `ANTHROPIC_DESIGN_MODEL_ID`| 모델 ID 문자열          | 디자인 스펙 생성 Anthropic 모델 (기본: `claude-opus-4-6`)                                                |
+| `BEDROCK_DESIGN_MODEL_ID`  | 모델 ID 문자열          | 디자인 스펙 생성 Bedrock 모델 (기본: `global.anthropic.claude-sonnet-4-6`)                                |
+| `ANTHROPIC_DESIGN_MODEL_ID`| 모델 ID 문자열          | 디자인 스펙 생성 Anthropic 모델 (기본: `claude-sonnet-4-6`)                                              |
 | `BEDROCK_DESIGN_MAX_TOKENS`| 정수 (기본: 64000)      | 디자인 스펙 생성 max tokens                                                                              |
 
 | `BEDROCK_OUTLINE_MODEL_ID` | 모델 ID 문자열          | 아웃라인/스크립트 Bedrock 모델 (기본: `global.anthropic.claude-sonnet-4-6`)                               |
@@ -372,7 +372,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 - MCP 도구 함수에는 한국어 docstring 필수 (클라이언트에 노출됨)
 - 외부 API(Bedrock/Anthropic) 호출 테스트는 반드시 mock 처리
 - Conventional Commits 형식 사용: `<type>(<scope>): <subject>` (상세: [CONTRIBUTING.md](CONTRIBUTING.md))
-- LLM: 디자인 스펙은 Claude Opus 4.6, 아웃라인/스크립트는 Claude Sonnet 4.6
+- LLM: 모든 단계에서 Claude Sonnet 4.6 사용 (디자인 스펙은 Extended Thinking 활성화, 슬라이드 복잡도에 따라 thinking effort를 high/medium/low로 동적 적용)
 - Agent 프레임워크: AWS Strands SDK (`strands-agents`)
 
 ## Testing

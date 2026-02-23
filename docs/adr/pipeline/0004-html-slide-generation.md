@@ -24,7 +24,7 @@ MCP 도구 `generate_slides`를 구현하여, Bedrock LLM이 HTML/CSS 슬라이�
 
 ### Technical Details
 
-- Bedrock Claude Opus 4.6 호출 (Strands SDK 경유)
+- Bedrock Claude Sonnet 4.6 호출 (Strands SDK 경유)
 - **TailwindCSS v4 Browser** 기반 (jsdelivr.net CDN)
 - 슬라이드 규격: 1280 x 720px (16:9)
 - HTML 구조: `<body>` 안에 `<section id="slide-{N}" data-speaker-notes="...">` 요소들이 수직으로 나열

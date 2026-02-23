@@ -18,7 +18,7 @@ MCP 도구 `modify_slides`를 구현하여, 세션 ID로 현재 HTML을 로드�
 
 ### Technical Details
 
-- Bedrock Claude Opus 4.6 호출 (Strands SDK 경유)
+- Bedrock Claude Sonnet 4.6 호출 (Strands SDK 경유)
 - 프롬프트: 현재 HTML 슬라이드 코드 + 사용자의 자연어 수정 요청 → 수정된 HTML 반환
 - 지원하는 수정 유형:
   - 텍스트 변경: 제목, 본문 내용, 불릿 포인트 수정/추가/삭제

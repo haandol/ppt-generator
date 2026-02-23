@@ -104,7 +104,7 @@
 flowchart LR
     User -- "자연어 요청" --> MCPClient[MCP Client\ne.g. Kiro, Claude Desktop]
     MCPClient -- "MCP Protocol" --> MCPServer[Python MCP Server\nStrands Agent]
-    MCPServer -- "스크립트/아웃라인 생성" --> Bedrock[Amazon Bedrock\nClaude Opus 4.6]
+    MCPServer -- "스크립트/아웃라인 생성" --> Bedrock[Amazon Bedrock\nClaude Sonnet 4.6]
     MCPServer -- "HTML 슬라이드 생성/수정" --> HTMLEngine[HTML/CSS\n슬라이드 엔진]
     HTMLEngine -- "이미지 생성 (필요시)" --> Gemini[Google Gemini\n2.5 Flash]
     MCPServer -- "PPTX 내보내기" --> PythonPptx[python-pptx]
@@ -119,7 +119,7 @@ flowchart TD
     A[사용자 입력: 주제 + 슬라이드 수] --> B[Bedrock LLM: 슬라이드 아웃라인 생성]
     B --> B1[Bedrock LLM: 아웃라인 기반 슬라이드별 스크립트 생성]
     B1 --> DS{경로 선택}
-    DS -- "디자인 스펙 경로 (권장)" --> DS1[Bedrock Opus 4.6: PptxSlideSpec JSON 생성]
+    DS -- "디자인 스펙 경로 (권장)" --> DS1[Bedrock Sonnet 4.6: PptxSlideSpec JSON 생성]
     DS1 --> DS2[결정론적 HTML 변환: 미리보기]
     DS2 --> F{사용자 확인}
     DS1 --> DS3[SlideBuilder: PPTX 직접 생성]
@@ -140,7 +140,7 @@ flowchart TD
 |-----------|-----------|-----------|
 | MCP 서버 | Python + MCP Protocol | 다양한 AI 클라이언트에서 도구로 호출 가능 |
 | 에이전트 프레임워크 | AWS Strands SDK | Bedrock 네이티브 통합, 멀티스텝 워크플로우 관리 |
-| LLM | Amazon Bedrock - Claude Opus 4.6 | 고품질 콘텐츠 생성, 구조화된 출력, HTML/CSS 코드 생성 |
+| LLM | Amazon Bedrock - Claude Sonnet 4.6 | 고품질 콘텐츠 생성, 구조화된 출력, HTML/CSS 코드 생성 |
 | 이미지 생성 | Google Gemini 2.5 Flash (슬라이드 생성 시 내부 호출) | 색상 팔레트 조건, 스타일 일관성 유지 |
 | 슬라이드 렌더링 | HTML/CSS | 자유로운 레이아웃, 풍부한 스타일링, LLM의 코드 생성 능력 활용 |
 | PPTX 내보내기 | python-pptx | 디자인 스펙에서 직접 생성 또는 HTML 슬라이드를 편집 가능한 PPT 객체로 변환 |
@@ -249,7 +249,7 @@ sequenceDiagram
 4. 아웃라인 JSON 반환
 
 #### 7.1.3 기술 설명
-- Bedrock Claude Opus 4.6 호출 (Strands SDK 경유)
+- Bedrock Claude Sonnet 4.6 호출 (Strands SDK 경유)
 - 프롬프트: 주제를 기반으로 구조화된 JSON 아웃라인 생성 요청
 - 출력 JSON 스키마: `{ slides: [{ title, bullets: [], image_idea, layout_type, speaker_notes: "" }] }`
 - layout_type: `title`, `text_image`, `text_only`, `chart`, `closing` 등 (HTML 슬라이드 생성 시 디자인 힌트로 활용)
@@ -272,12 +272,12 @@ sequenceDiagram
 
 #### 7.2.2 흐름
 1. MCP 클라이언트에서 `generate_script(outline_json)` 호출
-2. Strands 에이전트가 Bedrock Claude Opus 4.6에 아웃라인 JSON 전달
+2. Strands 에이전트가 Bedrock Claude Sonnet 4.6에 아웃라인 JSON 전달
 3. LLM이 각 슬라이드의 제목과 본문 요점을 기반으로 슬라이드별 발표자 노트 생성
 4. speaker_notes가 채워진 아웃라인 JSON 반환
 
 #### 7.2.3 기술 설명
-- Bedrock Claude Opus 4.6 호출 (Strands SDK 경유)
+- Bedrock Claude Sonnet 4.6 호출 (Strands SDK 경유)
 - 프롬프트: 아웃라인 JSON을 기반으로 슬라이드별 발표자 노트(speaker_notes) 생성 요청
 - 출력 JSON 스키마: `{ scripts: [{ slide_index, speaker_notes }] }`
 - 출력의 speaker_notes를 원본 아웃라인의 각 슬라이드에 적용하여 반환
@@ -325,7 +325,7 @@ sequenceDiagram
 8. HTML 슬라이드와 세션 ID 반환
 
 #### 7.3.3 기술 설명
-- Bedrock Claude Opus 4.6 호출 (Strands SDK 경유)
+- Bedrock Claude Sonnet 4.6 호출 (Strands SDK 경유)
 - **이미지 내부 생성**: `layout_index`가 `SKIP_IMAGE_LAYOUT_INDICES`에 해당하지 않는 슬라이드에 대해 Gemini 2.5 Flash로 이미지를 자동 생성. 이미지가 필요 없는 슬라이드(text_only, chart, title, closing 등)는 건너뜀
 - **레이아웃 골격 기반 생성**: `build_layout_skeleton()` 함수가 `LAYOUT_REGIONS` 좌표로 `position:absolute` div 골격을 생성. LLM은 `SLIDES_REGION_SYSTEM_PROMPT`를 사용하여 각 `data-region` div 내부 컨텐츠만 채움
 - **좌표 검증/복원**: `_validate_region_styles()`가 LLM이 변경한 좌표를 `LAYOUT_REGIONS` 원본으로 복원
@@ -368,7 +368,7 @@ sequenceDiagram
 5. 세션의 HTML 슬라이드 상태를 업데이트하고 반환
 
 #### 7.4.3 기술 설명
-- Bedrock Claude Opus 4.6 호출 (Strands SDK 경유)
+- Bedrock Claude Sonnet 4.6 호출 (Strands SDK 경유)
 - 프롬프트: 현재 HTML 슬라이드 코드와 사용자의 자연어 수정 요청을 전달하여 수정된 HTML 반환 요청
 - 지원하는 수정 유형:
   - 텍스트 변경: 제목, 본문 내용, 불릿 포인트 수정/추가/삭제

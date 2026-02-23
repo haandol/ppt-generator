@@ -1,6 +1,6 @@
 # PPT Generator
 
-> **Cost Warning**: 현재 20장 분량의 PPT 생성 시 약 **$8 USD**가 소요됩니다. 디자인 스펙 생성에 Claude Opus 4.6을 사용하기 때문이며, 슬라이드 수에 비례하여 비용이 증가합니다.
+> **Cost Warning**: 현재 20장 분량의 PPT 생성 시 약 **$8 USD**가 소요됩니다. 디자인 스펙 생성에 Claude Sonnet 4.6 Extended Thinking을 사용하기 때문이며, 슬라이드 수에 비례하여 비용이 증가합니다.
 
 주제를 입력하면 AI가 자동으로 프레젠테이션을 생성하는 MCP(Model Context Protocol) 서버입니다. Claude LLM으로 아웃라인·스크립트·디자인 스펙을 생성하고, HTML 미리보기와 편집 가능한 PPTX로 내보냅니다.
 
@@ -66,10 +66,12 @@ Anthropic API와 AWS Bedrock을 지원합니다. `LLM_PROVIDER` 환경변수로 
 
 ### 사용 모델
 
-| 용도              | Bedrock 모델 ID                       | Anthropic 모델 ID   | Max Tokens |
-| ----------------- | ------------------------------------- | ------------------- | ---------- |
-| 디자인 스펙 생성  | `global.anthropic.claude-opus-4-6-v1` | `claude-opus-4-6`   | 48,000     |
-| 아웃라인/스크립트 | `global.anthropic.claude-sonnet-4-6`  | `claude-sonnet-4-6` | 16,000     |
+모든 LLM 호출은 Claude Sonnet 4.6 Extended Thinking을 사용합니다.
+
+| 용도              | Bedrock 모델 ID                       | Anthropic 모델 ID   | Max Tokens | Thinking Effort                          |
+| ----------------- | ------------------------------------- | ------------------- | ---------- | ---------------------------------------- |
+| 디자인 스펙 생성  | `global.anthropic.claude-sonnet-4-6`  | `claude-sonnet-4-6` | 64,000     | adaptive (슬라이드 복잡도 기반 high/medium/low) |
+| 아웃라인/스크립트 | `global.anthropic.claude-sonnet-4-6`  | `claude-sonnet-4-6` | 32,000     | medium (기본, `OUTLINE_THINKING_EFFORT`로 변경 가능) |
 
 ### 클라이언트별 설정 예시
 
@@ -269,8 +271,7 @@ ppt-generator/
 | 언어                    | Python 3.13+                       |
 | 패키지 관리             | uv + hatchling                     |
 | 에이전트 프레임워크     | AWS Strands SDK (`strands-agents`) |
-| LLM (디자인 스펙)       | Claude Opus 4.6                    |
-| LLM (아웃라인/스크립트) | Claude Sonnet 4.6                  |
+| LLM                     | Claude Sonnet 4.6 Extended Thinking |
 | 슬라이드 프레임워크     | 순수 HTML/CSS (인라인 스타일)      |
 | PPTX 내보내기           | python-pptx                        |
 
