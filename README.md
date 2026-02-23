@@ -1,5 +1,7 @@
 # PPT Generator
 
+> **Cost Warning**: 현재 20장 분량의 PPT 생성 시 약 **$8 USD**가 소요됩니다. 디자인 스펙 생성에 Claude Opus 4.6을 사용하기 때문이며, 슬라이드 수에 비례하여 비용이 증가합니다.
+
 주제를 입력하면 AI가 자동으로 프레젠테이션을 생성하는 MCP(Model Context Protocol) 서버입니다. Claude LLM으로 아웃라인·스크립트·디자인 스펙을 생성하고, HTML 미리보기와 편집 가능한 PPTX로 내보냅니다.
 
 ## 주요 기능
