@@ -85,7 +85,9 @@ _MODEL_ID_ALIASES: dict[str, str] = {
     "global.anthropic.claude-sonnet-4-6": "claude-sonnet-4-6",
     "anthropic.claude-sonnet-4-6-v1:0": "claude-sonnet-4-6",
     "global.anthropic.claude-opus-4-6": "claude-opus-4-6",
+    "global.anthropic.claude-opus-4-6-v1": "claude-opus-4-6",
     "anthropic.claude-opus-4-6-v1:0": "claude-opus-4-6",
+    "anthropic.claude-opus-4-6-v1": "claude-opus-4-6",
     "global.anthropic.claude-haiku-3-5": "claude-haiku-3-5",
     "anthropic.claude-3-5-haiku-20241022-v1:0": "claude-haiku-3-5",
 }

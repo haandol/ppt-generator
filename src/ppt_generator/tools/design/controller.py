@@ -44,7 +44,7 @@ def register_design_tools(
 
         전체 슬라이드를 일괄 생성하거나, slide_indices로 특정 슬라이드만 선택적으로 생성할 수 있습니다.
         **병렬 처리는 서버 내부에서 자동으로 수행**되므로, 이 도구를 여러 번 병렬 호출할 필요가 없습니다.
-        환경변수 DESIGN_SPEC_PARALLEL(기본 4)로 동시 생성 수를 제어합니다.
+        환경변수 DESIGN_SPEC_PARALLEL(기본 8)로 동시 생성 수를 제어합니다.
 
         **처리 순서:**
         1. design_summary가 없으면 LLM으로 디자인 테마를 사전 생성합니다.

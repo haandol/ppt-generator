@@ -72,7 +72,7 @@ class DesignSpec:
 - 첫 슬라이드 생성 후 `extract_design_summary()` → 후속 슬라이드에 전달하여 일관성 유지
 - `parse_slide_spec()` + `validate_slide_spec()` 재사용 (`interfaces/spec_utils.py`)
 - LLM structured_output용 Pydantic 모델: `interfaces/llm_output_models.py` — `SlideSpecOutput`
-- Bedrock Claude Sonnet 4.6 사용 (`global.anthropic.claude-sonnet-4-6`, 64K tokens)
+- Bedrock Claude Opus 4.6 사용 (`global.anthropic.claude-opus-4-6-v1`, 64K tokens)
 - `_create_design_agent()`는 `DESIGN_SPEC_SYSTEM_PROMPT`를 시스템 프롬프트로 사용
 
 #### Design Spec → HTML 변환
@@ -142,7 +142,7 @@ class DesignSpec:
 
 ### Negative
 
-- 디자인 스펙 생성에 추가 LLM 호출(Sonnet 4.6 Extended Thinking) 필요
+- 디자인 스펙 생성에 추가 LLM 호출(Opus 4.6 Extended Thinking) 필요
 - HTML 미리보기가 position:absolute 기반이라 기존 Tailwind CSS 기반보다 시각적으로 단순할 수 있음
 - LLM이 정밀한 좌표를 생성해야 하므로 프롬프트 품질이 중요
 

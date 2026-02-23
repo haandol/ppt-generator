@@ -36,7 +36,7 @@ Accepted (Updated: 디자인 스펙 중간 표현 추가, [ADR-0013](./0013-desi
 | **텍스트** (사용자 입력) | 가장 추상적 | 사용자는 주제만 제공. 구조화 부담 없음 |
 | **아웃라인** (F1) | 구조화 | 슬라이드의 뼈대를 JSON으로 정리. 제목, 내용 요약, layout_index, component_hint 결정. speaker_notes는 비워두어 구조와 내용을 분리 |
 | **스크립트** (F2) | 구체적 | 확정된 구조 위에 발표 내용을 채움. 구조를 먼저 확정했으므로 내용이 구조에 맞게 생성됨 |
-| **디자인 스펙** | 정밀한 레이아웃 설계 | LLM(Sonnet 4.6 Extended Thinking)이 PptxSlideSpec JSON으로 각 요소의 좌표/크기/서식을 정밀하게 설계. 단일 소스에서 HTML과 PPTX를 결정론적으로 생성 |
+| **디자인 스펙** | 정밀한 레이아웃 설계 | LLM(Opus 4.6 Extended Thinking)이 PptxSlideSpec JSON으로 각 요소의 좌표/크기/서식을 정밀하게 설계. 단일 소스에서 HTML과 PPTX를 결정론적으로 생성 |
 | **HTML 슬라이드** (F3) | 브라우저 미리보기 | PptxSlideSpec → position:absolute HTML로 결정론적 변환 (LLM 미사용) |
 | **PPTX** (F5) | 편집 가능한 최종물 | SlideBuilder가 PptxSlideSpec에서 직접 PPTX 생성 (LLM 미사용) |
 
