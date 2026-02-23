@@ -122,7 +122,7 @@ ppt-generator/
 | `BEDROCK_OUTLINE_MODEL_ID` | 모델 ID 문자열          | 아웃라인/스크립트 Bedrock 모델 (기본: `global.anthropic.claude-sonnet-4-6`)                               |
 | `ANTHROPIC_OUTLINE_MODEL_ID`| 모델 ID 문자열         | 아웃라인/스크립트 Anthropic 모델 (기본: `claude-sonnet-4-6`)                                             |
 | `OUTLINE_THINKING_EFFORT`  | `high`/`medium`/`low`   | 아웃라인/스크립트 thinking effort (기본: medium)                                                         |
-| `DESIGN_SPEC_PARALLEL`     | 정수 (기본: 8)          | `generate_slides_design_spec` 도구의 병렬 워커 수 제어                                                   |
+| `DESIGN_SPEC_PARALLEL`     | 정수 (기본: 8)          | 디자인 스펙 생성 시 슬라이드별 병렬 워커 수. API rate limit에 맞게 조절                                  |
 | `PPT_LOG_FILE`             | 파일 경로 문자열        | 로그 파일 경로 (설정 시 DEBUG 레벨로 파일에 기록, 토큰 사용량 포함)                                      |
 
 > **Auto-detect 로직**: `LLM_PROVIDER` 미설정 시, `ANTHROPIC_API_KEY`가 있으면 `anthropic`, 없으면 `bedrock`으로 자동 선택됩니다.
@@ -130,15 +130,14 @@ ppt-generator/
 ## Development Commands
 
 ```bash
-# 의존성 설치
-uv sync
-
-# 서버 실행
-uv run ppt-generator
-
-# 테스트 실행
-uv run pytest
+uv sync                                          # 의존성 설치
+uv run ppt-generator                             # MCP 서버 실행 (stdio 모드)
+uv run pytest                                    # 전체 테스트
+uv run pytest tests/test_xxx.py                  # 개별 테스트 파일
+uv run pytest tests/test_xxx.py::test_func -v    # 특정 테스트 함수
 ```
+
+패키지 매니저: uv | 빌드 시스템: hatchling | Python 3.13+ | 진입점: `ppt_generator.server:main`
 
 ## Architecture
 
@@ -147,6 +146,21 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 - **Controller** (`controller.py`): MCP 도구 인터페이스. `register_*_tools(mcp, service, project_service)` 함수로 도구를 등록하며, 내부에 `@mcp.tool()` 데코레이터가 적용된 함수를 정의합니다. docstring이 MCP 클라이언트에 도구 설명으로 노출됩니다.
 - **Service** (`service.py`): 비즈니스 로직. Request 데이터클래스를 받아 Response 데이터클래스를 반환합니다.
 - **DIContainer** (`di/container.py`): 프로바이더 자동 감지(Anthropic/Bedrock), 모델, Agent, Service 인스턴스를 생성하고 연결합니다. 지연 초기화(lazy init) 패턴을 사용합니다.
+
+### Key Modules
+
+| 모듈 | 역할 |
+|------|------|
+| `interfaces/schemas.py` | 내부 도메인 모델 (`@dataclass`) |
+| `interfaces/llm_output_models.py` | LLM structured_output용 Pydantic 모델, `to_dataclass()`로 변환 |
+| `interfaces/constants.py` | 모델 설정, 수치 상수, 프롬프트 re-export |
+| `interfaces/prompts/*.prompt.md` | 프롬프트 템플릿 (`.prompt.md` 파일 → `__init__.py`에서 로딩) |
+| `interfaces/spec_utils.py` | PptxSlideSpec 파싱/검증/직렬화 공유 유틸리티 |
+| `interfaces/text_measurement.py` | 폰트 메트릭 기반 텍스트 크기 추정 |
+| `templates/layout_mapping.py` | layout_index → 슬라이드 레이아웃 매핑 (97종) |
+| `tools/design/service.py` | 디자인 스펙 생성 — 병렬 처리, 복잡도 기반 adaptive effort |
+| `tools/pptx/slide_builder.py` | PptxSlideSpec → python-pptx 변환 |
+| `tools/slides/html_renderer.py` | PptxSlideSpec → HTML 변환 |
 
 ### Concurrency & Prompt Caching
 
@@ -339,6 +353,8 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 
 ## Coding Conventions
 
+> 커밋 메시지, 브랜치 전략, PR 규칙 등 기여 관련 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
+
 ### 새 도구 추가 패턴
 
 1. `tools/` 하위에 새 디렉토리 생성 (`__init__.py`, `controller.py`, `service.py`)
@@ -354,6 +370,10 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 - 상수는 `interfaces/constants.py`에 정의
 - 프롬프트 템플릿은 `interfaces/prompts/` 모듈에 `.prompt.md` 파일로 정의, `__init__.py`에서 로딩 후 `constants.py`에서 re-export
 - MCP 도구 함수에는 한국어 docstring 필수 (클라이언트에 노출됨)
+- 외부 API(Bedrock/Anthropic) 호출 테스트는 반드시 mock 처리
+- Conventional Commits 형식 사용: `<type>(<scope>): <subject>` (상세: [CONTRIBUTING.md](CONTRIBUTING.md))
+- LLM: 디자인 스펙은 Claude Opus 4.6, 아웃라인/스크립트는 Claude Sonnet 4.6
+- Agent 프레임워크: AWS Strands SDK (`strands-agents`)
 
 ## Testing
 

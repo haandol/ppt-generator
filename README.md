@@ -58,6 +58,7 @@ Anthropic API와 AWS Bedrock을 지원합니다. `LLM_PROVIDER` 환경변수로 
 | `AWS_SECRET_ACCESS_KEY`    | AWS Secret Key          | Bedrock IAM 인증                                                                                         |
 | `AWS_REGION`               | AWS 리전                | Bedrock 리전 (기본: `us-east-1`)                                                                         |
 | `AWS_BEARER_TOKEN_BEDROCK` | Bearer Token 문자열     | Bedrock API key (bearer token) 인증. 설정 시 bearer token 우선, 미설정 시 기본 AWS credential chain 사용 |
+| `DESIGN_SPEC_PARALLEL`     | 정수 (기본: `8`)        | 디자인 스펙 생성 시 슬라이드별 병렬 워커 수. API rate limit에 맞게 조절                                  |
 
 > 샘플 환경변수 파일은 [`env/local.env`](env/local.env)를 참고하세요.
 
@@ -184,6 +185,14 @@ Kiro의 MCP 서버 설정에서 동일한 JSON 형식으로 추가합니다.
 | `generate_slides`            | 디자인 스펙에서 HTML 슬라이드 생성 (결정론적 변환)        |
 | `export_pptx`                | 디자인 스펙에서 편집 가능한 PPTX 내보내기 (결정론적 변환) |
 
+#### 디자인 스펙 병렬 생성
+
+`generate_slides_design_spec`은 슬라이드별 독립 LLM 호출을 `ThreadPoolExecutor`로 병렬 처리합니다.
+
+- **병렬 워커 수**: `DESIGN_SPEC_PARALLEL` 환경변수로 제어 (기본 `8`). API rate limit에 맞게 조절 가능
+- **Longest-job-first 스케줄링**: 슬라이드 복잡도 점수(1~13)를 산출하여 복잡한 슬라이드부터 먼저 처리 → wall-clock time 단축
+- **Adaptive thinking effort**: 복잡도에 따라 `high`(7~13) / `medium`(4~6) / `low`(1~3) effort를 동적 적용 → 단순 슬라이드 토큰 절약, 복잡한 슬라이드 품질 유지
+
 ### 프로젝트 관리 도구
 
 | 도구                  | 설명                             |
@@ -275,3 +284,7 @@ uv run ppt-generator
 # 테스트 실행
 uv run pytest
 ```
+
+## 기여하기
+
+커밋 메시지, 브랜치 전략, 코드 스타일, PR 규칙 등은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
