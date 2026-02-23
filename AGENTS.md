@@ -99,6 +99,7 @@ ppt-generator/
 - **LLM (아웃라인/스크립트)**: Claude Sonnet 4.6 Extended Thinking (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 32K tokens, effort: medium, `OUTLINE_THINKING_EFFORT`로 변경 가능)
 - **Slide Framework**: 순수 HTML/CSS (인라인 스타일, 슬라이드별 개별 HTML + iframe 컨테이너)
 - **PPTX Export**: python-pptx (디자인 스펙 → SlideBuilder 직접 변환)
+- **레이아웃 그리드**: 48열×20행 (24×24px 정사각형 셀) — 콘텐츠 영역 1152×480px, 안전 영역 64~1216×64~656px. 상세 좌표 테이블은 `interfaces/prompts/design_system.prompt.md`의 `<layout_grid>`, `<diagram_grid>` 섹션 참조
 
 ## Prerequisites
 

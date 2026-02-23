@@ -500,7 +500,7 @@ class TestVerticalCentering:
     def test_short_content_gets_centered(self) -> None:
         """짧은 콘텐츠 → vertical_alignment이 "middle"로 변경되어야 한다."""
         tb = PptxTextBox(
-            left_px=64, top_px=180, width_px=1152, height_px=476,
+            left_px=64, top_px=180, width_px=1152, height_px=480,
             vertical_alignment="top",
             paragraphs=[
                 PptxParagraph(
@@ -524,7 +524,7 @@ class TestVerticalCentering:
             for i in range(12)
         ]
         tb = PptxTextBox(
-            left_px=64, top_px=180, width_px=1152, height_px=476,
+            left_px=64, top_px=180, width_px=1152, height_px=480,
             vertical_alignment="top",
             paragraphs=paras,
         )
@@ -535,7 +535,7 @@ class TestVerticalCentering:
     def test_title_slide_no_centering(self) -> None:
         """title 슬라이드 → 수직 센터링이 적용되지 않아야 한다."""
         tb = PptxTextBox(
-            left_px=64, top_px=180, width_px=1152, height_px=476,
+            left_px=64, top_px=180, width_px=1152, height_px=480,
             vertical_alignment="top",
             paragraphs=[
                 PptxParagraph(
