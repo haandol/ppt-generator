@@ -320,13 +320,12 @@ class TestGenerateSlidesDesignSpecFromProject:
     def _setup_project_with_script(self, tmp_path: Path, monkeypatch, num_slides: int = 5) -> str:
         project_id = self._setup_project_with_outline(tmp_path, monkeypatch, num_slides)
         proj_dir = tmp_path / project_id
-        script = {
-            "slides": [
-                {"title": f"스크립트 {i+1}", "content_summary": f"내용 {i+1}", "component_hint": "bullets", "speaker_notes": f"노트 {i+1}"}
-                for i in range(num_slides)
-            ],
-        }
-        (proj_dir / "script.json").write_text(json.dumps(script, ensure_ascii=False), encoding="utf-8")
+        slides = [
+            {"title": f"스크립트 {i+1}", "content_summary": f"내용 {i+1}", "component_hint": "bullets", "speaker_notes": f"노트 {i+1}"}
+            for i in range(num_slides)
+        ]
+        lines = [json.dumps(s, ensure_ascii=False) for s in slides]
+        (proj_dir / "script.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
         return project_id
 
     def test_load_from_outline_file(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:

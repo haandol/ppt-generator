@@ -86,6 +86,21 @@ class TestSaveAndLoadScript:
         loaded = project_service.load_script(project_dir)
         assert json.loads(loaded) == json.loads(SAMPLE_SCRIPT)
 
+    def test_saves_as_jsonl(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_script(project_dir, SAMPLE_SCRIPT)
+        assert (project_dir / "script.jsonl").exists()
+        assert not (project_dir / "script.json").exists()
+        lines = (project_dir / "script.jsonl").read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 1  # SAMPLE_SCRIPT has 1 slide
+        slide = json.loads(lines[0])
+        assert slide["title"] == "제목"
+
+    def test_legacy_json_fallback(self, project_service: ProjectService, project_dir: Path) -> None:
+        """script.jsonl이 없고 script.json이 있으면 fallback으로 읽는다."""
+        (project_dir / "script.json").write_text(SAMPLE_SCRIPT, encoding="utf-8")
+        loaded = project_service.load_script(project_dir)
+        assert json.loads(loaded) == json.loads(SAMPLE_SCRIPT)
+
 
 SAMPLE_SLIDE_HTMLS = [
     "<html><body><section>Slide 1</section></body></html>",

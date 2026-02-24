@@ -95,7 +95,7 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         # 파일 존재 확인 (없으면 예외 발생)
         project_service.load_script(project_dir)
         return json.dumps(
-            {"script_path": str(project_dir / "script.json")},
+            {"script_path": str(project_dir / "script.jsonl")},
             ensure_ascii=False,
         )
 

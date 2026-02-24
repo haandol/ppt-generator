@@ -39,8 +39,11 @@ class ProjectService:
 
     def save_script(self, project_dir: Path, script_json: str) -> None:
         self._ensure_dir(project_dir)
-        (project_dir / "script.json").write_text(script_json, encoding="utf-8")
-        logger.info("script.json 저장 완료: %s", project_dir)
+        data = json.loads(script_json)
+        slides = data["slides"]
+        lines = [json.dumps(s, ensure_ascii=False) for s in slides]
+        (project_dir / "script.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        logger.info("script.jsonl 저장 완료: %s", project_dir)
 
     SLIDES_DIR = "slides"
 
@@ -166,14 +169,23 @@ class ProjectService:
         return path.read_text(encoding="utf-8")
 
     def load_script(self, project_dir: Path) -> str:
-        path = project_dir / "script.json"
-        return path.read_text(encoding="utf-8")
+        path = project_dir / "script.jsonl"
+        if not path.exists():
+            # 하위 호환: 기존 script.json fallback
+            legacy = project_dir / "script.json"
+            return legacy.read_text(encoding="utf-8")
+        slides = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        return json.dumps({"slides": slides}, ensure_ascii=False)
 
     def load_script_or_outline(self, project_dir: Path) -> str:
-        """script.json이 있으면 우선 로드, 없으면 outline.json으로 fallback."""
-        script_path = project_dir / "script.json"
+        """script.jsonl이 있으면 우선 로드, 없으면 outline.json으로 fallback."""
+        script_path = project_dir / "script.jsonl"
         if script_path.exists():
-            return script_path.read_text(encoding="utf-8")
+            return self.load_script(project_dir)
+        # 하위 호환: 기존 script.json fallback
+        legacy = project_dir / "script.json"
+        if legacy.exists():
+            return legacy.read_text(encoding="utf-8")
         return self.load_outline(project_dir)
 
     # --- 프로젝트 목록 ---
