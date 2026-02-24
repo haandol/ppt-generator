@@ -38,7 +38,8 @@ MCP 도구 `export_pptx`를 구현하여, 세션의 최종 HTML을 파싱하고 
 | `<div>`, `<p>`, `<h1>`~`<h6>` | `slide.shapes.add_textbox()` (폰트 스타일 반영) |
 | `<img>` | `slide.shapes.add_picture()` (alt-text 포함) |
 | 배경색/이미지 | `slide.background` 설정 |
-| 도형 | `slide.shapes.add_shape()` (사각형, 원 등) |
+| 도형 (rectangle, rounded_rectangle, ellipse) | `slide.shapes.add_shape()` (사각형, 원 등) |
+| 선/화살표 (line) | `slide.shapes.add_connector()` (end_arrow, start_arrow, dash_style 지원) |
 | `data-speaker-notes` | PPTX 발표자 노트 |
 
 ### data-region 기반 요소 추출 (신규)

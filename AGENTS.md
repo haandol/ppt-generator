@@ -289,7 +289,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 
 | Tool                         | Module           | Description                                                                                        |
 | ---------------------------- | ---------------- | -------------------------------------------------------------------------------------------------- |
-| `generate_outline`           | `tools/outline/` | 주제와 슬라이드 수를 기반으로 슬라이드 아웃라인 JSON 생성 (token_usage 포함) |
+| `generate_outline`           | `tools/outline/` | 주제, 발표 시간, 청중 수준을 기반으로 슬라이드 아웃라인 JSON 생성 (호출 전 사용자에게 presentation_minutes와 audience_level 필수 확인, token_usage 포함) |
 | `generate_script`            | `tools/script/`  | 아웃라인 JSON을 기반으로 슬라이드별 발표 스크립트 생성 (token_usage 포함)                           |
 | `generate_slides_design_spec` | `tools/design/`  | 슬라이드 디자인 스펙 생성 — 서버 내부 병렬 처리, token_usage 합산 + estimated_cost(USD) 포함       |
 | `modify_design_spec`          | `tools/design/`  | 디자인 스펙의 개별 슬라이드 추가/수정/삭제 (CRUD), add/update 시 token_usage + estimated_cost 포함  |
@@ -315,7 +315,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 | `SlidesResponse`                                | HTML 슬라이드 생성 출력 (session_id, html)                                     |
 | `ExportPptxResponse`                            | PPTX 내보내기 출력 (pptx_path)                                                 |
 | `PptxTextRun` / `PptxParagraph` / `PptxTextBox` | PPTX 텍스트 요소                                                               |
-| `PptxShape` / `PptxSlideSpec`                   | PPTX 도형/슬라이드 스펙 (speaker_notes 포함)                                   |
+| `PptxShape` / `PptxSlideSpec`                   | PPTX 도형/슬라이드 스펙 (speaker_notes 포함). PptxShape는 rectangle/rounded_rectangle/ellipse는 `add_shape()`, line은 `add_connector()`로 렌더링. line shape는 `end_arrow`, `start_arrow`, `dash_style` 속성 지원 |
 | `DesignSpec`                                    | 프레젠테이션 전체 디자인 스펙 (PptxSlideSpec 리스트)                           |
 | `ProjectMetadata`                               | 프로젝트 메타데이터 (topic, num_slides, steps_completed)                       |
 
