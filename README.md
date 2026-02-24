@@ -1,6 +1,6 @@
 # PPT Generator
 
-> **Cost Warning**: 현재 20장 분량의 PPT 생성 시 약 **$8 USD**가 소요됩니다. 디자인 스펙 생성에 Claude Opus 4.6 Extended Thinking을 사용하기 때문이며, 슬라이드 수에 비례하여 비용이 증가합니다.
+> **Cost & Time Warning**: 20장 분량의 PPT를 처음부터 끝까지 생성하는 데 약 **18분**, API 비용 약 **$9 USD**가 소요됩니다. 디자인 스펙 생성에 Claude Opus 4.6 Extended Thinking을 사용하기 때문이며, 슬라이드 수에 비례하여 시간과 비용이 증가합니다. 또한 디자인 스펙 생성 시 슬라이드 복잡도에 따라 thinking effort를 동적으로 조절(high/medium/low)하므로, 슬라이드 내용이 복잡할수록 비용이 더 높아질 수 있습니다. **사용 전 반드시 Anthropic/Bedrock 콘솔에서 토큰 비용 체계를 확인하세요.** 예상치 못한 과금이 발생할 수 있습니다.
 
 주제를 입력하면 AI가 자동으로 프레젠테이션을 생성하는 MCP(Model Context Protocol) 서버입니다. Claude LLM으로 아웃라인·스크립트·디자인 스펙을 생성하고, HTML 미리보기와 편집 가능한 PPTX로 내보냅니다.
 
