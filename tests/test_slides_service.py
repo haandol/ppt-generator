@@ -3,11 +3,13 @@ import pytest
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
     PptxParagraph,
+    PptxShape,
     PptxSlideSpec,
     PptxTextBox,
     PptxTextRun,
     SlidesResponse,
 )
+from ppt_generator.tools.slides.html_renderer import shape_to_html
 from ppt_generator.tools.slides.service import SlidesService
 
 
@@ -110,3 +112,111 @@ class TestGetSessionHtml:
     def test_raises_on_invalid_session(self, service):
         with pytest.raises(KeyError, match="세션을 찾을 수 없습니다"):
             service.get_session_html("nonexistent-id")
+
+
+class TestLineShapeHtml:
+    """line shape가 SVG로 렌더링되고 화살표/대시가 올바르게 표현되는지 검증."""
+
+    @staticmethod
+    def _make_line(
+        *,
+        width_px: int = 200,
+        height_px: int = 0,
+        end_arrow: bool = False,
+        start_arrow: bool = False,
+        dash_style: str | None = None,
+    ) -> PptxShape:
+        return PptxShape(
+            left_px=100, top_px=300, width_px=width_px, height_px=height_px,
+            shape_type="line",
+            border_color="#FFC000",
+            border_width_pt=2,
+            end_arrow=end_arrow,
+            start_arrow=start_arrow,
+            dash_style=dash_style,
+        )
+
+    def test_line_renders_as_svg(self):
+        html = shape_to_html(self._make_line())
+        assert "<svg" in html
+        assert "<line" in html
+        assert "<div" not in html
+
+    def test_end_arrow_marker(self):
+        html = shape_to_html(self._make_line(end_arrow=True))
+        assert 'marker-end="url(#ah-end)"' in html
+        assert 'id="ah-end"' in html
+        assert "<polygon" in html
+
+    def test_start_arrow_marker(self):
+        html = shape_to_html(self._make_line(start_arrow=True))
+        assert 'marker-start="url(#ah-start)"' in html
+        assert 'id="ah-start"' in html
+
+    def test_bidirectional_arrows(self):
+        html = shape_to_html(self._make_line(end_arrow=True, start_arrow=True))
+        assert "ah-end" in html
+        assert "ah-start" in html
+
+    def test_no_arrows_no_markers(self):
+        html = shape_to_html(self._make_line())
+        assert "marker-end" not in html
+        assert "marker-start" not in html
+        assert "<defs>" not in html
+
+    def test_dash_style(self):
+        html = shape_to_html(self._make_line(dash_style="dash"))
+        assert "stroke-dasharray" in html
+
+    def test_dot_style(self):
+        html = shape_to_html(self._make_line(dash_style="dot"))
+        assert "stroke-dasharray" in html
+
+    def test_stroke_color(self):
+        html = shape_to_html(self._make_line())
+        assert 'stroke="#FFC000"' in html
+
+    def test_vertical_line(self):
+        shape = PptxShape(
+            left_px=640, top_px=200, width_px=0, height_px=100,
+            shape_type="line",
+            border_color="#FF9900",
+            border_width_pt=2,
+            end_arrow=True,
+        )
+        html = shape_to_html(shape)
+        assert "<svg" in html
+        assert "ah-end" in html
+
+    def test_horizontal_snap_short_arrow(self):
+        """width=28, height=10 (하단 화살표 패턴)도 수평선으로 보정되어야 한다."""
+        html = shape_to_html(self._make_line(width_px=28, height_px=10, end_arrow=True))
+        # height=10 <= 12(threshold) → h=0으로 보정 → y1 == y2
+        assert 'y1="8"' in html
+        assert 'y2="8"' in html
+        assert "ah-end" in html
+
+    def test_horizontal_snap_wide_arrow(self):
+        """width=48, height=10 (상단 화살표 패턴)도 수평선으로 보정되어야 한다."""
+        html = shape_to_html(self._make_line(width_px=48, height_px=10))
+        assert 'y1="8"' in html
+        assert 'y2="8"' in html
+
+    def test_vertical_snap_small_width(self):
+        """width=10, height=56 (수직 대시선 패턴)은 수직선으로 보정되어야 한다."""
+        shape = PptxShape(
+            left_px=1100, top_px=472, width_px=10, height_px=56,
+            shape_type="line",
+            border_color="#3B4A5C",
+            border_width_pt=1.5,
+            dash_style="dash",
+        )
+        html = shape_to_html(shape)
+        assert 'x1="8"' in html
+        assert 'x2="8"' in html
+
+    def test_diagonal_line_preserved(self):
+        """width와 height가 모두 threshold 초과이면 사선이 유지되어야 한다."""
+        html = shape_to_html(self._make_line(width_px=100, height_px=100))
+        assert 'x2="108"' in html
+        assert 'y2="108"' in html

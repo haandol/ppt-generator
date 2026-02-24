@@ -46,10 +46,11 @@ class SlideBuilder:
     def ensure_textboxes_on_top(slide) -> None:
         """spTree XML을 재정렬하여 텍스트박스가 항상 도형 위(z-order 최상위)에 오도록 보장.
 
-        z-order: shapes(최하단) → pictures(중간) → textboxes(최상단)
+        z-order: shapes(최하단) → connectors → pictures(중간) → textboxes(최상단)
         """
         sp_tree = slide.shapes._spTree
         shape_elements = []
+        connector_elements = []
         picture_elements = []
         textbox_elements = []
 
@@ -59,9 +60,13 @@ class SlideBuilder:
 
         sp_tag = qn("p:sp")
         pic_tag = qn("p:pic")
+        cxn_tag = qn("p:cxnSp")
         for child in list(sp_tree):
             if child.tag == pic_tag:
                 picture_elements.append(child)
+                continue
+            if child.tag == cxn_tag:
+                connector_elements.append(child)
                 continue
             if child.tag != sp_tag:
                 continue
@@ -78,13 +83,10 @@ class SlideBuilder:
             else:
                 shape_elements.append(child)
 
-        for el in shape_elements + picture_elements + textbox_elements:
+        all_sorted = shape_elements + connector_elements + picture_elements + textbox_elements
+        for el in all_sorted:
             sp_tree.remove(el)
-        for el in shape_elements:
-            sp_tree.append(el)
-        for el in picture_elements:
-            sp_tree.append(el)
-        for el in textbox_elements:
+        for el in all_sorted:
             sp_tree.append(el)
 
     @staticmethod
@@ -285,12 +287,22 @@ class SlideBuilder:
         "dot": "dot",
     }
 
+    # 수평/수직 스냅 임계값 (px): 이 값 이하면 의도하지 않은 오차로 판단
+    _SNAP_THRESHOLD = 12
+
     def _add_connector_from_spec(self, slide, shape_spec: PptxShape) -> None:
         """Line shape를 python-pptx Connector(직선)로 생성하고 화살표 머리를 설정."""
+        w = shape_spec.width_px
+        h = shape_spec.height_px
+        if w > 0 and 0 < h <= self._SNAP_THRESHOLD:
+            h = 0  # 수평선 보정
+        elif h > 0 and 0 < w <= self._SNAP_THRESHOLD:
+            w = 0  # 수직선 보정
+
         start_x = Inches(shape_spec.left_px * EXPORT_PX_TO_INCHES_X)
         start_y = Inches(shape_spec.top_px * EXPORT_PX_TO_INCHES_Y)
-        end_x = Inches((shape_spec.left_px + shape_spec.width_px) * EXPORT_PX_TO_INCHES_X)
-        end_y = Inches((shape_spec.top_px + shape_spec.height_px) * EXPORT_PX_TO_INCHES_Y)
+        end_x = Inches((shape_spec.left_px + w) * EXPORT_PX_TO_INCHES_X)
+        end_y = Inches((shape_spec.top_px + h) * EXPORT_PX_TO_INCHES_Y)
 
         connector = slide.shapes.add_connector(
             MSO_CONNECTOR_TYPE.STRAIGHT, start_x, start_y, end_x, end_y,

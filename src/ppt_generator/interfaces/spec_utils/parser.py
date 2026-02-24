@@ -88,6 +88,9 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
             padding_top_px=s.get("padding_top_px"),
             padding_bottom_px=s.get("padding_bottom_px"),
             vertical_alignment=s.get("vertical_alignment") or "top",
+            end_arrow=s.get("end_arrow", False),
+            start_arrow=s.get("start_arrow", False),
+            dash_style=s.get("dash_style"),
         ))
 
     return PptxSlideSpec(

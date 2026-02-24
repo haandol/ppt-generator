@@ -96,8 +96,86 @@ def textbox_to_html(tb: PptxTextBox) -> str:
     return f'<div style="{style}">{"".join(inner_parts)}</div>'
 
 
+def _line_shape_to_html(shape: PptxShape) -> str:
+    """Line shape -> position:absolute <svg> 변환 (화살표/대시 지원)."""
+    stroke_color = shape.border_color or "#ffffff"
+    stroke_width = shape.border_width_pt or 1
+
+    w = shape.width_px
+    h = shape.height_px
+
+    # 수평/수직 스냅: 한쪽이 지배적이면 나머지를 0으로 보정
+    # LLM이 height_px=10 등 작은 값을 넣는 패턴 대응
+    _SNAP_THRESHOLD = 12  # px 이하면 의도하지 않은 오차로 판단
+    if w > 0 and 0 < h <= _SNAP_THRESHOLD:
+        h = 0  # 수평선
+    elif h > 0 and 0 < w <= _SNAP_THRESHOLD:
+        w = 0  # 수직선
+
+    # SVG 영역: 화살표 머리가 잘리지 않도록 여유(pad) 확보
+    pad = max(stroke_width * 2, 8)
+    svg_w = w + pad * 2
+    svg_h = max(h, 1) + pad * 2
+
+    x1, y1 = pad, pad
+    x2 = w + pad
+    y2 = h + pad
+
+    # 대시 스타일
+    dash_attr = ""
+    if shape.dash_style == "dash":
+        dash_attr = f' stroke-dasharray="{stroke_width * 4},{stroke_width * 3}"'
+    elif shape.dash_style == "dot":
+        dash_attr = f' stroke-dasharray="{stroke_width},{stroke_width * 2}"'
+
+    # 마커 정의 (화살표 머리)
+    defs_parts: list[str] = []
+    line_attrs = ""
+
+    if shape.end_arrow:
+        defs_parts.append(
+            f'<marker id="ah-end" markerWidth="10" markerHeight="7" '
+            f'refX="10" refY="3.5" orient="auto" markerUnits="strokeWidth">'
+            f'<polygon points="0 0, 10 3.5, 0 7" fill="{stroke_color}" />'
+            f"</marker>"
+        )
+        line_attrs += ' marker-end="url(#ah-end)"'
+
+    if shape.start_arrow:
+        defs_parts.append(
+            f'<marker id="ah-start" markerWidth="10" markerHeight="7" '
+            f'refX="0" refY="3.5" orient="auto" markerUnits="strokeWidth">'
+            f'<polygon points="10 0, 0 3.5, 10 7" fill="{stroke_color}" />'
+            f"</marker>"
+        )
+        line_attrs += ' marker-start="url(#ah-start)"'
+
+    defs_html = ""
+    if defs_parts:
+        defs_html = f'<defs>{"".join(defs_parts)}</defs>'
+
+    container_style = (
+        f"position:absolute;"
+        f"left:{shape.left_px - pad}px;top:{shape.top_px - pad}px;"
+        f"width:{svg_w}px;height:{svg_h}px;"
+        f"overflow:visible;pointer-events:none;"
+    )
+
+    return (
+        f'<svg style="{container_style}" '
+        f'width="{svg_w}" height="{svg_h}" xmlns="http://www.w3.org/2000/svg">'
+        f"{defs_html}"
+        f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
+        f'stroke="{stroke_color}" stroke-width="{stroke_width}"{dash_attr}{line_attrs} />'
+        f"</svg>"
+    )
+
+
 def shape_to_html(shape: PptxShape) -> str:
     """PptxShape -> position:absolute <div> 변환."""
+    if shape.shape_type == "line":
+        return _line_shape_to_html(shape)
+
     style = (
         f"position:absolute;"
         f"left:{shape.left_px}px;top:{shape.top_px}px;"
