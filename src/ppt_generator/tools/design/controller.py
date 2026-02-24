@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from typing import Callable
@@ -106,17 +107,19 @@ def register_design_tools(
         # --- Step 2: 병렬 생성 ---
         design_summary = project_service.load_design_summary(project_dir)
 
-        async def _report(progress: int, message: str) -> None:
-            if ctx is not None:
-                await ctx.report_progress(progress, target_count, message)
-
-        # report_progress를 동기 콜백으로 래핑 (runner는 동기)
-        progress_calls: list[tuple[int, str]] = []
+        # report_progress를 동기 콜백으로 래핑 (runner는 동기 스레드에서 실행)
+        # call_soon_threadsafe로 이벤트 루프에 즉시 스케줄링하여 실시간 프로그레스 표시
+        loop = asyncio.get_running_loop()
 
         def sync_report(progress: int, message: str) -> None:
-            progress_calls.append((progress, message))
+            if ctx is not None:
+                loop.call_soon_threadsafe(
+                    loop.create_task,
+                    ctx.report_progress(progress, target_count, message),
+                )
 
-        parallel_result = run_parallel_generation(
+        parallel_result = await asyncio.to_thread(
+            run_parallel_generation,
             outline=outline,
             indices=indices,
             total_slides=total_slides,
@@ -128,10 +131,6 @@ def register_design_tools(
             slides_service=slides_service,
             report_progress=sync_report,
         )
-
-        # 비동기 진행 보고 전달
-        for progress, message in progress_calls:
-            await _report(progress, message)
 
         project_service.update_step(project_dir, "design_spec")
         slide_count = project_service.get_design_spec_slide_count(project_dir)

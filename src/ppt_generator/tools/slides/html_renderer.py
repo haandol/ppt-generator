@@ -96,6 +96,10 @@ def textbox_to_html(tb: PptxTextBox) -> str:
     return f'<div style="{style}">{"".join(inner_parts)}</div>'
 
 
+_ARROW_SIZE = 14  # 화살표 머리 길이 (px)
+_ARROW_HALF = 10  # 화살표 머리 높이 (px)
+
+
 def _line_shape_to_html(shape: PptxShape) -> str:
     """Line shape -> position:absolute <svg> 변환 (화살표/대시 지원)."""
     stroke_color = shape.border_color or "#ffffff"
@@ -132,20 +136,24 @@ def _line_shape_to_html(shape: PptxShape) -> str:
     defs_parts: list[str] = []
     line_attrs = ""
 
+    aw = _ARROW_SIZE
+    ah = _ARROW_HALF
+    ah2 = ah / 2
+
     if shape.end_arrow:
         defs_parts.append(
-            f'<marker id="ah-end" markerWidth="10" markerHeight="7" '
-            f'refX="10" refY="3.5" orient="auto" markerUnits="strokeWidth">'
-            f'<polygon points="0 0, 10 3.5, 0 7" fill="{stroke_color}" />'
+            f'<marker id="ah-end" markerWidth="{aw}" markerHeight="{ah}" '
+            f'refX="{aw}" refY="{ah2}" orient="auto" markerUnits="userSpaceOnUse">'
+            f'<polygon points="0 0, {aw} {ah2}, 0 {ah}" fill="{stroke_color}" />'
             f"</marker>"
         )
         line_attrs += ' marker-end="url(#ah-end)"'
 
     if shape.start_arrow:
         defs_parts.append(
-            f'<marker id="ah-start" markerWidth="10" markerHeight="7" '
-            f'refX="0" refY="3.5" orient="auto" markerUnits="strokeWidth">'
-            f'<polygon points="10 0, 0 3.5, 10 7" fill="{stroke_color}" />'
+            f'<marker id="ah-start" markerWidth="{aw}" markerHeight="{ah}" '
+            f'refX="0" refY="{ah2}" orient="auto" markerUnits="userSpaceOnUse">'
+            f'<polygon points="{aw} 0, 0 {ah2}, {aw} {ah}" fill="{stroke_color}" />'
             f"</marker>"
         )
         line_attrs += ' marker-start="url(#ah-start)"'

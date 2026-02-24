@@ -575,22 +575,35 @@ class TestGenerateSlidesDesignSpec:
         project_id = self._setup_project(tmp_path, monkeypatch)
 
         from unittest.mock import AsyncMock
+
+        progress_calls: list[tuple[int, int, str]] = []
+
         ctx = AsyncMock()
 
-        result = json.loads(self._run(mcp_tools["generate_slides_design_spec"](
-            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-            total_slides=5,
-            project_id=project_id,
-            ctx=ctx,
-        )))
+        async def _capture_progress(progress: int, total: int, message: str = "") -> None:
+            progress_calls.append((progress, total, message))
+
+        ctx.report_progress.side_effect = _capture_progress
+
+        async def _run_and_drain():
+            result = await mcp_tools["generate_slides_design_spec"](
+                outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+                total_slides=5,
+                project_id=project_id,
+                ctx=ctx,
+            )
+            # to_thread에서 call_soon_threadsafe로 스케줄링된 태스크를 처리
+            await asyncio.sleep(0.1)
+            return result
+
+        result = json.loads(asyncio.run(_run_and_drain()))
 
         assert result["success_count"] == 5
-        # report_progress: design_summary 생성 1회 + 슬라이드 5회 = 총 6회
-        assert ctx.report_progress.await_count == 6
+        # report_progress: design_summary 생성 1회(await) + 슬라이드 5회(call_soon_threadsafe) = 총 6회
+        assert len(progress_calls) == 6
         # 마지막 호출의 progress 값은 target_count와 같아야 함
-        last_call = ctx.report_progress.await_args
-        assert last_call[0][0] == 5  # progress
-        assert last_call[0][1] == 5  # total
+        assert progress_calls[-1][0] == 5  # progress
+        assert progress_calls[-1][1] == 5  # total
 
     def test_batch_with_slide_indices(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
         """slide_indices로 특정 인덱스만 생성한다."""

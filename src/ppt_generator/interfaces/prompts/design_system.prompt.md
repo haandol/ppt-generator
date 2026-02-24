@@ -50,6 +50,7 @@ python-pptx로 직접 렌더링할 수 있는 PptxSlideSpec JSON을 출력하세
 ■ 수평 N열 균등 배치 (콘텐츠 영역 1152px, gap = 32px)
   공식: width = (1152 - (N-1) × 32) / N  (소수점 이하 버림)
         left[i] = 64 + i × (width + 32)   (i = 0, 1, …, N-1)
+  **같은 행의 모든 요소는 동일한 top_px와 height_px를 사용하세요.**
 
   | N | width | left 위치들                    |
   |---|-------|-------------------------------|
@@ -436,6 +437,13 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
 
 8. 콘텐츠 슬라이드 제목 위치 고정: slide_type "content"인 슬라이드의 제목 텍스트박스는
    반드시 left_px=64, top_px=96, width_px=1152, height_px=56으로 고정하세요.
+
+9. 같은 행 요소의 좌표 일관성: 가로로 나란히 배치하는 요소(카드, 색상바, 블록 등)는
+   반드시 **동일한 top_px와 height_px**를 사용하세요.
+   - 예: 3개 카드를 가로 배치할 때 → 3개 모두 top_px=521, height_px=69로 통일
+   - 예: 카드 상단 색상바 3개 → 3개 모두 top_px=493, height_px=10으로 통일
+   - 각 요소의 top_px를 개별적으로 계산하지 말고, **먼저 행의 top_px를 하나 결정**한 뒤 같은 행의 모든 요소에 동일하게 적용하세요.
+   이유: top_px가 1px라도 다르면 시각적 정렬이 무너져 디자인 품질이 크게 저하됩니다.
 </constraints>
 
 <content_vertical_balance>

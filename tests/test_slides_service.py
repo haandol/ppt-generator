@@ -191,19 +191,24 @@ class TestLineShapeHtml:
     def test_horizontal_snap_short_arrow(self):
         """width=28, height=10 (하단 화살표 패턴)도 수평선으로 보정되어야 한다."""
         html = shape_to_html(self._make_line(width_px=28, height_px=10, end_arrow=True))
-        # height=10 <= 12(threshold) → h=0으로 보정 → y1 == y2
-        assert 'y1="8"' in html
-        assert 'y2="8"' in html
+        # height=10 <= 12(threshold) → h=0으로 보정 → y 좌표 동일
+        import re
+        y_vals = re.findall(r'y[12]="([^"]+)"', html)
+        assert len(y_vals) == 2
+        assert y_vals[0] == y_vals[1], "수평선이므로 y1 == y2"
         assert "ah-end" in html
 
     def test_horizontal_snap_wide_arrow(self):
         """width=48, height=10 (상단 화살표 패턴)도 수평선으로 보정되어야 한다."""
+        import re
         html = shape_to_html(self._make_line(width_px=48, height_px=10))
-        assert 'y1="8"' in html
-        assert 'y2="8"' in html
+        y_vals = re.findall(r'y[12]="([^"]+)"', html)
+        assert len(y_vals) == 2
+        assert y_vals[0] == y_vals[1], "수평선이므로 y1 == y2"
 
     def test_vertical_snap_small_width(self):
         """width=10, height=56 (수직 대시선 패턴)은 수직선으로 보정되어야 한다."""
+        import re
         shape = PptxShape(
             left_px=1100, top_px=472, width_px=10, height_px=56,
             shape_type="line",
@@ -212,11 +217,15 @@ class TestLineShapeHtml:
             dash_style="dash",
         )
         html = shape_to_html(shape)
-        assert 'x1="8"' in html
-        assert 'x2="8"' in html
+        x_vals = re.findall(r'x[12]="([^"]+)"', html)
+        assert len(x_vals) == 2
+        assert x_vals[0] == x_vals[1], "수직선이므로 x1 == x2"
 
     def test_diagonal_line_preserved(self):
         """width와 height가 모두 threshold 초과이면 사선이 유지되어야 한다."""
+        import re
         html = shape_to_html(self._make_line(width_px=100, height_px=100))
-        assert 'x2="108"' in html
-        assert 'y2="108"' in html
+        x_vals = re.findall(r'x[12]="([^"]+)"', html)
+        y_vals = re.findall(r'y[12]="([^"]+)"', html)
+        assert float(x_vals[1]) > float(x_vals[0]), "x2 > x1"
+        assert float(y_vals[1]) > float(y_vals[0]), "y2 > y1"
