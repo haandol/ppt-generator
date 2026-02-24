@@ -365,6 +365,16 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 | `quote_code`    | 인용문 + 코드 블록 조합      |
 | `concept_list`  | 개념 설명 리스트             |
 
+## ADR (Architecture Decision Records)
+
+새 기능 추가 또는 기존 기능 변경 시 반드시 `docs/adr/` 에 ADR을 작성하거나 기존 ADR을 업데이트해야 합니다.
+
+- **새 기능**: 설계 결정의 배경, 선택지, 결정 사항을 담은 새 ADR 파일을 작성
+- **기능 변경**: 해당 기능과 관련된 기존 ADR이 있으면 변경 내용을 반영하여 업데이트
+- **파일 위치**: `docs/adr/` 하위 디렉토리 (예: `docs/adr/pipeline/`)
+- **네이밍**: `NNNN-<kebab-case-title>.md` 형식 (예: `0018-parallel-design-spec-and-prompt-caching.md`)
+- ADR 작성 가이드는 [`docs/adr/README.md`](docs/adr/README.md) 참조
+
 ## Coding Conventions
 
 > 커밋 메시지, 브랜치 전략, PR 규칙 등 기여 관련 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.

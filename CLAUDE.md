@@ -16,3 +16,7 @@ uv run pytest tests/test_xxx.py::test_func -v    # 특정 테스트 함수
 ```
 
 패키지 매니저: uv | 빌드 시스템: hatchling | Python 3.13+ | 진입점: `ppt_generator.server:main`
+
+## ADR (Architecture Decision Records)
+
+새 기능 추가 또는 기존 기능 변경 시 반드시 `docs/adr/` 에 ADR을 작성하거나 기존 ADR을 업데이트해야 합니다. 상세 규칙은 [AGENTS.md](./AGENTS.md)의 ADR 섹션을 참조하세요.
