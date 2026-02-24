@@ -71,6 +71,8 @@ python-pptx로 직접 렌더링할 수 있는 PptxSlideSpec JSON을 출력하세
 
 ■ 화살표(line shape) 좌표 계산
   블록 간 연결선은 shape_type: "line"으로 표현합니다.
+  line shape는 시작점(left_px, top_px)에서 끝점(left_px+width_px, top_px+height_px)까지의 직선 커넥터로 렌더링됩니다.
+
   - 수평 화살표 (좌→우, 같은 행):
       left_px  = 블록A의 left + 블록A의 width          (A의 오른쪽 끝)
       top_px   = 블록A의 top + 블록A의 height / 2       (A의 수직 중앙)
@@ -82,13 +84,21 @@ python-pptx로 직접 렌더링할 수 있는 PptxSlideSpec JSON을 출력하세
       width_px = 0
       height_px = 블록B의 top - (블록A의 top + 블록A의 height)  (= gap)
 
+■ 화살표 속성
+  - end_arrow: true → 끝점(오른쪽/아래쪽)에 삼각형 화살표 머리를 표시합니다.
+  - start_arrow: true → 시작점(왼쪽/위쪽)에 삼각형 화살표 머리를 표시합니다.
+  - dash_style: "solid" (기본, 실선), "dash" (대시선), "dot" (점선)
+  - **다이어그램의 모든 연결선에는 반드시 end_arrow: true를 지정하여 흐름 방향을 명시하세요.**
+  - 양방향 화살표가 필요하면 start_arrow: true와 end_arrow: true를 동시에 지정합니다.
+  - 화살표 없는 단순 연결선이 필요한 경우만 end_arrow/start_arrow를 모두 생략(false)하세요.
+
 ■ 3×2 다이어그램 예시 (3열 × 2행, gap_h=32, gap_v=28)
   블록 크기: width=362, height=226
   1행: top=180  → (64,180), (458,180), (852,180)
   2행: top=434  → (64,434), (458,434), (852,434)
-  수평 화살표 (1행, A→B): left=426, top=293, width=32, height=0
-  수평 화살표 (1행, B→C): left=820, top=293, width=32, height=0
-  수직 화살표 (1열, R1→R2): left=245, top=406, width=0, height=28
+  수평 화살표 (1행, A→B): left=426, top=293, width=32, height=0, end_arrow=true
+  수평 화살표 (1행, B→C): left=820, top=293, width=32, height=0, end_arrow=true
+  수직 화살표 (1열, R1→R2): left=245, top=406, width=0, height=28, end_arrow=true
 </diagram_grid>
 
 <output_schema>
@@ -129,7 +139,10 @@ python-pptx로 직접 렌더링할 수 있는 PptxSlideSpec JSON을 출력하세
       "padding_right_px": number|null,
       "padding_top_px": number|null,
       "padding_bottom_px": number|null,
-      "vertical_alignment": "top"|"middle"|"bottom"
+      "vertical_alignment": "top"|"middle"|"bottom",
+      "end_arrow": bool,
+      "start_arrow": bool,
+      "dash_style": "solid"|"dash"|"dot"|null
     }
   ]
 }
@@ -238,83 +251,142 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
 - 레이아웃 (cta): 큰 중앙 텍스트 + 부제목 + 하단 행동 유도 문구
 </slide_type_closing>
 
-<layout_example hint="bullets">
-{
-  "background_color": "#232F3E",
-  "speaker_notes": "이 슬라이드에서는...",
-  "textboxes": [
-    {
-      "left_px": 64, "top_px": 96, "width_px": 1152, "height_px": 56,
-      "vertical_alignment": "middle",
-      "paragraphs": [
-        {"runs": [{"text": "슬라이드 제목", "font_size_pt": 32, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"}
-      ]
-    },
-    {
-      "left_px": 64, "top_px": 180, "width_px": 1152, "height_px": 346,
-      "vertical_alignment": "middle",
-      "line_spacing_pt": 28,
-      "paragraphs": [
-        {"runs": [{"text": "첫 번째 항목", "font_size_pt": 24, "color": "#F1F3F3", "bold": false, "italic": false}], "bullet_level": 0, "alignment": "left"},
-        {"runs": [{"text": "세부 설명", "font_size_pt": 20, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": 1, "alignment": "left"},
-        {"runs": [{"text": "두 번째 항목", "font_size_pt": 24, "color": "#F1F3F3", "bold": false, "italic": false}], "bullet_level": 0, "alignment": "left"}
-      ]
-    }
-  ],
-  "shapes": []
-}
-</layout_example>
+<examples>
+  <layout_example id="bullets-1" hint="bullets — 제목 + 불릿 포인트 리스트 (bullet_level 0/1 계층 구조, 전폭 텍스트박스)">
+  {
+    "background_color": "#232F3E",
+    "speaker_notes": "이 슬라이드에서는...",
+    "textboxes": [
+      {
+        "left_px": 64, "top_px": 96, "width_px": 1152, "height_px": 56,
+        "vertical_alignment": "middle",
+        "paragraphs": [
+          {"runs": [{"text": "슬라이드 제목", "font_size_pt": 32, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"}
+        ]
+      },
+      {
+        "left_px": 64, "top_px": 180, "width_px": 1152, "height_px": 346,
+        "vertical_alignment": "middle",
+        "line_spacing_pt": 28,
+        "paragraphs": [
+          {"runs": [{"text": "첫 번째 항목", "font_size_pt": 24, "color": "#F1F3F3", "bold": false, "italic": false}], "bullet_level": 0, "alignment": "left"},
+          {"runs": [{"text": "세부 설명", "font_size_pt": 20, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": 1, "alignment": "left"},
+          {"runs": [{"text": "두 번째 항목", "font_size_pt": 24, "color": "#F1F3F3", "bold": false, "italic": false}], "bullet_level": 0, "alignment": "left"}
+        ]
+      }
+    ],
+    "shapes": []
+  }
+  </layout_example>
 
-<layout_example hint="step_cards">
-{
-  "background_color": "#232F3E",
-  "speaker_notes": "",
-  "textboxes": [
-    {
-      "left_px": 64, "top_px": 96, "width_px": 1152, "height_px": 56,
-      "vertical_alignment": "middle",
-      "paragraphs": [
-        {"runs": [{"text": "진행 단계", "font_size_pt": 32, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"}
-      ]
-    }
-  ],
-  "shapes": [
-    {
-      "left_px": 64, "top_px": 180, "width_px": 352, "height_px": 440,
-      "shape_type": "rounded_rectangle", "fill_color": "#2E3D50", "corner_radius_px": 12,
-      "vertical_alignment": "top",
-      "padding_left_px": 16, "padding_right_px": 16, "padding_top_px": 12, "padding_bottom_px": 12,
-      "paragraphs": [
-        {"runs": [{"text": "01", "font_size_pt": 28, "color": "#FFC000", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
-        {"runs": [{"text": "첫 번째 단계", "font_size_pt": 20, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
-        {"runs": [{"text": "단계 설명 텍스트가 여기에 들어갑니다.", "font_size_pt": 16, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
-      ]
-    },
-    {
-      "left_px": 448, "top_px": 180, "width_px": 352, "height_px": 440,
-      "shape_type": "rounded_rectangle", "fill_color": "#2E3D50", "corner_radius_px": 12,
-      "vertical_alignment": "top",
-      "padding_left_px": 16, "padding_right_px": 16, "padding_top_px": 12, "padding_bottom_px": 12,
-      "paragraphs": [
-        {"runs": [{"text": "02", "font_size_pt": 28, "color": "#FFC000", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
-        {"runs": [{"text": "두 번째 단계", "font_size_pt": 20, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
-        {"runs": [{"text": "단계 설명 텍스트가 여기에 들어갑니다.", "font_size_pt": 16, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
-      ]
-    },
-    {
-      "left_px": 832, "top_px": 180, "width_px": 352, "height_px": 440,
-      "shape_type": "rounded_rectangle", "fill_color": "#2E3D50", "corner_radius_px": 12,
-      "vertical_alignment": "top",
-      "padding_left_px": 16, "padding_right_px": 16, "padding_top_px": 12, "padding_bottom_px": 12,
-      "paragraphs": [
-        {"runs": [{"text": "03", "font_size_pt": 28, "color": "#FFC000", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
-        {"runs": [{"text": "세 번째 단계", "font_size_pt": 20, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
-        {"runs": [{"text": "단계 설명 텍스트가 여기에 들어갑니다.", "font_size_pt": 16, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
-      ]
-    }
-  ]
-}
-</layout_example>
+  <layout_example id="step-cards-1" hint="step_cards — 3개 가로 배치 카드 (번호 + 제목 + 설명, paragraphs 사용, 균등 gap=32px)">
+  {
+    "background_color": "#232F3E",
+    "speaker_notes": "",
+    "textboxes": [
+      {
+        "left_px": 64, "top_px": 96, "width_px": 1152, "height_px": 56,
+        "vertical_alignment": "middle",
+        "paragraphs": [
+          {"runs": [{"text": "진행 단계", "font_size_pt": 32, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"}
+        ]
+      }
+    ],
+    "shapes": [
+      {
+        "left_px": 64, "top_px": 180, "width_px": 352, "height_px": 440,
+        "shape_type": "rounded_rectangle", "fill_color": "#2E3D50", "corner_radius_px": 12,
+        "vertical_alignment": "top",
+        "padding_left_px": 16, "padding_right_px": 16, "padding_top_px": 12, "padding_bottom_px": 12,
+        "paragraphs": [
+          {"runs": [{"text": "01", "font_size_pt": 28, "color": "#FFC000", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
+          {"runs": [{"text": "첫 번째 단계", "font_size_pt": 20, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
+          {"runs": [{"text": "단계 설명 텍스트가 여기에 들어갑니다.", "font_size_pt": 16, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
+        ]
+      },
+      {
+        "left_px": 448, "top_px": 180, "width_px": 352, "height_px": 440,
+        "shape_type": "rounded_rectangle", "fill_color": "#2E3D50", "corner_radius_px": 12,
+        "vertical_alignment": "top",
+        "padding_left_px": 16, "padding_right_px": 16, "padding_top_px": 12, "padding_bottom_px": 12,
+        "paragraphs": [
+          {"runs": [{"text": "02", "font_size_pt": 28, "color": "#FFC000", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
+          {"runs": [{"text": "두 번째 단계", "font_size_pt": 20, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
+          {"runs": [{"text": "단계 설명 텍스트가 여기에 들어갑니다.", "font_size_pt": 16, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
+        ]
+      },
+      {
+        "left_px": 832, "top_px": 180, "width_px": 352, "height_px": 440,
+        "shape_type": "rounded_rectangle", "fill_color": "#2E3D50", "corner_radius_px": 12,
+        "vertical_alignment": "top",
+        "padding_left_px": 16, "padding_right_px": 16, "padding_top_px": 12, "padding_bottom_px": 12,
+        "paragraphs": [
+          {"runs": [{"text": "03", "font_size_pt": 28, "color": "#FFC000", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
+          {"runs": [{"text": "세 번째 단계", "font_size_pt": 20, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
+          {"runs": [{"text": "단계 설명 텍스트가 여기에 들어갑니다.", "font_size_pt": 16, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
+        ]
+      }
+    ]
+  }
+  </layout_example>
+
+  <layout_example id="pipeline-1" hint="pipeline — 4개 블록을 화살표(end_arrow)로 좌→우 연결하는 수평 파이프라인 다이어그램">
+  {
+    "background_color": "#232F3E",
+    "speaker_notes": "",
+    "textboxes": [
+      {
+        "left_px": 64, "top_px": 96, "width_px": 1152, "height_px": 56,
+        "vertical_alignment": "middle",
+        "paragraphs": [
+          {"runs": [{"text": "처리 파이프라인", "font_size_pt": 32, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"}
+        ]
+      }
+    ],
+    "shapes": [
+      {
+        "left_px": 64, "top_px": 300, "width_px": 264, "height_px": 120,
+        "shape_type": "rounded_rectangle", "fill_color": "#2E3D50", "corner_radius_px": 12,
+        "text": "입력", "text_color": "#FFFFFF", "text_size_pt": 20, "text_bold": true,
+        "vertical_alignment": "middle"
+      },
+      {
+        "left_px": 328, "top_px": 360, "width_px": 32, "height_px": 0,
+        "shape_type": "line", "border_color": "#FFC000", "border_width_pt": 2,
+        "end_arrow": true, "vertical_alignment": "top"
+      },
+      {
+        "left_px": 360, "top_px": 300, "width_px": 264, "height_px": 120,
+        "shape_type": "rounded_rectangle", "fill_color": "#FF9900", "corner_radius_px": 12,
+        "text": "처리", "text_color": "#1A2332", "text_size_pt": 20, "text_bold": true,
+        "vertical_alignment": "middle"
+      },
+      {
+        "left_px": 624, "top_px": 360, "width_px": 32, "height_px": 0,
+        "shape_type": "line", "border_color": "#FFC000", "border_width_pt": 2,
+        "end_arrow": true, "vertical_alignment": "top"
+      },
+      {
+        "left_px": 656, "top_px": 300, "width_px": 264, "height_px": 120,
+        "shape_type": "rounded_rectangle", "fill_color": "#2E3D50", "corner_radius_px": 12,
+        "text": "검증", "text_color": "#FFFFFF", "text_size_pt": 20, "text_bold": true,
+        "vertical_alignment": "middle"
+      },
+      {
+        "left_px": 920, "top_px": 360, "width_px": 32, "height_px": 0,
+        "shape_type": "line", "border_color": "#FFC000", "border_width_pt": 2,
+        "end_arrow": true, "vertical_alignment": "top"
+      },
+      {
+        "left_px": 952, "top_px": 300, "width_px": 264, "height_px": 120,
+        "shape_type": "rounded_rectangle", "fill_color": "#2E3D50", "corner_radius_px": 12,
+        "text": "출력", "text_color": "#FFFFFF", "text_size_pt": 20, "text_bold": true,
+        "vertical_alignment": "middle"
+      }
+    ]
+  }
+  </layout_example>
+</examples>
 
 <typography_rules>
 - 슬라이드 대제목 (타이틀 슬라이드): font_size_pt 32~40, bold

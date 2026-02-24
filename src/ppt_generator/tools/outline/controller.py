@@ -33,6 +33,12 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
         포함한 구조화된 아웃라인을 생성합니다.
         아웃라인은 슬라이드의 구조만 결정하며, 디자인은 이후 HTML 슬라이드 생성 단계에서 결정됩니다.
 
+        **중요 — 호출 전 필수 확인 사항:**
+        이 도구를 호출하기 전에 반드시 사용자에게 다음 두 가지를 질문하여 확인하세요:
+        1. **발표 시간** (presentation_minutes): 몇 분짜리 발표인지
+        2. **청중 수준** (audience_level): 청중이 누구인지 (일반인/기술자/의사결정자)
+        사용자가 명시적으로 알려주지 않은 경우, 절대 기본값을 임의로 사용하지 말고 반드시 물어보세요.
+
         **중요: 아웃라인 생성 후 반드시 사용자에게 결과를 보여주고 확인을 받으세요.**
         사용자가 아웃라인 구조(슬라이드 수, 제목, 내용 구성 등)에 만족하는지 확인한 뒤
         다음 단계(generate_script)로 진행해야 합니다.
@@ -40,8 +46,8 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
 
         Args:
             topic: 발표 주제 (예: "2024년 클라우드 컴퓨팅 트렌드")
-            audience_level: 청중 수준 — "general" (일반), "technical" (기술), "executive" (의사결정자). 기본값 "general"
-            presentation_minutes: 발표 시간(분). 3~60분, 기본값 15분
+            audience_level: 청중 수준 — "general" (일반), "technical" (기술), "executive" (의사결정자). 사용자에게 반드시 확인 후 지정하세요.
+            presentation_minutes: 발표 시간(분). 3~60분. 사용자에게 반드시 확인 후 지정하세요.
             num_slides: 권장 슬라이드 수 (0이면 발표 시간 기준 자동 계산: 1~2분당 1장). 한 슬라이드에 하나의 주제만 다루기 위해 실제 생성 수는 달라질 수 있습니다.
             project_id: 프로젝트 ID (미지정 시 자동 생성)
 

@@ -73,6 +73,9 @@ class ShapeOutput(BaseModel):
     padding_top_px: float | None = None
     padding_bottom_px: float | None = None
     vertical_alignment: Literal["top", "middle", "bottom"] = "top"
+    end_arrow: bool = False
+    start_arrow: bool = False
+    dash_style: Literal["solid", "dash", "dot"] | None = None
 
 
 class SlideSpecOutput(BaseModel):
@@ -153,6 +156,9 @@ class SlideSpecOutput(BaseModel):
                 padding_top_px=s.padding_top_px,
                 padding_bottom_px=s.padding_bottom_px,
                 vertical_alignment=s.vertical_alignment,
+                end_arrow=s.end_arrow,
+                start_arrow=s.start_arrow,
+                dash_style=s.dash_style,
             )
             for s in self.shapes
         ]

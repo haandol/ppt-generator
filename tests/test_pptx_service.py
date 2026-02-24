@@ -193,3 +193,141 @@ class TestBackgroundImage:
             )
         ]
         assert len(bg_pics) == 0, "배경 이미지가 shape으로 존재하면 안 됨"
+
+
+class TestConnectorArrow:
+    """line shape가 connector로 렌더링되고 화살표 머리가 올바르게 설정되는지 검증."""
+
+    @staticmethod
+    def _make_arrow_spec(
+        end_arrow: bool = False,
+        start_arrow: bool = False,
+        dash_style: str | None = None,
+    ) -> DesignSpec:
+        return DesignSpec(slides=[
+            PptxSlideSpec(
+                background_color="#232F3E",
+                shapes=[
+                    PptxShape(
+                        left_px=100, top_px=300, width_px=200, height_px=0,
+                        shape_type="line",
+                        border_color="#FFC000",
+                        border_width_pt=2,
+                        end_arrow=end_arrow,
+                        start_arrow=start_arrow,
+                        dash_style=dash_style,
+                    ),
+                ],
+            ),
+        ])
+
+    def test_line_rendered_as_connector(self, service, tmp_path):
+        """line shape는 p:cxnSp(connector)로 렌더링되어야 한다."""
+        spec = self._make_arrow_spec()
+        response = service.export_from_design_spec(spec, output_dir=tmp_path)
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        sp_tree = slide.shapes._spTree
+        cxn_tag = qn("p:cxnSp")
+        connectors = [c for c in sp_tree if c.tag == cxn_tag]
+        assert len(connectors) == 1, "line shape가 p:cxnSp(connector)로 렌더링되어야 함"
+
+    def test_end_arrow_triangle(self, service, tmp_path):
+        """end_arrow=True → a:tailEnd type=triangle이 있어야 한다."""
+        spec = self._make_arrow_spec(end_arrow=True)
+        response = service.export_from_design_spec(spec, output_dir=tmp_path)
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        cxn_tag = qn("p:cxnSp")
+        connector = next(c for c in slide.shapes._spTree if c.tag == cxn_tag)
+
+        ln = connector.find(f".//{qn('a:ln')}")
+        assert ln is not None
+        tail = ln.find(qn("a:tailEnd"))
+        assert tail is not None, "end_arrow=True이면 a:tailEnd가 있어야 함"
+        assert tail.get("type") == "triangle"
+
+    def test_start_arrow_triangle(self, service, tmp_path):
+        """start_arrow=True → a:headEnd type=triangle이 있어야 한다."""
+        spec = self._make_arrow_spec(start_arrow=True)
+        response = service.export_from_design_spec(spec, output_dir=tmp_path)
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        cxn_tag = qn("p:cxnSp")
+        connector = next(c for c in slide.shapes._spTree if c.tag == cxn_tag)
+
+        ln = connector.find(f".//{qn('a:ln')}")
+        assert ln is not None
+        head = ln.find(qn("a:headEnd"))
+        assert head is not None, "start_arrow=True이면 a:headEnd가 있어야 함"
+        assert head.get("type") == "triangle"
+
+    def test_bidirectional_arrows(self, service, tmp_path):
+        """양방향 화살표: headEnd와 tailEnd 모두 있어야 한다."""
+        spec = self._make_arrow_spec(end_arrow=True, start_arrow=True)
+        response = service.export_from_design_spec(spec, output_dir=tmp_path)
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        cxn_tag = qn("p:cxnSp")
+        connector = next(c for c in slide.shapes._spTree if c.tag == cxn_tag)
+
+        ln = connector.find(f".//{qn('a:ln')}")
+        assert ln.find(qn("a:tailEnd")) is not None
+        assert ln.find(qn("a:headEnd")) is not None
+
+    def test_no_arrow_no_ends(self, service, tmp_path):
+        """화살표 미지정 → headEnd/tailEnd가 없어야 한다."""
+        spec = self._make_arrow_spec(end_arrow=False, start_arrow=False)
+        response = service.export_from_design_spec(spec, output_dir=tmp_path)
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        cxn_tag = qn("p:cxnSp")
+        connector = next(c for c in slide.shapes._spTree if c.tag == cxn_tag)
+
+        ln = connector.find(f".//{qn('a:ln')}")
+        assert ln.find(qn("a:tailEnd")) is None
+        assert ln.find(qn("a:headEnd")) is None
+
+    def test_dash_style(self, service, tmp_path):
+        """dash_style="dash" → a:prstDash val=dash가 있어야 한다."""
+        spec = self._make_arrow_spec(dash_style="dash")
+        response = service.export_from_design_spec(spec, output_dir=tmp_path)
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        cxn_tag = qn("p:cxnSp")
+        connector = next(c for c in slide.shapes._spTree if c.tag == cxn_tag)
+
+        ln = connector.find(f".//{qn('a:ln')}")
+        prstDash = ln.find(qn("a:prstDash"))
+        assert prstDash is not None, "dash_style=dash이면 a:prstDash가 있어야 함"
+        assert prstDash.get("val") == "dash"
+
+    def test_vertical_connector(self, service, tmp_path):
+        """수직 커넥터(width=0, height>0)도 정상 렌더링되어야 한다."""
+        spec = DesignSpec(slides=[
+            PptxSlideSpec(
+                background_color="#232F3E",
+                shapes=[
+                    PptxShape(
+                        left_px=640, top_px=200, width_px=0, height_px=100,
+                        shape_type="line",
+                        border_color="#FF9900",
+                        border_width_pt=2,
+                        end_arrow=True,
+                    ),
+                ],
+            ),
+        ])
+        response = service.export_from_design_spec(spec, output_dir=tmp_path)
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        cxn_tag = qn("p:cxnSp")
+        connectors = [c for c in slide.shapes._spTree if c.tag == cxn_tag]
+        assert len(connectors) == 1

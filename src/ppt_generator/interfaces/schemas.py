@@ -132,6 +132,9 @@ class PptxShape:
     padding_top_px: float | None = None
     padding_bottom_px: float | None = None
     vertical_alignment: str = "top"  # "top", "middle", "bottom"
+    end_arrow: bool = False  # 끝점(오른쪽/아래쪽)에 화살표 머리 표시
+    start_arrow: bool = False  # 시작점(왼쪽/위쪽)에 화살표 머리 표시
+    dash_style: str | None = None  # "solid", "dash", "dot" (line shape 전용)
 
 
 @dataclass(frozen=True)

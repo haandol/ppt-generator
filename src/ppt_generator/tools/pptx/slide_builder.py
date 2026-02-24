@@ -5,7 +5,7 @@ from __future__ import annotations
 from io import BytesIO
 
 from lxml.etree import SubElement
-from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE
+from pptx.enum.shapes import MSO_CONNECTOR_TYPE, MSO_SHAPE, MSO_SHAPE_TYPE
 from pptx.enum.text import MSO_AUTO_SIZE
 from pptx.oxml.ns import qn
 from pptx.util import Emu, Inches, Pt
@@ -185,6 +185,10 @@ class SlideBuilder:
 
     def _add_shape_from_spec(self, slide, shape_spec: PptxShape) -> None:
         """PptxShape spec으로 도형을 생성."""
+        if shape_spec.shape_type == "line":
+            self._add_connector_from_spec(slide, shape_spec)
+            return
+
         left = shape_spec.left_px * EXPORT_PX_TO_INCHES_X
         top = shape_spec.top_px * EXPORT_PX_TO_INCHES_Y
         width = shape_spec.width_px * EXPORT_PX_TO_INCHES_X
@@ -194,7 +198,6 @@ class SlideBuilder:
             "rectangle": MSO_SHAPE.RECTANGLE,
             "rounded_rectangle": MSO_SHAPE.ROUNDED_RECTANGLE,
             "ellipse": MSO_SHAPE.OVAL,
-            "line": MSO_SHAPE.RECTANGLE,
         }
         mso_shape = shape_type_map.get(shape_spec.shape_type, MSO_SHAPE.RECTANGLE)
 
@@ -275,3 +278,53 @@ class SlideBuilder:
                 rgb = parse_color(shape_spec.text_color)
                 if rgb:
                     run.font.color.rgb = rgb
+
+    # 선/화살표 전용 dash_style 매핑
+    _DASH_STYLE_MAP = {
+        "dash": "dash",
+        "dot": "dot",
+    }
+
+    def _add_connector_from_spec(self, slide, shape_spec: PptxShape) -> None:
+        """Line shape를 python-pptx Connector(직선)로 생성하고 화살표 머리를 설정."""
+        start_x = Inches(shape_spec.left_px * EXPORT_PX_TO_INCHES_X)
+        start_y = Inches(shape_spec.top_px * EXPORT_PX_TO_INCHES_Y)
+        end_x = Inches((shape_spec.left_px + shape_spec.width_px) * EXPORT_PX_TO_INCHES_X)
+        end_y = Inches((shape_spec.top_px + shape_spec.height_px) * EXPORT_PX_TO_INCHES_Y)
+
+        connector = slide.shapes.add_connector(
+            MSO_CONNECTOR_TYPE.STRAIGHT, start_x, start_y, end_x, end_y,
+        )
+
+        # 선 색상/굵기
+        if shape_spec.border_color:
+            rgb = parse_color(shape_spec.border_color)
+            if rgb:
+                connector.line.color.rgb = rgb
+        if shape_spec.border_width_pt:
+            connector.line.width = Pt(shape_spec.border_width_pt)
+
+        # 화살표 머리 설정 (a:ln 안에 headEnd/tailEnd XML 추가)
+        spPr = connector._element.find(qn("p:spPr"))
+        ln = spPr.find(qn("a:ln"))
+        if ln is None:
+            ln = SubElement(spPr, qn("a:ln"))
+
+        if shape_spec.end_arrow:
+            tail = SubElement(ln, qn("a:tailEnd"))
+            tail.set("type", "triangle")
+            tail.set("w", "med")
+            tail.set("len", "med")
+
+        if shape_spec.start_arrow:
+            head = SubElement(ln, qn("a:headEnd"))
+            head.set("type", "triangle")
+            head.set("w", "med")
+            head.set("len", "med")
+
+        # 대시 스타일
+        dash_key = (shape_spec.dash_style or "").lower()
+        prstDash = self._DASH_STYLE_MAP.get(dash_key)
+        if prstDash:
+            dash_el = SubElement(ln, qn("a:prstDash"))
+            dash_el.set("val", prstDash)
