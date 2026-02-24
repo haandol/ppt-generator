@@ -4,13 +4,13 @@ from dataclasses import asdict
 from mcp.server.fastmcp import FastMCP
 
 from ppt_generator.interfaces.constants import (
-    DEFAULT_AUDIENCE_LEVEL,
+    DEFAULT_AUDIENCE_TYPE,
     DEFAULT_PRESENTATION_MINUTES,
     MAX_NUM_SLIDES,
     MAX_PRESENTATION_MINUTES,
     MIN_NUM_SLIDES,
     MIN_PRESENTATION_MINUTES,
-    VALID_AUDIENCE_LEVELS,
+    VALID_AUDIENCE_TYPES,
 )
 from ppt_generator.interfaces.schemas import OutlineRequest, ProjectMetadata
 from ppt_generator.interfaces.utils import format_token_usage
@@ -22,7 +22,8 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
     @mcp.tool()
     def generate_outline(
         topic: str,
-        audience_level: str = DEFAULT_AUDIENCE_LEVEL,
+        purpose: str = "",
+        audience_type: str = DEFAULT_AUDIENCE_TYPE,
         presentation_minutes: int = DEFAULT_PRESENTATION_MINUTES,
         num_slides: int = 0,
         project_id: str = "",
@@ -34,9 +35,10 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
         아웃라인은 슬라이드의 구조만 결정하며, 디자인은 이후 HTML 슬라이드 생성 단계에서 결정됩니다.
 
         **중요 — 호출 전 필수 확인 사항:**
-        이 도구를 호출하기 전에 반드시 사용자에게 다음 두 가지를 질문하여 확인하세요:
-        1. **발표 시간** (presentation_minutes): 몇 분짜리 발표인지
-        2. **청중 수준** (audience_level): 청중이 누구인지 (일반인/기술자/의사결정자)
+        이 도구를 호출하기 전에 반드시 사용자에게 다음 세 가지를 질문하여 확인하세요:
+        1. **발표 목적** (purpose): 이 발표의 목적이 무엇인지 (예: "사내 기술 공유", "고객 제안", "컨퍼런스 발표")
+        2. **발표 시간** (presentation_minutes): 몇 분짜리 발표인지
+        3. **청중 유형** (audience_type): 청중이 누구인지 (일반인/기술자/의사결정자)
         사용자가 명시적으로 알려주지 않은 경우, 절대 기본값을 임의로 사용하지 말고 반드시 물어보세요.
 
         **중요: 아웃라인 생성 후 반드시 사용자에게 결과를 보여주고 확인을 받으세요.**
@@ -46,7 +48,8 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
 
         Args:
             topic: 발표 주제 (예: "2024년 클라우드 컴퓨팅 트렌드")
-            audience_level: 청중 수준 — "general" (일반), "technical" (기술), "executive" (의사결정자). 사용자에게 반드시 확인 후 지정하세요.
+            purpose: 발표 목적 (예: "사내 기술 공유", "고객 제안", "컨퍼런스 발표"). 사용자에게 반드시 확인 후 지정하세요.
+            audience_type: 청중 유형 — "general" (일반), "technical" (기술), "executive" (의사결정자). 사용자에게 반드시 확인 후 지정하세요.
             presentation_minutes: 발표 시간(분). 3~60분. 사용자에게 반드시 확인 후 지정하세요.
             num_slides: 권장 슬라이드 수 (0이면 발표 시간 기준 자동 계산: 1~2분당 1장). 한 슬라이드에 하나의 주제만 다루기 위해 실제 생성 수는 달라질 수 있습니다.
             project_id: 프로젝트 ID (미지정 시 자동 생성)
@@ -54,8 +57,8 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
         Returns:
             outline_path, project_id를 포함하는 JSON 문자열
         """
-        if audience_level not in VALID_AUDIENCE_LEVELS:
-            audience_level = DEFAULT_AUDIENCE_LEVEL
+        if audience_type not in VALID_AUDIENCE_TYPES:
+            audience_type = DEFAULT_AUDIENCE_TYPE
         presentation_minutes = max(MIN_PRESENTATION_MINUTES, min(MAX_PRESENTATION_MINUTES, presentation_minutes))
         if num_slides <= 0:
             num_slides = max(MIN_NUM_SLIDES, min(MAX_NUM_SLIDES, presentation_minutes // 2 + 2))
@@ -64,8 +67,9 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
         request = OutlineRequest(
             topic=topic,
             num_slides=num_slides,
-            audience_level=audience_level,
+            audience_type=audience_type,
             presentation_minutes=presentation_minutes,
+            purpose=purpose,
         )
         response = outline_service.generate(request)
         actual_num_slides = len(response.slides)
@@ -78,8 +82,9 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
                 topic=topic,
                 num_slides=actual_num_slides,
                 steps_completed={},
-                audience_level=audience_level,
+                audience_type=audience_type,
                 presentation_minutes=presentation_minutes,
+                purpose=purpose,
             ),
         )
         project_service.save_outline(project_dir, result)

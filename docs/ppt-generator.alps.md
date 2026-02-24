@@ -156,7 +156,7 @@ flowchart TD
 
 | Tool 이름 | 매핑 기능 | 입력 | 출력 |
 |-----------|-----------|------|------|
-| `generate_outline` | F1 | 주제, 발표 시간(presentation_minutes), 청중 수준(audience_level), 슬라이드 수(선택) | 아웃라인 JSON (제목, 본문, 이미지 아이디어, 레이아웃 타입, speaker_notes 비어있음). 호출 전 사용자에게 발표 시간과 청중 수준을 반드시 확인 |
+| `generate_outline` | F1 | 주제, 발표 시간(presentation_minutes), 청중 유형(audience_type), 슬라이드 수(선택) | 아웃라인 JSON (제목, 본문, 이미지 아이디어, 레이아웃 타입, speaker_notes 비어있음). 호출 전 사용자에게 발표 시간과 청중 유형을 반드시 확인 |
 | `generate_script` | F2 | 아웃라인 JSON | 아웃라인 JSON (speaker_notes 채워짐) |
 | `generate_slides_design_spec` | 슬라이드 디자인 스펙 생성 (전체/선택적) | project_id 또는 outline_json, total_slides, slide_indices(선택) | design_spec_dir, slide_count, total_slides, project_id, results |
 | `modify_design_spec` | 디자인 스펙 수정 | project_id, action, slide_index, outline_json | design_spec_dir, slide_count, project_id |
@@ -175,9 +175,9 @@ sequenceDiagram
     participant Gemini as Gemini 2.5 Flash
 
     User->>MCPClient: "클라우드 트렌드 발표자료 만들어줘"
-    MCPClient->>User: 발표 시간과 청중 수준을 확인
+    MCPClient->>User: 발표 시간과 청중 유형을 확인
     User->>MCPClient: "15분, 기술자 대상"
-    MCPClient->>MCPServer: generate_outline(주제, audience_level="technical", presentation_minutes=15)
+    MCPClient->>MCPServer: generate_outline(주제, audience_type="technical", presentation_minutes=15)
     MCPServer->>Bedrock: 아웃라인 생성 요청
     Bedrock-->>MCPServer: 슬라이드 아웃라인 JSON (speaker_notes 비어있음)
     MCPServer-->>MCPClient: 아웃라인 반환

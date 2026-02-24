@@ -29,8 +29,9 @@ class OutlineService:
         prompt = OUTLINE_USER_PROMPT_TEMPLATE.format(
             topic=request.topic,
             num_slides=request.num_slides,
-            audience_level=request.audience_level,
+            audience_type=request.audience_type,
             presentation_minutes=request.presentation_minutes,
+            purpose=request.purpose or "일반 발표",
         )
 
         last_error: ValueError | None = None

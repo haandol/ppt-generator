@@ -25,14 +25,14 @@ MCP 도구 `generate_outline`을 구현하여, 주제와 슬라이드 수를 입
 - `component_hint`: 본문 영역의 시각적 구조 힌트 (bullets, two_column, vs_comparison, step_cards, code_block, arch_diagram, pipeline, quote, summary_grid, agenda, info_cards, feature_list, cta, process_flow, quote_code, concept_list)
 - speaker_notes는 빈 문자열로 생성되며, 이후 `generate_script`(F2)에서 채워짐
 - 슬라이드 수: `num_slides` 직접 지정 또는 `presentation_minutes` 기반 자동 계산 (1~2분당 1장)
-- **호출 전 필수 확인**: MCP 클라이언트는 호출 전에 사용자에게 `presentation_minutes`(발표 시간)와 `audience_level`(청중 수준)을 반드시 확인해야 함. 기본값 임의 사용 금지.
+- **호출 전 필수 확인**: MCP 클라이언트는 호출 전에 사용자에게 `presentation_minutes`(발표 시간)와 `audience_type`(청중 유형)을 반드시 확인해야 함. 기본값 임의 사용 금지.
 
 ### MCP Tool Interface
 
 | 항목 | 값 |
 |------|-----|
 | Tool | `generate_outline` |
-| 입력 | `topic: str`, `audience_level: str` ("general"/"technical"/"executive"), `presentation_minutes: int` (3~60), `num_slides: int` (0이면 자동 계산), `project_id: str` (선택) |
+| 입력 | `topic: str`, `audience_type: str` ("general"/"technical"/"executive"), `presentation_minutes: int` (3~60), `num_slides: int` (0이면 자동 계산), `project_id: str` (선택) |
 | 출력 | 아웃라인 JSON 문자열 (speaker_notes 비어있음, project_id 포함) |
 
 ### Acceptance Criteria

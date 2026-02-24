@@ -41,7 +41,7 @@ def service(mock_agent):
 
 class TestOutlineService:
     def test_generate_returns_outline_response(self, service):
-        request = OutlineRequest(topic="클라우드 컴퓨팅 트렌드", num_slides=5, audience_level="general", presentation_minutes=15)
+        request = OutlineRequest(topic="클라우드 컴퓨팅 트렌드", num_slides=5, audience_type="general", presentation_minutes=15)
         response = service.generate(request)
 
         assert len(response.slides) == 3
@@ -49,7 +49,7 @@ class TestOutlineService:
         assert response.slides[1].content_summary == "AWS, Azure, GCP 비교 및 하이브리드 접근 방식"
 
     def test_generate_calls_agent_with_topic(self, service, mock_agent):
-        request = OutlineRequest(topic="테스트 주제", num_slides=5, audience_level="technical", presentation_minutes=20)
+        request = OutlineRequest(topic="테스트 주제", num_slides=5, audience_type="technical", presentation_minutes=20)
         service.generate(request)
 
         mock_agent.assert_called_once()
@@ -57,12 +57,12 @@ class TestOutlineService:
         assert "테스트 주제" in prompt
 
     def test_generate_raises_on_empty_topic(self, service):
-        request = OutlineRequest(topic="", num_slides=5, audience_level="general", presentation_minutes=15)
+        request = OutlineRequest(topic="", num_slides=5, audience_type="general", presentation_minutes=15)
         with pytest.raises(ValueError, match="주제가 비어있습니다"):
             service.generate(request)
 
     def test_generate_raises_on_whitespace_topic(self, service):
-        request = OutlineRequest(topic="   ", num_slides=5, audience_level="general", presentation_minutes=15)
+        request = OutlineRequest(topic="   ", num_slides=5, audience_type="general", presentation_minutes=15)
         with pytest.raises(ValueError, match="주제가 비어있습니다"):
             service.generate(request)
 
@@ -121,8 +121,8 @@ class TestOutlineService:
         prompt = mock_agent.call_args[0][0]
         assert "테스트 주제" in prompt
 
-    def test_generate_prompt_contains_audience_level(self, service, mock_agent):
-        request = OutlineRequest(topic="AI 트렌드", num_slides=5, audience_level="technical", presentation_minutes=20)
+    def test_generate_prompt_contains_audience_type(self, service, mock_agent):
+        request = OutlineRequest(topic="AI 트렌드", num_slides=5, audience_type="technical", presentation_minutes=20)
         service.generate(request)
 
         prompt = mock_agent.call_args[0][0]
@@ -130,7 +130,7 @@ class TestOutlineService:
         assert "20" in prompt
 
     def test_generate_prompt_contains_presentation_minutes(self, service, mock_agent):
-        request = OutlineRequest(topic="AI 트렌드", num_slides=5, audience_level="executive", presentation_minutes=30)
+        request = OutlineRequest(topic="AI 트렌드", num_slides=5, audience_type="executive", presentation_minutes=30)
         service.generate(request)
 
         prompt = mock_agent.call_args[0][0]

@@ -6,8 +6,9 @@ from dataclasses import dataclass, field
 @dataclass(frozen=True)
 class ScriptRequest:
     outline: "OutlineResponse"
-    audience_level: str = "general"
+    audience_type: str = "general"
     presentation_minutes: int = 15
+    purpose: str = ""
 
 
 @dataclass(frozen=True)
@@ -28,8 +29,9 @@ class SlideOutline:
 class OutlineRequest:
     topic: str
     num_slides: int
-    audience_level: str = "general"
+    audience_type: str = "general"
     presentation_minutes: int = 15
+    purpose: str = ""
 
 
 @dataclass(frozen=True)
@@ -64,8 +66,9 @@ class ProjectMetadata:
     topic: str = ""
     num_slides: int = 0
     steps_completed: dict[str, str] = field(default_factory=dict)
-    audience_level: str = "general"
+    audience_type: str = "general"
     presentation_minutes: int = 15
+    purpose: str = ""
 
 
 # --- PPTX 요소 스키마 (LLM 변환용) ---

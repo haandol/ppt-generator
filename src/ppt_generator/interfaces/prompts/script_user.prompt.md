@@ -3,7 +3,8 @@
 </task>
 
 <context>
-청중 수준: {audience_level}
+발표 목적: {purpose}
+청중 유형: {audience_type}
 총 발표 시간: {presentation_minutes}분
 슬라이드 수: {num_slides}장
 슬라이드당 배정 시간: 약 {minutes_per_slide}분

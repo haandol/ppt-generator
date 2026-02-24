@@ -135,7 +135,7 @@ class ProjectService:
             "topic": metadata.topic,
             "num_slides": metadata.num_slides,
             "steps_completed": metadata.steps_completed,
-            "audience_level": metadata.audience_level,
+            "audience_type": metadata.audience_type,
             "presentation_minutes": metadata.presentation_minutes,
         }
         (project_dir / "project.json").write_text(
@@ -160,7 +160,7 @@ class ProjectService:
             topic=data.get("topic", ""),
             num_slides=data.get("num_slides", 0),
             steps_completed=data.get("steps_completed", {}),
-            audience_level=data.get("audience_level", "general"),
+            audience_type=data.get("audience_type", "general"),
             presentation_minutes=data.get("presentation_minutes", 15),
         )
 
@@ -225,7 +225,7 @@ class ProjectService:
                 "topic": data.get("topic", ""),
                 "num_slides": data.get("num_slides", 0),
                 "steps_completed": data.get("steps_completed", {}),
-                "audience_level": data.get("audience_level", "general"),
+                "audience_type": data.get("audience_type", "general"),
                 "presentation_minutes": data.get("presentation_minutes", 15),
                 "created_at": created_at,
             })

@@ -30,10 +30,11 @@ class ScriptService:
         minutes_per_slide = round(request.presentation_minutes / max(num_slides, 1), 1)
         prompt = SCRIPT_USER_PROMPT_TEMPLATE.format(
             outline_json=outline_json,
-            audience_level=request.audience_level,
+            audience_type=request.audience_type,
             presentation_minutes=request.presentation_minutes,
             num_slides=num_slides,
             minutes_per_slide=minutes_per_slide,
+            purpose=request.purpose or "일반 발표",
         )
         try:
             agent_result = self._agent(prompt)

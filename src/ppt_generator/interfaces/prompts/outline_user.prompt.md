@@ -4,7 +4,8 @@
 
 <input>
 주제: {topic}
+발표 목적: {purpose}
 슬라이드 수: {num_slides}장
-청중 수준: {audience_level}
+청중 유형: {audience_type}
 발표 시간: {presentation_minutes}분
 </input>

@@ -63,7 +63,7 @@ N장(마지막): Thank You 슬라이드
 </slide_composition_rules>
 
 <audience_adaptation>
-청중 수준별 콘텐츠 조정 규칙:
+청중 유형별 콘텐츠 조정 규칙:
 
 - general (일반 청중):
   · 쉬운 용어와 비유, 구체적 예시 중심으로 content_summary 작성
