@@ -184,7 +184,6 @@ def register_design_tools(
         project_id: str,
         action: str,
         slide_index: int = -1,
-        outline_json: str = "",
         color_theme: str = "dark",
     ) -> str:
         """디자인 스펙의 개별 슬라이드를 추가, 수정, 삭제합니다.
@@ -192,11 +191,16 @@ def register_design_tools(
         기존 프로젝트의 디자인 스펙에서 슬라이드 단위 CRUD를 수행합니다.
         add/update 시 첫 슬라이드의 디자인을 기반으로 일관된 스타일을 유지합니다.
 
+        **사전 조건 (add/update):**
+        이 도구를 호출하기 전에, 반드시 outline/script JSONL 파일을 먼저 수정해두세요.
+        - add: 삽입할 위치에 새 슬라이드 줄을 미리 삽입
+        - update: 해당 slide_index의 줄을 미리 수정
+        이 도구는 파일에서 해당 slide_index의 아웃라인을 읽어 디자인 스펙을 생성합니다.
+
         Args:
             project_id: 대상 프로젝트 ID (필수)
             action: 수행할 작업 ("add" | "update" | "delete")
             slide_index: add일 때 삽입 위치(-1이면 끝), update/delete일 때 대상 인덱스
-            outline_json: add/update 시 슬라이드 아웃라인 JSON (title, content_summary, component_hint)
             color_theme: 색상 테마 ("dark" 또는 "light", 기본값: "dark")
 
         Returns:
@@ -221,9 +225,10 @@ def register_design_tools(
         token_usage: dict[str, int] = {}
 
         if action == "add":
-            if not outline_json:
-                raise ValueError("add 시 outline_json이 필수입니다.")
-            outline = parse_outline_json(outline_json)
+            insert_idx = slide_index if 0 <= slide_index < slide_count else slide_count
+            # outline/script JSONL에서 해당 인덱스의 슬라이드를 읽어온다
+            outline_raw = project_service.load_script_or_outline_slide(project_dir, insert_idx)
+            outline = parse_outline_json(outline_raw)
             slide_outline = outline.slides[0]
             complexity = estimate_slide_complexity(slide_outline)
             effort = complexity_to_thinking_effort(complexity)
@@ -233,7 +238,6 @@ def register_design_tools(
                 slide_outline, design_summary, color_theme=color_theme,
             )
             token_usage = svc.last_token_usage
-            insert_idx = slide_index if 0 <= slide_index < slide_count else slide_count
             project_service.insert_design_spec_slide(project_dir, insert_idx, new_spec)
             if slides_service is not None:
                 html = slides_service.render_single_slide_html(insert_idx, new_spec)
@@ -243,11 +247,11 @@ def register_design_tools(
                 slide_html_path = str(html_path)
 
         elif action == "update":
-            if not outline_json:
-                raise ValueError("update 시 outline_json이 필수입니다.")
             if slide_index < 0 or slide_index >= slide_count:
                 raise ValueError(f"유효하지 않은 slide_index: {slide_index} (전체 {slide_count}장)")
-            outline = parse_outline_json(outline_json)
+            # outline/script JSONL에서 해당 인덱스의 슬라이드를 읽어온다
+            outline_raw = project_service.load_script_or_outline_slide(project_dir, slide_index)
+            outline = parse_outline_json(outline_raw)
             slide_outline = outline.slides[0]
             complexity = estimate_slide_complexity(slide_outline)
             effort = complexity_to_thinking_effort(complexity)
@@ -269,6 +273,8 @@ def register_design_tools(
             if slide_index < 0 or slide_index >= slide_count:
                 raise ValueError(f"유효하지 않은 slide_index: {slide_index} (전체 {slide_count}장)")
             project_service.delete_design_spec_slide(project_dir, slide_index)
+            # outline/script JSONL 동기화
+            project_service.delete_outline_slide(project_dir, slide_index)
 
         project_service.update_step(project_dir, "design_spec_modified")
         new_count = project_service.get_design_spec_slide_count(project_dir)

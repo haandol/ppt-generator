@@ -49,14 +49,18 @@ MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 �
 
 #### modify_design_spec
 
-- MCP 도구 `modify_design_spec(project_id, action, slide_index, outline_json)` 추가
+- MCP 도구 `modify_design_spec(project_id, action, slide_index, color_theme)` 추가
 - `action`: "add" (삽입), "update" (교체), "delete" (삭제)
+- **파일 기반 아웃라인 참조**: add/update 시 호출자가 먼저 outline/script JSONL 파일을 수정한 뒤, `modify_design_spec`은 파일에서 해당 `slide_index`의 아웃라인을 읽어 디자인 스펙을 생성한다.
+- **delete 시 동기화**: delete action에서만 outline/script JSONL의 해당 줄을 함께 삭제한다.
 
-| action | slide_index | outline_json | 동작 |
-|--------|-------------|-------------|------|
-| add | -1 (끝) 또는 삽입 위치 | 필수 | 새 슬라이드 생성 후 삽입 |
-| update | 대상 인덱스 | 필수 | 해당 슬라이드 재생성 후 교체 |
-| delete | 대상 인덱스 | 불필요 | 해당 슬라이드 제거 |
+| action | slide_index | 사전 조건 | 동작 |
+|--------|-------------|----------|------|
+| add | -1 (끝) 또는 삽입 위치 | outline/script JSONL에 새 줄을 미리 삽입 | 파일에서 해당 인덱스 읽기 → 디자인 스펙 생성 후 삽입 |
+| update | 대상 인덱스 | outline/script JSONL의 해당 줄을 미리 수정 | 파일에서 해당 인덱스 읽기 → 디자인 스펙 재생성 후 교체 |
+| delete | 대상 인덱스 | 없음 | 디자인 스펙 제거 + outline/script JSONL 해당 줄 삭제 |
+
+> **읽기 우선순위**: script.jsonl이 존재하면 우선 읽고, 없으면 outline.jsonl에서 읽는다. 둘 다 없으면 에러를 발생시킨다.
 
 ### Technical Details
 
@@ -157,7 +161,7 @@ generate_outline → generate_script
 ## References
 
 - 디자인 스펙 저장소: `src/ppt_generator/tools/project/design_spec_store.py` — `DesignSpecStore` (파일 CRUD 전담)
-- 프로젝트 서비스: `src/ppt_generator/tools/project/service.py` — `DesignSpecStore`에 위임하는 메서드 제공
+- 프로젝트 서비스: `src/ppt_generator/tools/project/service.py` — `DesignSpecStore`에 위임하는 메서드 + 아웃라인/스크립트 JSONL CRUD (`update_outline_slide`, `insert_outline_slide`, `delete_outline_slide`)
 - 디자인 서비스: `src/ppt_generator/tools/design/service.py` — `generate_single_slide()`, `extract_design_summary()`
 - 유틸리티: `src/ppt_generator/interfaces/spec_utils.py` — `slide_spec_to_json()`, `parse_slide_spec_json()`
 - 컨트롤러: `src/ppt_generator/tools/design/controller.py`, `tools/slides/controller.py`, `tools/pptx/controller.py`, `tools/project/controller.py`
