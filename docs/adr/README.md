@@ -19,26 +19,27 @@ adr/
 
 ## 카테고리별 ADR 목록
 
-### Pipeline
+### Pipeline — Active
 
 - [0001: 슬라이드 아웃라인 생성 (F1)](./pipeline/0001-outline-generation.md)
 - [0002: 발표 스크립트 생성 (F2)](./pipeline/0002-script-generation.md)
+- [0007: 파이프라인 결과물 저장/로드 및 프로젝트 디렉토리 통합](./pipeline/0007-pipeline-artifact-persistence.md)
+- [0008: 템플릿 분석](./pipeline/0008-template-analysis.md) — *Proposed*
+- [0011: 점진적 구체화 파이프라인 설계](./pipeline/0011-progressive-refinement-pipeline.md)
+- [0013: 디자인 스펙 기반 슬라이드 생성 파이프라인](./pipeline/0013-design-spec-pipeline.md)
+- [0014: 파일 기반 통신, 슬라이드 단위 CRUD 및 파일 분리](./pipeline/0014-file-based-communication-and-per-slide-crud.md)
+- [0016: 슬라이드별 HTML 파일 분리 및 iframe 컨테이너](./pipeline/0016-per-slide-html-iframe.md)
+- [0017: 폰트 메트릭 기반 텍스트 오버플로우 방지](./pipeline/0017-font-metric-text-overflow-prevention.md)
+- [0018: 디자인 스펙 병렬 생성, 프롬프트 캐싱 및 Adaptive Effort](./pipeline/0018-parallel-design-spec-and-prompt-caching.md)
+- [0020: 토큰 사용량 추적 및 비용 추정](./pipeline/0020-token-usage-tracking-and-cost-estimation.md)
+- [0021: 슬라이드 타입별 시스템 프롬프트 분리](./pipeline/0021-slide-type-specific-system-prompts.md)
+
+### Pipeline — Superseded
+
 - [0004: HTML 슬라이드 생성 (F3)](./pipeline/0004-html-slide-generation.md) — *Superseded by 0013*
 - [0005: 슬라이드 수정 (F4)](./pipeline/0005-slide-modification.md) — *Superseded by 0013/0014*
 - [0006: PPTX 내보내기 (F5)](./pipeline/0006-pptx-export.md) — *Superseded by 0013*
-- [0007: 파이프라인 결과물 저장/로드](./pipeline/0007-pipeline-artifact-persistence.md)
-- [0008: 템플릿 분석](./pipeline/0008-template-analysis.md)
-- [0010: 워킹 디렉토리 통합 및 슬라이드 개별 생성/수정](./pipeline/0010-workspace-and-per-slide.md)
-- [0011: 점진적 구체화 파이프라인 설계](./pipeline/0011-progressive-refinement-pipeline.md)
-- [0012: 레이아웃 골격(Skeleton) 기반 위치 강제](./pipeline/0012-layout-skeleton-enforcement.md) — *Superseded by 0013*
-- [0013: 디자인 스펙 기반 슬라이드 생성 파이프라인](./pipeline/0013-design-spec-pipeline.md)
-- [0014: 파일 기반 통신 및 슬라이드 단위 CRUD](./pipeline/0014-file-based-communication-and-per-slide-crud.md)
-- [0015: 디자인 스펙 슬라이드별 파일 분리](./pipeline/0015-per-slide-file-separation.md)
-- [0016: 슬라이드별 HTML 파일 분리 및 iframe 컨테이너](./pipeline/0016-per-slide-html-iframe.md)
-- [0017: 폰트 메트릭 기반 텍스트 오버플로우 방지](./pipeline/0017-font-metric-text-overflow-prevention.md)
-- [0018: 디자인 스펙 병렬 생성 및 프롬프트 캐싱](./pipeline/0018-parallel-design-spec-and-prompt-caching.md)
-- [0019: 슬라이드 복잡도 기반 스케줄링 및 Adaptive Thinking Effort](./pipeline/0019-complexity-based-scheduling-and-adaptive-effort.md)
-- [0020: 토큰 사용량 추적 및 비용 추정](./pipeline/0020-token-usage-tracking-and-cost-estimation.md)
+- [0012: 레이아웃 골격 기반 위치 강제](./pipeline/0012-layout-skeleton-enforcement.md) — *Superseded by 0013*
 
 ## ADR 작성 가이드
 
@@ -51,7 +52,7 @@ Date: YYYY-MM-DD
 
 ## Status
 
-[Proposed | Accepted | Deprecated | Superseded]
+[Proposed | Accepted | Deprecated | Superseded | Merged into XXXX]
 
 ## Context
 

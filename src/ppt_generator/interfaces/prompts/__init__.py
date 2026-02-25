@@ -19,11 +19,13 @@ OUTLINE_USER_PROMPT_TEMPLATE = _load("outline_user.prompt.md")
 SCRIPT_SYSTEM_PROMPT = _load("script_system.prompt.md")
 SCRIPT_USER_PROMPT_TEMPLATE = _load("script_user.prompt.md")
 
-# slide_type별 분리된 시스템 프롬프트
+# slide_type별 분리된 시스템 프롬프트 (공통 베이스 + 타입별 오버라이드)
+_DESIGN_SYSTEM_BASE = _load("design_system_base.prompt.md")
+
 DESIGN_SPEC_SYSTEM_PROMPTS: dict[str, str] = {
-    "content": _load("design_system_content.prompt.md"),
-    "title": _load("design_system_title.prompt.md"),
-    "closing": _load("design_system_closing.prompt.md"),
+    "content": _DESIGN_SYSTEM_BASE + "\n\n" + _load("design_system_content.prompt.md"),
+    "title": _DESIGN_SYSTEM_BASE + "\n\n" + _load("design_system_title.prompt.md"),
+    "closing": _DESIGN_SYSTEM_BASE + "\n\n" + _load("design_system_closing.prompt.md"),
 }
 
 # 하위 호환용 (design_summary 생성 등에서 사용)

@@ -23,13 +23,16 @@ validator가 title/closing의 첫 텍스트박스를 강제로 아래로 이동�
 
 ## Decision
 
-### 시스템 프롬프트를 slide_type별 3개 파일로 분리
+### 시스템 프롬프트를 공통 베이스 + slide_type별 파일로 분리
 
-| slide_type | 파일 | 포함 내용 |
-|-----------|------|----------|
-| `content` | `design_system_content.prompt.md` | layout_grid, diagram_grid, agenda/content 규칙, 3개 content 예제, 전체 constraints |
-| `title`   | `design_system_title.prompt.md` | output_schema, title 규칙, 1개 title 예제, title 전용 constraints |
-| `closing`  | `design_system_closing.prompt.md` | output_schema, closing 규칙, 1개 closing 예제, closing 전용 constraints |
+| 파일 | 역할 | 포함 내용 |
+|------|------|----------|
+| `design_system_base.prompt.md` | **공통 베이스** | role, language_policy, coordinate_system, output_schema, design_principles, output_rules |
+| `design_system_content.prompt.md` | content 전용 | layout_grid, diagram_grid, shapes 가이드, agenda/content 규칙, 3개 content 예제, content 전용 constraints |
+| `design_system_title.prompt.md` | title 전용 | title 규칙, 1개 title 예제, title 전용 typography/constraints |
+| `design_system_closing.prompt.md` | closing 전용 | closing 규칙, 1개 closing 예제, closing 전용 typography/constraints |
+
+로딩 시 `base + "\n\n" + type별 파일`을 합쳐 최종 시스템 프롬프트를 구성한다.
 
 **핵심 원칙**: title/closing 프롬프트에는 `top=72`가 **한 번도 등장하지 않음**.
 
@@ -57,12 +60,12 @@ validator가 title/closing의 첫 텍스트박스를 강제로 아래로 이동�
 
 ### Negative
 
-- **파일 수 증가**: 1개 → 3개 프롬프트 파일 (공통 부분 중복)
+- **파일 수 증가**: 1개 → 4개 프롬프트 파일 (base + 3개 타입별). 공통 베이스 분리로 중복은 해소됨
 - **Agent 인스턴스 다양화**: slide_type별 다른 시스템 프롬프트로 Agent를 생성하므로, 병렬 처리 시 Agent 풀이 다양해짐
 
 ## References
 
-- 프롬프트 파일: `src/ppt_generator/interfaces/prompts/design_system_{content,title,closing}.prompt.md`
+- 프롬프트 파일: `src/ppt_generator/interfaces/prompts/design_system_{base,content,title,closing}.prompt.md`
 - 프롬프트 로딩: `src/ppt_generator/interfaces/prompts/__init__.py` — `DESIGN_SPEC_SYSTEM_PROMPTS`
 - 팩토리: `src/ppt_generator/di/container.py` — `create_design_service(effort, slide_type)`
 - 병렬 러너: `src/ppt_generator/tools/design/parallel_runner.py` — `_generate_slide()`

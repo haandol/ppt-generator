@@ -4,7 +4,7 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted (Updated: 디자인 스펙 중간 표현 추가, [ADR-0013](./0013-design-spec-pipeline.md) 참조)
+Accepted
 
 ## Context
 
@@ -26,9 +26,6 @@ Accepted (Updated: 디자인 스펙 중간 표현 추가, [ADR-0013](./0013-desi
         └→ PPTX             — SlideBuilder 직접 사용, 편집 가능한 포맷
 ```
 
-> **Note**: 기존 HTML 중간 표현 경로(아웃라인 → LLM HTML → PPTX)는 디자인 스펙 파이프라인으로 완전 대체되어 제거되었습니다.
-> 디자인 스펙 경로는 [ADR-0013](./0013-design-spec-pipeline.md)에서 상세히 설명합니다.
-
 ### 각 단계의 설계 의도
 
 | 단계 | 추상화 수준 | 설계 의도 |
@@ -46,18 +43,17 @@ Accepted (Updated: 디자인 스펙 중간 표현 추가, [ADR-0013](./0013-desi
 - **단계적 확정**: 사용자가 구조(아웃라인)를 먼저 확인·수정한 뒤, 내용(스크립트)을 생성할 수 있다.
 - **LLM 집중도**: 각 호출이 한 가지 작업에만 집중하므로 출력 품질이 높아진다.
 
-### 왜 HTML을 중간 표현으로 사용하는가
+### 왜 디자인 스펙을 중간 표현으로 사용하는가
 
-- **디자인 자유도**: HTML/CSS는 LLM이 코드로 표현할 수 있는 거의 무제한의 레이아웃과 스타일링을 지원한다. 고정 템플릿 기반 PPTX 직접 생성은 이에 비해 제약이 크다.
-- **LLM 친화성**: LLM은 HTML/CSS 코드 생성에 매우 능숙하다. PPTX 라이브러리 API를 직접 호출하는 코드보다 HTML/CSS가 훨씬 자연스러운 출력이다.
-- **시각적 확인**: HTML 슬라이드는 브라우저나 MCP 클라이언트에서 바로 미리보기가 가능하다. 사용자가 확인·수정한 뒤 PPTX로 변환하는 워크플로를 지원한다.
-- **수정 용이성**: F4(modify_slides)에서 HTML을 직접 수정하므로, 사용자의 자연어 수정 요청을 LLM이 코드 수정으로 반영하기 쉽다.
+- **단일 소스**: PptxSlideSpec JSON 하나에서 HTML과 PPTX를 각각 결정론적으로 생성하므로 변환 과정의 정보 손실이 없다.
+- **LLM 친화성**: LLM은 구조화된 JSON 생성에 능숙하며, 좌표/크기/서식을 한 번에 설계한다.
+- **시각적 확인**: HTML 미리보기로 사용자가 확인 후 PPTX로 변환하는 워크플로를 지원한다.
 
 ### 왜 PPTX로 최종 변환하는가
 
-- **실무 편집성**: HTML은 코드 수준의 수정이 필요하지만, PPTX는 PowerPoint/한쇼에서 드래그&드롭으로 편집할 수 있다.
+- **실무 편집성**: PPTX는 PowerPoint/한쇼에서 드래그&드롭으로 편집할 수 있다.
 - **조직 표준**: 대부분의 비즈니스 환경에서 프레젠테이션의 표준 포맷은 PPTX이다.
-- **개별 객체 편집**: HTML의 각 요소를 PPTX의 독립적인 객체(텍스트박스, 이미지, 도형)로 분리 변환하여, 텍스트 수정·이미지 교체·레이아웃 조정을 개별적으로 할 수 있다.
+- **개별 객체 편집**: 디자인 스펙의 각 요소를 PPTX의 독립적인 객체(텍스트박스, 이미지, 도형)로 변환하여 개별 편집 가능하다.
 
 ### Alternatives Considered
 
@@ -69,19 +65,18 @@ Accepted (Updated: 디자인 스펙 중간 표현 추가, [ADR-0013](./0013-desi
 
 ### 긍정적
 
-- 각 단계가 독립적이므로, 특정 단계만 재실행하거나 중간 결과물을 저장/로드할 수 있다 (F6)
+- 각 단계가 독립적이므로, 특정 단계만 재실행하거나 중간 결과물을 저장/로드할 수 있다
 - LLM이 각 단계에 집중하여 출력 품질이 높아진다
 - 사용자가 각 단계 사이에 검토·수정할 수 있다
-- HTML 중간 표현 덕분에 디자인 자유도가 PPTX 직접 생성 대비 크게 향상된다
+- 디자인 스펙 중간 표현으로 HTML↔PPTX 간 레이아웃 일치도가 높다
 
 ### 부정적
 
-- HTML → PPTX 변환 시 일부 CSS 속성(gradient, animation, transform 등)은 PPTX에서 지원되지 않아 근사 변환된다
 - 단계가 많아 전체 파이프라인 실행 시간이 증가한다
-- HTML → PPTX 변환 로직이 복잡하다 (CSS 파싱, px→EMU 좌표 변환, 스타일 매핑)
+- 디자인 스펙 생성에 Opus 4.6 Extended Thinking 호출이 필요하여 비용이 발생한다
 
 ## References
 
-- 관련 ADR: [0001-outline-generation](./0001-outline-generation.md), [0002-script-generation](./0002-script-generation.md), [0004-html-slide-generation](./0004-html-slide-generation.md), [0006-pptx-export](./0006-pptx-export.md)
+- 관련 ADR: [0001-outline-generation](./0001-outline-generation.md), [0002-script-generation](./0002-script-generation.md), [0013-design-spec-pipeline](./0013-design-spec-pipeline.md)
 - 구현: `src/ppt_generator/tools/` 하위 모듈들
 - ALPS: Section 7 (F1~F6 피쳐별 명세)
