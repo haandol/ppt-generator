@@ -38,12 +38,10 @@ class SlidesService:
         for idx, raw_spec in enumerate(design_spec.slides):
             spec = validate_slide_spec(raw_spec)
             bg_b64: str | None = None
-            logo_b64: str | None = None
             if spec.slide_type in ("title", "closing"):
                 bg_b64 = bg_image_utils.get_bg_image_base64(spec.background_color)
-                logo_b64 = bg_image_utils.get_logo_image_base64(spec.background_color)
             slide_html = self._spec_to_html_document(
-                idx, spec, bg_image_base64=bg_b64, logo_image_base64=logo_b64,
+                idx, spec, bg_image_base64=bg_b64,
             )
             slide_htmls.append(slide_html)
 
@@ -69,18 +67,16 @@ class SlidesService:
     ) -> str:
         """단일 PptxSlideSpec을 완전한 HTML 문서로 변환한다 (외부 호출용).
 
-        title/closing 슬라이드의 배경 이미지·로고를 자동 처리한다.
+        title/closing 슬라이드의 배경 이미지를 자동 처리한다.
         """
         bg_image_utils.reset_cache()
         validated = validate_slide_spec(spec)
         bg_b64: str | None = None
-        logo_b64: str | None = None
         if validated.slide_type in ("title", "closing"):
             bg_b64 = bg_image_utils.get_bg_image_base64(validated.background_color)
-            logo_b64 = bg_image_utils.get_logo_image_base64(validated.background_color)
         return SlidesService._spec_to_html_document(
             slide_index, validated,
-            bg_image_base64=bg_b64, logo_image_base64=logo_b64,
+            bg_image_base64=bg_b64,
         )
 
     @staticmethod
@@ -89,13 +85,11 @@ class SlidesService:
         spec: PptxSlideSpec,
         *,
         bg_image_base64: str | None = None,
-        logo_image_base64: str | None = None,
     ) -> str:
         """PptxSlideSpec 하나를 완전한 HTML 문서로 변환."""
         section_html = spec_to_html_section(
             slide_index, spec,
             bg_image_base64=bg_image_base64,
-            logo_image_base64=logo_image_base64,
         )
         template = SLIDE_TEMPLATE_PATH.read_text(encoding="utf-8")
         return template.replace("{slide_content}", section_html)

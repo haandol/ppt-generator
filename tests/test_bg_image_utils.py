@@ -63,14 +63,6 @@ class TestGetBgImagePath:
         assert path.exists()
         assert "light" in str(path)
 
-    def test_excludes_logo_files(self):
-        # 여러 번 호출해서 logo 파일이 선택되지 않는지 확인
-        for _ in range(20):
-            reset_cache()
-            path = get_bg_image_path("#1a1a2e")
-            if path is not None:
-                assert "logo" not in path.name.lower()
-
     def test_cache_returns_same_path(self):
         path1 = get_bg_image_path("#1a1a2e")
         path2 = get_bg_image_path("#1a1a2e")

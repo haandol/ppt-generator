@@ -251,7 +251,6 @@ def spec_to_html_section(
     spec: PptxSlideSpec,
     *,
     bg_image_base64: str | None = None,
-    logo_image_base64: str | None = None,
 ) -> str:
     """PptxSlideSpec 하나를 <section> HTML로 결정론적 변환."""
     bg = spec.background_color or "#1a1a2e"
@@ -281,13 +280,6 @@ def spec_to_html_section(
     # textboxes를 나중에 렌더링 (z-order 상단)
     for tb in spec.textboxes:
         parts.append(textbox_to_html(tb))
-
-    # 로고 이미지 (우측 하단)
-    if logo_image_base64:
-        parts.append(
-            f'<img src="data:image/png;base64,{logo_image_base64}" '
-            'style="position:absolute;bottom:45px;right:50px;width:100px;height:auto;" />'
-        )
 
     parts.append("</div></section>")
     return "\n".join(parts)

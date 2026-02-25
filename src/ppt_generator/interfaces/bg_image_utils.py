@@ -1,6 +1,6 @@
 """배경 이미지 유틸리티 — 테마 감지 및 이미지 선택.
 
-제목 슬라이드와 Thank You 슬라이드에 배경 이미지를 적용하기 위한 공유 유틸리티.
+제목 슬라이드와 Takeaway 슬라이드에 배경 이미지를 적용하기 위한 공유 유틸리티.
 HTML 렌더러와 PPTX 서비스 양쪽에서 사용한다.
 """
 
@@ -53,7 +53,7 @@ def is_dark_background(color: str | None) -> bool:
 def get_bg_image_path(background_color: str | None) -> Path | None:
     """테마(dark/light) 폴더에서 배경 이미지 1개를 선택하여 반환한다.
 
-    같은 테마 내에서는 캐시된 이미지를 반환하여 제목/Thank You 슬라이드가
+    같은 테마 내에서는 캐시된 이미지를 반환하여 제목/Takeaway 슬라이드가
     동일한 배경을 사용하도록 보장한다.
     """
     theme = "dark" if is_dark_background(background_color) else "light"
@@ -65,7 +65,7 @@ def get_bg_image_path(background_color: str | None) -> Path | None:
     if not theme_dir.is_dir():
         return None
 
-    images = [p for p in theme_dir.glob("*.png") if "logo" not in p.name.lower()]
+    images = list(theme_dir.glob("*.png"))
     if not images:
         return None
 
@@ -88,34 +88,3 @@ def get_bg_image_base64(background_color: str | None) -> str | None:
     if image_bytes is None:
         return None
     return base64.b64encode(image_bytes).decode("ascii")
-
-
-# --- 로고 이미지 ---
-
-
-def get_logo_image_path(background_color: str | None) -> Path | None:
-    """테마에 맞는 로고 이미지 경로를 반환한다.
-
-    각 테마 폴더(dark/light)의 aws-logo.png를 사용한다.
-    """
-    theme = "dark" if is_dark_background(background_color) else "light"
-    logo_path = TEMPLATE_BG_IMAGES_DIR / theme / "aws-logo.png"
-    if not logo_path.is_file():
-        return None
-    return logo_path
-
-
-def get_logo_image_bytes(background_color: str | None) -> bytes | None:
-    """로고 PNG 파일을 바이트로 읽어 반환한다 (PPTX용)."""
-    path = get_logo_image_path(background_color)
-    if path is None:
-        return None
-    return path.read_bytes()
-
-
-def get_logo_image_base64(background_color: str | None) -> str | None:
-    """로고 이미지를 base64로 인코딩하여 반환한다 (HTML용)."""
-    logo_bytes = get_logo_image_bytes(background_color)
-    if logo_bytes is None:
-        return None
-    return base64.b64encode(logo_bytes).decode("ascii")

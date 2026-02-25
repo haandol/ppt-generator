@@ -4,6 +4,17 @@
 
 주제를 입력하면 AI가 자동으로 프레젠테이션을 생성하는 MCP(Model Context Protocol) 서버입니다. Claude LLM으로 아웃라인·스크립트·디자인 스펙을 생성하고, HTML 미리보기와 편집 가능한 PPTX로 내보냅니다.
 
+```mermaid
+flowchart LR
+    A["주제 입력"] --> B["아웃라인\n생성"]
+    B --> C["스크립트\n생성"]
+    C --> D["디자인 스펙\n생성"]
+    D --> E{"내보내기"}
+    E --> F["HTML\n미리보기"]
+    E --> G["PPTX\n다운로드"]
+    D -.->|"개별 수정"| D
+```
+
 ## 주요 기능
 
 - **아웃라인 생성** — 주제와 슬라이드 수를 입력하면 구조화된 아웃라인 JSON을 생성
@@ -245,21 +256,18 @@ Kiro의 MCP 서버 설정에서 동일한 JSON 형식으로 추가합니다.
 
 ## 사용 워크플로우
 
-```
-사용자 입력 (주제 + 슬라이드 수)
-    ↓
-1. generate_outline       → 아웃라인 JSON 생성
-    ↓
-    ⏸ 아웃라인 검토/수정
-    ↓
-2. generate_script        → 발표 스크립트 생성
-    ↓
-3. generate_slides_design_spec (전체 또는 slide_indices로 선택적 생성)
-    ↓
-    ⏸ 검토 → (선택) modify_design_spec으로 개별 수정
-    ↓
-4. export_pptx            → 편집 가능한 .pptx 파일 출력
-   export_html            → HTML 미리보기 (선택)
+```mermaid
+flowchart TD
+    A["사용자 입력\n(주제 + 슬라이드 수)"] --> B["1. generate_outline\n아웃라인 JSON 생성"]
+    B --> C{"⏸ 아웃라인\n검토/수정"}
+    C --> D["2. generate_script\n발표 스크립트 생성"]
+    D --> E["3. generate_slides_design_spec\n디자인 스펙 생성\n(전체 또는 slide_indices 선택적)"]
+    E --> F{"⏸ 검토"}
+    F -->|"수정 필요"| G["modify_design_spec\n개별 슬라이드 수정"]
+    G --> F
+    F -->|"완료"| H["4. 내보내기"]
+    H --> I["export_pptx\n편집 가능한 .pptx"]
+    H --> J["export_html\nHTML 미리보기"]
 ```
 
 - 모든 도구는 `project_id`를 자동 생성하여 `~/.ppt-generator/<UUID>/`에 결과물을 저장합니다
