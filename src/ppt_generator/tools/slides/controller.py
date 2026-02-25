@@ -9,7 +9,7 @@ from ppt_generator.tools.slides.service import SlidesService
 
 def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_service: ProjectService) -> None:
     @mcp.tool()
-    def generate_slides(design_spec_json: str = "", project_id: str = "") -> str:
+    def export_html(design_spec_json: str = "", project_id: str = "") -> str:
         """디자인 스펙을 기반으로 슬라이드별 HTML 파일과 iframe 컨테이너를 생성합니다.
 
         두 가지 모드로 동작합니다:

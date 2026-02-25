@@ -271,18 +271,18 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
     ↓
     ⏸ (선택) modify_design_spec → 개별 슬라이드 추가/수정/삭제 (design_summary.json 파일 기반 스타일 참조)
     ↓
-    ├→ generate_slides(project_id=...)       → 디자인 스펙 자동 로드 → HTML 변환 (결정론적)
+    ├→ export_html(project_id=...)            → 디자인 스펙 자동 로드 → HTML 변환 (결정론적)
     │
     └→ export_pptx(project_id=...)          → 디자인 스펙 자동 로드 → PPTX 생성 (결정론적)
     ↓
 출력: 편집 가능한 .pptx 파일
 
-* project_id 기반 체이닝 (권장): generate_slides_design_spec → generate_slides/export_pptx(project_id=...)
+* project_id 기반 체이닝 (권장): generate_slides_design_spec → export_html/export_pptx(project_id=...)
 * 모든 도구가 project_id를 자동 생성하여 ~/.ppt-generator/<UUID>/에 결과물을 저장
 * load_* 도구에 project_id를 전달하여 저장된 결과물을 로드, 중간 단계부터 재개 가능
 * generate_slides_design_spec은 전체 아웃라인 기반으로 design_summary.json을 LLM으로 사전 생성하여 모든 슬라이드의 테마 일관성 유지
 * content 슬라이드의 배경색은 design_summary의 background_color로 강제 보정 (title/closing 슬라이드는 null 유지)
-* 디자인 스펙 생성 완료 시 slides.html (iframe 컨테이너)도 자동 생성하여 별도 generate_slides 호출 없이 미리보기 가능
+* 디자인 스펙 생성 완료 시 slides.html (iframe 컨테이너)도 자동 생성하여 별도 export_html 호출 없이 미리보기 가능
 ```
 
 ## Available Tools
@@ -293,7 +293,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 | `generate_script`            | `tools/script/`  | 아웃라인 JSON을 기반으로 슬라이드별 발표 스크립트 생성 (token_usage 포함)                           |
 | `generate_slides_design_spec` | `tools/design/`  | 슬라이드 디자인 스펙 생성 — 서버 내부 병렬 처리, token_usage 합산 + estimated_cost(USD) 포함       |
 | `modify_design_spec`          | `tools/design/`  | 디자인 스펙의 개별 슬라이드 추가/수정/삭제 (CRUD), add/update 시 token_usage + estimated_cost 포함  |
-| `generate_slides`            | `tools/slides/`  | 디자인 스펙 또는 project_id 기반 HTML 슬라이드 생성 (결정론적 변환)                                |
+| `export_html`                | `tools/slides/`  | 디자인 스펙 또는 project_id 기반 HTML 슬라이드 내보내기 (결정론적 변환)                             |
 | `export_pptx`                | `tools/pptx/`    | 디자인 스펙 또는 project_id 기반 편집 가능한 PPTX 내보내기 (결정론적 변환)                         |
 | `list_projects`              | `tools/project/` | 기존 프로젝트 목록 조회 (파이프라인 시작 전 호출 권장)                                             |
 | `load_project_status`        | `tools/project/` | 프로젝트 상태 및 메타데이터 로드                                                                   |

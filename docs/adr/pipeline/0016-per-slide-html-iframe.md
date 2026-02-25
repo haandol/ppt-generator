@@ -123,7 +123,7 @@ class SlidesResponse:
 
 | 도구 | 이전 | 이후 |
 |------|------|------|
-| `generate_slides` | `slides_html_path` (단일 파일 경로) | `slides_html_path` (컨테이너 경로) + `slide_count` |
+| `export_html` | `slides_html_path` (단일 파일 경로) | `slides_html_path` (컨테이너 경로) + `slide_count` |
 
 ### Alternatives Considered
 
@@ -135,10 +135,10 @@ class SlidesResponse:
 
 ### Acceptance Criteria
 
-1. `generate_slides`로 생성 시 `slides/` 디렉토리에 슬라이드별 HTML 파일이 생성된다
+1. `export_html`로 생성 시 `slides/` 디렉토리에 슬라이드별 HTML 파일이 생성된다
 2. `slides.html`이 iframe으로 각 슬라이드를 참조하는 컨테이너로 생성된다
 3. 각 슬라이드 HTML은 단독으로 브라우저에서 열 수 있는 완전한 HTML 문서이다
-4. 기존 `generate_slides` → `export_pptx` 체이닝이 정상 동작한다
+4. 기존 `export_html` → `export_pptx` 체이닝이 정상 동작한다
 5. `slides.html`을 브라우저에서 열면 모든 슬라이드가 iframe으로 표시된다
 
 ### Out of Scope

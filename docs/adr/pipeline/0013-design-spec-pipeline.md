@@ -62,7 +62,7 @@ class DesignSpec:
 
 | 도구              | 변경 내용                                                        |
 | ----------------- | ---------------------------------------------------------------- |
-| `generate_slides` | `design_spec_json` 파라미터 추가. 제공 시 결정론적 HTML 변환     |
+| `export_html`     | `design_spec_json` 파라미터 추가. 제공 시 결정론적 HTML 변환     |
 | `export_pptx`     | `design_spec_json` 파라미터 추가. 제공 시 SlideBuilder 직접 사용 |
 
 #### 디자인 스펙 생성 서비스 (DesignService)
@@ -119,7 +119,7 @@ class DesignSpec:
 ### Acceptance Criteria
 
 1. `generate_slide_design_spec`으로 아웃라인에서 PptxSlideSpec JSON이 생성된다
-2. `generate_slides(design_spec_json=...)`으로 결정론적 HTML이 생성된다
+2. `export_html(design_spec_json=...)`으로 결정론적 HTML이 생성된다
 3. `export_pptx(design_spec_json=...)`으로 PPTX가 직접 생성된다
 4. ~~기존 경로 (`outline_json` → `session_id`)가 하위 호환 유지된다~~ → 레거시 경로 제거됨
 5. 디자인 스펙이 프로젝트 디렉토리에 영속화된다

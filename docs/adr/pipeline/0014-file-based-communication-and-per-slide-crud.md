@@ -8,7 +8,7 @@ Accepted (Updated: 슬라이드별 파일 분리 [ADR-0015](./0015-per-slide-fil
 
 ## Context
 
-MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 때, 인라인 JSON 콘텐츠가 컨텍스트 윈도우를 낭비한다. 예를 들어 디자인 스펙 생성 도구가 반환하는 `design_spec_json`은 수십 KB에 달하며, 이를 `generate_slides`나 `export_pptx`의 인자로 다시 전달하면 토큰이 중복 소비된다.
+MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 때, 인라인 JSON 콘텐츠가 컨텍스트 윈도우를 낭비한다. 예를 들어 디자인 스펙 생성 도구가 반환하는 `design_spec_json`은 수십 KB에 달하며, 이를 `export_html`이나 `export_pptx`의 인자로 다시 전달하면 토큰이 중복 소비된다.
 
 또한 디자인 스펙의 개별 슬라이드를 수정하려면 전체를 재생성해야 하는 문제가 있었다 (ADR-0013의 Out of Scope).
 
@@ -20,7 +20,7 @@ MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 �
 
 - 모든 도구는 결과를 파일로 저장하고, 반환값에 파일 경로와 `project_id`만 포함
 - 디자인 스펙 생성 도구의 반환에서 `design_spec_json` 인라인 키 제거, `design_spec_dir` + `slide_count` 반환
-- `generate_slides`와 `export_pptx`에 `project_id` 기반 자동 로드 추가
+- `export_html`과 `export_pptx`에 `project_id` 기반 자동 로드 추가
   - `project_id`만 제공 시 프로젝트 디렉토리에서 디자인 스펙을 자동 로드
   - 기존 `design_spec_json`, `outline_json`, `session_id` 경로도 하위 호환 유지
 
@@ -45,7 +45,7 @@ MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 �
 #### 도구 우선순위
 
 ```
-generate_slides: design_spec_json > project_id (자동 로드)
+export_html:     design_spec_json > project_id (자동 로드)
 export_pptx:     design_spec_json > project_id (자동 로드)
 ```
 
@@ -56,7 +56,7 @@ generate_outline → generate_script
     → for i in 0..N-1:
         generate_slide_design_spec(slide[i], slide_index=i, total_slides=N)
         (선택) modify_design_spec(action="update", slide_index=i)
-    → generate_slides(project_id=...) → export_pptx(project_id=...)
+    → export_html(project_id=...) → export_pptx(project_id=...)
 ```
 
 #### modify_design_spec 동작
@@ -78,7 +78,7 @@ generate_outline → generate_script
 ### Acceptance Criteria
 
 1. `generate_slide_design_spec` 반환에 `design_spec_json` 인라인 키가 없다
-2. `generate_slides(project_id=...)` 만으로 HTML 슬라이드가 생성된다
+2. `export_html(project_id=...)` 만으로 HTML 슬라이드가 생성된다
 3. `export_pptx(project_id=...)` 만으로 PPTX가 생성된다
 4. `modify_design_spec`으로 개별 슬라이드 add/update/delete가 동작한다
 5. `design_spec_json` 직접 전달 경로도 동작한다 (인라인 파라미터 하위 호환)

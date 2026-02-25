@@ -99,7 +99,7 @@ Accepted
 1. `save_design_spec`으로 DesignSpec 저장 시 design_spec/ 디렉토리에 슬라이드별 파일이 생성된다
 2. `load_design_spec`으로 design_spec/ 디렉토리에서 DesignSpec을 복원할 수 있다
 3. `modify_design_spec`의 update/add/delete가 해당 파일만 다루고 전체 재직렬화하지 않는다
-4. 기존 `generate_slides(project_id=...)`, `export_pptx(project_id=...)` 체이닝이 정상 동작한다
+4. 기존 `export_html(project_id=...)`, `export_pptx(project_id=...)` 체이닝이 정상 동작한다
 5. 인라인 `design_spec_json` 파라미터 경로는 하위 호환 유지된다
 
 ### Out of Scope

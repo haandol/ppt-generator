@@ -222,7 +222,7 @@ Kiro의 MCP 서버 설정에서 동일한 JSON 형식으로 추가합니다.
 | `generate_script`            | 아웃라인 기반 슬라이드별 발표 스크립트 생성               |
 | `generate_slides_design_spec` | 슬라이드 디자인 스펙 생성 (전체 또는 선택적, 서버 내부 병렬 처리) |
 | `modify_design_spec`         | 디자인 스펙의 개별 슬라이드 추가/수정/삭제                |
-| `generate_slides`            | 디자인 스펙에서 HTML 슬라이드 생성 (결정론적 변환)        |
+| `export_html`                | 디자인 스펙에서 HTML 슬라이드 내보내기 (결정론적 변환)    |
 | `export_pptx`                | 디자인 스펙에서 편집 가능한 PPTX 내보내기 (결정론적 변환) |
 
 #### 디자인 스펙 병렬 생성
@@ -259,7 +259,7 @@ Kiro의 MCP 서버 설정에서 동일한 JSON 형식으로 추가합니다.
     ⏸ 검토 → (선택) modify_design_spec으로 개별 수정
     ↓
 4. export_pptx            → 편집 가능한 .pptx 파일 출력
-   generate_slides        → HTML 미리보기 (선택)
+   export_html            → HTML 미리보기 (선택)
 ```
 
 - 모든 도구는 `project_id`를 자동 생성하여 `~/.ppt-generator/<UUID>/`에 결과물을 저장합니다

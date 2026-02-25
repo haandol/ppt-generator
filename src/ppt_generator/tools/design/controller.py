@@ -61,6 +61,10 @@ def register_design_tools(
 
         Returns:
             design_spec_dir, slide_count, total_slides, project_id, success_count, error_count, results를 포함하는 JSON 문자열
+
+        **IMPORTANT — 후속 필수 작업:**
+        이 도구 호출이 성공하면, 반드시 `export_html(project_id=<project_id>)`를 호출하여
+        HTML을 내보내고 slides_html_path를 사용자에게 안내하세요.
         """
         # --- 아웃라인 로드 ---
         if outline_json:
@@ -197,6 +201,11 @@ def register_design_tools(
 
         Returns:
             design_spec_path, project_id, slide_count를 포함하는 JSON 문자열
+
+        **IMPORTANT — 후속 필수 작업:**
+        이 도구 호출이 성공하면 (action이 "add" 또는 "update"일 때),
+        반드시 `export_html(project_id=<project_id>)`를 호출하여
+        HTML을 내보내고 slides_html_path를 사용자에게 안내하세요.
         """
         if action not in ("add", "update", "delete"):
             raise ValueError(f"action은 'add', 'update', 'delete' 중 하나여야 합니다: {action}")

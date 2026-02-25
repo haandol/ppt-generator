@@ -5,7 +5,7 @@
 1. generate_outline - 아웃라인 생성
 2. generate_script - 스크립트 생성 (아웃라인 기반 speaker_notes 채우기)
 3. generate_images - 이미지 생성
-4. generate_slides - HTML 슬라이드 생성 (F4)
+4. export_html - HTML 슬라이드 내보내기 (F4)
 5. export_pptx - PPTX 내보내기 (F6)
 
 --project-dir 옵션으로 결과물을 디렉토리에 저장할 수 있습니다.

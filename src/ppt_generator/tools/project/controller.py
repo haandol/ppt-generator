@@ -60,7 +60,7 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         """저장된 아웃라인 JSON을 로드합니다.
 
         프로젝트 디렉토리에서 이전에 생성된 슬라이드 아웃라인을 불러옵니다.
-        불러온 결과를 generate_script, generate_slides의 입력으로
+        불러온 결과를 generate_script, export_html의 입력으로
         바로 사용할 수 있습니다.
 
         Args:
@@ -82,7 +82,7 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         """저장된 스크립트 JSON을 로드합니다.
 
         프로젝트 디렉토리에서 이전에 생성된 스크립트(speaker_notes 포함 아웃라인)를
-        불러옵니다. 불러온 결과를 generate_slides의 입력으로
+        불러옵니다. 불러온 결과를 export_html의 입력으로
         바로 사용할 수 있습니다.
 
         Args:
@@ -104,7 +104,7 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         """저장된 디자인 스펙을 로드합니다.
 
         프로젝트 디렉토리에서 이전에 생성된 디자인 스펙(PptxSlideSpec JSON)을
-        불러옵니다. project_id를 generate_slides(project_id=...)이나
+        불러옵니다. project_id를 export_html(project_id=...)이나
         export_pptx(project_id=...)에 전달하여 사용할 수 있습니다.
 
         Args:

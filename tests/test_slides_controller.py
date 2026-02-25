@@ -67,7 +67,7 @@ def mcp_tools(slides_service: MagicMock, project_service: ProjectService) -> dic
     return tools
 
 
-class TestGenerateSlidesProjectId:
+class TestExportHtmlProjectId:
     """project_id만 제공 시 디자인 스펙 자동 로드 검증."""
 
     def test_auto_load_design_spec(self, mcp_tools: dict, project_service: ProjectService, tmp_path: Path, monkeypatch) -> None:
@@ -84,7 +84,7 @@ class TestGenerateSlidesProjectId:
         spec = _make_design_spec()
         project_service.save_design_spec(proj_dir, spec)
 
-        result = json.loads(mcp_tools["generate_slides"](project_id="proj-1"))
+        result = json.loads(mcp_tools["export_html"](project_id="proj-1"))
         assert result["session_id"] == "sess-1"
         assert result["project_id"] == "proj-1"
         assert result["slide_count"] == 1
@@ -103,7 +103,7 @@ class TestGenerateSlidesProjectId:
         spec = _make_design_spec()
         project_service.save_design_spec(proj_dir, spec)
 
-        mcp_tools["generate_slides"](project_id="proj-3")
+        mcp_tools["export_html"](project_id="proj-3")
 
         # slides/ 디렉토리와 개별 슬라이드 HTML 확인
         slides_dir = proj_dir / "slides"
@@ -123,8 +123,8 @@ class TestGenerateSlidesProjectId:
             encoding="utf-8",
         )
         with pytest.raises(FileNotFoundError):
-            mcp_tools["generate_slides"](project_id="proj-2")
+            mcp_tools["export_html"](project_id="proj-2")
 
     def test_error_when_nothing_provided(self, mcp_tools: dict) -> None:
         with pytest.raises(ValueError, match="중 하나를 제공해야"):
-            mcp_tools["generate_slides"]()
+            mcp_tools["export_html"]()

@@ -160,7 +160,7 @@ flowchart TD
 | `generate_script` | F2 | 아웃라인 JSON | 아웃라인 JSON (speaker_notes 채워짐) |
 | `generate_slides_design_spec` | 슬라이드 디자인 스펙 생성 (전체/선택적) | project_id 또는 outline_json, total_slides, slide_indices(선택) | design_spec_dir, slide_count, total_slides, project_id, results |
 | `modify_design_spec` | 디자인 스펙 수정 | project_id, action, slide_index, outline_json | design_spec_dir, slide_count, project_id |
-| `generate_slides` | F3 | design_spec_json 또는 project_id | HTML 슬라이드 (디자인 스펙 시 결정론적 변환) |
+| `export_html` | F3 | design_spec_json 또는 project_id | HTML 슬라이드 (디자인 스펙 시 결정론적 변환) |
 | `modify_slides` | F4 | 세션 ID, 수정 요청 (자연어) | 수정된 HTML 슬라이드 |
 | `export_pptx` | F5 | design_spec_json 또는 project_id | .pptx 파일 경로 |
 
@@ -195,7 +195,7 @@ sequenceDiagram
     Bedrock-->>MCPServer: PptxSlideSpec JSON (각 슬라이드)
     MCPServer-->>MCPClient: design_spec_dir, slide_count, total_slides, project_id, results
 
-    MCPClient->>MCPServer: generate_slides(project_id=...)
+    MCPClient->>MCPServer: export_html(project_id=...)
     MCPServer->>MCPServer: DesignSpec → HTML 결정론적 변환
     MCPServer-->>MCPClient: HTML 슬라이드 반환 (프리뷰)
 
@@ -303,7 +303,7 @@ sequenceDiagram
 #### 7.3.2 흐름
 
 **디자인 스펙 경로 (project_id 입력 시, 권장):**
-1. MCP 클라이언트에서 `generate_slides(project_id=...)` 호출
+1. MCP 클라이언트에서 `export_html(project_id=...)` 호출
 2. `design_spec/slide_NN.json` 파일들을 읽어 DesignSpec 객체로 조합
 3. 각 PptxSlideSpec을 position:absolute HTML div로 결정론적 변환 (LLM 호출 없음)
    - shapes → `<div>` (배경색, 테두리, border-radius)
@@ -313,12 +313,12 @@ sequenceDiagram
 5. HTML 슬라이드와 세션 ID 반환
 
 **디자인 스펙 경로 (design_spec_json 인라인 입력 시, 하위 호환):**
-1. MCP 클라이언트에서 `generate_slides(design_spec_json=...)` 호출
+1. MCP 클라이언트에서 `export_html(design_spec_json=...)` 호출
 2. PptxSlideSpec JSON을 파싱하여 DesignSpec 객체로 변환
 3. 이후 동일한 결정론적 변환 수행
 
 **HTML 경로 (outline_json 입력 시, 기존):**
-1. MCP 클라이언트에서 `generate_slides(outline_json=...)` 호출
+1. MCP 클라이언트에서 `export_html(outline_json=...)` 호출
 2. 슬라이드마다 `layout_index`를 확인하여, 이미지가 필요한 슬라이드는 Gemini로 이미지를 내부 생성
 3. 슬라이드마다 `LAYOUT_REGIONS` 좌표를 사용하여 `position:absolute` div 골격(skeleton) HTML을 코드로 생성
 4. Bedrock LLM에 골격 HTML과 아웃라인 JSON을 전달하여, 각 `data-region` div 내부의 `<!-- CONTENT:xxx -->` 마커를 실제 HTML 컨텐츠로 교체하도록 요청

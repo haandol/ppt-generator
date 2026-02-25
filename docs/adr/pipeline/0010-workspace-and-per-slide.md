@@ -11,7 +11,7 @@ Accepted
 두 가지 문제가 있었다:
 
 1. **중간 파일이 OS 임시 디렉토리에 흩어짐**: `ExportService`가 `tempfile.mkdtemp()`로 OS 임시 디렉토리에 파일을 생성하여, OS 정리 시 소실 가능하고 `project_dir`을 명시적으로 지정해야만 보존됨.
-2. **전체 슬라이드 일괄 생성/수정 시 토큰 부족**: `generate_slides`가 최대 10장을 한 번에 생성하고, `modify_slides`가 전체 HTML을 LLM에 전달하여 토큰 한도 초과.
+2. **전체 슬라이드 일괄 생성/수정 시 토큰 부족**: `export_html`가 최대 10장을 한 번에 생성하고, `modify_slides`가 전체 HTML을 LLM에 전달하여 토큰 한도 초과.
 
 ## Decision
 

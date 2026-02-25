@@ -210,7 +210,7 @@ SLIDES_DESIGN_CONTEXT_TEMPLATE = """
 
 | 도구 | 변경 사항 |
 |------|-----------|
-| `generate_slides` | 선택적 `template_analysis_json` 파라미터 추가 |
+| `export_html` | 선택적 `template_analysis_json` 파라미터 추가 |
 | `generate_pptx` | 선택적 `template_analysis_json` 파라미터 추가 |
 
 ### Acceptance Criteria
@@ -222,7 +222,7 @@ SLIDES_DESIGN_CONTEXT_TEMPLATE = """
 5. 규칙 기반 매핑으로 `title`, `text_image`, `text_only`, `closing`, `freeform` 중 적절한 타입이 할당된다
 6. 매핑되지 않는 레이아웃은 `mapped_type: null`로 반환된다
 7. `template_analysis_json` 없이 호출하면 기존 동작과 동일하다 (하위 호환)
-8. `generate_slides`에 `template_analysis_json`을 전달하면 해당 디자인이 HTML에 반영된다
+8. `export_html`에 `template_analysis_json`을 전달하면 해당 디자인이 HTML에 반영된다
 9. `generate_pptx`에 `template_analysis_json`을 전달하면 사용자 템플릿 기반으로 PPTX가 생성된다
 
 ### Out of Scope
@@ -253,7 +253,7 @@ sequenceDiagram
 
     rect rgb(255, 248, 240)
     note right of Client: 2. 파이프라인에서 분석 결과 활용
-    Client->>Server: generate_slides(outline_json, images_json, template_analysis_json)
+    Client->>Server: export_html(outline_json, images_json, template_analysis_json)
     Server->>Server: 디자인 컨텍스트 블록 생성 (색상/폰트)
     Server->>Server: user prompt에 디자인 가이드 추가
     Server->>Server: LLM 호출 → HTML 생성

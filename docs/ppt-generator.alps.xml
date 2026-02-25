@@ -143,7 +143,7 @@ flowchart TD
 | `generate_outline` | F1 | 주제, 슬라이드 수 | 아웃라인 JSON (제목, 본문, 이미지 아이디어, 레이아웃 타입, speaker_notes 비어있음). 에이전트가 사용자와 대화하며 완성 |
 | `generate_script` | F2 | 아웃라인 JSON | 아웃라인 JSON (speaker_notes 채워짐) |
 | `generate_images` | F3 | 슬라이드 아웃라인 | 생성된 이미지 파일 경로 목록 |
-| `generate_slides` | F4 | 슬라이드 아웃라인, 이미지 경로 | HTML 슬라이드 (파일 경로 또는 HTML 문자열) |
+| `export_html` | F4 | 슬라이드 아웃라인, 이미지 경로 | HTML 슬라이드 (파일 경로 또는 HTML 문자열) |
 | `modify_slides` | F5 | 세션 ID, 수정 요청 (자연어) | 수정된 HTML 슬라이드 |
 | `export_pptx` | F6 | 세션 ID | .pptx 파일 경로 |
 </subsection>
@@ -178,7 +178,7 @@ sequenceDiagram
     Titan-->>MCPServer: 이미지 파일들
     MCPServer-->>MCPClient: 이미지 경로 목록
 
-    MCPClient->>MCPServer: generate_slides(아웃라인, 이미지)
+    MCPClient->>MCPServer: export_html(아웃라인, 이미지)
     MCPServer->>Bedrock: HTML/CSS 슬라이드 코드 생성
     Bedrock-->>MCPServer: HTML 슬라이드
     MCPServer-->>MCPClient: HTML 슬라이드 반환 (프리뷰)
@@ -308,7 +308,7 @@ sequenceDiagram
 - As a 사내 직원, I want to 아웃라인과 이미지가 결합된 전문적인 디자인의 슬라이드를 즉시 확인하길 원한다, so that 결과물을 미리 검토하고 수정 요청을 할 수 있다.
 
 #### 7.4.2 흐름
-1. MCP 클라이언트에서 `generate_slides(outline, image_paths)` 호출
+1. MCP 클라이언트에서 `export_html(outline, image_paths)` 호출
 2. Bedrock LLM에 아웃라인 JSON과 이미지 정보를 전달하여 HTML/CSS 슬라이드 코드 생성 요청
 3. LLM이 각 슬라이드의 layout_type, 제목, 본문, 이미지를 반영한 HTML/CSS 코드 생성
 4. 세션 ID를 부여하고 HTML 슬라이드 상태를 서버에 저장

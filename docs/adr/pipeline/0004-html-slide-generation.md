@@ -6,7 +6,7 @@ Date: 2026-02-11
 
 Superseded by [ADR-0013](./0013-design-spec-pipeline.md)
 
-> **레거시 자유형식 HTML 생성 경로는 제거되었습니다.** LLM이 직접 HTML을 생성하는 기존 방식(아웃라인 → 골격 → LLM 콘텐츠 채우기 → 좌표 검증)은 ADR-0013의 디자인 스펙 파이프라인으로 대체되었습니다. 현재 `generate_slides`는 디자인 스펙(PptxSlideSpec JSON)을 결정론적으로 HTML로 변환하는 단일 경로만 지원합니다. 관련 코드(`css_inliner.py`, `slides_prompts.py`, 레거시 서비스 메서드)가 삭제되었습니다.
+> **레거시 자유형식 HTML 생성 경로는 제거되었습니다.** LLM이 직접 HTML을 생성하는 기존 방식(아웃라인 → 골격 → LLM 콘텐츠 채우기 → 좌표 검증)은 ADR-0013의 디자인 스펙 파이프라인으로 대체되었습니다. 현재 `export_html`는 디자인 스펙(PptxSlideSpec JSON)을 결정론적으로 HTML로 변환하는 단일 경로만 지원합니다. 관련 코드(`css_inliner.py`, `slides_prompts.py`, 레거시 서비스 메서드)가 삭제되었습니다.
 >
 > 이전 상태: Accepted (Updated: reveal.js 제거 → 정적 HTML 수직 스크롤 → 레이아웃 골격 기반 위치 강제 → 이미지 생성 기능 제거 → layout_index 기반 + component_hint + css_inliner, 디자인 스펙 결정론적 변환 경로 추가)
 
@@ -20,7 +20,7 @@ HTML/CSS 기반으로 슬라이드를 생성하면 LLM의 코드 생성 능력�
 
 ## Decision
 
-MCP 도구 `generate_slides`를 구현하여, Bedrock LLM이 HTML/CSS 슬라이드를 생성한다. `LAYOUT_REGIONS` 좌표를 기반으로 `position:absolute` div 골격(skeleton)을 코드로 생성하고, LLM은 각 `data-region` div 내부 컨텐츠만 채운다. 후처리로 좌표를 검증/복원한 뒤, HTML 템플릿(`slides.html`)에 삽입하여 완전한 HTML 문서를 구성한다. JavaScript 없이 순수 HTML/CSS + TailwindCSS만으로 슬라이드를 렌더링한다.
+MCP 도구 `export_html`를 구현하여, Bedrock LLM이 HTML/CSS 슬라이드를 생성한다. `LAYOUT_REGIONS` 좌표를 기반으로 `position:absolute` div 골격(skeleton)을 코드로 생성하고, LLM은 각 `data-region` div 내부 컨텐츠만 채운다. 후처리로 좌표를 검증/복원한 뒤, HTML 템플릿(`slides.html`)에 삽입하여 완전한 HTML 문서를 구성한다. JavaScript 없이 순수 HTML/CSS + TailwindCSS만으로 슬라이드를 렌더링한다.
 
 ### Technical Details
 
@@ -119,7 +119,7 @@ LLM 응답에서 `<section>` 요소를 추출하는 3단계 fallback:
 
 | 항목 | 값 |
 |------|-----|
-| Tool | `generate_slides` |
+| Tool | `export_html` |
 | 입력 | `design_spec_json: str` (선택) 또는 `project_id: str` (선택, 디자인 스펙 자동 로드) |
 | 출력 | session_id, slides_html_path, project_id를 포함하는 JSON |
 
@@ -142,7 +142,7 @@ sequenceDiagram
     participant Server as MCP Server
     participant LLM as Bedrock Claude
 
-    Client->>Server: generate_slides(outline_json)
+    Client->>Server: export_html(outline_json)
     Server->>Server: 아웃라인 파싱
 
     loop 슬라이드마다 (SLIDES_MAX_PER_BATCH=1)
