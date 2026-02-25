@@ -40,7 +40,7 @@ def parse_outline_json(outline_json: str) -> OutlineResponse:
     if "slides" not in data:
         data = {"slides": [data]}
     slides: list[SlideOutline] = []
-    for item in data["slides"]:
+    for i, item in enumerate(data["slides"]):
         slides.append(
             SlideOutline(
                 title=item.get("title", ""),
@@ -48,6 +48,7 @@ def parse_outline_json(outline_json: str) -> OutlineResponse:
                 component_hint=item.get("component_hint", "bullets"),
                 speaker_notes=item.get("speaker_notes", ""),
                 slide_type=item.get("slide_type", "content"),
+                slide_index=item.get("slide_index", i),
             )
         )
     return OutlineResponse(slides=slides)

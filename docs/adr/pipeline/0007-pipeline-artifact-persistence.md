@@ -32,8 +32,8 @@ Accepted
 ```
 ~/.ppt-generator/<UUID>/
   project.json         # 메타데이터 (topic, num_slides, 각 단계 완료 상태/타임스탬프)
-  outline.json         # F1 출력
-  script.json          # F2 출력
+  outline.jsonl        # F1 출력 (JSONL: 한 줄 = 한 슬라이드, slide_index 포함)
+  script.jsonl         # F2 출력 (JSONL: 한 줄 = 한 슬라이드, slide_index 포함)
   design_spec/         # 디자인 스펙 출력 (슬라이드별 개별 파일, ADR-0014)
     slide_01.json      # 단일 PptxSlideSpec (wrapper 없음)
     slide_02.json
@@ -53,6 +53,8 @@ MCP 도구:
 - `load_project_status(project_id)` → 메타데이터 JSON
 - `load_outline(project_id)` → 아웃라인 JSON
 - `load_script(project_id)` → 스크립트 JSON (speaker_notes 포함 아웃라인)
+- `load_outline_slide(project_id, slide_index)` → 개별 슬라이드 아웃라인 JSON
+- `load_script_slide(project_id, slide_index)` → 개별 슬라이드 스크립트 JSON
 - `load_design_spec(project_id)` → 디자인 스펙 정보 (design_spec_dir, slide_count, slide_files)
 
 기존 generate 도구 변경: 모두 `project_id: str = ""` 파라미터 추가.

@@ -73,7 +73,7 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         # 파일 존재 확인 (없으면 예외 발생)
         project_service.load_outline(project_dir)
         return json.dumps(
-            {"outline_path": str(project_dir / "outline.json")},
+            {"outline_path": str(project_dir / "outline.jsonl")},
             ensure_ascii=False,
         )
 

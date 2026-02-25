@@ -69,37 +69,131 @@ SAMPLE_HTML = """<!DOCTYPE html>
 </html>"""
 
 
+MULTI_SLIDE_OUTLINE = json.dumps(
+    {
+        "slides": [
+            {"title": "제목 슬라이드", "content_summary": "소개", "slide_type": "title"},
+            {"title": "본문 슬라이드", "content_summary": "핵심 내용", "component_hint": "bullets"},
+            {"title": "마무리", "content_summary": "감사합니다", "slide_type": "closing"},
+        ]
+    },
+    ensure_ascii=False,
+)
+
+MULTI_SLIDE_SCRIPT = json.dumps(
+    {
+        "slides": [
+            {"title": "제목 슬라이드", "content_summary": "소개", "speaker_notes": "안녕하세요."},
+            {"title": "본문 슬라이드", "content_summary": "핵심 내용", "speaker_notes": "핵심 내용입니다."},
+            {"title": "마무리", "content_summary": "감사합니다", "speaker_notes": "감사합니다."},
+        ]
+    },
+    ensure_ascii=False,
+)
+
+
 class TestSaveAndLoadOutline:
     def test_roundtrip(self, project_service: ProjectService, project_dir: Path) -> None:
         project_service.save_outline(project_dir, SAMPLE_OUTLINE)
         loaded = project_service.load_outline(project_dir)
-        assert json.loads(loaded) == json.loads(SAMPLE_OUTLINE)
+        loaded_slides = json.loads(loaded)["slides"]
+        original_slides = json.loads(SAMPLE_OUTLINE)["slides"]
+        assert len(loaded_slides) == len(original_slides)
+        assert loaded_slides[0]["title"] == original_slides[0]["title"]
+        assert loaded_slides[0]["slide_index"] == 0
 
-    def test_file_created(self, project_service: ProjectService, project_dir: Path) -> None:
+    def test_saves_as_jsonl(self, project_service: ProjectService, project_dir: Path) -> None:
         project_service.save_outline(project_dir, SAMPLE_OUTLINE)
-        assert (project_dir / "outline.json").exists()
+        assert (project_dir / "outline.jsonl").exists()
+        assert not (project_dir / "outline.json").exists()
+        lines = (project_dir / "outline.jsonl").read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 1
+        slide = json.loads(lines[0])
+        assert slide["title"] == "제목"
+        assert slide["slide_index"] == 0
+
+    def test_slide_index_injected(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_outline(project_dir, MULTI_SLIDE_OUTLINE)
+        lines = (project_dir / "outline.jsonl").read_text(encoding="utf-8").splitlines()
+        for i, line in enumerate(lines):
+            slide = json.loads(line)
+            assert slide["slide_index"] == i
+
+    def test_legacy_json_fallback(self, project_service: ProjectService, project_dir: Path) -> None:
+        """outline.jsonl이 없고 outline.json이 있으면 fallback으로 읽는다."""
+        (project_dir / "outline.json").write_text(SAMPLE_OUTLINE, encoding="utf-8")
+        loaded = project_service.load_outline(project_dir)
+        assert json.loads(loaded) == json.loads(SAMPLE_OUTLINE)
 
 
 class TestSaveAndLoadScript:
     def test_roundtrip(self, project_service: ProjectService, project_dir: Path) -> None:
         project_service.save_script(project_dir, SAMPLE_SCRIPT)
         loaded = project_service.load_script(project_dir)
-        assert json.loads(loaded) == json.loads(SAMPLE_SCRIPT)
+        loaded_slides = json.loads(loaded)["slides"]
+        original_slides = json.loads(SAMPLE_SCRIPT)["slides"]
+        assert len(loaded_slides) == len(original_slides)
+        assert loaded_slides[0]["title"] == original_slides[0]["title"]
+        assert loaded_slides[0]["slide_index"] == 0
 
     def test_saves_as_jsonl(self, project_service: ProjectService, project_dir: Path) -> None:
         project_service.save_script(project_dir, SAMPLE_SCRIPT)
         assert (project_dir / "script.jsonl").exists()
         assert not (project_dir / "script.json").exists()
         lines = (project_dir / "script.jsonl").read_text(encoding="utf-8").splitlines()
-        assert len(lines) == 1  # SAMPLE_SCRIPT has 1 slide
+        assert len(lines) == 1
         slide = json.loads(lines[0])
         assert slide["title"] == "제목"
+        assert slide["slide_index"] == 0
+
+    def test_slide_index_injected(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_script(project_dir, MULTI_SLIDE_SCRIPT)
+        lines = (project_dir / "script.jsonl").read_text(encoding="utf-8").splitlines()
+        for i, line in enumerate(lines):
+            slide = json.loads(line)
+            assert slide["slide_index"] == i
 
     def test_legacy_json_fallback(self, project_service: ProjectService, project_dir: Path) -> None:
         """script.jsonl이 없고 script.json이 있으면 fallback으로 읽는다."""
         (project_dir / "script.json").write_text(SAMPLE_SCRIPT, encoding="utf-8")
         loaded = project_service.load_script(project_dir)
         assert json.loads(loaded) == json.loads(SAMPLE_SCRIPT)
+
+
+class TestLoadOutlineSlide:
+    def test_load_specific_slide(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_outline(project_dir, MULTI_SLIDE_OUTLINE)
+        slide = json.loads(project_service.load_outline_slide(project_dir, 1))
+        assert slide["title"] == "본문 슬라이드"
+        assert slide["slide_index"] == 1
+
+    def test_index_out_of_range(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_outline(project_dir, MULTI_SLIDE_OUTLINE)
+        with pytest.raises(IndexError):
+            project_service.load_outline_slide(project_dir, 10)
+
+    def test_legacy_json_fallback(self, project_service: ProjectService, project_dir: Path) -> None:
+        (project_dir / "outline.json").write_text(MULTI_SLIDE_OUTLINE, encoding="utf-8")
+        slide = json.loads(project_service.load_outline_slide(project_dir, 0))
+        assert slide["title"] == "제목 슬라이드"
+
+
+class TestLoadScriptSlide:
+    def test_load_specific_slide(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_script(project_dir, MULTI_SLIDE_SCRIPT)
+        slide = json.loads(project_service.load_script_slide(project_dir, 2))
+        assert slide["title"] == "마무리"
+        assert slide["slide_index"] == 2
+
+    def test_index_out_of_range(self, project_service: ProjectService, project_dir: Path) -> None:
+        project_service.save_script(project_dir, MULTI_SLIDE_SCRIPT)
+        with pytest.raises(IndexError):
+            project_service.load_script_slide(project_dir, 10)
+
+    def test_legacy_json_fallback(self, project_service: ProjectService, project_dir: Path) -> None:
+        (project_dir / "script.json").write_text(MULTI_SLIDE_SCRIPT, encoding="utf-8")
+        slide = json.loads(project_service.load_script_slide(project_dir, 0))
+        assert slide["title"] == "제목 슬라이드"
 
 
 SAMPLE_SLIDE_HTMLS = [

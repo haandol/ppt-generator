@@ -298,7 +298,9 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 | `list_projects`              | `tools/project/` | 기존 프로젝트 목록 조회 (파이프라인 시작 전 호출 권장)                                             |
 | `load_project_status`        | `tools/project/` | 프로젝트 상태 및 메타데이터 로드                                                                   |
 | `load_outline`               | `tools/project/` | 저장된 아웃라인 JSON 로드                                                                          |
+| `load_outline_slide`         | `tools/project/` | 저장된 아웃라인에서 개별 슬라이드 로드 (slide_index 지정)                                          |
 | `load_script`                | `tools/project/` | 저장된 스크립트 JSON 로드                                                                          |
+| `load_script_slide`          | `tools/project/` | 저장된 스크립트에서 개별 슬라이드 로드 (slide_index 지정)                                          |
 | `load_design_spec`           | `tools/project/` | 저장된 디자인 스펙 로드 (design_spec_dir, slide_count, slide_files)                                |
 
 ## Key Data Schemas
@@ -311,7 +313,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 | ----------------------------------------------- | ------------------------------------------------------------------------------ |
 | `OutlineRequest` / `OutlineResponse`            | 아웃라인 생성 입출력 (topic, num_slides → slides)                              |
 | `ScriptRequest` / `ScriptResponse`              | 스크립트 생성 입출력 (outline → slides)                                        |
-| `SlideOutline`                                  | 개별 슬라이드 아웃라인 (title, content_summary, component_hint, speaker_notes) |
+| `SlideOutline`                                  | 개별 슬라이드 아웃라인 (title, content_summary, component_hint, speaker_notes, slide_index) |
 | `SlidesResponse`                                | HTML 슬라이드 생성 출력 (session_id, html)                                     |
 | `ExportPptxResponse`                            | PPTX 내보내기 출력 (pptx_path)                                                 |
 | `PptxTextRun` / `PptxParagraph` / `PptxTextBox` | PPTX 텍스트 요소                                                               |
@@ -327,20 +329,16 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 | `TextRunOutput` / `ParagraphOutput` | LLM 출력용 텍스트 런/단락                                                                      |
 | `TextBoxOutput` / `ShapeOutput`     | LLM 출력용 텍스트박스/도형                                                                     |
 
-### 슬라이드 아웃라인 JSON
+### 슬라이드 아웃라인 JSONL
 
-```json
-{
-  "slides": [
-    {
-      "title": "슬라이드 제목",
-      "content_summary": "슬라이드에 담길 핵심 내용 요약",
-      "component_hint": "bullets",
-      "speaker_notes": ""
-    }
-  ]
-}
+아웃라인(`outline.jsonl`)과 스크립트(`script.jsonl`)는 JSONL 형식으로 저장됩니다. 각 줄이 하나의 슬라이드이며, `slide_index`가 명시적으로 포함됩니다.
+
+```jsonl
+{"slide_index": 0, "title": "슬라이드 제목", "content_summary": "슬라이드에 담길 핵심 내용 요약", "component_hint": "bullets", "speaker_notes": "", "slide_type": "title"}
+{"slide_index": 1, "title": "본문 슬라이드", "content_summary": "핵심 내용", "component_hint": "bullets", "speaker_notes": "", "slide_type": "content"}
 ```
+
+개별 슬라이드 접근: `load_outline_slide(project_id, slide_index)`, `load_script_slide(project_id, slide_index)`
 
 ### component_hint
 

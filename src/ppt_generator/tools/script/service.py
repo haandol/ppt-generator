@@ -72,6 +72,7 @@ class ScriptService:
                     component_hint=slide.component_hint,
                     speaker_notes=notes,
                     slide_type=slide.slide_type,
+                    slide_index=i,
                 )
             )
         return merged

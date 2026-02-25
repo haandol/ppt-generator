@@ -66,7 +66,7 @@ class OutlineService:
 
     def _build_slides(self, data: dict) -> list[SlideOutline]:
         slides: list[SlideOutline] = []
-        for item in data["slides"]:
+        for i, item in enumerate(data["slides"]):
             component_hint = item.get("component_hint", "bullets")
 
             slides.append(
@@ -75,6 +75,7 @@ class OutlineService:
                     content_summary=item.get("content_summary", ""),
                     component_hint=component_hint,
                     slide_type=item.get("slide_type", "content"),
+                    slide_index=i,
                 )
             )
         return slides

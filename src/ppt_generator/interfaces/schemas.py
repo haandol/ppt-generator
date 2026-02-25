@@ -23,6 +23,7 @@ class SlideOutline:
     component_hint: str = "bullets"
     speaker_notes: str = ""
     slide_type: str = "content"
+    slide_index: int = -1
 
 
 @dataclass(frozen=True)

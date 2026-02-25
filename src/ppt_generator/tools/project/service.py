@@ -34,14 +34,23 @@ class ProjectService:
 
     def save_outline(self, project_dir: Path, outline_json: str) -> None:
         self._ensure_dir(project_dir)
-        (project_dir / "outline.json").write_text(outline_json, encoding="utf-8")
-        logger.info("outline.json 저장 완료: %s", project_dir)
+        data = json.loads(outline_json)
+        slides = data["slides"]
+        lines = []
+        for i, s in enumerate(slides):
+            s["slide_index"] = i
+            lines.append(json.dumps(s, ensure_ascii=False))
+        (project_dir / "outline.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        logger.info("outline.jsonl 저장 완료: %s", project_dir)
 
     def save_script(self, project_dir: Path, script_json: str) -> None:
         self._ensure_dir(project_dir)
         data = json.loads(script_json)
         slides = data["slides"]
-        lines = [json.dumps(s, ensure_ascii=False) for s in slides]
+        lines = []
+        for i, s in enumerate(slides):
+            s["slide_index"] = i
+            lines.append(json.dumps(s, ensure_ascii=False))
         (project_dir / "script.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
         logger.info("script.jsonl 저장 완료: %s", project_dir)
 
@@ -165,8 +174,29 @@ class ProjectService:
         )
 
     def load_outline(self, project_dir: Path) -> str:
-        path = project_dir / "outline.json"
-        return path.read_text(encoding="utf-8")
+        path = project_dir / "outline.jsonl"
+        if path.exists():
+            slides = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+            return json.dumps({"slides": slides}, ensure_ascii=False)
+        # 하위 호환: 기존 outline.json fallback
+        legacy = project_dir / "outline.json"
+        return legacy.read_text(encoding="utf-8")
+
+    def load_outline_slide(self, project_dir: Path, index: int) -> str:
+        """개별 슬라이드 아웃라인을 인덱스로 로드한다."""
+        path = project_dir / "outline.jsonl"
+        if path.exists():
+            lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+            if index < 0 or index >= len(lines):
+                raise IndexError(f"유효하지 않은 slide index: {index} (전체 {len(lines)}장)")
+            return lines[index]
+        # 하위 호환: 기존 outline.json fallback
+        legacy = project_dir / "outline.json"
+        data = json.loads(legacy.read_text(encoding="utf-8"))
+        slides = data["slides"]
+        if index < 0 or index >= len(slides):
+            raise IndexError(f"유효하지 않은 slide index: {index} (전체 {len(slides)}장)")
+        return json.dumps(slides[index], ensure_ascii=False)
 
     def load_script(self, project_dir: Path) -> str:
         path = project_dir / "script.jsonl"
@@ -177,8 +207,24 @@ class ProjectService:
         slides = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
         return json.dumps({"slides": slides}, ensure_ascii=False)
 
+    def load_script_slide(self, project_dir: Path, index: int) -> str:
+        """개별 슬라이드 스크립트를 인덱스로 로드한다."""
+        path = project_dir / "script.jsonl"
+        if path.exists():
+            lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+            if index < 0 or index >= len(lines):
+                raise IndexError(f"유효하지 않은 slide index: {index} (전체 {len(lines)}장)")
+            return lines[index]
+        # 하위 호환: 기존 script.json fallback
+        legacy = project_dir / "script.json"
+        data = json.loads(legacy.read_text(encoding="utf-8"))
+        slides = data["slides"]
+        if index < 0 or index >= len(slides):
+            raise IndexError(f"유효하지 않은 slide index: {index} (전체 {len(slides)}장)")
+        return json.dumps(slides[index], ensure_ascii=False)
+
     def load_script_or_outline(self, project_dir: Path) -> str:
-        """script.jsonl이 있으면 우선 로드, 없으면 outline.json으로 fallback."""
+        """script.jsonl이 있으면 우선 로드, 없으면 outline.jsonl로 fallback."""
         script_path = project_dir / "script.jsonl"
         if script_path.exists():
             return self.load_script(project_dir)
