@@ -6,9 +6,9 @@
 - 우측 하단 영역(left_px > 1080, top_px > 600)에 요소를 배치하지 마세요 (로고 자동 삽입 영역)
 - 메인 텍스트를 캔버스 수직 중앙에 배치합니다. 전체 텍스트 그룹의 수직 중심이 캔버스 중앙(y=360) 부근에 오도록 합니다.
 - 레이아웃 (반드시 아래 좌표를 그대로 사용):
-  · 대제목: left=64, top=260, width=1152, height=80, font_size_pt 32~40, bold, vertical_alignment "middle"
-  · 구분선: shape(rectangle), left=64, top=350, width=80, height=4, fill_color 강조색(#FF9900), vertical_alignment "top"
-  · 부제목: left=64, top=370, width=1152, height=100, font_size_pt 14~18, vertical_alignment "top"
+  · 대제목: left=64, top=260, width=1152, height=80(1줄) 또는 160(2줄), font_size_pt 32~40, bold, vertical_alignment "middle". 제목이 길어서 2줄이 되면 height=160으로 설정하고, 구분선과 부제목의 top도 함께 아래로 조정하세요.
+  · 구분선: shape(rectangle), left=64, top=350(1줄) 또는 430(2줄), width=80, height=4, fill_color 강조색(#FF9900), vertical_alignment "top"
+  · 부제목: left=64, top=370(1줄) 또는 450(2줄), width=1152, height=100, font_size_pt 14~18, vertical_alignment "top"
 </slide_type_title>
 
 <examples>
@@ -60,5 +60,5 @@
 5. 요소 겹침 금지: 동일 레벨 요소 간 bounding box가 겹치지 않아야 합니다.
 6. 여백 확보: 모든 콘텐츠 요소는 left_px >= 64, top_px >= 64, left_px + width_px <= 1216, top_px + height_px <= 656을 만족해야 합니다.
 7. vertical_alignment 필수: 모든 textbox와 shape에 vertical_alignment을 반드시 지정하세요 (null 금지).
-8. 제목 위치: 대제목은 반드시 left=64, top=260, width=1152, height=80으로 배치하세요.
+8. 제목 위치: 대제목은 반드시 left=64, top=260, width=1152로 배치하세요. height는 1줄이면 80, 2줄이면 160으로 설정하세요.
 </constraints>

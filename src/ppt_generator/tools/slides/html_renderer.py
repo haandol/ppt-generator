@@ -64,7 +64,7 @@ def textbox_to_html(tb: PptxTextBox) -> str:
         f"left:{tb.left_px}px;top:{tb.top_px}px;"
         f"width:{tb.width_px}px;height:{tb.height_px}px;"
         f"padding:0;box-sizing:border-box;"
-        f"overflow:hidden;"
+        f"overflow:visible;"
     )
     if tb.line_spacing_pt:
         style += f"line-height:{tb.line_spacing_pt}pt;"

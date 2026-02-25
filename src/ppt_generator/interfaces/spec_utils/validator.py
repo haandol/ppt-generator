@@ -316,6 +316,7 @@ def _fix_title_closing_main_position(
 
     LLM이 content 슬라이드의 top=72를 title/closing에도 적용하는 경우를 보정.
     첫 번째 textbox만 고정 좌표로 설정하며, 나머지 요소는 건드리지 않는다.
+    height는 검증 단계에서 확장된 값이 target_height보다 크면 그 값을 유지한다.
     """
     if not textboxes:
         return textboxes
@@ -338,11 +339,14 @@ def _fix_title_closing_main_position(
     if tb.top_px == target_top and tb.left_px == target_left:
         return textboxes
 
+    # 검증 단계에서 텍스트 줄바꿈에 맞게 확장된 높이를 유지한다
+    final_height = max(target_height, tb.height_px)
+
     fixed_tb = PptxTextBox(
         left_px=target_left,
         top_px=target_top,
         width_px=target_width,
-        height_px=target_height,
+        height_px=final_height,
         paragraphs=tb.paragraphs,
         line_spacing_pt=tb.line_spacing_pt,
         vertical_alignment=tb.vertical_alignment,
