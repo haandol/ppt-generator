@@ -221,6 +221,39 @@ class TestLineShapeHtml:
         assert len(x_vals) == 2
         assert x_vals[0] == x_vals[1], "수직선이므로 x1 == x2"
 
+    def test_short_arrow_scales_down_marker(self):
+        """짧은 화살표(line_length < _ARROW_SIZE)에서 화살표 머리가 자동 축소되어야 한다."""
+        import re
+        # 10px 수직선 (스냅 후 h=0 → line_length=width 사용)
+        # width=10도 스냅되므로, 스냅 안 되는 15px 수직선 테스트
+        shape = PptxShape(
+            left_px=100, top_px=100, width_px=0, height_px=15,
+            shape_type="line",
+            border_color="#FFC000",
+            border_width_pt=2,
+            end_arrow=True,
+        )
+        html = shape_to_html(shape)
+        # markerWidth가 기본값(14)보다 작아야 한다
+        marker_widths = re.findall(r'markerWidth="([^"]+)"', html)
+        assert len(marker_widths) >= 1
+        assert float(marker_widths[0]) < 14, "짧은 선에서 화살표 머리가 축소되어야 한다"
+
+    def test_long_arrow_keeps_full_marker(self):
+        """긴 화살표에서 화살표 머리가 기본 크기를 유지해야 한다."""
+        import re
+        shape = PptxShape(
+            left_px=100, top_px=100, width_px=0, height_px=100,
+            shape_type="line",
+            border_color="#FFC000",
+            border_width_pt=2,
+            end_arrow=True,
+        )
+        html = shape_to_html(shape)
+        marker_widths = re.findall(r'markerWidth="([^"]+)"', html)
+        assert len(marker_widths) >= 1
+        assert float(marker_widths[0]) == 14, "긴 선에서 화살표 머리가 기본 크기여야 한다"
+
     def test_diagonal_line_preserved(self):
         """width와 height가 모두 threshold 초과이면 사선이 유지되어야 한다."""
         import re

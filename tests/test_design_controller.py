@@ -94,7 +94,7 @@ def mcp_tools(project_service: ProjectService) -> dict:
     design_service.last_token_usage = {}
     design_service.generate_design_summary.return_value = {"background_color": "#1a1a2e", "text_colors": ["#ffffff"], "title_font_pt": 32, "body_font_pt": 18, "card_fills": [], "card_borders": []}
 
-    design_service_factory = lambda effort: design_service  # noqa: E731
+    design_service_factory = lambda effort, slide_type="content": design_service  # noqa: E731
 
     register_design_tools(
         mcp, project_service,
@@ -816,7 +816,7 @@ class TestGenerateSlidesDesignSpecWithSlidesService:
 
         register_design_tools(
             mcp, project_service,
-            design_service_factory=lambda effort: design_service,
+            design_service_factory=lambda effort, slide_type="content": design_service,
             slides_service=slides_service,
         )
 

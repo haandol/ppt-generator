@@ -13,7 +13,7 @@ from ppt_generator.di.model_factory import (
 from ppt_generator.interfaces.constants import (
     BEDROCK_OUTLINE_MAX_TOKENS,
     BEDROCK_SCRIPT_MAX_TOKENS,
-    DESIGN_SPEC_SYSTEM_PROMPT,
+    DESIGN_SPEC_SYSTEM_PROMPTS,
     OUTLINE_JSON_SCHEMA,
     OUTLINE_SYSTEM_PROMPT,
     SCRIPT_JSON_SCHEMA,
@@ -81,12 +81,13 @@ class DIContainer:
             )
         return Agent(model=model, system_prompt=OUTLINE_SYSTEM_PROMPT, callback_handler=None, tools=[])
 
-    def _create_design_agent(self, thinking_effort: str) -> Agent:
+    def _create_design_agent(self, thinking_effort: str, slide_type: str = "content") -> Agent:
         if self._provider == "anthropic":
             model = create_anthropic_design_model(thinking_effort=thinking_effort)
         else:
             model = create_bedrock_design_model(thinking_effort=thinking_effort)
-        return Agent(model=model, system_prompt=DESIGN_SPEC_SYSTEM_PROMPT, callback_handler=None, tools=[])
+        system_prompt = DESIGN_SPEC_SYSTEM_PROMPTS.get(slide_type, DESIGN_SPEC_SYSTEM_PROMPTS["content"])
+        return Agent(model=model, system_prompt=system_prompt, callback_handler=None, tools=[])
 
     # ---- Service properties (lazy init) ----
 
@@ -114,9 +115,9 @@ class DIContainer:
             self._slides_service = SlidesService()
         return self._slides_service
 
-    def create_design_service(self, thinking_effort: str) -> DesignService:
+    def create_design_service(self, thinking_effort: str, slide_type: str = "content") -> DesignService:
         """새 Agent를 포함한 DesignService 인스턴스를 생성한다."""
-        return DesignService(agent=self._create_design_agent(thinking_effort=thinking_effort))
+        return DesignService(agent=self._create_design_agent(thinking_effort=thinking_effort, slide_type=slide_type))
 
     @property
     def project_service(self) -> ProjectService:

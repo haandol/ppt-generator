@@ -47,7 +47,7 @@ def run_parallel_generation(
     total_slides: int,
     color_theme: str,
     design_summary: dict | None,
-    design_service_factory: Callable[[str], DesignService],
+    design_service_factory: Callable[[str, str], DesignService],
     project_service: ProjectService,
     project_dir: "Path",  # noqa: F821
     slides_service: SlidesService | None = None,
@@ -61,7 +61,7 @@ def run_parallel_generation(
         total_slides: 전체 슬라이드 수
         color_theme: 색상 테마
         design_summary: 디자인 요약 dict
-        design_service_factory: effort → DesignService 팩토리
+        design_service_factory: (effort, slide_type) → DesignService 팩토리
         project_service: 프로젝트 서비스
         project_dir: 프로젝트 디렉토리 경로
         slides_service: HTML 렌더링 서비스 (None이면 HTML 생성 건너뜀)
@@ -98,14 +98,16 @@ def run_parallel_generation(
         current = active_threads[0]
         if current > peak_threads[0]:
             peak_threads[0] = current
-        complexity = estimate_slide_complexity(outline.slides[idx])
+        slide_outline = outline.slides[idx]
+        complexity = estimate_slide_complexity(slide_outline)
         effort = complexity_to_thinking_effort(complexity)
+        slide_type = slide_outline.slide_type or "content"
         logger.info(
-            "slide[%d] 생성 시작 (complexity=%d, effort=%s, thread=%s, 동시실행=%d/%d)",
-            idx, complexity, effort, thread_name, current, max_workers,
+            "slide[%d] 생성 시작 (complexity=%d, effort=%s, slide_type=%s, thread=%s, 동시실행=%d/%d)",
+            idx, complexity, effort, slide_type, thread_name, current, max_workers,
         )
         t0 = time.monotonic()
-        svc = design_service_factory(effort)
+        svc = design_service_factory(effort, slide_type)
         prev_outline = outline.slides[idx - 1] if idx > 0 else None
         next_outline = outline.slides[idx + 1] if idx + 1 < len(outline.slides) else None
         try:

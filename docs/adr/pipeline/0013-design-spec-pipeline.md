@@ -116,6 +116,60 @@ class DesignSpec:
 | B. LLM이 PPTX 코드 직접 생성 | python-pptx API 호출 코드를 LLM이 생성          | LLM의 API 코드 생성 정확도 부족, 탈락 |
 | **C. 디자인 스펙 중간 표현** | PptxSlideSpec JSON을 단일 소스로 HTML/PPTX 생성 | **채택**                              |
 
+#### 디자인 시스템 프롬프트 — 하단 영역 레이아웃 규칙 (2026-02-25 추가)
+
+LLM이 슬라이드 하단에 여러 독립 요소(info badge, 인사이트 배너, 컨텍스트 박스 등)를 배치할 때 겹침/정렬 불량이 발생하는 문제를 해결하기 위해 `design_system.prompt.md`에 다음 규칙을 추가하였다.
+
+1. **제약조건 5번 강화** — "서로 다른 역할의 요소도 겹침 금지" 규칙 추가. 예: 컨텍스트 상세 박스와 인사이트 요약 배너처럼 역할이 다른 shape들도 bounding box 겹침 금지
+2. **제약조건 9번 보강** — 같은 행 좌표 일관성 규칙에 "하단 info badge" 예시 추가 (`top_px=626, height_px=30` 통일 예시)
+3. **제약조건 10번 신설** — 하단 보조 요소 겹침 금지. `top_px >= 540` 영역에 2개 이상 독립 요소 배치 시 수직/수평 분리 필수
+4. **하단 보조 요소 레이아웃 규칙** — `<slide_type_content>` 섹션에 하단 1개/2개 요소 배치 패턴(수직 분리, 수평 분리, 통합)과 구체적 좌표 예시 추가
+
+#### 화살표 최소 gap 규칙 및 렌더러 안전망 (2026-02-25 추가)
+
+LLM이 블록 간 화살표를 배치할 때 gap이 화살표 머리(14px)보다 작아 화살표가 블록에 묻히거나 잘리는 문제를 해결하기 위해 프롬프트와 렌더러를 모두 수정하였다.
+
+1. **프롬프트 — 화살표 최소 gap 규칙**: `<diagram_grid>` 섹션에 "화살표 최소 gap 규칙" 추가. 블록 간 화살표 배치 시 수평/수직 모두 최소 28px gap 확보 필수
+2. **렌더러 — 화살표 머리 자동 축소**: `html_renderer.py`의 `_line_shape_to_html()`에서 선 길이가 짧으면 화살표 머리(markerWidth/markerHeight)를 `line_length * 0.6`으로 자동 축소하여 선보다 화살표 머리가 큰 케이스를 방지
+
+#### 제목 위치 상향 및 본문 영역 확장 (2026-02-25 추가)
+
+하단 영역에서 콘텐츠 공간이 부족하여 텍스트가 축소되는 문제를 해결하기 위해 제목 위치를 위로 올리고 본문 시작점을 앞당겼다.
+
+| 항목 | 변경 전 | 변경 후 |
+|------|---------|---------|
+| 제목 위치 | top=96, height=56 | top=72, height=48 |
+| 본문 시작 | top=180 | top=148 |
+| 본문 영역 높이 | 476px (180~656) | 508px (148~656) |
+| 수직 그리드 셀 | 24px × 20행 | 25px × 20행 |
+
+변경 파일: `design_system.prompt.md` (프롬프트 전반), `validator.py` (`_CONTENT_TITLE_TOP`, `_CONTENT_TITLE_HEIGHT`)
+
+#### title/closing 슬라이드 수직 중앙 배치 (2026-02-25 추가)
+
+title/closing 슬라이드에서 LLM이 content 슬라이드의 제목 위치(top=72)를 그대로 사용하여 메인 텍스트가 상단에 치우치는 문제를 수정.
+
+**근본 원인 분석:**
+1. 유저 프롬프트에서 slide_type이 JSON data로만 전달되어, 적용할 규칙 섹션을 LLM이 스스로 판단해야 했음
+2. constraint 8번의 "content인 슬라이드의 top=72" 조건문을 LLM이 놓치고 모든 슬라이드에 일반화
+3. `<examples>` 섹션에 title/closing 예시가 없어 content의 top=72 패턴만 학습
+
+**수정 내용:**
+1. **유저 프롬프트에 slide_type별 지시문 삽입**: `_slide_type_instruction()` 메서드 추가. title/closing일 때 "이 슬라이드는 title/closing 슬라이드입니다. top=72를 사용하지 마세요"라는 명시적 지시를 유저 프롬프트에 삽입
+2. **constraint 8번 재구성**: slide_type별 제목/메인 텍스트 위치를 한 곳에서 대조표로 정리 (content=72, title=260, closing=240)
+3. **title/closing JSON 예시 추가**: `<examples>` 섹션 앞에 title-1, closing-1 예시 추가
+4. **`<presentation_structure>` 섹션 신설**: 프레젠테이션 전체 구조(title→agenda→content×N→closing)와 각 slide_type별 핵심 레이아웃 차이를 명시
+
+**validator 보정**: `_fix_title_closing_center()` 함수. content의 `_fix_content_title_position`(top=72 강제)과 동일한 수준으로, title/closing의 메인 텍스트를 프롬프트 권장 위치로 보정한다. LLM이 examples의 top=72 패턴에 끌리는 현상이 지속되어 validator가 필수적.
+
+| slide_type | validator target top | 프롬프트 권장 top |
+|------------|---------------------|-------------------|
+| content | 72 (강제) | 72 |
+| title | 260 (보정) | 260 |
+| closing | 240 (보정) | 240 |
+
+변경 파일: `design_system.prompt.md` (프롬프트 전반), `design_user.prompt.md` / `design_batch_user.prompt.md` (slide_type_instruction 치환 변수), `service.py` (`_slide_type_instruction`), `validator.py` (`_fix_title_closing_center`), `test_spec_utils_validation.py` (4개 테스트)
+
 ### Acceptance Criteria
 
 1. `generate_slide_design_spec`으로 아웃라인에서 PptxSlideSpec JSON이 생성된다

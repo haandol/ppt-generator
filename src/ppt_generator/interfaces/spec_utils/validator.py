@@ -46,10 +46,22 @@ _MARGIN = SPEC_VALIDATE_MARGIN_PX
 
 # 콘텐츠 슬라이드 제목 위치 고정값
 _CONTENT_TITLE_LEFT = 64
-_CONTENT_TITLE_TOP = 96
+_CONTENT_TITLE_TOP = 72
 _CONTENT_TITLE_WIDTH = 1152
-_CONTENT_TITLE_HEIGHT = 56
+_CONTENT_TITLE_HEIGHT = 48
 _CONTENT_TITLE_MIN_FONT = 24
+
+# 타이틀/클로징 슬라이드 메인 텍스트 위치 고정값
+_TITLE_MAIN_LEFT = 64
+_TITLE_MAIN_TOP = 260
+_TITLE_MAIN_WIDTH = 1152
+_TITLE_MAIN_HEIGHT = 80
+
+_CLOSING_MAIN_LEFT = 64
+_CLOSING_MAIN_TOP = 240
+_CLOSING_MAIN_WIDTH = 1152
+_CLOSING_MAIN_HEIGHT = 80
+
 
 # 겹침 해소 상수
 _OVERLAP_GAP = SPEC_VALIDATE_OVERLAP_GAP_PX
@@ -296,6 +308,48 @@ def _fix_content_title_position(
     return [fixed_tb, *textboxes[1:]]
 
 
+def _fix_title_closing_main_position(
+    textboxes: list[PptxTextBox],
+    slide_type: str,
+) -> list[PptxTextBox]:
+    """title/closing 슬라이드의 메인 텍스트박스 좌표를 프롬프트 명세에 맞게 고정한다.
+
+    LLM이 content 슬라이드의 top=72를 title/closing에도 적용하는 경우를 보정.
+    첫 번째 textbox만 고정 좌표로 설정하며, 나머지 요소는 건드리지 않는다.
+    """
+    if not textboxes:
+        return textboxes
+
+    if slide_type == "title":
+        target_left = _TITLE_MAIN_LEFT
+        target_top = _TITLE_MAIN_TOP
+        target_width = _TITLE_MAIN_WIDTH
+        target_height = _TITLE_MAIN_HEIGHT
+    elif slide_type == "closing":
+        target_left = _CLOSING_MAIN_LEFT
+        target_top = _CLOSING_MAIN_TOP
+        target_width = _CLOSING_MAIN_WIDTH
+        target_height = _CLOSING_MAIN_HEIGHT
+    else:
+        return textboxes
+
+    tb = textboxes[0]
+    # 이미 올바른 위치면 변경하지 않음
+    if tb.top_px == target_top and tb.left_px == target_left:
+        return textboxes
+
+    fixed_tb = PptxTextBox(
+        left_px=target_left,
+        top_px=target_top,
+        width_px=target_width,
+        height_px=target_height,
+        paragraphs=tb.paragraphs,
+        line_spacing_pt=tb.line_spacing_pt,
+        vertical_alignment=tb.vertical_alignment,
+    )
+    return [fixed_tb, *textboxes[1:]]
+
+
 # ---------------------------------------------------------------------------
 # 겹침 해소
 # ---------------------------------------------------------------------------
@@ -434,6 +488,8 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
 
     if spec.slide_type == "content":
         validated_textboxes = _fix_content_title_position(validated_textboxes)
+    elif spec.slide_type in ("title", "closing"):
+        validated_textboxes = _fix_title_closing_main_position(validated_textboxes, spec.slide_type)
 
     validated_textboxes, validated_shapes = _resolve_overlaps(
         validated_textboxes, validated_shapes,

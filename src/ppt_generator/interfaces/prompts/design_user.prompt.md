@@ -1,5 +1,6 @@
 <task>
 다음 슬라이드 아웃라인을 기반으로 PptxSlideSpec JSON을 생성해주세요.
+{slide_type_instruction}
 </task>
 
 <context>

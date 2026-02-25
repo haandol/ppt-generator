@@ -64,6 +64,7 @@ class DesignService:
         """
         outline_json = self._outline_to_json(slide_outline)
         adjacent_context = self._adjacent_context_section(prev_outline, next_outline)
+        slide_type_instruction = self._slide_type_instruction(slide_outline.slide_type)
 
         if design_summary:
             summary_text = json.dumps(design_summary, ensure_ascii=False, indent=2)
@@ -74,6 +75,7 @@ class DesignService:
                 outline_json=outline_json,
                 color_theme=color_theme,
                 adjacent_context=adjacent_context,
+                slide_type_instruction=slide_type_instruction,
             )
         else:
             prompt = DESIGN_SPEC_USER_PROMPT_TEMPLATE.format(
@@ -82,6 +84,7 @@ class DesignService:
                 outline_json=outline_json,
                 color_theme=color_theme,
                 adjacent_context=adjacent_context,
+                slide_type_instruction=slide_type_instruction,
             )
 
         spec = self._generate_with_structured_output(
@@ -202,6 +205,19 @@ class DesignService:
         output: SlideSpecOutput = result.structured_output
         spec = output.to_dataclass()
         return validate_slide_spec(spec)
+
+    @staticmethod
+    def _slide_type_instruction(slide_type: str) -> str:
+        """slide_type에 따라 LLM에게 전달할 레이아웃 지시문을 반환한다.
+
+        시스템 프롬프트가 slide_type별로 분리되어 있으므로,
+        사용자 프롬프트에서는 슬라이드 타입만 명시한다.
+        """
+        if slide_type == "title":
+            return "\n이 슬라이드는 **제목(title) 슬라이드**입니다."
+        if slide_type == "closing":
+            return "\n이 슬라이드는 **클로징(closing) 슬라이드**입니다."
+        return ""
 
     @staticmethod
     def _adjacent_context_section(

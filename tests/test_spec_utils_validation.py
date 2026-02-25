@@ -547,3 +547,98 @@ class TestVerticalCentering:
         slide = _make_slide(textboxes=[tb], slide_type="title")
         result = validate_slide_spec(slide)
         assert result.textboxes[0].vertical_alignment == "top"
+
+
+# ---------------------------------------------------------------------------
+# title/closing 메인 텍스트 위치 고정
+# ---------------------------------------------------------------------------
+
+
+class TestTitleClosingMainPositionFix:
+    """title/closing 슬라이드 첫 번째 textbox 좌표 보정 테스트."""
+
+    def test_title_main_text_fixed_to_260(self) -> None:
+        """title 슬라이드의 메인 텍스트가 top=260으로 보정된다."""
+        tb = PptxTextBox(
+            left_px=64, top_px=72, width_px=1152, height_px=48,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="대제목", font_size_pt=36, bold=True)],
+                ),
+            ],
+        )
+        slide = _make_slide(textboxes=[tb], slide_type="title")
+        result = validate_slide_spec(slide)
+        assert result.textboxes[0].top_px == 260
+        assert result.textboxes[0].left_px == 64
+        assert result.textboxes[0].width_px == 1152
+        assert result.textboxes[0].height_px == 80
+
+    def test_closing_main_text_fixed_to_240(self) -> None:
+        """closing 슬라이드의 메인 텍스트가 top=240으로 보정된다."""
+        tb = PptxTextBox(
+            left_px=64, top_px=72, width_px=1152, height_px=48,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="감사합니다", font_size_pt=40, bold=True)],
+                ),
+            ],
+        )
+        slide = _make_slide(textboxes=[tb], slide_type="closing")
+        result = validate_slide_spec(slide)
+        assert result.textboxes[0].top_px == 240
+        assert result.textboxes[0].left_px == 64
+        assert result.textboxes[0].width_px == 1152
+        assert result.textboxes[0].height_px == 80
+
+    def test_already_correct_position_unchanged(self) -> None:
+        """이미 올바른 위치이면 변경하지 않는다."""
+        tb = PptxTextBox(
+            left_px=64, top_px=260, width_px=1152, height_px=80,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="대제목", font_size_pt=36, bold=True)],
+                ),
+            ],
+        )
+        slide = _make_slide(textboxes=[tb], slide_type="title")
+        result = validate_slide_spec(slide)
+        assert result.textboxes[0].top_px == 260
+        assert result.textboxes[0].height_px == 80
+
+    def test_second_textbox_not_moved(self) -> None:
+        """두 번째 textbox(부제목)는 이동하지 않는다."""
+        title_tb = PptxTextBox(
+            left_px=64, top_px=72, width_px=1152, height_px=48,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="대제목", font_size_pt=36, bold=True)],
+                ),
+            ],
+        )
+        subtitle_tb = PptxTextBox(
+            left_px=64, top_px=360, width_px=1152, height_px=100,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="부제목", font_size_pt=16)],
+                ),
+            ],
+        )
+        slide = _make_slide(textboxes=[title_tb, subtitle_tb], slide_type="title")
+        result = validate_slide_spec(slide)
+        assert result.textboxes[0].top_px == 260  # 보정됨
+        assert result.textboxes[1].top_px == 360  # 변경 없음
+
+    def test_content_slide_not_affected(self) -> None:
+        """content 슬라이드는 이 보정의 영향을 받지 않는다."""
+        tb = PptxTextBox(
+            left_px=64, top_px=72, width_px=1152, height_px=48,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="콘텐츠 제목", font_size_pt=32, bold=True)],
+                ),
+            ],
+        )
+        slide = _make_slide(textboxes=[tb], slide_type="content")
+        result = validate_slide_spec(slide)
+        assert result.textboxes[0].top_px == 72  # content는 top=72 유지

@@ -136,8 +136,10 @@ def _line_shape_to_html(shape: PptxShape) -> str:
     defs_parts: list[str] = []
     line_attrs = ""
 
-    aw = _ARROW_SIZE
-    ah = _ARROW_HALF
+    # 화살표 머리 크기: 선 길이가 짧으면 자동 축소
+    line_length = max(w, h, 1)
+    aw = min(_ARROW_SIZE, line_length * 0.6)
+    ah = min(_ARROW_HALF, aw * _ARROW_HALF / _ARROW_SIZE)
     ah2 = ah / 2
 
     if shape.end_arrow:

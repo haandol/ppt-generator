@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 def register_design_tools(
     mcp: FastMCP,
     project_service: ProjectService,
-    design_service_factory: Callable[[str], DesignService],
+    design_service_factory: Callable[[str, str], DesignService],
     slides_service: SlidesService | None = None,
 ) -> None:
     @mcp.tool()
@@ -101,7 +101,7 @@ def register_design_tools(
         existing_summary = project_service.load_design_summary(project_dir)
         if existing_summary is None:
             logger.info("design_summary 사전 생성 시작 (LLM 호출)")
-            summary_svc = design_service_factory("medium")
+            summary_svc = design_service_factory("medium", "content")
             summary = summary_svc.generate_design_summary(outline, color_theme)
             project_service.save_design_summary(project_dir, summary)
             logger.info("design_summary 사전 생성 완료")
@@ -227,7 +227,8 @@ def register_design_tools(
             slide_outline = outline.slides[0]
             complexity = estimate_slide_complexity(slide_outline)
             effort = complexity_to_thinking_effort(complexity)
-            svc = design_service_factory(effort)
+            slide_type = slide_outline.slide_type or "content"
+            svc = design_service_factory(effort, slide_type)
             new_spec = svc.generate_single_slide(
                 slide_outline, design_summary, color_theme=color_theme,
             )
@@ -250,7 +251,8 @@ def register_design_tools(
             slide_outline = outline.slides[0]
             complexity = estimate_slide_complexity(slide_outline)
             effort = complexity_to_thinking_effort(complexity)
-            svc = design_service_factory(effort)
+            slide_type = slide_outline.slide_type or "content"
+            svc = design_service_factory(effort, slide_type)
             new_spec = svc.generate_single_slide(
                 slide_outline, design_summary, color_theme=color_theme,
             )

@@ -437,7 +437,7 @@ class TestDesignControllerTokenAggregation:
         mcp.tool = tool_decorator
         project_service = ProjectService()
 
-        register_design_tools(mcp, project_service, design_service_factory=lambda effort: design_service)
+        register_design_tools(mcp, project_service, design_service_factory=lambda effort, slide_type="content": design_service)
         return tools, "token-test-proj"
 
     def test_logs_aggregated_tokens(self, tmp_path, monkeypatch, caplog) -> None:
@@ -550,7 +550,7 @@ class TestDesignControllerTokenAggregation:
 
         mcp.tool = tool_decorator
         project_service = ProjectService()
-        register_design_tools(mcp, project_service, design_service_factory=lambda effort: design_service)
+        register_design_tools(mcp, project_service, design_service_factory=lambda effort, slide_type="content": design_service)
 
         outline_2 = json.dumps(
             {"slides": [
