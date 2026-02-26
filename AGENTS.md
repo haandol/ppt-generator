@@ -96,7 +96,8 @@ ppt-generator/
 - **Build System**: hatchling
 - **Agent Framework**: AWS Strands SDK (`strands-agents`)
 - **LLM (디자인 스펙 생성)**: Claude Sonnet 4.6 Extended Thinking (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 64K tokens, effort: adaptive — 슬라이드 복잡도 기반 high/medium/low 동적 적용)
-- **LLM (아웃라인/스크립트)**: Claude Sonnet 4.6 (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 32K tokens, thinking off)
+- **LLM (아웃라인)**: Claude Sonnet 4.6 Extended Thinking (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 32K tokens, effort: medium)
+- **LLM (스크립트)**: Claude Sonnet 4.6 (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 32K tokens, thinking off)
 - **Slide Framework**: 순수 HTML/CSS (인라인 스타일, 슬라이드별 개별 HTML + iframe 컨테이너)
 - **PPTX Export**: python-pptx (디자인 스펙 → SlideBuilder 직접 변환)
 - **레이아웃 그리드**: 48열×20행 (24×24px 정사각형 셀) — 콘텐츠 영역 1152×480px, 안전 영역 64~1216×64~656px. 상세 좌표 테이블은 `interfaces/prompts/design_system.prompt.md`의 `<layout_grid>`, `<diagram_grid>` 섹션 참조
@@ -393,7 +394,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 - MCP 도구 함수에는 한국어 docstring 필수 (클라이언트에 노출됨)
 - 외부 API(Bedrock/Anthropic) 호출 테스트는 반드시 mock 처리
 - Conventional Commits 형식 사용: `<type>(<scope>): <subject>` (상세: [CONTRIBUTING.md](CONTRIBUTING.md))
-- LLM: 디자인 스펙은 Claude Sonnet 4.6 Extended Thinking 사용 (슬라이드 복잡도에 따라 thinking effort를 high/medium/low로 동적 적용), 아웃라인/스크립트는 Claude Sonnet 4.6 사용
+- LLM: 디자인 스펙은 Claude Sonnet 4.6 Extended Thinking 사용 (슬라이드 복잡도에 따라 thinking effort를 high/medium/low로 동적 적용), 아웃라인은 Claude Sonnet 4.6 Extended Thinking (effort: medium), 스크립트는 Claude Sonnet 4.6 (thinking off)
 - Agent 프레임워크: AWS Strands SDK (`strands-agents`)
 
 ## Testing

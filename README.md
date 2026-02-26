@@ -113,12 +113,13 @@ Anthropic API와 AWS Bedrock을 지원합니다. `LLM_PROVIDER` 환경변수로 
 
 ### 사용 모델
 
-모든 LLM 호출은 Claude Extended Thinking을 사용합니다. 디자인 스펙 생성과 아웃라인/스크립트 모두 Sonnet 4.6을 사용합니다.
+디자인 스펙과 아웃라인 생성에는 Claude Extended Thinking을 사용합니다. 모든 LLM 호출은 Sonnet 4.6을 사용합니다.
 
 | 용도              | Bedrock 모델 ID                          | Anthropic 모델 ID   | Max Tokens | Thinking Effort                          |
 | ----------------- | ---------------------------------------- | ------------------- | ---------- | ---------------------------------------- |
 | 디자인 스펙 생성  | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 64,000     | adaptive (슬라이드 복잡도 기반 high/medium/low) |
-| 아웃라인/스크립트 | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 32,000     | off                                              |
+| 아웃라인          | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 32,000     | medium                                           |
+| 스크립트          | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 32,000     | off                                              |
 
 ### 클라이언트별 설정 예시
 

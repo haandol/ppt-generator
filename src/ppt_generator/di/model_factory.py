@@ -106,10 +106,17 @@ def create_bedrock_outline_model(
     max_tokens: int,
     json_schema: dict | None = None,
     json_schema_name: str | None = None,
+    thinking_effort: str | None = None,
 ) -> BedrockModel:
     additional_args: dict[str, Any] = {}
     if json_schema and json_schema_name:
         additional_args = build_json_schema_args(json_schema, json_schema_name)
+    additional_request_fields: dict[str, Any] = {}
+    if thinking_effort:
+        additional_request_fields = {
+            "thinking": {"type": "adaptive"},
+            "output_config": {"effort": thinking_effort},
+        }
     return BedrockModel(
         model_id=BEDROCK_OUTLINE_MODEL_ID,
         region_name=BEDROCK_REGION,
@@ -117,6 +124,7 @@ def create_bedrock_outline_model(
         temperature=1.0,
         max_tokens=max_tokens,
         additional_args=additional_args,
+        **({"additional_request_fields": additional_request_fields} if additional_request_fields else {}),
     )
 
 
@@ -139,20 +147,31 @@ def create_anthropic_outline_model(
     max_tokens: int,
     json_schema: dict | None = None,
     json_schema_name: str | None = None,
+    thinking_effort: str | None = None,
 ) -> Any:
     from strands.models.anthropic import AnthropicModel
 
     params: dict[str, Any] = {
         "temperature": 1.0,
     }
+    if thinking_effort:
+        params["thinking"] = {"type": "adaptive"}
+        params["output_config"] = {"effort": thinking_effort}
     if json_schema and json_schema_name:
-        params["output_config"] = {
-            "format": {
+        if "output_config" in params:
+            params["output_config"]["format"] = {
                 "type": "json_schema",
                 "schema": json_schema,
                 "name": json_schema_name,
-            },
-        }
+            }
+        else:
+            params["output_config"] = {
+                "format": {
+                    "type": "json_schema",
+                    "schema": json_schema,
+                    "name": json_schema_name,
+                },
+            }
     return AnthropicModel(
         client_args=build_anthropic_client_args(),
         model_id=ANTHROPIC_OUTLINE_MODEL_ID,

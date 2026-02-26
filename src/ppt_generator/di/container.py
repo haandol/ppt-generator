@@ -72,12 +72,14 @@ class DIContainer:
                 max_tokens=BEDROCK_OUTLINE_MAX_TOKENS,
                 json_schema=OUTLINE_JSON_SCHEMA,
                 json_schema_name="outline_output",
+                thinking_effort="medium",
             )
         else:
             model = create_bedrock_outline_model(
                 max_tokens=BEDROCK_OUTLINE_MAX_TOKENS,
                 json_schema=OUTLINE_JSON_SCHEMA,
                 json_schema_name="outline_output",
+                thinking_effort="medium",
             )
         return Agent(model=model, system_prompt=OUTLINE_SYSTEM_PROMPT, callback_handler=None, tools=[])
 
