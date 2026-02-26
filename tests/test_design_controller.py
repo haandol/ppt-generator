@@ -476,6 +476,248 @@ class TestModifyDesignSpec:
             )
 
 
+@pytest.fixture()
+def mcp_tools_with_slides(project_service: ProjectService) -> dict:
+    """slides_service mock이 포함된 MCP 도구를 등록하고 도구 함수들을 반환한다."""
+    mcp = MagicMock()
+    tools = {}
+
+    def tool_decorator():
+        def decorator(func):
+            tools[func.__name__] = func
+            return func
+        return decorator
+
+    mcp.tool = tool_decorator
+
+    design_service = MagicMock()
+    design_service.generate_single_slide.return_value = _make_slide_spec("새로 생성됨")
+    design_service.last_token_usage = {}
+    design_service.generate_design_summary.return_value = {"background_color": "#1a1a2e", "text_colors": ["#ffffff"], "title_font_pt": 32, "body_font_pt": 18, "card_fills": [], "card_borders": []}
+
+    design_service_factory = lambda effort, slide_type="content": design_service  # noqa: E731
+
+    slides_service = MagicMock()
+    slides_service.render_single_slide_html.return_value = "<html>new slide</html>"
+
+    register_design_tools(
+        mcp, project_service,
+        design_service_factory=design_service_factory,
+        slides_service=slides_service,
+    )
+    tools["_design_service"] = design_service
+    tools["_design_service_factory"] = design_service_factory
+    tools["_project_service"] = project_service
+    tools["_slides_service"] = slides_service
+    return tools
+
+
+class TestModifyDesignSpecHtmlSync:
+    """modify_design_spec의 add/delete 시 slides/ HTML 파일 동기화 검증."""
+
+    @staticmethod
+    def _setup_with_html(mcp_tools: dict, project_with_design_spec: tuple, monkeypatch, tmp_path: Path) -> tuple[str, Path]:
+        """디자인 스펙 + HTML 슬라이드 파일이 있는 프로젝트를 설정한다."""
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        project_id, project_dir = project_with_design_spec
+        import shutil
+        dest = tmp_path / project_id
+        if not dest.exists():
+            shutil.copytree(project_dir, dest)
+
+        # slides/ HTML 파일 생성 (3장)
+        slides_dir = dest / "slides"
+        slides_dir.mkdir(exist_ok=True)
+        for i in range(3):
+            (slides_dir / f"slide_{i + 1:02d}.html").write_text(
+                f"<html>slide {i + 1}</html>", encoding="utf-8"
+            )
+
+        return project_id, dest
+
+    def test_delete_removes_html_file(self, mcp_tools: dict, project_with_design_spec: tuple, monkeypatch, tmp_path: Path) -> None:
+        """delete 시 slides/ 디렉토리에서 해당 HTML 파일도 삭제되고 재번호된다."""
+        project_id, dest = self._setup_with_html(mcp_tools, project_with_design_spec, monkeypatch, tmp_path)
+
+        result = json.loads(mcp_tools["modify_design_spec"](
+            project_id=project_id,
+            action="delete",
+            slide_index=1,
+        ))
+        assert result["slide_count"] == 2
+
+        slides_dir = dest / "slides"
+        html_files = sorted(slides_dir.glob("slide_*.html"))
+        assert len(html_files) == 2
+        assert html_files[0].name == "slide_01.html"
+        assert html_files[1].name == "slide_02.html"
+        # 내용 확인: slide_01은 원래 slide 1, slide_02는 원래 slide 3
+        assert "slide 1" in html_files[0].read_text(encoding="utf-8")
+        assert "slide 3" in html_files[1].read_text(encoding="utf-8")
+
+    def test_delete_first_slide_html_sync(self, mcp_tools: dict, project_with_design_spec: tuple, monkeypatch, tmp_path: Path) -> None:
+        """첫 번째 슬라이드 삭제 시 HTML 파일이 올바르게 재번호된다."""
+        project_id, dest = self._setup_with_html(mcp_tools, project_with_design_spec, monkeypatch, tmp_path)
+
+        result = json.loads(mcp_tools["modify_design_spec"](
+            project_id=project_id,
+            action="delete",
+            slide_index=0,
+        ))
+        assert result["slide_count"] == 2
+
+        slides_dir = dest / "slides"
+        html_files = sorted(slides_dir.glob("slide_*.html"))
+        assert len(html_files) == 2
+        # 원래 slide 2 → slide_01.html, 원래 slide 3 → slide_02.html
+        assert "slide 2" in html_files[0].read_text(encoding="utf-8")
+        assert "slide 3" in html_files[1].read_text(encoding="utf-8")
+
+    def test_delete_last_slide_html_sync(self, mcp_tools: dict, project_with_design_spec: tuple, monkeypatch, tmp_path: Path) -> None:
+        """마지막 슬라이드 삭제 시 HTML 파일이 올바르게 제거된다."""
+        project_id, dest = self._setup_with_html(mcp_tools, project_with_design_spec, monkeypatch, tmp_path)
+
+        result = json.loads(mcp_tools["modify_design_spec"](
+            project_id=project_id,
+            action="delete",
+            slide_index=2,
+        ))
+        assert result["slide_count"] == 2
+
+        slides_dir = dest / "slides"
+        html_files = sorted(slides_dir.glob("slide_*.html"))
+        assert len(html_files) == 2
+        assert "slide 1" in html_files[0].read_text(encoding="utf-8")
+        assert "slide 2" in html_files[1].read_text(encoding="utf-8")
+
+    def test_add_inserts_html_and_renumbers(self, mcp_tools_with_slides: dict, project_with_design_spec: tuple, monkeypatch, tmp_path: Path) -> None:
+        """add 시 slides/ 디렉토리에 새 HTML이 삽입되고 기존 파일이 재번호된다."""
+        project_id, dest = self._setup_with_html(mcp_tools_with_slides, project_with_design_spec, monkeypatch, tmp_path)
+
+        # 사전 조건: outline JSONL에 슬라이드를 먼저 삽입
+        project_service = mcp_tools_with_slides["_project_service"]
+        new_slide = json.dumps({"title": "새 슬라이드", "content_summary": "내용", "component_hint": "bullets", "speaker_notes": ""}, ensure_ascii=False)
+        project_service.insert_outline_slide(dest, 1, new_slide)
+
+        result = json.loads(mcp_tools_with_slides["modify_design_spec"](
+            project_id=project_id,
+            action="add",
+            slide_index=1,
+        ))
+        assert result["slide_count"] == 4
+
+        slides_dir = dest / "slides"
+        html_files = sorted(slides_dir.glob("slide_*.html"))
+        assert len(html_files) == 4
+        # 원래 slide 1 → slide_01.html (변경 없음)
+        assert "slide 1" in html_files[0].read_text(encoding="utf-8")
+        # slide_02.html은 새로 생성된 슬라이드 (mock이 생성한 HTML)
+        assert html_files[1].name == "slide_02.html"
+        assert "new slide" in html_files[1].read_text(encoding="utf-8")
+        # 원래 slide 2 → slide_03.html
+        assert "slide 2" in html_files[2].read_text(encoding="utf-8")
+        # 원래 slide 3 → slide_04.html
+        assert "slide 3" in html_files[3].read_text(encoding="utf-8")
+
+    def test_delete_syncs_both_outline_and_script(self, mcp_tools: dict, project_with_design_spec: tuple, monkeypatch, tmp_path: Path) -> None:
+        """delete 시 outline.jsonl과 script.jsonl이 둘 다 존재하면 둘 다 삭제 동기화된다."""
+        project_id, dest = self._setup_with_html(mcp_tools, project_with_design_spec, monkeypatch, tmp_path)
+
+        # script.jsonl 생성 (outline.jsonl은 이미 존재)
+        project_service = mcp_tools["_project_service"]
+        script_data = json.dumps(
+            {"slides": [
+                {"title": f"스크립트 {i+1}", "content_summary": f"내용 {i+1}", "component_hint": "bullets", "speaker_notes": f"노트 {i+1}", "slide_type": "content"}
+                for i in range(3)
+            ]},
+            ensure_ascii=False,
+        )
+        project_service.save_script(dest, script_data)
+
+        result = json.loads(mcp_tools["modify_design_spec"](
+            project_id=project_id,
+            action="delete",
+            slide_index=1,
+        ))
+        assert result["slide_count"] == 2
+
+        # outline.jsonl도 2줄이어야 한다
+        outline_raw = project_service.load_outline(dest)
+        outline_data = json.loads(outline_raw)
+        assert len(outline_data["slides"]) == 2
+
+        # script.jsonl도 2줄이어야 한다
+        script_raw = project_service.load_script(dest)
+        script_data = json.loads(script_raw)
+        assert len(script_data["slides"]) == 2
+
+    def test_add_syncs_both_outline_and_script(self, mcp_tools_with_slides: dict, project_with_design_spec: tuple, monkeypatch, tmp_path: Path) -> None:
+        """add 사전 조건인 insert_outline_slide 호출 시 outline.jsonl과 script.jsonl이 둘 다 동기화된다."""
+        project_id, dest = self._setup_with_html(mcp_tools_with_slides, project_with_design_spec, monkeypatch, tmp_path)
+
+        # script.jsonl 생성 (outline.jsonl은 이미 존재)
+        project_service = mcp_tools_with_slides["_project_service"]
+        script_data = json.dumps(
+            {"slides": [
+                {"title": f"스크립트 {i+1}", "content_summary": f"내용 {i+1}", "component_hint": "bullets", "speaker_notes": f"노트 {i+1}", "slide_type": "content"}
+                for i in range(3)
+            ]},
+            ensure_ascii=False,
+        )
+        project_service.save_script(dest, script_data)
+
+        # 사전 조건: outline JSONL에 슬라이드를 삽입 (둘 다 동기화되어야 함)
+        new_slide = json.dumps({"title": "새 슬라이드", "content_summary": "내용", "component_hint": "bullets", "speaker_notes": ""}, ensure_ascii=False)
+        project_service.insert_outline_slide(dest, 1, new_slide)
+
+        result = json.loads(mcp_tools_with_slides["modify_design_spec"](
+            project_id=project_id,
+            action="add",
+            slide_index=1,
+        ))
+        assert result["slide_count"] == 4
+
+        # outline.jsonl이 4줄이어야 한다
+        outline_raw = project_service.load_outline(dest)
+        outline_data = json.loads(outline_raw)
+        assert len(outline_data["slides"]) == 4
+        assert outline_data["slides"][1]["title"] == "새 슬라이드"
+
+        # script.jsonl도 4줄이어야 한다
+        script_raw = project_service.load_script(dest)
+        script_data_loaded = json.loads(script_raw)
+        assert len(script_data_loaded["slides"]) == 4
+        assert script_data_loaded["slides"][1]["title"] == "새 슬라이드"
+
+    def test_consecutive_deletes(self, mcp_tools: dict, project_with_design_spec: tuple, monkeypatch, tmp_path: Path) -> None:
+        """연속 삭제 시 HTML 파일 수가 올바르게 줄어든다."""
+        project_id, dest = self._setup_with_html(mcp_tools, project_with_design_spec, monkeypatch, tmp_path)
+
+        # 첫 번째 삭제 (인덱스 1)
+        result = json.loads(mcp_tools["modify_design_spec"](
+            project_id=project_id,
+            action="delete",
+            slide_index=1,
+        ))
+        assert result["slide_count"] == 2
+
+        # 두 번째 삭제 (인덱스 0)
+        result = json.loads(mcp_tools["modify_design_spec"](
+            project_id=project_id,
+            action="delete",
+            slide_index=0,
+        ))
+        assert result["slide_count"] == 1
+
+        slides_dir = dest / "slides"
+        html_files = sorted(slides_dir.glob("slide_*.html"))
+        assert len(html_files) == 1
+        assert html_files[0].name == "slide_01.html"
+        assert "slide 3" in html_files[0].read_text(encoding="utf-8")
+
+
 class TestGenerateSlidesDesignSpecFromProject:
     """generate_slides_design_spec project_id 기반 파일 로드 테스트."""
 

@@ -96,6 +96,33 @@ class ProjectService:
         logger.info("단일 슬라이드 HTML 저장: %s", path)
         return path
 
+    def delete_slide_html(self, project_dir: Path, index: int) -> None:
+        """슬라이드 HTML 파일을 삭제하고 남은 파일을 재번호한다."""
+        slides_dir = project_dir / self.SLIDES_DIR
+        if not slides_dir.exists():
+            return
+        files = sorted(slides_dir.glob("slide_*.html"))
+        if index < 0 or index >= len(files):
+            return
+        files[index].unlink()
+        remaining = sorted(slides_dir.glob("slide_*.html"))
+        for i, f in enumerate(remaining):
+            new_name = self._slide_html_filename(i)
+            f.rename(slides_dir / new_name)
+
+    def shift_slide_htmls(self, project_dir: Path, insert_index: int) -> None:
+        """삽입 위치 이후의 슬라이드 HTML 파일을 한 칸씩 뒤로 밀어낸다."""
+        slides_dir = project_dir / self.SLIDES_DIR
+        if not slides_dir.exists():
+            return
+        files = sorted(slides_dir.glob("slide_*.html"))
+        count = len(files)
+        for i in range(count - 1, insert_index - 1, -1):
+            old_name = slides_dir / self._slide_html_filename(i)
+            new_name = slides_dir / self._slide_html_filename(i + 1)
+            if old_name.exists():
+                old_name.rename(new_name)
+
     # --- 디자인 스펙 위임 메서드 ---
 
     def save_design_spec(self, project_dir: Path, design_spec: DesignSpec) -> None:
@@ -251,46 +278,58 @@ class ProjectService:
         return None
 
     def update_outline_slide(self, project_dir: Path, index: int, slide_json: str) -> None:
-        """아웃라인/스크립트 JSONL에서 특정 슬라이드를 교체한다."""
-        path = self._resolve_outline_or_script_path(project_dir)
-        if path is None:
+        """아웃라인/스크립트 JSONL에서 특정 슬라이드를 교체한다. 둘 다 존재하면 둘 다 업데이트한다."""
+        updated = False
+        for fname in ("script.jsonl", "outline.jsonl"):
+            path = project_dir / fname
+            if not path.exists():
+                continue
+            lines = self._load_jsonl_lines(path)
+            if index < 0 or index >= len(lines):
+                raise IndexError(f"유효하지 않은 slide index: {index} (전체 {len(lines)}장)")
+            # 기존 줄의 speaker_notes 등 보존하면서 새 아웃라인 필드 병합
+            existing = json.loads(lines[index])
+            new_data = json.loads(slide_json)
+            existing.update({k: v for k, v in new_data.items() if k != "slide_index"})
+            lines[index] = json.dumps(existing, ensure_ascii=False)
+            self._save_jsonl_lines(path, lines)
+            logger.info("슬라이드 업데이트 동기화: index=%d, path=%s", index, path)
+            updated = True
+        if not updated:
             logger.warning("outline/script JSONL이 없어 동기화를 건너뜁니다: %s", project_dir)
-            return
-        lines = self._load_jsonl_lines(path)
-        if index < 0 or index >= len(lines):
-            raise IndexError(f"유효하지 않은 slide index: {index} (전체 {len(lines)}장)")
-        # 기존 줄의 speaker_notes 등 보존하면서 새 아웃라인 필드 병합
-        existing = json.loads(lines[index])
-        new_data = json.loads(slide_json)
-        existing.update({k: v for k, v in new_data.items() if k != "slide_index"})
-        lines[index] = json.dumps(existing, ensure_ascii=False)
-        self._save_jsonl_lines(path, lines)
-        logger.info("outline/script 슬라이드 업데이트: index=%d, path=%s", index, path)
 
     def insert_outline_slide(self, project_dir: Path, index: int, slide_json: str) -> None:
-        """아웃라인/스크립트 JSONL에 슬라이드를 삽입한다."""
-        path = self._resolve_outline_or_script_path(project_dir)
-        if path is None:
+        """아웃라인/스크립트 JSONL에 슬라이드를 삽입한다. 둘 다 존재하면 둘 다 삽입한다."""
+        inserted = False
+        for fname in ("script.jsonl", "outline.jsonl"):
+            path = project_dir / fname
+            if not path.exists():
+                continue
+            lines = self._load_jsonl_lines(path)
+            new_line = json.dumps(json.loads(slide_json), ensure_ascii=False)
+            lines.insert(index, new_line)
+            self._save_jsonl_lines(path, lines)
+            logger.info("슬라이드 삽입 동기화: index=%d, path=%s", index, path)
+            inserted = True
+        if not inserted:
             logger.warning("outline/script JSONL이 없어 동기화를 건너뜁니다: %s", project_dir)
-            return
-        lines = self._load_jsonl_lines(path)
-        new_line = json.dumps(json.loads(slide_json), ensure_ascii=False)
-        lines.insert(index, new_line)
-        self._save_jsonl_lines(path, lines)
-        logger.info("outline/script 슬라이드 삽입: index=%d, path=%s", index, path)
 
     def delete_outline_slide(self, project_dir: Path, index: int) -> None:
-        """아웃라인/스크립트 JSONL에서 슬라이드를 삭제한다."""
-        path = self._resolve_outline_or_script_path(project_dir)
-        if path is None:
+        """아웃라인/스크립트 JSONL에서 슬라이드를 삭제한다. 둘 다 존재하면 둘 다 삭제한다."""
+        deleted = False
+        for fname in ("script.jsonl", "outline.jsonl"):
+            path = project_dir / fname
+            if not path.exists():
+                continue
+            lines = self._load_jsonl_lines(path)
+            if index < 0 or index >= len(lines):
+                raise IndexError(f"유효하지 않은 slide index: {index} (전체 {len(lines)}장)")
+            lines.pop(index)
+            self._save_jsonl_lines(path, lines)
+            logger.info("슬라이드 삭제 동기화: index=%d, path=%s", index, path)
+            deleted = True
+        if not deleted:
             logger.warning("outline/script JSONL이 없어 동기화를 건너뜁니다: %s", project_dir)
-            return
-        lines = self._load_jsonl_lines(path)
-        if index < 0 or index >= len(lines):
-            raise IndexError(f"유효하지 않은 slide index: {index} (전체 {len(lines)}장)")
-        lines.pop(index)
-        self._save_jsonl_lines(path, lines)
-        logger.info("outline/script 슬라이드 삭제: index=%d, path=%s", index, path)
 
     def load_script_or_outline(self, project_dir: Path) -> str:
         """script.jsonl이 있으면 우선 로드, 없으면 outline.jsonl로 fallback."""

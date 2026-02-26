@@ -239,6 +239,8 @@ def register_design_tools(
             )
             token_usage = svc.last_token_usage
             project_service.insert_design_spec_slide(project_dir, insert_idx, new_spec)
+            # Shift existing HTML files before saving new one
+            project_service.shift_slide_htmls(project_dir, insert_idx)
             if slides_service is not None:
                 html = slides_service.render_single_slide_html(insert_idx, new_spec)
                 html_path = project_service.save_single_slide_html(
@@ -273,6 +275,8 @@ def register_design_tools(
             if slide_index < 0 or slide_index >= slide_count:
                 raise ValueError(f"Invalid slide_index: {slide_index} (total {slide_count} slides)")
             project_service.delete_design_spec_slide(project_dir, slide_index)
+            # Sync HTML slides
+            project_service.delete_slide_html(project_dir, slide_index)
             # Sync outline/script JSONL
             project_service.delete_outline_slide(project_dir, slide_index)
 
