@@ -142,9 +142,10 @@ Agenda slide (slide_type: "content", component_hint: "agenda") design rules:
 - Agenda items should not list every individual slide, but rather abstract related slides into larger topic units (sections), keeping it concise with 3-6 items
 - Layout: Must use single-column layout only
   · Title: left=64, top=72, width=1152, height=48
-  · Body: Single textbox below the title listing numbered items vertically (left=64, top=148, width=1152, height=adjust to content)
-- Each item should be in numbered + section title format, written concisely
-- Applying accent color to numbers is recommended for visual distinction
+  · Body: Single textbox below the title listing items vertically (left=64, top=148, width=1152, height=adjust to content)
+- Each item should be written concisely as a section title
+- Numbering is optional: items may use numbered format (e.g., "01  Topic") or unnumbered format (e.g., bullet list or plain text). Choose whichever fits the presentation tone better.
+- When using numbers, applying accent color to numbers is recommended for visual distinction
 </slide_type_agenda>
 
 <slide_type_content>
