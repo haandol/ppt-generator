@@ -105,7 +105,7 @@ flowchart LR
     User -- "자연어 요청" --> MCPClient[MCP Client\ne.g. Kiro, Claude Desktop]
     MCPClient -- "MCP Protocol" --> MCPServer[Python MCP Server\nStrands Agent]
     MCPServer -- "스크립트/아웃라인 생성" --> Bedrock[Amazon Bedrock\nClaude Sonnet 4.6]
-    MCPServer -- "디자인 스펙 생성" --> BedrockOpus[Amazon Bedrock\nClaude Opus 4.6]
+    MCPServer -- "디자인 스펙 생성" --> BedrockSonnet2[Amazon Bedrock\nClaude Sonnet 4.6]
     MCPServer -- "HTML 슬라이드 생성/수정" --> HTMLEngine[HTML/CSS\n슬라이드 엔진]
     HTMLEngine -- "이미지 생성 (필요시)" --> Gemini[Google Gemini\n2.5 Flash]
     MCPServer -- "PPTX 내보내기" --> PythonPptx[python-pptx]
@@ -120,7 +120,7 @@ flowchart TD
     A[사용자 입력: 주제 + 슬라이드 수] --> B[Bedrock LLM: 슬라이드 아웃라인 생성]
     B --> B1[Bedrock LLM: 아웃라인 기반 슬라이드별 스크립트 생성]
     B1 --> DS{경로 선택}
-    DS -- "디자인 스펙 경로 (권장)" --> DS1[Bedrock Opus 4.6: PptxSlideSpec JSON 생성]
+    DS -- "디자인 스펙 경로 (권장)" --> DS1[Bedrock Sonnet 4.6: PptxSlideSpec JSON 생성]
     DS1 --> DS2[결정론적 HTML 변환: 미리보기]
     DS2 --> F{사용자 확인}
     DS1 --> DS3[SlideBuilder: PPTX 직접 생성]
@@ -141,7 +141,7 @@ flowchart TD
 |-----------|-----------|-----------|
 | MCP 서버 | Python + MCP Protocol | 다양한 AI 클라이언트에서 도구로 호출 가능 |
 | 에이전트 프레임워크 | AWS Strands SDK | Bedrock 네이티브 통합, 멀티스텝 워크플로우 관리 |
-| LLM | Amazon Bedrock - Claude Opus 4.6 (디자인 스펙) / Claude Sonnet 4.6 (아웃라인/스크립트) | 고품질 콘텐츠 생성, 구조화된 출력, HTML/CSS 코드 생성 |
+| LLM | Amazon Bedrock - Claude Sonnet 4.6 (디자인 스펙/아웃라인/스크립트) | 고품질 콘텐츠 생성, 구조화된 출력, HTML/CSS 코드 생성 |
 | 이미지 생성 | Google Gemini 2.5 Flash (슬라이드 생성 시 내부 호출) | 색상 팔레트 조건, 스타일 일관성 유지 |
 | 슬라이드 렌더링 | HTML/CSS | 자유로운 레이아웃, 풍부한 스타일링, LLM의 코드 생성 능력 활용 |
 | PPTX 내보내기 | python-pptx | 디자인 스펙에서 직접 생성 또는 HTML 슬라이드를 편집 가능한 PPT 객체로 변환 |

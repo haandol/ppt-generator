@@ -95,8 +95,8 @@ ppt-generator/
 - **Package Manager**: uv
 - **Build System**: hatchling
 - **Agent Framework**: AWS Strands SDK (`strands-agents`)
-- **LLM (디자인 스펙 생성)**: Claude Opus 4.6 Extended Thinking (Bedrock: `global.anthropic.claude-opus-4-6-v1` / Anthropic: `claude-opus-4-6`, 64K tokens, effort: adaptive — 슬라이드 복잡도 기반 high/medium/low 동적 적용)
-- **LLM (아웃라인/스크립트)**: Claude Sonnet 4.6 Extended Thinking (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 32K tokens, effort: medium, `OUTLINE_THINKING_EFFORT`로 변경 가능)
+- **LLM (디자인 스펙 생성)**: Claude Sonnet 4.6 Extended Thinking (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 64K tokens, effort: adaptive — 슬라이드 복잡도 기반 high/medium/low 동적 적용)
+- **LLM (아웃라인/스크립트)**: Claude Sonnet 4.6 (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 32K tokens, thinking off)
 - **Slide Framework**: 순수 HTML/CSS (인라인 스타일, 슬라이드별 개별 HTML + iframe 컨테이너)
 - **PPTX Export**: python-pptx (디자인 스펙 → SlideBuilder 직접 변환)
 - **레이아웃 그리드**: 48열×20행 (24×24px 정사각형 셀) — 콘텐츠 영역 1152×480px, 안전 영역 64~1216×64~656px. 상세 좌표 테이블은 `interfaces/prompts/design_system.prompt.md`의 `<layout_grid>`, `<diagram_grid>` 섹션 참조
@@ -108,7 +108,7 @@ ppt-generator/
 - LLM 인증 (아래 중 하나 선택):
   - **Anthropic API** (권장): `ANTHROPIC_API_KEY` 환경변수 설정
   - **AWS Bedrock (기본)**: 별도 설정 없이 기본 AWS credential chain 사용 (`~/.aws/credentials`, 환경변수, IAM role 등)
-    - Amazon Bedrock 모델 접근 권한 필요 (Claude Opus 4.6, Claude Sonnet 4.6)
+    - Amazon Bedrock 모델 접근 권한 필요 (Claude Sonnet 4.6)
     - 리전: `us-east-1` (기본값)
   - **AWS Bedrock (API key)**: `AWS_BEARER_TOKEN_BEDROCK` 환경변수로 bearer token 설정 시 SigV4 대신 bearer token 인증 사용
     - 리전: `us-east-1` (기본값)
@@ -123,13 +123,12 @@ ppt-generator/
 | `AWS_SECRET_ACCESS_KEY`    | AWS Secret Key          | Bedrock IAM 인증                                                                                         |
 | `AWS_REGION`               | AWS 리전                | Bedrock 리전 (기본: us-east-1)                                                                           |
 | `AWS_BEARER_TOKEN_BEDROCK` | Bearer Token 문자열     | Bedrock API key (bearer token) 인증. 설정 시 bearer token 우선, 미설정 시 기본 AWS credential chain 사용 |
-| `BEDROCK_DESIGN_MODEL_ID`  | 모델 ID 문자열          | 디자인 스펙 생성 Bedrock 모델 (기본: `global.anthropic.claude-opus-4-6-v1`)                               |
-| `ANTHROPIC_DESIGN_MODEL_ID`| 모델 ID 문자열          | 디자인 스펙 생성 Anthropic 모델 (기본: `claude-opus-4-6`)                                                |
+| `BEDROCK_DESIGN_MODEL_ID`  | 모델 ID 문자열          | 디자인 스펙 생성 Bedrock 모델 (기본: `global.anthropic.claude-sonnet-4-6`)                                |
+| `ANTHROPIC_DESIGN_MODEL_ID`| 모델 ID 문자열          | 디자인 스펙 생성 Anthropic 모델 (기본: `claude-sonnet-4-6`)                                              |
 | `BEDROCK_DESIGN_MAX_TOKENS`| 정수 (기본: 64000)      | 디자인 스펙 생성 max tokens                                                                              |
 
 | `BEDROCK_OUTLINE_MODEL_ID` | 모델 ID 문자열          | 아웃라인/스크립트 Bedrock 모델 (기본: `global.anthropic.claude-sonnet-4-6`)                               |
 | `ANTHROPIC_OUTLINE_MODEL_ID`| 모델 ID 문자열         | 아웃라인/스크립트 Anthropic 모델 (기본: `claude-sonnet-4-6`)                                             |
-| `OUTLINE_THINKING_EFFORT`  | `high`/`medium`/`low`   | 아웃라인/스크립트 thinking effort (기본: medium)                                                         |
 | `DESIGN_SPEC_PARALLEL`     | 정수 (기본: 8)          | 디자인 스펙 생성 시 슬라이드별 병렬 워커 수. API rate limit에 맞게 조절                                  |
 | `PPT_LOG_FILE`             | 파일 경로 문자열        | 로그 파일 경로 (설정 시 DEBUG 레벨로 파일에 기록, 토큰 사용량 포함)                                      |
 
@@ -367,8 +366,8 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 
 새 기능 추가 또는 기존 기능 변경 시 반드시 `docs/adr/` 에 ADR을 작성하거나 기존 ADR을 업데이트해야 합니다.
 
-- **새 기능**: 설계 결정의 배경, 선택지, 결정 사항을 담은 새 ADR 파일을 작성
-- **기능 변경**: 해당 기능과 관련된 기존 ADR이 있으면 변경 내용을 반영하여 업데이트
+- **기존 ADR 우선 업데이트**: 변경 내용이 기존 ADR의 범위에 포함되면 해당 ADR의 관련 논리적 섹션(Decision, Consequences 등)을 직접 수정하여 현재 상태를 반영. 날짜별 변경 이력을 별도로 추가하지 말 것. 새 ADR은 기존에 합칠 곳이 없을 때만 작성
+- **새 기능**: 기존 ADR과 관련 없는 독립적인 설계 결정일 때만 새 ADR 파일을 작성
 - **파일 위치**: `docs/adr/` 하위 디렉토리 (예: `docs/adr/pipeline/`)
 - **네이밍**: `NNNN-<kebab-case-title>.md` 형식 (예: `0018-parallel-design-spec-and-prompt-caching.md`)
 - ADR 작성 가이드는 [`docs/adr/README.md`](docs/adr/README.md) 참조
@@ -394,7 +393,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 - MCP 도구 함수에는 한국어 docstring 필수 (클라이언트에 노출됨)
 - 외부 API(Bedrock/Anthropic) 호출 테스트는 반드시 mock 처리
 - Conventional Commits 형식 사용: `<type>(<scope>): <subject>` (상세: [CONTRIBUTING.md](CONTRIBUTING.md))
-- LLM: 디자인 스펙은 Claude Opus 4.6 Extended Thinking 사용 (슬라이드 복잡도에 따라 thinking effort를 high/medium/low로 동적 적용), 아웃라인/스크립트는 Claude Sonnet 4.6 사용
+- LLM: 디자인 스펙은 Claude Sonnet 4.6 Extended Thinking 사용 (슬라이드 복잡도에 따라 thinking effort를 high/medium/low로 동적 적용), 아웃라인/스크립트는 Claude Sonnet 4.6 사용
 - Agent 프레임워크: AWS Strands SDK (`strands-agents`)
 
 ## Testing

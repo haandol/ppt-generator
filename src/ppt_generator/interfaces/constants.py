@@ -11,10 +11,10 @@ DESIGN_SPEC_PARALLEL = int(os.environ.get("DESIGN_SPEC_PARALLEL", "8"))
 
 # --- 디자인 스펙 생성 모델 ---
 BEDROCK_DESIGN_MODEL_ID = os.environ.get(
-    "BEDROCK_DESIGN_MODEL_ID", "global.anthropic.claude-opus-4-6-v1"
+    "BEDROCK_DESIGN_MODEL_ID", "global.anthropic.claude-sonnet-4-6"
 )
 ANTHROPIC_DESIGN_MODEL_ID = os.environ.get(
-    "ANTHROPIC_DESIGN_MODEL_ID", "claude-opus-4-6"
+    "ANTHROPIC_DESIGN_MODEL_ID", "claude-sonnet-4-6"
 )
 BEDROCK_DESIGN_MAX_TOKENS = int(os.environ.get("BEDROCK_DESIGN_MAX_TOKENS", "64000"))
 
@@ -27,7 +27,6 @@ ANTHROPIC_OUTLINE_MODEL_ID = os.environ.get(
 )
 BEDROCK_OUTLINE_MAX_TOKENS = int(os.environ.get("BEDROCK_OUTLINE_MAX_TOKENS", "32000"))
 BEDROCK_SCRIPT_MAX_TOKENS = int(os.environ.get("BEDROCK_SCRIPT_MAX_TOKENS", "32000"))
-OUTLINE_THINKING_EFFORT = os.environ.get("OUTLINE_THINKING_EFFORT", "medium")
 
 # --- 공통 ---
 BEDROCK_REGION = os.environ.get("AWS_REGION", "us-east-1")
@@ -71,6 +70,7 @@ PPTX_VALIDATE_LINE_HEIGHT_FACTOR = 2.0  # pt→px(1.33) × line-height(1.5) ≈ 
 SPEC_VALIDATE_OVERLAP_GAP_PX = 16          # 겹침 해소 시 최소 간격 (px)
 SPEC_VALIDATE_CONTENT_CENTER_THRESHOLD = 0.65  # 콘텐츠가 박스 높이의 65% 미만이면 middle 정렬
 SPEC_VALIDATE_MARGIN_PX = 64               # 슬라이드 가장자리 최소 여백 (px)
+SPEC_VALIDATE_MARGIN_BOTTOM_PX = 32        # 슬라이드 하단 최소 여백 (px)
 
 EXPORT_PX_TO_INCHES_X = 13.333 / 1280  # ~0.01042
 EXPORT_PX_TO_INCHES_Y = 7.5 / 720      # ~0.01042
@@ -143,7 +143,6 @@ __all__ = [
     # Outline/Script model settings
     "BEDROCK_OUTLINE_MODEL_ID", "ANTHROPIC_OUTLINE_MODEL_ID",
     "BEDROCK_OUTLINE_MAX_TOKENS", "BEDROCK_SCRIPT_MAX_TOKENS",
-    "OUTLINE_THINKING_EFFORT",
     # Common
     "BEDROCK_REGION",
     # Numeric constants
@@ -158,7 +157,7 @@ __all__ = [
     "PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU", "PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU", "PX_TO_EMU",
     "PPTX_VALIDATE_FONT_MIN_PT", "PPTX_VALIDATE_FONT_MAX_PT", "PPTX_VALIDATE_LINE_HEIGHT_FACTOR",
     "SPEC_VALIDATE_OVERLAP_GAP_PX", "SPEC_VALIDATE_CONTENT_CENTER_THRESHOLD",
-    "SPEC_VALIDATE_MARGIN_PX",
+    "SPEC_VALIDATE_MARGIN_PX", "SPEC_VALIDATE_MARGIN_BOTTOM_PX",
     "EXPORT_PX_TO_INCHES_X", "EXPORT_PX_TO_INCHES_Y",
     # Text measurement constants
     "TEXT_MEASURE_PX_PER_PT", "TEXT_MEASURE_CJK_WIDTH_RATIO",

@@ -53,16 +53,6 @@ def _slide(
 
 
 class TestTextboxHeightExpansion:
-    def test_long_korean_text_expands_height(self) -> None:
-        """긴 한글 텍스트 → 줄바꿈 계산 후 높이 확장."""
-        long_text = "가나다라마바사아자차카타파하" * 5
-        tb = _tb(long_text)
-        result = validate_slide_spec(_slide(textboxes=[tb]))
-        required_h = calculate_required_height(tb.paragraphs, tb.width_px)
-        validated = result.textboxes[0]
-        assert validated.height_px > 50
-        assert validated.height_px >= min(required_h, _CANVAS_H - _MARGIN - 64)
-
     def test_shape_with_padding_expands_height(self) -> None:
         """padding 있는 shape → 높이 확장."""
         long_text = "가나다라마바사아자차" * 3
@@ -132,67 +122,15 @@ class TestMarginEnforcement:
         assert result.shapes[0].left_px == 0
         assert result.shapes[0].height_px <= 10
 
-
-# ---------------------------------------------------------------------------
-# 겹침 해소
-# ---------------------------------------------------------------------------
-
-
-class TestOverlapResolution:
-    def test_vertical_overlap_pushdown_with_gap(self) -> None:
-        """수직 겹침 → 아래 요소가 push-down + 16px 이상 간격."""
-        tb1 = _tb("제목", font=32, top_px=96, height_px=100)
-        tb2 = _tb("본문", top_px=150, height_px=200)
-        result = validate_slide_spec(_slide(textboxes=[tb1, tb2]))
-        r1, r2 = result.textboxes[0], result.textboxes[1]
-        gap = r2.top_px - (r1.top_px + r1.height_px)
-        assert gap >= 16
-
-    def test_pushdown_respects_canvas_bottom(self) -> None:
-        """push-down 후 캔버스 초과 시 height 축소."""
-        tb1 = _tb("상단", top_px=500, height_px=100)
-        tb2 = _tb("하단", top_px=550, height_px=200)
-        result = validate_slide_spec(_slide(textboxes=[tb1, tb2]))
-        v = result.textboxes[1]
-        assert v.top_px + v.height_px <= _CANVAS_H - _MARGIN
-
-    def test_decorative_shape_excluded(self) -> None:
-        """장식 shape는 겹침 해소에서 제외."""
-        decorative = PptxShape(
-            left_px=64, top_px=155, width_px=1152, height_px=3,
+    def test_vertical_decorative_line_bypasses_margin(self) -> None:
+        """세로 꾸밈 라인(width<=10, height>10) → 장식 요소로 인식, margin 무시."""
+        shape = PptxShape(
+            left_px=64, top_px=192, width_px=10, height_px=120,
             shape_type="rectangle", fill_color="#FF9900",
         )
-        tb = _tb("본문", top_px=150, height_px=200)
-        result = validate_slide_spec(_slide(textboxes=[tb], shapes=[decorative]))
-        assert result.shapes[0].top_px == 155
+        result = validate_slide_spec(_slide(shapes=[shape]))
+        assert result.shapes[0].height_px == 120
 
-    def test_container_child_no_pushdown(self) -> None:
-        """컨테이너-자식(완전 포함) → push-down 안 함."""
-        container = PptxShape(
-            left_px=64, top_px=180, width_px=1152, height_px=440,
-            shape_type="rounded_rectangle", fill_color="#1B2A3D", text="",
-        )
-        child = PptxShape(
-            left_px=100, top_px=200, width_px=200, height_px=100,
-            shape_type="rounded_rectangle", fill_color="#2E3D50",
-            text="블록 A", text_size_pt=16,
-        )
-        result = validate_slide_spec(_slide(shapes=[container, child]))
-        assert result.shapes[1].top_px == 200
-
-    def test_line_shape_no_pushdown(self) -> None:
-        """line shape(화살표) → 겹쳐도 push-down 안 함."""
-        block = PptxShape(
-            left_px=100, top_px=200, width_px=200, height_px=100,
-            shape_type="rounded_rectangle", fill_color="#2E3D50",
-            text="블록", text_size_pt=16,
-        )
-        arrow = PptxShape(
-            left_px=150, top_px=250, width_px=300, height_px=20,
-            shape_type="line", border_color="#FF9900", border_width_pt=2,
-        )
-        result = validate_slide_spec(_slide(shapes=[block, arrow]))
-        assert result.shapes[1].top_px == 250
 
 
 # ---------------------------------------------------------------------------

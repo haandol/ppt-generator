@@ -1,6 +1,6 @@
 # PPT Generator
 
-> **Cost & Time Warning**: 20장 분량의 PPT를 처음부터 끝까지 생성하는 데 약 **18분**, API 비용 약 **$9 USD**가 소요됩니다. 슬라이드 수에 비례하여 시간과 비용이 증가합니다. 또한 디자인 스펙 생성 시 슬라이드 복잡도에 따라 thinking effort를 동적으로 조절하므로, 슬라이드 내용이 복잡할수록 비용이 더 높아질 수 있습니다.
+> **Cost & Time Warning**: 7장 분량의 PPT를 처음부터 끝까지 생성하는 데 약 **9분 / $2.3 USD**, 20장 분량은 약 **17분 / $6.7 USD**가 소요됩니다. 슬라이드 수와 슬라이드의 복잡도에 비례하여 시간과 비용이 증가합니다.
 
 주제를 입력하면 AI가 자동으로 프레젠테이션을 생성하는 MCP(Model Context Protocol) 서버입니다. Claude LLM으로 아웃라인·스크립트·디자인 스펙을 생성하고, HTML 미리보기와 편집 가능한 PPTX로 내보냅니다.
 
@@ -113,12 +113,12 @@ Anthropic API와 AWS Bedrock을 지원합니다. `LLM_PROVIDER` 환경변수로 
 
 ### 사용 모델
 
-모든 LLM 호출은 Claude Extended Thinking을 사용합니다. 디자인 스펙 생성에는 Opus 4.6, 아웃라인/스크립트에는 Sonnet 4.6을 사용합니다.
+모든 LLM 호출은 Claude Extended Thinking을 사용합니다. 디자인 스펙 생성과 아웃라인/스크립트 모두 Sonnet 4.6을 사용합니다.
 
 | 용도              | Bedrock 모델 ID                          | Anthropic 모델 ID   | Max Tokens | Thinking Effort                          |
 | ----------------- | ---------------------------------------- | ------------------- | ---------- | ---------------------------------------- |
-| 디자인 스펙 생성  | `global.anthropic.claude-opus-4-6-v1`    | `claude-opus-4-6`   | 64,000     | adaptive (슬라이드 복잡도 기반 high/medium/low) |
-| 아웃라인/스크립트 | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 32,000     | medium (기본, `OUTLINE_THINKING_EFFORT`로 변경 가능) |
+| 디자인 스펙 생성  | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 64,000     | adaptive (슬라이드 복잡도 기반 high/medium/low) |
+| 아웃라인/스크립트 | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 32,000     | off                                              |
 
 ### 클라이언트별 설정 예시
 
@@ -315,7 +315,7 @@ ppt-generator/
 | 언어                    | Python 3.13+                       |
 | 패키지 관리             | uv + hatchling                     |
 | 에이전트 프레임워크     | AWS Strands SDK (`strands-agents`) |
-| LLM                     | Claude Opus 4.6 / Sonnet 4.6 Extended Thinking |
+| LLM                     | Claude Sonnet 4.6 Extended Thinking |
 | 슬라이드 프레임워크     | 순수 HTML/CSS (인라인 스타일)      |
 | PPTX 내보내기           | python-pptx                        |
 

@@ -22,7 +22,6 @@ from ppt_generator.interfaces.constants import (
     BEDROCK_DESIGN_MODEL_ID,
     BEDROCK_OUTLINE_MODEL_ID,
     BEDROCK_REGION,
-    OUTLINE_THINKING_EFFORT,
 )
 
 
@@ -117,10 +116,6 @@ def create_bedrock_outline_model(
         boto_client_config=build_client_config(),
         temperature=1.0,
         max_tokens=max_tokens,
-        additional_request_fields={
-            "thinking": {"type": "adaptive"},
-            "output_config": {"effort": OUTLINE_THINKING_EFFORT},
-        },
         additional_args=additional_args,
     )
 
@@ -149,12 +144,9 @@ def create_anthropic_outline_model(
 
     params: dict[str, Any] = {
         "temperature": 1.0,
-        "thinking": {"type": "adaptive"},
-        "output_config": {"effort": OUTLINE_THINKING_EFFORT},
     }
     if json_schema and json_schema_name:
         params["output_config"] = {
-            **params["output_config"],
             "format": {
                 "type": "json_schema",
                 "schema": json_schema,

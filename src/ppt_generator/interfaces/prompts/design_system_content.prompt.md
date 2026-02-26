@@ -122,6 +122,16 @@ shapes의 padding_*_px 필드로 텍스트와 shape 경계 사이 여백을 제�
 - 미지정 시 기본값: 좌우 약 5px, 상하 약 2.5px
 - 카드형 shape 권장: padding_left_px: 16~20, padding_right_px: 16~20, padding_top_px: 12~16, padding_bottom_px: 12~16
 - 넓은 배너/헤더 shape: padding_left_px: 16~24 권장
+
+**좌표 배치 시 패딩을 반드시 고려하세요.**
+shape와 textbox의 bounding box(left_px/top_px/width_px/height_px)는 패딩을 포함한 전체 영역입니다.
+실제 텍스트가 보이는 영역은 bounding box에서 패딩을 뺀 안쪽입니다.
+- shape: 지정한 padding_*_px만큼 안쪽 (카드형 기본 16~18px)
+- textbox: line-height로 인해 상하 약 16px의 시각적 패딩 발생
+
+따라서 장식선(decorative line)이나 라벨 textbox를 shape 위/아래에 배치할 때:
+- 장식선 bottom과 shape의 **텍스트 시작점**(top_px + padding_top) 사이가 겹치지 않도록, 장식선의 bottom이 shape의 top_px보다 위에 있어야 합니다.
+- 라벨 textbox의 bottom(top_px + height_px + 16px 시각적 패딩)이 아래 shape의 top_px를 넘지 않도록 **최소 16px 간격**을 유지하세요.
 </padding_guide>
 
 <slide_type_agenda>
@@ -140,7 +150,7 @@ shapes의 padding_*_px 필드로 텍스트와 shape 경계 사이 여백을 제�
 본문 슬라이드 (slide_type: "content") 디자인 규칙:
 
 - 프레젠테이션의 본론 슬라이드. 주제의 핵심 내용을 다룸
-- 캔버스 안전 영역: left 64~1216, top 64~656 (사방 64px 여백)
+- 캔버스 안전 영역: left 64~1216, top 64~688 (좌우/상단 64px, 하단 32px 여백)
 - 제목→본문 간격: 최소 **28px** 유지 (제목 bottom과 본문 top 사이)
 - 인접 요소 간 최소 **16px** 간격 유지 (수직 방향)
 - 본문 높이: 540px 고정이 아니라 **콘텐츠 양에 맞게 조절** (필요 높이를 추정하여 height_px 설정)
@@ -352,7 +362,10 @@ shapes의 padding_*_px 필드로 텍스트와 shape 경계 사이 여백을 제�
 
 - 한글 1글자 폭 약 font_size_pt x 1.2px, Latin/숫자 1글자 폭 약 font_size_pt x 0.73px
 - 예시: width_px=500, font_size_pt=18, 한글 -> 한 줄에 약 23글자 (500 / (18x1.2) = 23)
-- shape의 padding을 반드시 차감하여 실제 텍스트 영역 폭을 계산하세요
+- shape의 padding을 반드시 차감하여 실제 텍스트 영역 폭과 높이를 계산하세요
+  · 실제 텍스트 폭 = width_px - padding_left_px - padding_right_px
+  · 실제 텍스트 높이 = height_px - padding_top_px - padding_bottom_px
+  · 필요 높이 = (줄수 × font_size_pt × 2.0) + padding_top_px + padding_bottom_px
 - 줄수 = 총 텍스트 폭 / 실제 텍스트 영역 폭 (올림)
 </text_size_estimation>
 
@@ -374,9 +387,10 @@ shapes의 padding_*_px 필드로 텍스트와 shape 경계 사이 여백을 제�
    - 컨테이너-자식 중첩 허용: 큰 shape가 배경/컨테이너 역할을 하고 그 안에 작은 shape나 textbox를 배치하는 것은 허용됩니다. 이 경우 자식 요소의 bounding box가 부모 shape의 bounding box 안에 완전히 포함되어야 합니다 (자식의 left >= 부모의 left, 자식의 top >= 부모의 top, 자식의 right <= 부모의 right, 자식의 bottom <= 부모의 bottom).
    - 다이어그램 연결선 허용: line shape(화살표, 커넥터)는 블록 shape와 겹칠 수 있습니다.
    - 컨테이너-자식 패턴 예시: arch_diagram에서 큰 rounded_rectangle(배경 패널) 안에 작은 rounded_rectangle(블록)들을 배치하고 line(화살표)으로 연결.
+   - **textbox를 shape 위에 라벨로 겹쳐 배치 금지**: shape의 라벨/제목은 반드시 해당 shape의 paragraphs 첫 번째 항목으로 포함하세요. 별도 textbox를 shape와 동일 좌표에 겹쳐놓으면 텍스트가 가려집니다. 컨테이너 shape의 영역 라벨도 paragraphs로 넣거나, 컨테이너 상단에 겹치지 않는 별도 영역에 배치하세요.
    이유: 동일 레벨 겹침은 텍스트 가독성을 저하시키지만, 컨테이너-자식 중첩은 다이어그램과 구조적 레이아웃에 필수적입니다.
 
-6. 여백 확보 (수치 기준): 모든 콘텐츠 요소는 left_px >= 64, top_px >= 64, left_px + width_px <= 1216, top_px + height_px <= 656을 만족해야 합니다. 콘텐츠가 슬라이드 가장자리에 딱 붙지 않도록 사방 64px 여백을 유지하세요.
+6. 여백 확보 (수치 기준): 모든 콘텐츠 요소는 left_px >= 64, top_px >= 64, left_px + width_px <= 1216, top_px + height_px <= 688을 만족해야 합니다. 좌우/상단은 64px, 하단은 32px 여백을 유지하세요.
 
 7. vertical_alignment 필수: 모든 textbox와 shape에 vertical_alignment을 반드시 지정하세요 (null 금지).
 
@@ -399,7 +413,7 @@ shapes의 padding_*_px 필드로 텍스트와 shape 경계 사이 여백을 제�
 <content_vertical_balance>
 콘텐츠 양에 따른 수직 배치 전략:
 
-- **본문 높이를 콘텐츠에 맞게 조절하세요.** height_px를 항상 540으로 고정하지 말고, 실제 텍스트 양에 맞는 높이를 계산하여 설정하세요 (최대 508px = 656 - 148). 참고: 우수한 프레젠테이션의 본문 높이는 평균 300px대이며, 540px 고정은 빈 공간이 과도하게 발생합니다.
+- **본문 높이를 콘텐츠에 맞게 조절하세요.** height_px를 항상 540으로 고정하지 말고, 실제 텍스트 양에 맞는 높이를 계산하여 설정하세요 (최대 540px = 688 - 148). 참고: 우수한 프레젠테이션의 본문 높이는 평균 300px대이며, 540px 고정은 빈 공간이 과도하게 발생합니다.
 - 본문 텍스트박스의 실제 콘텐츠가 height_px의 65% 미만이면 vertical_alignment을 "middle"로 설정하세요. 이렇게 하면 콘텐츠가 상단에 쏠리지 않고 시각적으로 균형 잡힌 배치가 됩니다.
 - 카드 레이아웃(step_cards, info_cards 등)은 캔버스 수직 중앙 기준으로 배치하세요.
 </content_vertical_balance>
@@ -409,6 +423,9 @@ shapes의 padding_*_px 필드로 텍스트와 shape 경계 사이 여백을 제�
 - 그 외에도 페이지에 이미지나 인포그래픽을 넣을 수 있는 부분이 있다면 최대한 반영하세요.
 - 각 페이지는 꼭 필요한 텍스트만 포함하여 너무 많은 텍스트는 자제하세요. 핵심 키워드와 짧은 문장 위주로 구성하세요.
 - 부연 설명은 슬라이드 본문에 넣지 말고 speaker_notes에 포함하세요.
+- 여백(negative space)을 의도적으로 활용하여 핵심 콘텐츠를 강조하세요. 빈 공간을 채우려 하지 말고, 시각적 여유가 청중의 시선을 핵심으로 유도합니다.
+- 기존 shape 속성(border_color, border_width_pt, fill_color, corner_radius_px)을 조합하여 시각적 계층 구조를 강화하세요. 예: 핵심 카드에 강조색 테두리, 배경 패널과 전경 카드의 fill_color 명도 차이, 섹션 구분용 얇은 구분선 등.
+- 장식용 얇은 라인(수평: height≤10px, 수직: width≤10px)을 카드 옆에 배치할 때는 반드시 **카드와 동일한 top_px, 동일한 height_px**로 맞추세요. 라인의 left_px + width_px가 카드의 left_px와 일치하도록 바로 붙여 배치하세요.
 </page_design_rules>
 
 <content_output_rules>

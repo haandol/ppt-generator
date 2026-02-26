@@ -72,7 +72,7 @@ class DesignSpec:
 - 첫 슬라이드 생성 후 `extract_design_summary()` → 후속 슬라이드에 전달하여 일관성 유지
 - `parse_slide_spec()` + `validate_slide_spec()` 재사용 (`interfaces/spec_utils.py`)
 - LLM structured_output용 Pydantic 모델: `interfaces/llm_output_models.py` — `SlideSpecOutput`
-- Bedrock Claude Opus 4.6 사용 (`global.anthropic.claude-opus-4-6-v1`, 64K tokens)
+- Bedrock Claude Sonnet 4.6 사용 (`global.anthropic.claude-sonnet-4-6`, 64K tokens)
 - 슬라이드 타입별 시스템 프롬프트 분리 ([ADR-0021](./0021-slide-type-specific-system-prompts.md))
 
 #### 디자인 시스템 프롬프트 — 레이아웃 규칙
@@ -103,10 +103,19 @@ class DesignSpec:
 - 같은 행 요소의 좌표 일관성 (예: 하단 info badge `top_px=626, height_px=30` 통일)
 - 하단 보조 요소(`top_px >= 540`) 2개 이상 배치 시 수직/수평 분리 필수
 - 블록 간 화살표 배치 시 수평/수직 모두 최소 28px gap 확보 필수
+- 여백(negative space) 활용 — 빈 공간을 채우려 하지 말고 시각적 여유로 핵심 콘텐츠 강조
+- 기존 shape 속성(border_color, fill_color 등) 조합으로 시각적 계층 구조 강화
+- 장식용 라인(수평: height≤10px, 수직: width≤10px)과 카드 배치 시 동일 top_px/height_px, 라인 right edge = 카드 left edge
+- `design_summary_user.prompt.md`에서 프레젠테이션 목적/톤(기술 교육 vs 의사결정 제안, 경영진 vs 엔지니어)을 파악하여 디자인 방향 조정
 
-**렌더러 안전망:**
+**렌더러/validator 안전망:**
 
 - `html_renderer.py`의 `_line_shape_to_html()`에서 선 길이가 짧으면 화살표 머리(markerWidth/markerHeight)를 `line_length * 0.6`으로 자동 축소
+- validator의 `_is_decorative_shape()` 헬퍼로 장식 요소 판별: 텍스트 없는 얇은 shape(height≤10px 또는 width≤10px)를 장식 요소로 인식
+  - `_validate_shapes()`: margin 무시, 높이 확장 없음
+  - `_resolve_overlaps()`: 겹침 해소 대상에서 제외 → 라인 옆 카드가 밀리지 않음
+- `_resolve_overlaps()`의 겹침 감지: `a_bottom <= b_t` → `a_bottom + gap <= b_t`로 변경하여 겹치지 않지만 gap=0으로 딱 붙은 요소에도 최소 16px 간격 강제. 연쇄 push-down 시 캔버스 하단 초과는 기존 height 축소 안전장치로 완화
+- textbox를 shape 위에 라벨로 겹쳐 배치하는 패턴 금지 (프롬프트 constraints): shape의 라벨은 paragraphs로 포함하도록 유도
 
 #### Design Spec → HTML 변환
 
@@ -174,7 +183,7 @@ class DesignSpec:
 
 ### Negative
 
-- 디자인 스펙 생성에 추가 LLM 호출(Opus 4.6 Extended Thinking) 필요
+- 디자인 스펙 생성에 추가 LLM 호출(Sonnet 4.6 Extended Thinking) 필요
 - HTML 미리보기가 position:absolute 기반이라 기존 Tailwind CSS 기반보다 시각적으로 단순할 수 있음
 - LLM이 정밀한 좌표를 생성해야 하므로 프롬프트 품질이 중요
 
