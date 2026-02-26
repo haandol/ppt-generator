@@ -27,10 +27,7 @@ LLM 출력 JSON
   → parse_slide_spec()
   → validate_slide_spec()      ← Validator
     ├─ _validate_textboxes()
-    ├─ _validate_shapes()
-    ├─ _fix_content_title_position()        [content만]
-    ├─ _fix_title_closing_main_position()   [title/closing만]
-    └─ _center_content_vertically()         [content만]
+    └─ _validate_shapes()
   → 검증된 PptxSlideSpec
 ```
 
@@ -41,7 +38,6 @@ LLM 출력 JSON
 | 대상 | 범위 | 비고 |
 |---|---|---|
 | 전체 textbox/shape | 10~44pt | `_clamp_font()` |
-| title/closing 메인 텍스트 (첫 번째 textbox) | 40~44pt | `_fix_title_closing_main_position()` |
 
 #### 2. 경계 여백 강제
 
@@ -63,36 +59,22 @@ paragraphs의 모든 run에 텍스트가 없는 textbox를 삭제한다.
 - **textbox**: height 부족 시 폰트를 비례 축소 (최소 10pt)
 - **shape**: 먼저 height 확장 시도 → 캔버스 한계 초과 시 폰트 축소. padding을 차감하여 실제 텍스트 영역 기준으로 계산
 
-#### 5. content 슬라이드 — 제목 위치 고정
+### 레이아웃 비개입 원칙
 
-첫 번째 textbox가 bold + 24pt 이상이면 제목으로 인식하여 고정 좌표로 보정한다.
+Validator는 요소의 위치(좌표)를 직접 변경하지 않는다. 레이아웃 관련 규칙은 프롬프트와 예제로 가이드한다.
 
-| 속성 | 값 |
-|---|---|
-| left | 64 |
-| top | 72 |
-| width | 1152 |
-| height | 48 |
+**Validator가 하지 않는 것:**
+- 제목/메인 텍스트 위치 강제 이동
+- 겹치는 요소를 밀어내는 push 로직
+- vertical_alignment 강제 변경
 
-#### 6. title/closing 슬라이드 — 메인 텍스트 위치 + 폰트 강제
+**이유:** Validator는 전체 레이아웃 컨텍스트 없이 개별 요소만 보정하므로, 위치를 이동하면 LLM이 전체적으로 계산한 좌표 밸런스를 깨트린다. 예를 들어 제목 위치를 고정한 후 바로 아래 요소만 밀어내면, 그 아래 요소들은 원래 위치에 남아 연쇄적 겹침이 발생한다.
 
-첫 번째 textbox의 좌표를 프롬프트 명세에 맞게 고정하고, 폰트 크기를 최소 40pt로 강제한다.
-
-| 속성 | title | closing |
-|---|---|---|
-| left | 64 | 64 |
-| top | 260 | 240 |
-| width | 1152 | 1152 |
-| height | ≥ 80 (텍스트 줄바꿈에 맞게 확장된 값 유지) | ≥ 80 |
-| 폰트 최소 | 40pt | 40pt |
-
-#### 7. content 슬라이드 — 수직 중앙 정렬
-
-`top ≥ 100`, `height ≥ 200`인 textbox에서 실제 콘텐츠가 height의 65% 미만이면 `vertical_alignment`을 `"top"` → `"middle"`로 변경한다.
+레이아웃 품질은 프롬프트의 constraint, 예제, pre-output overlap verification 절차를 통해 LLM이 올바른 좌표를 출력하도록 1차적으로 보장한다.
 
 ### 설계 원칙
 
-- **프롬프트 + validator 이중 방어**: 프롬프트가 1차 방어, validator가 2차 안전망
+- **프롬프트가 레이아웃, validator가 안전망**: 좌표/레이아웃 결정은 프롬프트가 담당하고, validator는 기계적으로 검증 가능한 항목(폰트 범위, 캔버스 경계, 텍스트 오버플로우)만 보정
 - **비파괴적 보정**: 원본 의도를 최대한 존중하되, 렌더링 결함만 수정
 - **장식 요소 예외 처리**: 꾸밈용 얇은 라인은 일반 규칙에서 제외
 
@@ -100,14 +82,14 @@ paragraphs의 모든 run에 텍스트가 없는 textbox를 삭제한다.
 
 ### Positive
 
-- LLM 출력의 좌표/폰트 오류를 자동 보정하여 렌더링 품질 보장
-- 프롬프트 변경 없이도 일관된 레이아웃 규칙 강제 가능
+- LLM 출력의 폰트/경계 오류를 자동 보정하여 렌더링 품질 보장
 - 텍스트 오버플로우를 폰트 메트릭 기반으로 정밀 방지
+- 레이아웃에 개입하지 않아 LLM의 디자인 의도를 훼손하지 않음
 
 ### Negative
 
-- validator가 보정한 결과가 LLM의 원래 디자인 의도와 다를 수 있음 (예: autofit으로 폰트가 작아짐)
-- 보정 규칙 추가 시 기존 슬라이드에 예기치 않은 영향 가능
+- LLM이 프롬프트를 따르지 않을 경우 제목 위치나 수직 정렬이 비표준일 수 있음 (프롬프트 품질에 의존)
+- autofit으로 폰트가 축소되면 LLM의 원래 타이포그래피 의도와 다를 수 있음
 
 ## References
 

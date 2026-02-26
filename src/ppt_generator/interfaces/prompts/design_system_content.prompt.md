@@ -347,7 +347,7 @@ Body slide (slide_type: "content") design rules:
 </examples>
 
 <typography_rules>
-- Slide title: font_size_pt 28~36, bold
+- Slide title: font_size_pt 32~36, bold. **Must use design_summary.title_font_pt if provided.** Below 32pt is not allowed.
 - Subtitle/label: font_size_pt 14~18
 - Body/description: font_size_pt 20~28
 - Card title: font_size_pt 18~24, bold
@@ -386,6 +386,14 @@ Hard constraints (rendering will fail if violated):
    - No overlap between same-level elements: Elements with the same role (e.g., card and card, textbox and textbox) must not have overlapping bounding boxes. If overlap exists, adjust the lower element's top_px to at least (upper element's top_px + height_px + 16).
    - **No overlap between elements with different roles either**: For example, shapes with different roles like "context detail box" and "insight summary banner" must not have overlapping bounding boxes. When placing 2+ independent elements at the bottom, always stack vertically (lower element starts at upper element's bottom + 16 or more) or arrange horizontally (non-overlapping x ranges).
    - Container-child nesting allowed: A large shape serving as a background/container with smaller shapes or textboxes placed inside it is allowed. In this case, child element bounding boxes must be completely contained within the parent shape's bounding box (child's left >= parent's left, child's top >= parent's top, child's right <= parent's right, child's bottom <= parent's bottom).
+   - **Container-child vertical stacking**: When placing multiple child elements vertically inside a container, calculate coordinates top-down sequentially. Each child's top_px must be >= previous child's (top_px + height_px + gap). Never estimate positions by eye — always compute from the previous element's bottom edge.
+     · Example (3 children stacked vertically inside a container, gap=8):
+       Container: top=148, height=444 → inner area top=148+padding_top, bottom=148+444-padding_bottom
+       Child A: top=168, height=50 → bottom=218
+       Child B: top=218+8=226, height=28 → bottom=254
+       Child C: top=254+8=262, height=112 → bottom=374
+       ✓ All children fit within container and do not overlap each other
+     · Common mistake: Setting child C's top=250 when child B's bottom=254 → 4px overlap causing visual corruption
    - Diagram connection lines allowed: line shapes (arrows, connectors) may overlap with block shapes.
    - Container-child pattern example: In arch_diagram, place small rounded_rectangles (blocks) inside a large rounded_rectangle (background panel) and connect with lines (arrows).
    - **No placing textboxes as labels overlapping shapes**: Shape labels/titles must be included as the first item in the shape's paragraphs. Placing a separate textbox at the same coordinates as a shape will cause text to be hidden. Container shape area labels should also be placed in paragraphs or in a separate non-overlapping area above the container.
@@ -395,7 +403,7 @@ Hard constraints (rendering will fail if violated):
 
 7. vertical_alignment required: Always specify vertical_alignment for all textboxes and shapes (null not allowed).
 
-8. Title position: Title must be placed at left=64, top=72, width=1152, height=48.
+8. Title position and font: Title must be placed at left=64, top=72, width=1152, height=48. Title font_size_pt must be 32~36 (use design_summary.title_font_pt if provided). Below 32pt is not allowed.
 
 9. Same-row element coordinate consistency: Elements arranged horizontally (cards, color bars, blocks, bottom info badges, etc.)
    must use **the same top_px and height_px**.
@@ -409,6 +417,14 @@ Hard constraints (rendering will fail if violated):
     bounding boxes must not overlap vertically. Always apply vertical separation (upper element bottom + 16 <= lower element top) or
     horizontal separation (non-overlapping x ranges). Refer to "Bottom auxiliary element layout rules" in <slide_type_content>.
     Reason: The bottom area has limited space, and overlapping elements hide content, causing critical information to be lost.
+
+**Pre-output overlap verification (mandatory)**:
+Before outputting the final JSON, verify every pair of vertically adjacent elements:
+  1. For each element, compute bottom = top_px + height_px
+  2. For the element below it, check: its top_px >= previous bottom + 16 (minimum gap)
+  3. For container-child patterns, verify all children fit within the container bounds
+  4. If any violation is found, recalculate the offending element's top_px before output
+This verification is critical because coordinate arithmetic errors (even off-by-1) cause visible overlap in the rendered slide.
 </constraints>
 
 <content_vertical_balance>

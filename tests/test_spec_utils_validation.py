@@ -1,6 +1,7 @@
 """spec_utils 검증 로직 통합 테스트.
 
-폰트 메트릭 기반 텍스트 오버플로우 방지, 여백 강제, 겹침 해소 검증.
+폰트 메트릭 기반 텍스트 오버플로우 방지, 여백 강제 검증.
+레이아웃 위치 조정은 validator가 수행하지 않으므로 테스트하지 않는다.
 """
 
 from __future__ import annotations
@@ -134,16 +135,41 @@ class TestMarginEnforcement:
         assert result.shapes[0].height_px == 120
 
 
-
 # ---------------------------------------------------------------------------
-# 수직 센터링
+# 레이아웃 비개입 확인
 # ---------------------------------------------------------------------------
 
 
-class TestVerticalCentering:
-    def test_short_content_gets_centered(self) -> None:
-        """짧은 콘텐츠 → vertical_alignment "middle"."""
-        tb = _tb("짧은 본문", font=20, top_px=180, width_px=1152, height_px=480)
+class TestNoLayoutIntervention:
+    """validator가 레이아웃 위치를 변경하지 않는 것을 확인한다."""
+
+    def test_content_title_position_preserved(self) -> None:
+        """content 슬라이드 제목 위치가 변경되지 않는다."""
+        tb = PptxTextBox(
+            left_px=100, top_px=100, width_px=1000, height_px=60,
+            paragraphs=[PptxParagraph(runs=[PptxTextRun(text="제목", font_size_pt=32, bold=True)])],
+        )
+        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="content"))
+        v = result.textboxes[0]
+        assert v.left_px == 100
+        assert v.top_px == 100
+
+    def test_title_slide_position_preserved(self) -> None:
+        """title 슬라이드 메인 텍스트 위치가 변경되지 않는다."""
+        tb = _tb("대제목", font=36, top_px=72, width_px=1152, height_px=48)
+        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="title"))
+        v = result.textboxes[0]
+        assert v.top_px == 72
+
+    def test_closing_slide_position_preserved(self) -> None:
+        """closing 슬라이드 메인 텍스트 위치가 변경되지 않는다."""
+        tb = _tb("감사합니다", font=40, top_px=72, width_px=1152, height_px=48)
+        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="closing"))
+        v = result.textboxes[0]
+        assert v.top_px == 72
+
+    def test_vertical_alignment_preserved(self) -> None:
+        """vertical_alignment이 validator에 의해 변경되지 않는다."""
         tb = PptxTextBox(
             left_px=64, top_px=180, width_px=1152, height_px=480,
             vertical_alignment="top",
@@ -153,76 +179,7 @@ class TestVerticalCentering:
             )],
         )
         result = validate_slide_spec(_slide(textboxes=[tb], slide_type="content"))
-        assert result.textboxes[0].vertical_alignment == "middle"
-
-    def test_long_content_stays_top(self) -> None:
-        """긴 콘텐츠 → vertical_alignment "top" 유지."""
-        paras = [
-            PptxParagraph(
-                runs=[PptxTextRun(text=f"항목 {i}: 설명 텍스트가 길게 들어갑니다", font_size_pt=20)],
-                bullet_level=0,
-            )
-            for i in range(12)
-        ]
-        tb = PptxTextBox(
-            left_px=64, top_px=180, width_px=1152, height_px=480,
-            vertical_alignment="top", paragraphs=paras,
-        )
-        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="content"))
         assert result.textboxes[0].vertical_alignment == "top"
-
-
-# ---------------------------------------------------------------------------
-# title/closing 메인 텍스트 위치 고정
-# ---------------------------------------------------------------------------
-
-
-class TestTitleClosingPositionFix:
-    def test_title_main_text_fixed_to_260(self) -> None:
-        """title 슬라이드 메인 텍스트 → top=260, left=64, width=1152로 보정."""
-        tb = _tb("대제목", font=36, top_px=72, width_px=1152, height_px=48)
-        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="title"))
-        v = result.textboxes[0]
-        assert (v.top_px, v.left_px, v.width_px) == (260, 64, 1152)
-        assert v.height_px >= 80
-
-    def test_closing_main_text_fixed_to_240(self) -> None:
-        """closing 슬라이드 메인 텍스트 → top=240으로 보정."""
-        tb = _tb("감사합니다", font=40, top_px=72, width_px=1152, height_px=48)
-        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="closing"))
-        v = result.textboxes[0]
-        assert (v.top_px, v.left_px, v.width_px) == (240, 64, 1152)
-        assert v.height_px >= 80
-
-    def test_title_small_font_enforced_to_40(self) -> None:
-        """title 슬라이드 메인 텍스트 폰트가 40pt 미만이면 40pt로 강제."""
-        tb = _tb("대제목", font=24, top_px=260, width_px=1152, height_px=80)
-        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="title"))
-        v = result.textboxes[0]
-        assert v.paragraphs[0].runs[0].font_size_pt == 40
-
-    def test_closing_small_font_enforced_to_40(self) -> None:
-        """closing 슬라이드 메인 텍스트 폰트가 40pt 미만이면 40pt로 강제."""
-        tb = _tb("감사합니다", font=20, top_px=240, width_px=1152, height_px=80)
-        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="closing"))
-        v = result.textboxes[0]
-        assert v.paragraphs[0].runs[0].font_size_pt == 40
-
-    def test_title_large_font_unchanged(self) -> None:
-        """title 슬라이드 메인 텍스트 폰트가 40pt 이상이면 변경 없음."""
-        tb = _tb("대제목", font=44, top_px=260, width_px=1152, height_px=120)
-        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="title"))
-        v = result.textboxes[0]
-        assert v.paragraphs[0].runs[0].font_size_pt == 44
-
-    def test_title_long_text_height_expanded(self) -> None:
-        """title 슬라이드 긴 제목(2줄) → height가 80 이상으로 확장."""
-        long_title = "에이전트 시대의 기초: LLM, 도구, 에이전트, MCP 이해하기"
-        tb = _tb(long_title, font=36, top_px=72, width_px=1152, height_px=80)
-        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="title"))
-        v = result.textboxes[0]
-        assert v.top_px == 260
-        assert v.height_px >= 80
 
 
 # ---------------------------------------------------------------------------
@@ -279,55 +236,6 @@ class TestTextboxPadding:
         font_with_pad = result_with_pad.textboxes[0].paragraphs[0].runs[0].font_size_pt
         # padding이 있으면 텍스트 영역이 좁아져서 폰트가 같거나 더 작아야 함
         assert font_with_pad <= font_no_pad
-
-    def test_padding_preserved_in_title_position_fix(self) -> None:
-        """content 제목 위치 고정 시 padding이 보존된다."""
-        tb = PptxTextBox(
-            left_px=100, top_px=100, width_px=1000, height_px=60,
-            paragraphs=[PptxParagraph(runs=[PptxTextRun(text="제목", font_size_pt=32, bold=True)])],
-            padding_left_px=10, padding_right_px=10,
-            padding_top_px=8, padding_bottom_px=8,
-        )
-        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="content"))
-        v = result.textboxes[0]
-        # 좌표는 고정값으로 보정
-        assert v.left_px == 64
-        assert v.top_px == 72
-        # padding은 보존
-        assert v.padding_left_px == 10
-        assert v.padding_right_px == 10
-
-    def test_padding_preserved_in_closing_position_fix(self) -> None:
-        """closing 메인 텍스트 위치 고정 시 padding이 보존된다."""
-        tb = PptxTextBox(
-            left_px=64, top_px=72, width_px=1152, height_px=48,
-            paragraphs=[PptxParagraph(runs=[PptxTextRun(text="감사합니다", font_size_pt=40, bold=True)])],
-            padding_left_px=16, padding_right_px=16,
-            padding_top_px=12, padding_bottom_px=12,
-        )
-        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="closing"))
-        v = result.textboxes[0]
-        assert v.top_px == 240
-        assert v.padding_left_px == 16
-        assert v.padding_bottom_px == 12
-
-    def test_padding_preserved_in_vertical_centering(self) -> None:
-        """수직 중앙 정렬 보정 시 padding이 보존된다."""
-        tb = PptxTextBox(
-            left_px=64, top_px=200, width_px=1152, height_px=400,
-            vertical_alignment="top",
-            paragraphs=[PptxParagraph(
-                runs=[PptxTextRun(text="짧은 본문", font_size_pt=20)],
-                bullet_level=0,
-            )],
-            padding_left_px=16, padding_right_px=16,
-            padding_top_px=12, padding_bottom_px=12,
-        )
-        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="content"))
-        v = result.textboxes[0]
-        assert v.vertical_alignment == "middle"
-        assert v.padding_left_px == 16
-        assert v.padding_bottom_px == 12
 
 
 class TestTextboxPaddingHtmlRendering:

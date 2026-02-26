@@ -1,6 +1,7 @@
 """PptxSlideSpec 검증 및 보정 유틸리티.
 
-LLM 출력 PptxSlideSpec의 경계/폰트/제목 위치/수직 정렬을 검증·보정한다.
+LLM 출력 PptxSlideSpec의 경계/폰트/텍스트 오버플로우를 검증·보정한다.
+레이아웃 위치 조정은 수행하지 않는다 — 프롬프트와 예제로 가이드한다.
 """
 
 from __future__ import annotations
@@ -13,7 +14,6 @@ from ppt_generator.interfaces.constants import (
     PPTX_VALIDATE_LINE_HEIGHT_FACTOR,
     SLIDES_HEIGHT_PX,
     SLIDES_WIDTH_PX,
-    SPEC_VALIDATE_CONTENT_CENTER_THRESHOLD,
     SPEC_VALIDATE_MARGIN_BOTTOM_PX,
     SPEC_VALIDATE_MARGIN_PX,
     TEXT_MEASURE_DEFAULT_SHAPE_PADDING_LR_PX,
@@ -44,27 +44,6 @@ _FONT_MAX = PPTX_VALIDATE_FONT_MAX_PT
 _LH_FACTOR = PPTX_VALIDATE_LINE_HEIGHT_FACTOR
 _MARGIN = SPEC_VALIDATE_MARGIN_PX
 _MARGIN_BOTTOM = SPEC_VALIDATE_MARGIN_BOTTOM_PX
-
-# 콘텐츠 슬라이드 제목 위치 고정값
-_CONTENT_TITLE_LEFT = 64
-_CONTENT_TITLE_TOP = 72
-_CONTENT_TITLE_WIDTH = 1152
-_CONTENT_TITLE_HEIGHT = 48
-_CONTENT_TITLE_MIN_FONT = 24
-
-# 타이틀/클로징 슬라이드 메인 텍스트 위치 고정값
-_TITLE_MAIN_LEFT = 64
-_TITLE_MAIN_TOP = 260
-_TITLE_MAIN_WIDTH = 1152
-_TITLE_MAIN_HEIGHT = 80
-
-_CLOSING_MAIN_LEFT = 64
-_CLOSING_MAIN_TOP = 240
-_CLOSING_MAIN_WIDTH = 1152
-_CLOSING_MAIN_HEIGHT = 80
-
-# 타이틀/클로징 메인 텍스트 최소 폰트 크기
-_TITLE_CLOSING_MAIN_MIN_FONT = 40
 
 
 
@@ -288,222 +267,26 @@ def _validate_shapes(
 
 
 # ---------------------------------------------------------------------------
-# 제목 위치 고정
-# ---------------------------------------------------------------------------
-
-
-def _fix_content_title_position(
-    textboxes: list[PptxTextBox],
-    shapes: list[PptxShape],
-) -> tuple[list[PptxTextBox], list[PptxShape]]:
-    """콘텐츠 슬라이드 제목 위치를 고정하고, 겹치는 요소를 아래로 밀어낸다."""
-    if not textboxes:
-        return textboxes, shapes
-
-    tb = textboxes[0]
-    is_title = any(
-        run.bold and run.font_size_pt and run.font_size_pt >= _CONTENT_TITLE_MIN_FONT
-        for para in tb.paragraphs
-        for run in para.runs
-    )
-    if not is_title:
-        return textboxes, shapes
-
-    old_bottom = tb.top_px + tb.height_px
-    new_bottom = _CONTENT_TITLE_TOP + _CONTENT_TITLE_HEIGHT
-
-    fixed_tb = PptxTextBox(
-        left_px=_CONTENT_TITLE_LEFT,
-        top_px=_CONTENT_TITLE_TOP,
-        width_px=_CONTENT_TITLE_WIDTH,
-        height_px=_CONTENT_TITLE_HEIGHT,
-        paragraphs=tb.paragraphs,
-        line_spacing_pt=tb.line_spacing_pt,
-        vertical_alignment=tb.vertical_alignment,
-        padding_left_px=tb.padding_left_px,
-        padding_right_px=tb.padding_right_px,
-        padding_top_px=tb.padding_top_px,
-        padding_bottom_px=tb.padding_bottom_px,
-    )
-    fixed_textboxes = [fixed_tb, *textboxes[1:]]
-
-    # 제목 하단이 확장된 경우, 겹치는 요소들을 밀어낸다
-    if new_bottom <= old_bottom:
-        return fixed_textboxes, shapes
-
-    min_gap = 16  # 최소 간격 (프롬프트 명세)
-    push_threshold = new_bottom  # 이 영역 안에 있는 요소를 밀어냄
-
-    # 나머지 textbox 밀어내기
-    adjusted_textboxes = [fixed_tb]
-    for other_tb in textboxes[1:]:
-        if other_tb.top_px < push_threshold:
-            adjusted_textboxes.append(PptxTextBox(
-                left_px=other_tb.left_px,
-                top_px=new_bottom + min_gap,
-                width_px=other_tb.width_px,
-                height_px=other_tb.height_px,
-                paragraphs=other_tb.paragraphs,
-                line_spacing_pt=other_tb.line_spacing_pt,
-                vertical_alignment=other_tb.vertical_alignment,
-                padding_left_px=other_tb.padding_left_px,
-                padding_right_px=other_tb.padding_right_px,
-                padding_top_px=other_tb.padding_top_px,
-                padding_bottom_px=other_tb.padding_bottom_px,
-            ))
-        else:
-            adjusted_textboxes.append(other_tb)
-
-    # shapes 밀어내기
-    adjusted_shapes: list[PptxShape] = []
-    for s in shapes:
-        if s.top_px < push_threshold and not _is_decorative_shape(s):
-            adjusted_shapes.append(replace(s, top_px=new_bottom + min_gap))
-        else:
-            adjusted_shapes.append(s)
-
-    return adjusted_textboxes, adjusted_shapes
-
-
-def _fix_title_closing_main_position(
-    textboxes: list[PptxTextBox],
-    slide_type: str,
-) -> list[PptxTextBox]:
-    """title/closing 슬라이드의 메인 텍스트박스 좌표를 프롬프트 명세에 맞게 고정한다.
-
-    LLM이 content 슬라이드의 top=72를 title/closing에도 적용하는 경우를 보정.
-    첫 번째 textbox만 고정 좌표로 설정하며, 나머지 요소는 건드리지 않는다.
-    height는 검증 단계에서 확장된 값이 target_height보다 크면 그 값을 유지한다.
-    """
-    if not textboxes:
-        return textboxes
-
-    if slide_type == "title":
-        target_left = _TITLE_MAIN_LEFT
-        target_top = _TITLE_MAIN_TOP
-        target_width = _TITLE_MAIN_WIDTH
-        target_height = _TITLE_MAIN_HEIGHT
-    elif slide_type == "closing":
-        target_left = _CLOSING_MAIN_LEFT
-        target_top = _CLOSING_MAIN_TOP
-        target_width = _CLOSING_MAIN_WIDTH
-        target_height = _CLOSING_MAIN_HEIGHT
-    else:
-        return textboxes
-
-    tb = textboxes[0]
-
-    # 메인 텍스트 폰트 크기를 최소 32pt로 강제
-    min_font = _TITLE_CLOSING_MAIN_MIN_FONT
-    enforced_paragraphs = []
-    for para in tb.paragraphs:
-        new_runs = []
-        for run in para.runs:
-            if run.font_size_pt and run.font_size_pt < min_font:
-                new_runs.append(replace(run, font_size_pt=min_font))
-            else:
-                new_runs.append(run)
-        enforced_paragraphs.append(replace(para, runs=new_runs))
-
-    # 이미 올바른 위치면 paragraphs만 업데이트
-    if tb.top_px == target_top and tb.left_px == target_left:
-        fixed_tb = PptxTextBox(
-            left_px=tb.left_px,
-            top_px=tb.top_px,
-            width_px=tb.width_px,
-            height_px=tb.height_px,
-            paragraphs=enforced_paragraphs,
-            line_spacing_pt=tb.line_spacing_pt,
-            vertical_alignment=tb.vertical_alignment,
-            padding_left_px=tb.padding_left_px,
-            padding_right_px=tb.padding_right_px,
-            padding_top_px=tb.padding_top_px,
-            padding_bottom_px=tb.padding_bottom_px,
-        )
-        return [fixed_tb, *textboxes[1:]]
-
-    # 검증 단계에서 텍스트 줄바꿈에 맞게 확장된 높이를 유지한다
-    final_height = max(target_height, tb.height_px)
-
-    fixed_tb = PptxTextBox(
-        left_px=target_left,
-        top_px=target_top,
-        width_px=target_width,
-        height_px=final_height,
-        paragraphs=enforced_paragraphs,
-        line_spacing_pt=tb.line_spacing_pt,
-        vertical_alignment=tb.vertical_alignment,
-        padding_left_px=tb.padding_left_px,
-        padding_right_px=tb.padding_right_px,
-        padding_top_px=tb.padding_top_px,
-        padding_bottom_px=tb.padding_bottom_px,
-    )
-    return [fixed_tb, *textboxes[1:]]
-
-
-
-# ---------------------------------------------------------------------------
-# 수직 중앙 정렬
-# ---------------------------------------------------------------------------
-
-
-def _center_content_vertically(
-    textboxes: list[PptxTextBox],
-    threshold: float = SPEC_VALIDATE_CONTENT_CENTER_THRESHOLD,
-) -> list[PptxTextBox]:
-    result: list[PptxTextBox] = []
-    for tb in textboxes:
-        if (
-            tb.vertical_alignment == "top"
-            and tb.top_px >= 100
-            and tb.height_px >= 200
-        ):
-            pad_l = tb.padding_left_px or 0.0
-            pad_r = tb.padding_right_px or 0.0
-            pad_t = tb.padding_top_px or 0.0
-            pad_b = tb.padding_bottom_px or 0.0
-            content_h = calculate_required_height(
-                tb.paragraphs, tb.width_px, tb.line_spacing_pt,
-                padding_left_px=pad_l, padding_right_px=pad_r,
-                padding_top_px=pad_t, padding_bottom_px=pad_b,
-            )
-            if content_h < tb.height_px * threshold:
-                tb = PptxTextBox(
-                    left_px=tb.left_px,
-                    top_px=tb.top_px,
-                    width_px=tb.width_px,
-                    height_px=tb.height_px,
-                    paragraphs=tb.paragraphs,
-                    line_spacing_pt=tb.line_spacing_pt,
-                    vertical_alignment="middle",
-                    padding_left_px=tb.padding_left_px,
-                    padding_right_px=tb.padding_right_px,
-                    padding_top_px=tb.padding_top_px,
-                    padding_bottom_px=tb.padding_bottom_px,
-                )
-        result.append(tb)
-    return result
-
-
-# ---------------------------------------------------------------------------
 # 공개 API
 # ---------------------------------------------------------------------------
 
 
 def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
-    """LLM 출력 PptxSlideSpec을 검증하고 보정한다."""
+    """LLM 출력 PptxSlideSpec을 검증하고 보정한다.
+
+    수행하는 보정:
+    - 폰트 크기 클램핑 (10~44pt)
+    - 경계 여백 강제 (캔버스 밖 방지)
+    - 빈 텍스트박스 제거
+    - 텍스트 오버플로우 방지 (autofit)
+
+    수행하지 않는 보정 (프롬프트로 가이드):
+    - 제목/메인 텍스트 위치 고정
+    - 수직 중앙 정렬
+    - 겹침 해소를 위한 요소 밀어내기
+    """
     validated_textboxes = _validate_textboxes(spec.textboxes)
     validated_shapes = _validate_shapes(spec.shapes)
-
-    if spec.slide_type == "content":
-        validated_textboxes, validated_shapes = _fix_content_title_position(
-            validated_textboxes, validated_shapes,
-        )
-    elif spec.slide_type in ("title", "closing"):
-        validated_textboxes = _fix_title_closing_main_position(validated_textboxes, spec.slide_type)
-
-    if spec.slide_type == "content":
-        validated_textboxes = _center_content_vertically(validated_textboxes)
 
     return PptxSlideSpec(
         background_color=spec.background_color,
