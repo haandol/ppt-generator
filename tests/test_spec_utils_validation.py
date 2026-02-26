@@ -192,6 +192,27 @@ class TestTitleClosingPositionFix:
         assert (v.top_px, v.left_px, v.width_px) == (240, 64, 1152)
         assert v.height_px >= 80
 
+    def test_title_small_font_enforced_to_40(self) -> None:
+        """title 슬라이드 메인 텍스트 폰트가 40pt 미만이면 40pt로 강제."""
+        tb = _tb("대제목", font=24, top_px=260, width_px=1152, height_px=80)
+        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="title"))
+        v = result.textboxes[0]
+        assert v.paragraphs[0].runs[0].font_size_pt == 40
+
+    def test_closing_small_font_enforced_to_40(self) -> None:
+        """closing 슬라이드 메인 텍스트 폰트가 40pt 미만이면 40pt로 강제."""
+        tb = _tb("감사합니다", font=20, top_px=240, width_px=1152, height_px=80)
+        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="closing"))
+        v = result.textboxes[0]
+        assert v.paragraphs[0].runs[0].font_size_pt == 40
+
+    def test_title_large_font_unchanged(self) -> None:
+        """title 슬라이드 메인 텍스트 폰트가 40pt 이상이면 변경 없음."""
+        tb = _tb("대제목", font=44, top_px=260, width_px=1152, height_px=120)
+        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="title"))
+        v = result.textboxes[0]
+        assert v.paragraphs[0].runs[0].font_size_pt == 44
+
     def test_title_long_text_height_expanded(self) -> None:
         """title 슬라이드 긴 제목(2줄) → height가 80 이상으로 확장."""
         long_title = "에이전트 시대의 기초: LLM, 도구, 에이전트, MCP 이해하기"

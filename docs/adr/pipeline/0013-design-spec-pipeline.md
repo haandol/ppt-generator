@@ -111,11 +111,7 @@ class DesignSpec:
 **렌더러/validator 안전망:**
 
 - `html_renderer.py`의 `_line_shape_to_html()`에서 선 길이가 짧으면 화살표 머리(markerWidth/markerHeight)를 `line_length * 0.6`으로 자동 축소
-- validator의 `_is_decorative_shape()` 헬퍼로 장식 요소 판별: 텍스트 없는 얇은 shape(height≤10px 또는 width≤10px)를 장식 요소로 인식
-  - `_validate_shapes()`: margin 무시, 높이 확장 없음
-  - `_resolve_overlaps()`: 겹침 해소 대상에서 제외 → 라인 옆 카드가 밀리지 않음
-- `_resolve_overlaps()`의 겹침 감지: `a_bottom <= b_t` → `a_bottom + gap <= b_t`로 변경하여 겹치지 않지만 gap=0으로 딱 붙은 요소에도 최소 16px 간격 강제. 연쇄 push-down 시 캔버스 하단 초과는 기존 height 축소 안전장치로 완화
-- textbox를 shape 위에 라벨로 겹쳐 배치하는 패턴 금지 (프롬프트 constraints): shape의 라벨은 paragraphs로 포함하도록 유도
+- validator의 검증·보정 규칙 상세는 [ADR-0023](./0023-design-spec-validator.md) 참조
 
 #### Design Spec → HTML 변환
 
@@ -203,5 +199,5 @@ class DesignSpec:
 - 디자인 스펙 저장소: `src/ppt_generator/tools/project/design_spec_store.py` — 디자인 스펙 파일 CRUD
 - DI 컨테이너: `src/ppt_generator/di/container.py` — `_create_design_agent()`, `design_service` 프로퍼티
 - MCP 서버: `src/ppt_generator/server.py` — `register_design_tools()` 호출
-- Spec 검증: `src/ppt_generator/interfaces/spec_utils.py` — `_fix_content_title_position()` (content 제목 top=72 보정)
-- 관련 ADR: [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md), [0011-progressive-refinement-pipeline](./0011-progressive-refinement-pipeline.md), [0015-per-slide-file-separation](./0015-per-slide-file-separation.md), [0016-per-slide-html-iframe](./0016-per-slide-html-iframe.md), [0017-font-metric-text-overflow-prevention](./0017-font-metric-text-overflow-prevention.md), [0021-slide-type-specific-system-prompts](./0021-slide-type-specific-system-prompts.md)
+- Spec 검증: `src/ppt_generator/interfaces/spec_utils/validator.py` — [ADR-0023](./0023-design-spec-validator.md) 참조
+- 관련 ADR: [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md), [0011-progressive-refinement-pipeline](./0011-progressive-refinement-pipeline.md), [0015-per-slide-file-separation](./0015-per-slide-file-separation.md), [0016-per-slide-html-iframe](./0016-per-slide-html-iframe.md), [0017-font-metric-text-overflow-prevention](./0017-font-metric-text-overflow-prevention.md), [0021-slide-type-specific-system-prompts](./0021-slide-type-specific-system-prompts.md), [0023-design-spec-validator](./0023-design-spec-validator.md)

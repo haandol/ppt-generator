@@ -19,7 +19,7 @@ Accepted
 
 ### validator 보정의 한계
 
-validator가 title/closing의 첫 텍스트박스를 강제로 아래로 이동시키면, 하위 요소(부제목, 연락처 등)도 같은 offset만큼 밀려나 캔버스 하단을 넘어 잘리는 문제 발생.
+validator가 title/closing의 첫 텍스트박스를 강제로 아래로 이동시키면, 하위 요소(부제목, 연락처 등)도 같은 offset만큼 밀려나 캔버스 하단을 넘어 잘리는 문제 발생. validator의 현재 보정 규칙 상세는 [ADR-0023](./0023-design-spec-validator.md) 참조.
 
 ## Decision
 
@@ -69,4 +69,4 @@ validator가 title/closing의 첫 텍스트박스를 강제로 아래로 이동�
 - 프롬프트 로딩: `src/ppt_generator/interfaces/prompts/__init__.py` — `DESIGN_SPEC_SYSTEM_PROMPTS`
 - 팩토리: `src/ppt_generator/di/container.py` — `create_design_service(effort, slide_type)`
 - 병렬 러너: `src/ppt_generator/tools/design/parallel_runner.py` — `_generate_slide()`
-- 관련 ADR: [0018-parallel-design-spec-and-prompt-caching](./0018-parallel-design-spec-and-prompt-caching.md)
+- 관련 ADR: [0018-parallel-design-spec-and-prompt-caching](./0018-parallel-design-spec-and-prompt-caching.md), [0023-design-spec-validator](./0023-design-spec-validator.md)

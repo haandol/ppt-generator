@@ -33,6 +33,7 @@ adr/
 - [0018: 디자인 스펙 병렬 생성, 프롬프트 캐싱 및 Adaptive Effort](./pipeline/0018-parallel-design-spec-and-prompt-caching.md)
 - [0020: 토큰 사용량 추적 및 비용 추정](./pipeline/0020-token-usage-tracking-and-cost-estimation.md)
 - [0021: 슬라이드 타입별 시스템 프롬프트 분리](./pipeline/0021-slide-type-specific-system-prompts.md)
+- [0023: 디자인 스펙 Validator](./pipeline/0023-design-spec-validator.md)
 
 ### Pipeline — Superseded
 

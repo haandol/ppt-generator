@@ -6,7 +6,7 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
 - 우측 하단 영역(left_px > 1080, top_px > 600)에 요소를 배치하지 마세요 (로고 자동 삽입 영역)
 - 메인 텍스트를 캔버스 수직 중앙에 배치합니다. 감사 인사 텍스트와 부가 정보의 수직 중심이 캔버스 중앙(y=360) 부근에 오도록 합니다.
 - 레이아웃 (반드시 아래 좌표를 그대로 사용):
-  · 감사 인사: left=64, top=240, width=1152, height=80, font_size_pt 32~40, bold, vertical_alignment "middle", alignment "center"
+  · 감사 인사: left=64, top=240, width=1152, height=80, font_size_pt 40~44, bold, vertical_alignment "middle", alignment "center"
   · 부제목/Q&A: left=64, top=340, width=1152, height=60, font_size_pt 16~20, vertical_alignment "middle", alignment "center"
   · 연락처/요약 (선택): left=64, top=420, width=1000, height=120, font_size_pt 14~16, vertical_alignment "top", alignment "center"
 </slide_type_closing>
@@ -45,7 +45,7 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
 </examples>
 
 <typography_rules>
-- 감사 인사: font_size_pt 32~40, bold
+- 감사 인사: font_size_pt 40~44, bold
 - 부제목/라벨: font_size_pt 16~20
 - 보조 텍스트: font_size_pt 12~16
 </typography_rules>
@@ -61,4 +61,5 @@ Thank You 슬라이드 (slide_type: "closing") 디자인 규칙:
 6. 여백 확보: 모든 콘텐츠 요소는 left_px >= 64, top_px >= 64, left_px + width_px <= 1216, top_px + height_px <= 656을 만족해야 합니다.
 7. vertical_alignment 필수: 모든 textbox와 shape에 vertical_alignment을 반드시 지정하세요 (null 금지).
 8. 감사 인사 위치: 감사 인사는 반드시 left=64, top=240, width=1152, height=80으로 배치하세요.
+9. 감사 인사 폰트 크기: 감사 인사 텍스트의 font_size_pt는 반드시 40~44 범위로 설정하세요. 40pt 미만은 금지합니다.
 </constraints>

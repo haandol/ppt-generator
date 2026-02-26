@@ -59,21 +59,9 @@ TEXT_MEASURE_DEFAULT_SHAPE_PADDING_LR_PX = 4.8
 TEXT_MEASURE_DEFAULT_SHAPE_PADDING_TB_PX = 2.4
 ```
 
-#### 3. 검증 로직 재작성 (`interfaces/spec_utils.py`)
+#### 3. 검증 로직에 적용
 
-**`_validate_textboxes` 변경:**
-- 기존 `num_lines × max_font × lh_factor` → `calculate_required_height()` 호출
-- 높이 부족 시: 먼저 박스 확장 시도 → 캔버스 경계 초과 시 `_apply_font_scale()`로 폰트 축소
-
-**`_validate_shapes` 변경:**
-- padding을 해석하여 `calculate_required_height()`에 전달
-- `shape.text` (단순 텍스트): `calculate_required_height_simple_text()` 사용
-- `shape.paragraphs` (구조화 텍스트): `calculate_required_height()` 사용
-- 동일한 확장 → 축소 전략 적용
-
-**`_apply_font_scale(paragraphs, scale, font_min)` 신규 헬퍼:**
-- `dataclasses.replace()`로 모든 run의 `font_size_pt`를 `int(pt × scale)` 적용
-- `font_min` (기본 10pt) 이하로는 축소하지 않음
+텍스트 측정 모듈을 validator에서 호출하여 높이 검증과 autofit 폰트 축소를 수행한다. validator의 적용 상세는 [ADR-0023](./0023-design-spec-validator.md) 참조.
 
 #### 4. 프롬프트 강화 (`interfaces/prompts/design_prompts.py`)
 
@@ -126,7 +114,7 @@ TEXT_MEASURE_DEFAULT_SHAPE_PADDING_TB_PX = 2.4
 
 - 텍스트 측정 모듈: `src/ppt_generator/interfaces/text_measurement.py`
 - 상수: `src/ppt_generator/interfaces/constants.py` — `TEXT_MEASURE_*` 상수
-- 검증 유틸리티: `src/ppt_generator/interfaces/spec_utils.py` — `_validate_textboxes`, `_validate_shapes`, `_apply_font_scale`
-- 프롬프트: `src/ppt_generator/interfaces/prompts/design_prompts.py` — 텍스트 크기 추정 가이드
+- 검증 유틸리티: `src/ppt_generator/interfaces/spec_utils/validator.py` — [ADR-0023](./0023-design-spec-validator.md) 참조
+- 프롬프트: `src/ppt_generator/interfaces/prompts/design_system_content.prompt.md` — 텍스트 크기 추정 가이드
 - 테스트: `tests/test_text_measurement.py`, `tests/test_spec_utils_validation.py`
-- 관련 ADR: [0013-design-spec-pipeline](./0013-design-spec-pipeline.md)
+- 관련 ADR: [0013-design-spec-pipeline](./0013-design-spec-pipeline.md), [0023-design-spec-validator](./0023-design-spec-validator.md)

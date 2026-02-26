@@ -63,6 +63,9 @@ _CLOSING_MAIN_TOP = 240
 _CLOSING_MAIN_WIDTH = 1152
 _CLOSING_MAIN_HEIGHT = 80
 
+# 타이틀/클로징 메인 텍스트 최소 폰트 크기
+_TITLE_CLOSING_MAIN_MIN_FONT = 40
+
 
 
 # ---------------------------------------------------------------------------
@@ -332,9 +335,31 @@ def _fix_title_closing_main_position(
         return textboxes
 
     tb = textboxes[0]
-    # 이미 올바른 위치면 변경하지 않음
+
+    # 메인 텍스트 폰트 크기를 최소 32pt로 강제
+    min_font = _TITLE_CLOSING_MAIN_MIN_FONT
+    enforced_paragraphs = []
+    for para in tb.paragraphs:
+        new_runs = []
+        for run in para.runs:
+            if run.font_size_pt and run.font_size_pt < min_font:
+                new_runs.append(replace(run, font_size_pt=min_font))
+            else:
+                new_runs.append(run)
+        enforced_paragraphs.append(replace(para, runs=new_runs))
+
+    # 이미 올바른 위치면 paragraphs만 업데이트
     if tb.top_px == target_top and tb.left_px == target_left:
-        return textboxes
+        fixed_tb = PptxTextBox(
+            left_px=tb.left_px,
+            top_px=tb.top_px,
+            width_px=tb.width_px,
+            height_px=tb.height_px,
+            paragraphs=enforced_paragraphs,
+            line_spacing_pt=tb.line_spacing_pt,
+            vertical_alignment=tb.vertical_alignment,
+        )
+        return [fixed_tb, *textboxes[1:]]
 
     # 검증 단계에서 텍스트 줄바꿈에 맞게 확장된 높이를 유지한다
     final_height = max(target_height, tb.height_px)
@@ -344,7 +369,7 @@ def _fix_title_closing_main_position(
         top_px=target_top,
         width_px=target_width,
         height_px=final_height,
-        paragraphs=tb.paragraphs,
+        paragraphs=enforced_paragraphs,
         line_spacing_pt=tb.line_spacing_pt,
         vertical_alignment=tb.vertical_alignment,
     )
