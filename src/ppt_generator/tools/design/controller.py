@@ -36,37 +36,37 @@ def register_design_tools(
         slide_indices: str = "",
         ctx: Context | None = None,
     ) -> str:
-        """슬라이드 디자인 스펙을 생성합니다 (전체 또는 선택적, 서버 내부 병렬 처리).
+        """Generates slide design specs (all or selective, with server-side parallel processing).
 
-        전체 슬라이드를 일괄 생성하거나, slide_indices로 특정 슬라이드만 선택적으로 생성할 수 있습니다.
-        **병렬 처리는 서버 내부에서 자동으로 수행**되므로, 이 도구를 여러 번 병렬 호출할 필요가 없습니다.
-        환경변수 DESIGN_SPEC_PARALLEL(기본 8)로 동시 생성 수를 제어합니다.
+        Can generate all slides at once, or selectively generate specific slides via slide_indices.
+        **Parallel processing is handled automatically inside the server**, so there is no need to call this tool multiple times in parallel.
+        The DESIGN_SPEC_PARALLEL env var (default 8) controls the concurrency level.
 
-        **처리 순서:**
-        1. design_summary가 없으면 LLM으로 디자인 테마를 사전 생성합니다.
-        2. 모든 슬라이드를 병렬로 생성합니다 (각 슬라이드의 HTML 미리보기도 자동 생성).
-        3. 일부 슬라이드가 실패해도 나머지는 정상 저장됩니다.
-           실패한 슬라이드는 이 도구에 해당 slide_indices만 지정하여 재시도할 수 있습니다.
+        **Processing order:**
+        1. If design_summary doesn't exist, pre-generates the design theme via LLM.
+        2. Generates all slides in parallel (HTML preview for each slide is also auto-generated).
+        3. If some slides fail, the rest are still saved normally.
+           Failed slides can be retried by specifying only those slide_indices in this tool.
 
-        **개별 슬라이드 수정은 `modify_design_spec`의 update action을 사용하세요.**
+        **For individual slide modifications, use the update action in `modify_design_spec`.**
 
-        **사전 조건: 아웃라인 생성 후 사용자에게 아웃라인 수정 사항이 없는지 반드시 확인을 받은 뒤 호출하세요.**
+        **Precondition: After outline generation, you must confirm with the user that there are no outline modifications before calling.**
 
         Args:
-            project_id: 프로젝트 ID. 지정하면 저장된 script.json(없으면 outline.json)에서 자동 로드합니다.
-            outline_json: 전체 아웃라인 JSON ({"slides": [...]}) - 모든 슬라이드 포함. project_id를 지정하면 생략 가능합니다.
-            total_slides: 전체 슬라이드 수. 0이면 로드된 아웃라인에서 자동 계산됩니다.
-            color_theme: 색상 테마 ("dark" 또는 "light", 기본값: "dark")
-            slide_indices: 생성할 슬라이드 인덱스 (0-based, 콤마 구분). 예: "0,2,4". 빈 문자열이면 전체 생성.
+            project_id: Project ID. If specified, automatically loads from saved script.json (or outline.json if unavailable).
+            outline_json: Full outline JSON ({"slides": [...]}) - including all slides. Can be omitted if project_id is specified.
+            total_slides: Total number of slides. 0 = auto-calculated from loaded outline.
+            color_theme: Color theme ("dark" or "light", default: "dark")
+            slide_indices: Slide indices to generate (0-based, comma-separated). E.g., "0,2,4". Empty string = generate all.
 
         Returns:
-            design_spec_dir, slide_count, total_slides, project_id, success_count, error_count, results를 포함하는 JSON 문자열
+            JSON string containing design_spec_dir, slide_count, total_slides, project_id, success_count, error_count, results
 
-        **IMPORTANT — 후속 필수 작업:**
-        이 도구 호출이 성공하면, 반드시 `export_html(project_id=<project_id>)`를 호출하여
-        HTML을 내보내고 slides_html_path를 사용자에게 안내하세요.
+        **IMPORTANT — Required follow-up action:**
+        After this tool call succeeds, you must call `export_html(project_id=<project_id>)`
+        to export HTML and share the slides_html_path with the user.
         """
-        # --- 아웃라인 로드 ---
+        # --- Load outline ---
         if outline_json:
             outline = parse_outline_json(outline_json)
         elif project_id:
@@ -74,45 +74,45 @@ def register_design_tools(
             raw = project_service.load_script_or_outline(proj_dir)
             outline = parse_outline_json(raw)
         else:
-            raise ValueError("outline_json 또는 project_id 중 하나를 제공해야 합니다.")
+            raise ValueError("Either outline_json or project_id must be provided.")
 
         if total_slides == 0:
             total_slides = len(outline.slides)
 
-        # --- slide_indices 파싱 및 검증 ---
+        # --- Parse and validate slide_indices ---
         if not slide_indices and len(outline.slides) != total_slides:
             raise ValueError(
-                f"outline의 slides 수({len(outline.slides)})와 "
-                f"total_slides({total_slides})가 일치하지 않습니다."
+                f"Number of slides in outline ({len(outline.slides)}) does not match "
+                f"total_slides ({total_slides})."
             )
 
         if slide_indices:
             indices = sorted(set(int(x.strip()) for x in slide_indices.split(",")))
             for idx in indices:
                 if idx < 0 or idx >= len(outline.slides):
-                    raise ValueError(f"유효하지 않은 slide_index: {idx}")
+                    raise ValueError(f"Invalid slide_index: {idx}")
         else:
             indices = list(range(total_slides))
 
         project_id, project_dir = project_service.resolve_project_dir(project_id)
         target_count = len(indices)
 
-        # --- Step 1: design_summary 사전 생성 ---
+        # --- Step 1: Pre-generate design_summary ---
         existing_summary = project_service.load_design_summary(project_dir)
         if existing_summary is None:
-            logger.info("design_summary 사전 생성 시작 (LLM 호출)")
+            logger.info("Starting design_summary pre-generation (LLM call)")
             summary_svc = design_service_factory("medium", "content")
             summary = summary_svc.generate_design_summary(outline, color_theme)
             project_service.save_design_summary(project_dir, summary)
-            logger.info("design_summary 사전 생성 완료")
+            logger.info("design_summary pre-generation completed")
             if ctx is not None:
-                await ctx.report_progress(0, target_count, "디자인 테마 생성 완료")
+                await ctx.report_progress(0, target_count, "Design theme generation completed")
 
-        # --- Step 2: 병렬 생성 ---
+        # --- Step 2: Parallel generation ---
         design_summary = project_service.load_design_summary(project_dir)
 
-        # report_progress를 동기 콜백으로 래핑 (runner는 동기 스레드에서 실행)
-        # call_soon_threadsafe로 이벤트 루프에 즉시 스케줄링하여 실시간 프로그레스 표시
+        # Wrap report_progress as sync callback (runner runs in sync thread)
+        # Use call_soon_threadsafe to schedule on event loop for real-time progress
         loop = asyncio.get_running_loop()
 
         def sync_report(progress: int, message: str) -> None:
@@ -139,16 +139,16 @@ def register_design_tools(
         project_service.update_step(project_dir, "design_spec")
         slide_count = project_service.get_design_spec_slide_count(project_dir)
 
-        # --- Step 3: slides.html 컨테이너 생성 ---
+        # --- Step 3: Generate slides.html container ---
         slides_html_path: str | None = None
         if slides_service is not None and slide_count > 0:
             container_html = SlidesService._build_container_html(slide_count)
             path = project_dir / "slides.html"
             path.write_text(container_html, encoding="utf-8")
             slides_html_path = str(path)
-            logger.info("slides.html 컨테이너 생성 완료: %s", path)
+            logger.info("slides.html container generated: %s", path)
 
-        # --- 토큰 사용량 & 예상 비용 ---
+        # --- Token usage & estimated cost ---
         aggregated_usage: dict[str, int] = {}
         pr = parallel_result
         if pr.total_input_tokens or pr.total_output_tokens:
@@ -186,33 +186,33 @@ def register_design_tools(
         slide_index: int = -1,
         color_theme: str = "dark",
     ) -> str:
-        """디자인 스펙의 개별 슬라이드를 추가, 수정, 삭제합니다.
+        """Adds, updates, or deletes individual slides in the design spec.
 
-        기존 프로젝트의 디자인 스펙에서 슬라이드 단위 CRUD를 수행합니다.
-        add/update 시 첫 슬라이드의 디자인을 기반으로 일관된 스타일을 유지합니다.
+        Performs slide-level CRUD on an existing project's design spec.
+        For add/update, maintains consistent style based on the first slide's design.
 
-        **사전 조건 (add/update):**
-        이 도구를 호출하기 전에, 반드시 outline/script JSONL 파일을 먼저 수정해두세요.
-        - add: 삽입할 위치에 새 슬라이드 줄을 미리 삽입
-        - update: 해당 slide_index의 줄을 미리 수정
-        이 도구는 파일에서 해당 slide_index의 아웃라인을 읽어 디자인 스펙을 생성합니다.
+        **Precondition (add/update):**
+        Before calling this tool, you must first modify the outline/script JSONL file.
+        - add: Pre-insert a new slide line at the insertion position
+        - update: Pre-modify the line at the target slide_index
+        This tool reads the outline at the specified slide_index from the file to generate the design spec.
 
         Args:
-            project_id: 대상 프로젝트 ID (필수)
-            action: 수행할 작업 ("add" | "update" | "delete")
-            slide_index: add일 때 삽입 위치(-1이면 끝), update/delete일 때 대상 인덱스
-            color_theme: 색상 테마 ("dark" 또는 "light", 기본값: "dark")
+            project_id: Target project ID (required)
+            action: Action to perform ("add" | "update" | "delete")
+            slide_index: Insertion position for add (-1 = end), target index for update/delete
+            color_theme: Color theme ("dark" or "light", default: "dark")
 
         Returns:
-            design_spec_path, project_id, slide_count를 포함하는 JSON 문자열
+            JSON string containing design_spec_path, project_id, slide_count
 
-        **IMPORTANT — 후속 필수 작업:**
-        이 도구 호출이 성공하면 (action이 "add" 또는 "update"일 때),
-        반드시 `export_html(project_id=<project_id>)`를 호출하여
-        HTML을 내보내고 slides_html_path를 사용자에게 안내하세요.
+        **IMPORTANT — Required follow-up action:**
+        After this tool call succeeds (when action is "add" or "update"),
+        you must call `export_html(project_id=<project_id>)`
+        to export HTML and share the slides_html_path with the user.
         """
         if action not in ("add", "update", "delete"):
-            raise ValueError(f"action은 'add', 'update', 'delete' 중 하나여야 합니다: {action}")
+            raise ValueError(f"action must be one of 'add', 'update', 'delete': {action}")
 
         _, project_dir = project_service.resolve_project_dir(project_id)
         slide_count = project_service.get_design_spec_slide_count(project_dir)
@@ -226,7 +226,7 @@ def register_design_tools(
 
         if action == "add":
             insert_idx = slide_index if 0 <= slide_index < slide_count else slide_count
-            # outline/script JSONL에서 해당 인덱스의 슬라이드를 읽어온다
+            # Read slide at target index from outline/script JSONL
             outline_raw = project_service.load_script_or_outline_slide(project_dir, insert_idx)
             outline = parse_outline_json(outline_raw)
             slide_outline = outline.slides[0]
@@ -248,8 +248,8 @@ def register_design_tools(
 
         elif action == "update":
             if slide_index < 0 or slide_index >= slide_count:
-                raise ValueError(f"유효하지 않은 slide_index: {slide_index} (전체 {slide_count}장)")
-            # outline/script JSONL에서 해당 인덱스의 슬라이드를 읽어온다
+                raise ValueError(f"Invalid slide_index: {slide_index} (total {slide_count} slides)")
+            # Read slide at target index from outline/script JSONL
             outline_raw = project_service.load_script_or_outline_slide(project_dir, slide_index)
             outline = parse_outline_json(outline_raw)
             slide_outline = outline.slides[0]
@@ -271,9 +271,9 @@ def register_design_tools(
 
         elif action == "delete":
             if slide_index < 0 or slide_index >= slide_count:
-                raise ValueError(f"유효하지 않은 slide_index: {slide_index} (전체 {slide_count}장)")
+                raise ValueError(f"Invalid slide_index: {slide_index} (total {slide_count} slides)")
             project_service.delete_design_spec_slide(project_dir, slide_index)
-            # outline/script JSONL 동기화
+            # Sync outline/script JSONL
             project_service.delete_outline_slide(project_dir, slide_index)
 
         project_service.update_step(project_dir, "design_spec_modified")

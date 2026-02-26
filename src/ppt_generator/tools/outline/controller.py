@@ -28,34 +28,34 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
         num_slides: int = 0,
         project_id: str = "",
     ) -> str:
-        """주제를 기반으로 슬라이드 아웃라인 JSON을 생성합니다.
+        """Generates a slide outline JSON based on the given topic.
 
-        주제의 핵심 내용을 분석하여 슬라이드별 제목, 내용 요약, 컴포넌트 힌트를
-        포함한 구조화된 아웃라인을 생성합니다.
-        아웃라인은 슬라이드의 구조만 결정하며, 디자인은 이후 HTML 슬라이드 생성 단계에서 결정됩니다.
+        Analyzes the core content of the topic and generates a structured outline
+        including per-slide titles, content summaries, and component hints.
+        The outline determines only the structure; design is decided in the subsequent HTML slide generation step.
 
-        **중요 — 호출 전 필수 확인 사항:**
-        이 도구를 호출하기 전에 반드시 사용자에게 다음 세 가지를 질문하여 확인하세요:
-        1. **발표 목적** (purpose): 이 발표의 목적이 무엇인지 (예: "사내 기술 공유", "고객 제안", "컨퍼런스 발표")
-        2. **발표 시간** (presentation_minutes): 몇 분짜리 발표인지
-        3. **청중 유형** (audience_type): 청중이 누구인지 (일반인/기술자/의사결정자)
-        사용자가 명시적으로 알려주지 않은 경우, 절대 기본값을 임의로 사용하지 말고 반드시 물어보세요.
+        **IMPORTANT — Required checks before calling:**
+        Before calling this tool, you must ask the user to confirm the following three items:
+        1. **Presentation purpose** (purpose): What is the purpose of the presentation (e.g., "internal tech sharing", "customer proposal", "conference talk")
+        2. **Presentation time** (presentation_minutes): How many minutes the presentation will be
+        3. **Audience type** (audience_type): Who the audience is (general/technical/executive)
+        If the user has not explicitly provided these, never use default values — always ask.
 
-        **중요: 아웃라인 생성 후 반드시 사용자에게 결과를 보여주고 확인을 받으세요.**
-        사용자가 아웃라인 구조(슬라이드 수, 제목, 내용 구성 등)에 만족하는지 확인한 뒤
-        다음 단계(generate_script)로 진행해야 합니다.
-        사용자가 수정을 요청하면 수정 사항을 반영하여 generate_outline을 다시 호출하세요.
+        **IMPORTANT: After generating the outline, you must show the result to the user and get confirmation.**
+        Confirm that the user is satisfied with the outline structure (number of slides, titles, content composition, etc.)
+        before proceeding to the next step (generate_script).
+        If the user requests changes, incorporate the modifications and call generate_outline again.
 
         Args:
-            topic: 발표 주제 (예: "2024년 클라우드 컴퓨팅 트렌드")
-            purpose: 발표 목적 (예: "사내 기술 공유", "고객 제안", "컨퍼런스 발표"). 사용자에게 반드시 확인 후 지정하세요.
-            audience_type: 청중 유형 — "general" (일반), "technical" (기술), "executive" (의사결정자). 사용자에게 반드시 확인 후 지정하세요.
-            presentation_minutes: 발표 시간(분). 3~60분. 사용자에게 반드시 확인 후 지정하세요.
-            num_slides: 권장 슬라이드 수 (0이면 발표 시간 기준 자동 계산: 1~2분당 1장). 한 슬라이드에 하나의 주제만 다루기 위해 실제 생성 수는 달라질 수 있습니다.
-            project_id: 프로젝트 ID (미지정 시 자동 생성)
+            topic: Presentation topic (e.g., "2024 Cloud Computing Trends")
+            purpose: Presentation purpose (e.g., "internal tech sharing", "customer proposal", "conference talk"). Must confirm with the user before setting.
+            audience_type: Audience type — "general", "technical", "executive". Must confirm with the user before setting.
+            presentation_minutes: Presentation duration in minutes. 3~60 min. Must confirm with the user before setting.
+            num_slides: Recommended number of slides (0 = auto-calculate based on presentation time: 1 slide per 1~2 min). Actual count may differ to ensure one topic per slide.
+            project_id: Project ID (auto-generated if not specified)
 
         Returns:
-            outline_path, project_id를 포함하는 JSON 문자열
+            JSON string containing outline_path and project_id
         """
         if audience_type not in VALID_AUDIENCE_TYPES:
             audience_type = DEFAULT_AUDIENCE_TYPE

@@ -199,7 +199,7 @@ class TestModifyDesignSpec:
         assert result["slide_count"] == 2
 
     def test_invalid_action_raises(self, mcp_tools: dict) -> None:
-        with pytest.raises(ValueError, match="action은"):
+        with pytest.raises(ValueError, match="action must be one of"):
             mcp_tools["modify_design_spec"](
                 project_id="any",
                 action="invalid",
@@ -215,7 +215,7 @@ class TestModifyDesignSpec:
         if not dest.exists():
             shutil.copytree(project_dir, dest)
 
-        with pytest.raises(ValueError, match="유효하지 않은 slide_index"):
+        with pytest.raises(ValueError, match="Invalid slide_index"):
             mcp_tools["modify_design_spec"](
                 project_id=project_id,
                 action="delete",
@@ -549,7 +549,7 @@ class TestGenerateSlidesDesignSpecFromProject:
 
     def test_no_outline_no_project_raises(self, mcp_tools: dict) -> None:
         """outline_json도 project_id도 없으면 ValueError."""
-        with pytest.raises(ValueError, match="outline_json 또는 project_id"):
+        with pytest.raises(ValueError, match="Either outline_json or project_id"):
             self._run(mcp_tools["generate_slides_design_spec"]())
 
 
@@ -628,10 +628,10 @@ class TestGenerateSlidesDesignSpec:
     def test_batch_mismatched_total_slides_raises(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
         self._setup_project(tmp_path, monkeypatch)
 
-        with pytest.raises(ValueError, match="일치하지 않습니다"):
+        with pytest.raises(ValueError, match="does not match"):
             self._run(mcp_tools["generate_slides_design_spec"](
                 outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-                total_slides=3,  # outline에는 5개
+                total_slides=3,  # outline has 5
                 project_id="batch-proj",
             ))
 
@@ -900,10 +900,10 @@ class TestGenerateSlidesDesignSpec:
         assert result["results"][0]["slide_file"] == "slide_03.json"
 
     def test_batch_slide_indices_invalid_raises(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
-        """유효하지 않은 slide_index는 ValueError를 발생시킨다."""
+        """Invalid slide_index raises ValueError."""
         project_id = self._setup_project(tmp_path, monkeypatch)
 
-        with pytest.raises(ValueError, match="유효하지 않은 slide_index"):
+        with pytest.raises(ValueError, match="Invalid slide_index"):
             self._run(mcp_tools["generate_slides_design_spec"](
                 outline_json=SAMPLE_BATCH_OUTLINE_JSON,
                 total_slides=5,

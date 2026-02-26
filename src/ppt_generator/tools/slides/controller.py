@@ -10,20 +10,20 @@ from ppt_generator.tools.slides.service import SlidesService
 def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_service: ProjectService) -> None:
     @mcp.tool()
     def export_html(design_spec_json: str = "", project_id: str = "") -> str:
-        """디자인 스펙을 기반으로 슬라이드별 HTML 파일과 iframe 컨테이너를 생성합니다.
+        """Generates per-slide HTML files and an iframe container based on the design spec.
 
-        두 가지 모드로 동작합니다:
-        1. design_spec_json 제공 시: 디자인 스펙을 결정론적으로 HTML로 변환 (LLM 미사용, 빠르고 정확)
-        2. project_id만 제공 시: 프로젝트 디렉토리에서 디자인 스펙을 자동 로드하여 HTML 변환 (권장)
+        Operates in two modes:
+        1. When design_spec_json is provided: Deterministically converts design spec to HTML (no LLM, fast and accurate)
+        2. When only project_id is provided: Auto-loads design spec from project directory for HTML conversion (recommended)
 
-        각 슬라이드는 slides/slide_NN.html로 개별 생성되며, slides.html은 iframe 컨테이너입니다.
+        Each slide is generated as slides/slide_NN.html, and slides.html is the iframe container.
 
         Args:
-            design_spec_json: 디자인 스펙 JSON 문자열
-            project_id: 프로젝트 ID (미지정 시 자동 생성). 단독 제공 시 디자인 스펙 자동 로드
+            design_spec_json: Design spec JSON string
+            project_id: Project ID (auto-generated if not specified). When provided alone, auto-loads the design spec
 
         Returns:
-            session_id, slides_html_path, slide_count, project_id를 포함하는 JSON 문자열
+            JSON string containing session_id, slides_html_path, slide_count, project_id
         """
         if design_spec_json:
             design_spec = parse_design_spec_json(design_spec_json)
@@ -34,7 +34,7 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
             response = slides_service.generate_from_design_spec(design_spec)
         else:
             raise ValueError(
-                "design_spec_json, project_id 중 하나를 제공해야 합니다."
+                "Either design_spec_json or project_id must be provided."
             )
 
         project_id, project_dir = project_service.resolve_project_dir(project_id)

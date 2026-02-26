@@ -59,11 +59,15 @@ def paragraph_to_html(para: PptxParagraph) -> str:
 
 def textbox_to_html(tb: PptxTextBox) -> str:
     """PptxTextBox -> position:absolute <div> 변환."""
+    pl = tb.padding_left_px or 0
+    pr = tb.padding_right_px or 0
+    pt_ = tb.padding_top_px or 0
+    pb = tb.padding_bottom_px or 0
     style = (
         f"position:absolute;"
         f"left:{tb.left_px}px;top:{tb.top_px}px;"
         f"width:{tb.width_px}px;height:{tb.height_px}px;"
-        f"padding:0;box-sizing:border-box;"
+        f"padding:{pt_}px {pr}px {pb}px {pl}px;box-sizing:border-box;"
         f"overflow:visible;"
     )
     if tb.line_spacing_pt:

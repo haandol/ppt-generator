@@ -18,12 +18,12 @@ class ScriptService:
 
     @property
     def last_token_usage(self) -> dict[str, int]:
-        """직전 LLM 호출의 토큰 사용량."""
+        """Token usage from the last LLM call."""
         return self._last_token_usage
 
     def generate(self, request: ScriptRequest) -> ScriptResponse:
         if not request.outline.slides:
-            raise ValueError("아웃라인에 슬라이드가 없습니다.")
+            raise ValueError("Outline contains no slides.")
 
         outline_json = self._build_outline_json(request.outline.slides)
         num_slides = len(request.outline.slides)
@@ -34,14 +34,14 @@ class ScriptService:
             presentation_minutes=request.presentation_minutes,
             num_slides=num_slides,
             minutes_per_slide=minutes_per_slide,
-            purpose=request.purpose or "일반 발표",
+            purpose=request.purpose or "general presentation",
         )
         try:
             agent_result = self._agent(prompt)
             self._last_token_usage = log_token_usage(agent_result, "script")
             result = str(agent_result)
         except ModelThrottledException:
-            logger.warning("스크립트 생성 중 Bedrock 쓰로틀링 발생")
+            logger.warning("Bedrock throttling during script generation")
             raise
 
         scripts = self._parse_scripts(result)
@@ -81,7 +81,7 @@ class ScriptService:
         data = extract_json_from_response(text)
 
         if "scripts" not in data or not isinstance(data["scripts"], list):
-            raise ValueError("JSON에 'scripts' 배열이 없습니다.")
+            raise ValueError("JSON does not contain a 'scripts' array.")
 
         result: dict[int, str] = {}
         for item in data["scripts"]:

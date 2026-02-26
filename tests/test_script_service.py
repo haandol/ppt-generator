@@ -73,7 +73,7 @@ class TestScriptService:
     def test_generate_raises_on_empty_slides(self, service):
         outline = OutlineResponse(slides=[])
         request = ScriptRequest(outline=outline)
-        with pytest.raises(ValueError, match="아웃라인에 슬라이드가 없습니다"):
+        with pytest.raises(ValueError, match="Outline contains no slides"):
             service.generate(request)
 
     def test_generate_parses_json_in_code_block(self, mock_agent):
@@ -91,7 +91,7 @@ class TestScriptService:
         outline = OutlineResponse(slides=SAMPLE_SLIDES)
         request = ScriptRequest(outline=outline)
 
-        with pytest.raises(ValueError, match="유효하지 않은 JSON"):
+        with pytest.raises(ValueError, match="LLM returned invalid JSON"):
             service.generate(request)
 
     def test_generate_returns_slides_with_speaker_notes(self, service):

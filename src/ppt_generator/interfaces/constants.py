@@ -9,7 +9,7 @@ PPT_GENERATOR_HOME = Path.home() / ".ppt-generator"
 
 DESIGN_SPEC_PARALLEL = int(os.environ.get("DESIGN_SPEC_PARALLEL", "8"))
 
-# --- 디자인 스펙 생성 모델 ---
+# --- Design spec generation model ---
 BEDROCK_DESIGN_MODEL_ID = os.environ.get(
     "BEDROCK_DESIGN_MODEL_ID", "global.anthropic.claude-sonnet-4-6"
 )
@@ -18,7 +18,7 @@ ANTHROPIC_DESIGN_MODEL_ID = os.environ.get(
 )
 BEDROCK_DESIGN_MAX_TOKENS = int(os.environ.get("BEDROCK_DESIGN_MAX_TOKENS", "64000"))
 
-# --- 아웃라인/스크립트 생성 모델 ---
+# --- Outline/script generation model ---
 BEDROCK_OUTLINE_MODEL_ID = os.environ.get(
     "BEDROCK_OUTLINE_MODEL_ID", "global.anthropic.claude-sonnet-4-6"
 )
@@ -28,7 +28,7 @@ ANTHROPIC_OUTLINE_MODEL_ID = os.environ.get(
 BEDROCK_OUTLINE_MAX_TOKENS = int(os.environ.get("BEDROCK_OUTLINE_MAX_TOKENS", "32000"))
 BEDROCK_SCRIPT_MAX_TOKENS = int(os.environ.get("BEDROCK_SCRIPT_MAX_TOKENS", "32000"))
 
-# --- 공통 ---
+# --- Common ---
 BEDROCK_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 DEFAULT_NUM_SLIDES = 5
@@ -45,7 +45,7 @@ MAX_PRESENTATION_MINUTES = 60
 
 from ppt_generator.interfaces.json_schemas import OUTLINE_JSON_SCHEMA, SCRIPT_JSON_SCHEMA  # noqa: E402
 
-# --- PPTX 수치 상수 ---
+# --- PPTX numeric constants ---
 
 PPTX_SLIDE_WIDTH_EMU = 12_192_000   # 13.333" x 914400
 PPTX_SLIDE_HEIGHT_EMU = 6_858_000   # 7.5" x 914400
@@ -67,15 +67,15 @@ PPTX_VALIDATE_FONT_MIN_PT = 10
 PPTX_VALIDATE_FONT_MAX_PT = 44
 PPTX_VALIDATE_LINE_HEIGHT_FACTOR = 2.0  # pt→px(1.33) × line-height(1.5) ≈ 2.0
 
-SPEC_VALIDATE_OVERLAP_GAP_PX = 16          # 겹침 해소 시 최소 간격 (px)
-SPEC_VALIDATE_CONTENT_CENTER_THRESHOLD = 0.65  # 콘텐츠가 박스 높이의 65% 미만이면 middle 정렬
-SPEC_VALIDATE_MARGIN_PX = 64               # 슬라이드 가장자리 최소 여백 (px)
-SPEC_VALIDATE_MARGIN_BOTTOM_PX = 32        # 슬라이드 하단 최소 여백 (px)
+SPEC_VALIDATE_OVERLAP_GAP_PX = 16          # Min gap when resolving overlap (px)
+SPEC_VALIDATE_CONTENT_CENTER_THRESHOLD = 0.65  # Use middle alignment if content < 65% of box height
+SPEC_VALIDATE_MARGIN_PX = 64               # Min margin from slide edges (px)
+SPEC_VALIDATE_MARGIN_BOTTOM_PX = 32        # Min bottom margin (px)
 
 EXPORT_PX_TO_INCHES_X = 13.333 / 1280  # ~0.01042
 EXPORT_PX_TO_INCHES_Y = 7.5 / 720      # ~0.01042
 
-# --- 텍스트 측정 상수 ---
+# --- Text measurement constants ---
 
 TEXT_MEASURE_PX_PER_PT = 1.333
 TEXT_MEASURE_CJK_WIDTH_RATIO = 0.9
@@ -122,7 +122,7 @@ SLIDE_WIDTH = 1280
 SLIDE_HEIGHT = 720
 SLIDE_FOOTER_HEIGHT = 48
 
-# --- 프롬프트 상수 (prompts 모듈에서 re-export) ---
+# --- Prompt constants (re-exported from prompts module) ---
 
 from ppt_generator.interfaces.prompts import (  # noqa: E402
     DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE,

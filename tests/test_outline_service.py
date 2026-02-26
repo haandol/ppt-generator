@@ -58,12 +58,12 @@ class TestOutlineService:
 
     def test_generate_raises_on_empty_topic(self, service):
         request = OutlineRequest(topic="", num_slides=5, audience_type="general", presentation_minutes=15)
-        with pytest.raises(ValueError, match="주제가 비어있습니다"):
+        with pytest.raises(ValueError, match="Topic is empty"):
             service.generate(request)
 
     def test_generate_raises_on_whitespace_topic(self, service):
         request = OutlineRequest(topic="   ", num_slides=5, audience_type="general", presentation_minutes=15)
-        with pytest.raises(ValueError, match="주제가 비어있습니다"):
+        with pytest.raises(ValueError, match="Topic is empty"):
             service.generate(request)
 
     def test_generate_parses_json_in_code_block(self, mock_agent):
@@ -79,7 +79,7 @@ class TestOutlineService:
         service = OutlineService(agent=mock_agent)
         request = OutlineRequest(topic="스크립트 내용", num_slides=5)
 
-        with pytest.raises(ValueError, match="유효하지 않은 JSON"):
+        with pytest.raises(ValueError, match="LLM returned invalid JSON"):
             service.generate(request)
 
         assert mock_agent.call_count == 3

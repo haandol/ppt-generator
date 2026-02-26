@@ -193,7 +193,7 @@ class TestOutlineServiceTokenLogging:
 
         token_logs = [r for r in caplog.records if "[tokens]" in r.message]
         assert len(token_logs) == 1
-        assert "outline (시도 1/3)" in token_logs[0].message
+        assert "outline (attempt 1/3)" in token_logs[0].message
         assert "input=5,000" in token_logs[0].message
 
     def test_last_token_usage_populated(self) -> None:

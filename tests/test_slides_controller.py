@@ -126,5 +126,5 @@ class TestExportHtmlProjectId:
             mcp_tools["export_html"](project_id="proj-2")
 
     def test_error_when_nothing_provided(self, mcp_tools: dict) -> None:
-        with pytest.raises(ValueError, match="중 하나를 제공해야"):
+        with pytest.raises(ValueError, match="Either design_spec_json or project_id"):
             mcp_tools["export_html"]()

@@ -72,12 +72,12 @@ class ProjectMetadata:
     purpose: str = ""
 
 
-# --- PPTX 요소 스키마 (LLM 변환용) ---
+# --- PPTX element schemas (for LLM conversion) ---
 
 
 @dataclass(frozen=True)
 class PptxTextRun:
-    """텍스트 런: 동일한 서식이 적용된 텍스트 조각."""
+    """Text run: a text fragment with uniform formatting."""
 
     text: str
     font_size_pt: int | None = None
@@ -89,29 +89,33 @@ class PptxTextRun:
 
 @dataclass(frozen=True)
 class PptxParagraph:
-    """단락: 하나 이상의 텍스트 런으로 구성."""
+    """Paragraph: composed of one or more text runs."""
 
     runs: list[PptxTextRun] = field(default_factory=list)
-    bullet_level: int = -1  # -1 = 불릿 아님, 0 = 1단계, 1 = 2단계
+    bullet_level: int = -1  # -1 = no bullet, 0 = level 1, 1 = level 2
     alignment: str | None = None  # 'left', 'center', 'right'
 
 
 @dataclass(frozen=True)
 class PptxTextBox:
-    """텍스트박스: 위치/크기와 단락 목록."""
+    """Textbox: position/size and list of paragraphs."""
 
     left_px: float
     top_px: float
     width_px: float
     height_px: float
     paragraphs: list[PptxParagraph] = field(default_factory=list)
-    line_spacing_pt: float | None = None  # pt 단위 줄간격
+    line_spacing_pt: float | None = None  # line spacing in pt
     vertical_alignment: str = "top"  # "top", "middle", "bottom"
+    padding_left_px: float | None = None
+    padding_right_px: float | None = None
+    padding_top_px: float | None = None
+    padding_bottom_px: float | None = None
 
 
 @dataclass(frozen=True)
 class PptxShape:
-    """도형: 위치/크기, 배경색, 내부 텍스트(옵션).
+    """Shape: position/size, background color, inner text (optional).
 
     shape_type: "rectangle" | "rounded_rectangle" | "ellipse" | "line"
     """
@@ -136,14 +140,14 @@ class PptxShape:
     padding_top_px: float | None = None
     padding_bottom_px: float | None = None
     vertical_alignment: str = "top"  # "top", "middle", "bottom"
-    end_arrow: bool = False  # 끝점(오른쪽/아래쪽)에 화살표 머리 표시
-    start_arrow: bool = False  # 시작점(왼쪽/위쪽)에 화살표 머리 표시
-    dash_style: str | None = None  # "solid", "dash", "dot" (line shape 전용)
+    end_arrow: bool = False  # arrowhead at end point (right/bottom)
+    start_arrow: bool = False  # arrowhead at start point (left/top)
+    dash_style: str | None = None  # "solid", "dash", "dot" (line shape only)
 
 
 @dataclass(frozen=True)
 class PptxImage:
-    """이미지: 위치/크기와 PNG 바이트 데이터."""
+    """Image: position/size and PNG byte data."""
 
     left_px: float
     top_px: float
@@ -154,7 +158,7 @@ class PptxImage:
 
 @dataclass(frozen=True)
 class PptxSlideSpec:
-    """슬라이드 전체 스펙: 배경색, 텍스트박스 목록, 도형 목록, 이미지 목록."""
+    """Full slide spec: background color, textbox list, shape list, image list."""
 
     background_color: str | None = None
     textboxes: list[PptxTextBox] = field(default_factory=list)
@@ -164,12 +168,12 @@ class PptxSlideSpec:
     slide_type: str = "content"
 
 
-# --- 디자인 스펙 스키마 ---
+# --- Design spec schema ---
 
 
 @dataclass(frozen=True)
 class DesignSpec:
-    """프레젠테이션 전체 디자인 스펙."""
+    """Full presentation design spec."""
 
     slides: list[PptxSlideSpec] = field(default_factory=list)
 

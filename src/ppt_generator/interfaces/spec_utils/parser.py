@@ -46,6 +46,10 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
             paragraphs=paragraphs,
             line_spacing_pt=tb.get("line_spacing_pt"),
             vertical_alignment=tb.get("vertical_alignment") or "top",
+            padding_left_px=tb.get("padding_left_px"),
+            padding_right_px=tb.get("padding_right_px"),
+            padding_top_px=tb.get("padding_top_px"),
+            padding_bottom_px=tb.get("padding_bottom_px"),
         ))
 
     shapes: list[PptxShape] = []

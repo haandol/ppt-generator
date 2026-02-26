@@ -1,11 +1,11 @@
 <task>
-다음 슬라이드 아웃라인을 기반으로 PptxSlideSpec JSON을 생성해주세요.
+Generate PptxSlideSpec JSON based on the following slide outline.
 {slide_type_instruction}
 </task>
 
 <context>
-슬라이드 위치: {slide_index}/{total_slides}장 중
-색상 테마: {color_theme}
+Slide position: {slide_index} of {total_slides}
+Color theme: {color_theme}
 </context>
 {adjacent_context}
 <input>

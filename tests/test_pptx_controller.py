@@ -93,12 +93,12 @@ class TestExportPptxProjectId:
             json.dumps({"topic": "", "num_slides": 0, "steps_completed": {}}, ensure_ascii=False),
             encoding="utf-8",
         )
-        with pytest.raises(ValueError, match="design_spec_json을 제공하거나"):
+        with pytest.raises(ValueError, match="Either provide design_spec_json"):
             mcp_tools["export_pptx"](project_id="proj-2")
 
     def test_error_when_nothing_provided(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
         import ppt_generator.tools.project.service as svc_module
         monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
 
-        with pytest.raises(ValueError, match="design_spec_json을 제공하거나"):
+        with pytest.raises(ValueError, match="Either provide design_spec_json"):
             mcp_tools["export_pptx"]()

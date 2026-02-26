@@ -15,10 +15,12 @@ from ppt_generator.interfaces.schemas import (
     PptxTextRun,
 )
 from ppt_generator.interfaces.spec_utils import validate_slide_spec
+from ppt_generator.interfaces.spec_utils.parser import parse_slide_spec
 from ppt_generator.interfaces.text_measurement import (
     calculate_required_height,
     calculate_required_height_simple_text,
 )
+from ppt_generator.tools.slides.html_renderer import textbox_to_html
 
 _MARGIN = 64
 _CANVAS_W = 1280
@@ -221,3 +223,168 @@ class TestTitleClosingPositionFix:
         v = result.textboxes[0]
         assert v.top_px == 260
         assert v.height_px >= 80
+
+
+# ---------------------------------------------------------------------------
+# 텍스트박스 padding
+# ---------------------------------------------------------------------------
+
+
+class TestTextboxPadding:
+    """PptxTextBox padding 지원 테스트."""
+
+    def test_padding_preserved_through_validation(self) -> None:
+        """validator가 textbox의 padding 값을 보존한다."""
+        tb = PptxTextBox(
+            left_px=64, top_px=200, width_px=500, height_px=100,
+            paragraphs=[PptxParagraph(runs=[PptxTextRun(text="테스트", font_size_pt=18)])],
+            padding_left_px=16, padding_right_px=16,
+            padding_top_px=12, padding_bottom_px=12,
+        )
+        result = validate_slide_spec(_slide(textboxes=[tb]))
+        v = result.textboxes[0]
+        assert v.padding_left_px == 16
+        assert v.padding_right_px == 16
+        assert v.padding_top_px == 12
+        assert v.padding_bottom_px == 12
+
+    def test_no_padding_defaults_to_none(self) -> None:
+        """padding 미지정 시 None 유지."""
+        tb = _tb("테스트", font=18, top_px=200)
+        result = validate_slide_spec(_slide(textboxes=[tb]))
+        v = result.textboxes[0]
+        assert v.padding_left_px is None
+        assert v.padding_right_px is None
+        assert v.padding_top_px is None
+        assert v.padding_bottom_px is None
+
+    def test_padding_affects_autofit_calculation(self) -> None:
+        """padding이 있는 textbox는 실제 텍스트 영역이 줄어들어 autofit이 더 공격적으로 작동한다."""
+        long_text = "가나다라마바사아자차카타파하" * 3
+        # padding 없는 textbox
+        tb_no_pad = PptxTextBox(
+            left_px=64, top_px=200, width_px=300, height_px=60,
+            paragraphs=[PptxParagraph(runs=[PptxTextRun(text=long_text, font_size_pt=18)])],
+        )
+        # padding 있는 textbox (같은 크기이지만 실제 텍스트 영역이 줄어듦)
+        tb_with_pad = PptxTextBox(
+            left_px=64, top_px=200, width_px=300, height_px=60,
+            paragraphs=[PptxParagraph(runs=[PptxTextRun(text=long_text, font_size_pt=18)])],
+            padding_left_px=20, padding_right_px=20,
+            padding_top_px=16, padding_bottom_px=16,
+        )
+        result_no_pad = validate_slide_spec(_slide(textboxes=[tb_no_pad]))
+        result_with_pad = validate_slide_spec(_slide(textboxes=[tb_with_pad]))
+        font_no_pad = result_no_pad.textboxes[0].paragraphs[0].runs[0].font_size_pt
+        font_with_pad = result_with_pad.textboxes[0].paragraphs[0].runs[0].font_size_pt
+        # padding이 있으면 텍스트 영역이 좁아져서 폰트가 같거나 더 작아야 함
+        assert font_with_pad <= font_no_pad
+
+    def test_padding_preserved_in_title_position_fix(self) -> None:
+        """content 제목 위치 고정 시 padding이 보존된다."""
+        tb = PptxTextBox(
+            left_px=100, top_px=100, width_px=1000, height_px=60,
+            paragraphs=[PptxParagraph(runs=[PptxTextRun(text="제목", font_size_pt=32, bold=True)])],
+            padding_left_px=10, padding_right_px=10,
+            padding_top_px=8, padding_bottom_px=8,
+        )
+        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="content"))
+        v = result.textboxes[0]
+        # 좌표는 고정값으로 보정
+        assert v.left_px == 64
+        assert v.top_px == 72
+        # padding은 보존
+        assert v.padding_left_px == 10
+        assert v.padding_right_px == 10
+
+    def test_padding_preserved_in_closing_position_fix(self) -> None:
+        """closing 메인 텍스트 위치 고정 시 padding이 보존된다."""
+        tb = PptxTextBox(
+            left_px=64, top_px=72, width_px=1152, height_px=48,
+            paragraphs=[PptxParagraph(runs=[PptxTextRun(text="감사합니다", font_size_pt=40, bold=True)])],
+            padding_left_px=16, padding_right_px=16,
+            padding_top_px=12, padding_bottom_px=12,
+        )
+        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="closing"))
+        v = result.textboxes[0]
+        assert v.top_px == 240
+        assert v.padding_left_px == 16
+        assert v.padding_bottom_px == 12
+
+    def test_padding_preserved_in_vertical_centering(self) -> None:
+        """수직 중앙 정렬 보정 시 padding이 보존된다."""
+        tb = PptxTextBox(
+            left_px=64, top_px=200, width_px=1152, height_px=400,
+            vertical_alignment="top",
+            paragraphs=[PptxParagraph(
+                runs=[PptxTextRun(text="짧은 본문", font_size_pt=20)],
+                bullet_level=0,
+            )],
+            padding_left_px=16, padding_right_px=16,
+            padding_top_px=12, padding_bottom_px=12,
+        )
+        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="content"))
+        v = result.textboxes[0]
+        assert v.vertical_alignment == "middle"
+        assert v.padding_left_px == 16
+        assert v.padding_bottom_px == 12
+
+
+class TestTextboxPaddingHtmlRendering:
+    """textbox padding의 HTML 렌더링 테스트."""
+
+    def test_padding_rendered_in_css(self) -> None:
+        """padding이 있는 textbox → CSS에 padding 값이 반영된다."""
+        tb = PptxTextBox(
+            left_px=64, top_px=100, width_px=500, height_px=200,
+            paragraphs=[PptxParagraph(runs=[PptxTextRun(text="테스트", font_size_pt=18)])],
+            padding_left_px=16, padding_right_px=20,
+            padding_top_px=12, padding_bottom_px=14,
+        )
+        html = textbox_to_html(tb)
+        assert "padding:12px 20px 14px 16px" in html
+
+    def test_no_padding_renders_zero(self) -> None:
+        """padding이 없는 textbox → CSS에 padding:0 반영."""
+        tb = PptxTextBox(
+            left_px=64, top_px=100, width_px=500, height_px=200,
+            paragraphs=[PptxParagraph(runs=[PptxTextRun(text="테스트", font_size_pt=18)])],
+        )
+        html = textbox_to_html(tb)
+        assert "padding:0px 0px 0px 0px" in html
+
+
+class TestTextboxPaddingParsing:
+    """textbox padding의 JSON 파싱 테스트."""
+
+    def test_padding_parsed_from_json(self) -> None:
+        """JSON에 padding이 있으면 PptxTextBox에 반영된다."""
+        data = {
+            "textboxes": [{
+                "left_px": 64, "top_px": 100, "width_px": 500, "height_px": 200,
+                "padding_left_px": 16, "padding_right_px": 20,
+                "padding_top_px": 12, "padding_bottom_px": 14,
+                "paragraphs": [{"runs": [{"text": "테스트", "font_size_pt": 18}]}],
+            }],
+        }
+        spec = parse_slide_spec(data)
+        tb = spec.textboxes[0]
+        assert tb.padding_left_px == 16
+        assert tb.padding_right_px == 20
+        assert tb.padding_top_px == 12
+        assert tb.padding_bottom_px == 14
+
+    def test_missing_padding_defaults_to_none(self) -> None:
+        """JSON에 padding이 없으면 None."""
+        data = {
+            "textboxes": [{
+                "left_px": 64, "top_px": 100, "width_px": 500, "height_px": 200,
+                "paragraphs": [{"runs": [{"text": "테스트", "font_size_pt": 18}]}],
+            }],
+        }
+        spec = parse_slide_spec(data)
+        tb = spec.textboxes[0]
+        assert tb.padding_left_px is None
+        assert tb.padding_right_px is None
+        assert tb.padding_top_px is None
+        assert tb.padding_bottom_px is None

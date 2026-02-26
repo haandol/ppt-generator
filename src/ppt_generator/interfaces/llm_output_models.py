@@ -48,6 +48,10 @@ class TextBoxOutput(BaseModel):
     paragraphs: list[ParagraphOutput] = Field(default_factory=list)
     line_spacing_pt: float | None = None
     vertical_alignment: Literal["top", "middle", "bottom"] = "top"
+    padding_left_px: float | None = None
+    padding_right_px: float | None = None
+    padding_top_px: float | None = None
+    padding_bottom_px: float | None = None
 
 
 class ShapeOutput(BaseModel):
@@ -114,6 +118,10 @@ class SlideSpecOutput(BaseModel):
                 ],
                 line_spacing_pt=tb.line_spacing_pt,
                 vertical_alignment=tb.vertical_alignment,
+                padding_left_px=tb.padding_left_px,
+                padding_right_px=tb.padding_right_px,
+                padding_top_px=tb.padding_top_px,
+                padding_bottom_px=tb.padding_bottom_px,
             )
             for tb in self.textboxes
         ]

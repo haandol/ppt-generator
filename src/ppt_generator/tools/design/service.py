@@ -1,7 +1,7 @@
-"""디자인 스펙 생성 서비스.
+"""Design spec generation service.
 
-슬라이드 아웃라인에서 PptxSlideSpec 기반 디자인 스펙을 LLM으로 생성한다.
-strands structured_output을 사용하여 Pydantic 모델로 직접 파싱한다.
+Generates PptxSlideSpec-based design specs from slide outlines via LLM.
+Uses strands structured_output for direct parsing into Pydantic models.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 class DesignService:
-    """슬라이드 아웃라인 → PptxSlideSpec을 생성하는 서비스."""
+    """Service that generates PptxSlideSpec from slide outlines."""
 
     def __init__(self, agent: Agent) -> None:
         self._agent = agent
@@ -48,19 +48,19 @@ class DesignService:
         prev_outline: SlideOutline | None = None,
         next_outline: SlideOutline | None = None,
     ) -> PptxSlideSpec:
-        """단일 슬라이드의 디자인 스펙을 생성한다.
+        """Generates the design spec for a single slide.
 
         Args:
-            slide_outline: 슬라이드 아웃라인
-            design_summary: 기존 디자인 요약 dict (제공 시 일관성 유지)
-            slide_index: 슬라이드 번호 (1-based)
-            total_slides: 전체 슬라이드 수
-            color_theme: 색상 테마 ("dark" 또는 "light", 기본값: "dark")
-            prev_outline: 이전 슬라이드 아웃라인 (첫 슬라이드면 None)
-            next_outline: 다음 슬라이드 아웃라인 (마지막 슬라이드면 None)
+            slide_outline: Slide outline
+            design_summary: Existing design summary dict (maintains consistency when provided)
+            slide_index: Slide number (1-based)
+            total_slides: Total number of slides
+            color_theme: Color theme ("dark" or "light", default: "dark")
+            prev_outline: Previous slide outline (None for first slide)
+            next_outline: Next slide outline (None for last slide)
 
         Returns:
-            생성된 PptxSlideSpec
+            Generated PptxSlideSpec
         """
         outline_json = self._outline_to_json(slide_outline)
         adjacent_context = self._adjacent_context_section(prev_outline, next_outline)
@@ -97,14 +97,14 @@ class DesignService:
         outline: OutlineResponse,
         color_theme: str = "dark",
     ) -> dict:
-        """전체 아웃라인을 기반으로 design_summary를 LLM으로 사전 생성한다.
+        """Pre-generates a design_summary via LLM based on the full outline.
 
         Args:
-            outline: 전체 아웃라인 (OutlineResponse)
-            color_theme: 색상 테마 ("dark" 또는 "light")
+            outline: Full outline (OutlineResponse)
+            color_theme: Color theme ("dark" or "light")
 
         Returns:
-            extract_design_summary()와 동일한 형식의 dict
+            Dict in the same format as extract_design_summary()
         """
         outline_json = json.dumps(
             [
@@ -130,22 +130,22 @@ class DesignService:
             result = self._agent(prompt)
             log_token_usage(result, "design_summary")
         except ModelThrottledException:
-            logger.warning("design_summary 생성 중 Bedrock 쓰로틀링 발생")
+            logger.warning("Bedrock throttling during design_summary generation")
             raise
         raw_text = str(result)
 
-        # JSON 블록 추출 (```json ... ``` 또는 순수 JSON)
+        # Extract JSON block (```json ... ``` or raw JSON)
         json_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", raw_text, re.DOTALL)
         if json_match:
             raw_text = json_match.group(1)
 
         summary = json.loads(raw_text.strip())
-        logger.info("design_summary LLM 생성 완료: %s", summary)
+        logger.info("design_summary LLM generation completed: %s", summary)
         return summary
 
     @staticmethod
     def extract_design_summary(spec: PptxSlideSpec) -> dict:
-        """슬라이드 스펙에서 디자인 테마 요약을 직접 추출 (LLM 호출 없음)."""
+        """Extracts design theme summary directly from slide spec (no LLM call)."""
         text_colors: set[str] = set()
         title_font: int | None = None
         body_font: int | None = None
@@ -191,16 +191,16 @@ class DesignService:
 
     @property
     def last_token_usage(self) -> dict[str, int]:
-        """직전 LLM 호출의 토큰 사용량. 호출 전이면 빈 dict."""
+        """Token usage from the last LLM call. Empty dict before first call."""
         return self._last_token_usage
 
     def _generate_with_structured_output(self, prompt: str, *, label: str = "design_spec") -> PptxSlideSpec:
-        """strands structured_output으로 슬라이드 스펙을 생성하고 검증."""
+        """Generates and validates slide spec via strands structured_output."""
         try:
             result = self._agent(prompt, structured_output_model=SlideSpecOutput)
             self._last_token_usage = log_token_usage(result, label)
         except ModelThrottledException:
-            logger.warning("디자인 스펙 생성 중 Bedrock 쓰로틀링 발생")
+            logger.warning("Bedrock throttling during design spec generation")
             raise
         output: SlideSpecOutput = result.structured_output
         spec = output.to_dataclass()
@@ -208,15 +208,15 @@ class DesignService:
 
     @staticmethod
     def _slide_type_instruction(slide_type: str) -> str:
-        """slide_type에 따라 LLM에게 전달할 레이아웃 지시문을 반환한다.
+        """Returns the layout instruction to pass to the LLM based on slide_type.
 
-        시스템 프롬프트가 slide_type별로 분리되어 있으므로,
-        사용자 프롬프트에서는 슬라이드 타입만 명시한다.
+        Since system prompts are separated by slide_type,
+        the user prompt only specifies the slide type.
         """
         if slide_type == "title":
-            return "\n이 슬라이드는 **제목(title) 슬라이드**입니다."
+            return "\nThis slide is a **title slide**."
         if slide_type == "closing":
-            return "\n이 슬라이드는 **클로징(closing) 슬라이드**입니다."
+            return "\nThis slide is a **closing slide**."
         return ""
 
     @staticmethod
@@ -224,10 +224,10 @@ class DesignService:
         prev_outline: SlideOutline | None,
         next_outline: SlideOutline | None,
     ) -> str:
-        """인접 슬라이드의 아웃라인 요약을 프롬프트 섹션으로 생성한다.
+        """Generates a prompt section with adjacent slide outline summaries.
 
-        speaker_notes는 제외하여 토큰을 절약한다.
-        둘 다 None이면 빈 문자열을 반환한다.
+        Excludes speaker_notes to save tokens.
+        Returns empty string if both are None.
         """
         if prev_outline is None and next_outline is None:
             return ""
@@ -252,7 +252,7 @@ class DesignService:
 
     @staticmethod
     def _outline_to_json(slide: SlideOutline) -> str:
-        """SlideOutline을 JSON 문자열로 변환."""
+        """Converts a SlideOutline to a JSON string."""
         return json.dumps(
             {
                 "title": slide.title,

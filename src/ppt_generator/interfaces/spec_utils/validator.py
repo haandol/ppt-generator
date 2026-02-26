@@ -161,8 +161,15 @@ def _validate_textboxes(
             canvas_w, canvas_h, margin,
         )
 
+        pad_l = tb.padding_left_px or 0.0
+        pad_r = tb.padding_right_px or 0.0
+        pad_t = tb.padding_top_px or 0.0
+        pad_b = tb.padding_bottom_px or 0.0
+
         required_h = calculate_required_height(
             new_paragraphs, width, tb.line_spacing_pt,
+            padding_left_px=pad_l, padding_right_px=pad_r,
+            padding_top_px=pad_t, padding_bottom_px=pad_b,
         )
 
         if required_h > 0 and height < required_h:
@@ -179,6 +186,10 @@ def _validate_textboxes(
             paragraphs=new_paragraphs,
             line_spacing_pt=tb.line_spacing_pt,
             vertical_alignment=tb.vertical_alignment,
+            padding_left_px=tb.padding_left_px,
+            padding_right_px=tb.padding_right_px,
+            padding_top_px=tb.padding_top_px,
+            padding_bottom_px=tb.padding_bottom_px,
         ))
     return validated
 
@@ -283,9 +294,11 @@ def _validate_shapes(
 
 def _fix_content_title_position(
     textboxes: list[PptxTextBox],
-) -> list[PptxTextBox]:
+    shapes: list[PptxShape],
+) -> tuple[list[PptxTextBox], list[PptxShape]]:
+    """콘텐츠 슬라이드 제목 위치를 고정하고, 겹치는 요소를 아래로 밀어낸다."""
     if not textboxes:
-        return textboxes
+        return textboxes, shapes
 
     tb = textboxes[0]
     is_title = any(
@@ -294,7 +307,10 @@ def _fix_content_title_position(
         for run in para.runs
     )
     if not is_title:
-        return textboxes
+        return textboxes, shapes
+
+    old_bottom = tb.top_px + tb.height_px
+    new_bottom = _CONTENT_TITLE_TOP + _CONTENT_TITLE_HEIGHT
 
     fixed_tb = PptxTextBox(
         left_px=_CONTENT_TITLE_LEFT,
@@ -304,8 +320,49 @@ def _fix_content_title_position(
         paragraphs=tb.paragraphs,
         line_spacing_pt=tb.line_spacing_pt,
         vertical_alignment=tb.vertical_alignment,
+        padding_left_px=tb.padding_left_px,
+        padding_right_px=tb.padding_right_px,
+        padding_top_px=tb.padding_top_px,
+        padding_bottom_px=tb.padding_bottom_px,
     )
-    return [fixed_tb, *textboxes[1:]]
+    fixed_textboxes = [fixed_tb, *textboxes[1:]]
+
+    # 제목 하단이 확장된 경우, 겹치는 요소들을 밀어낸다
+    if new_bottom <= old_bottom:
+        return fixed_textboxes, shapes
+
+    min_gap = 16  # 최소 간격 (프롬프트 명세)
+    push_threshold = new_bottom  # 이 영역 안에 있는 요소를 밀어냄
+
+    # 나머지 textbox 밀어내기
+    adjusted_textboxes = [fixed_tb]
+    for other_tb in textboxes[1:]:
+        if other_tb.top_px < push_threshold:
+            adjusted_textboxes.append(PptxTextBox(
+                left_px=other_tb.left_px,
+                top_px=new_bottom + min_gap,
+                width_px=other_tb.width_px,
+                height_px=other_tb.height_px,
+                paragraphs=other_tb.paragraphs,
+                line_spacing_pt=other_tb.line_spacing_pt,
+                vertical_alignment=other_tb.vertical_alignment,
+                padding_left_px=other_tb.padding_left_px,
+                padding_right_px=other_tb.padding_right_px,
+                padding_top_px=other_tb.padding_top_px,
+                padding_bottom_px=other_tb.padding_bottom_px,
+            ))
+        else:
+            adjusted_textboxes.append(other_tb)
+
+    # shapes 밀어내기
+    adjusted_shapes: list[PptxShape] = []
+    for s in shapes:
+        if s.top_px < push_threshold and not _is_decorative_shape(s):
+            adjusted_shapes.append(replace(s, top_px=new_bottom + min_gap))
+        else:
+            adjusted_shapes.append(s)
+
+    return adjusted_textboxes, adjusted_shapes
 
 
 def _fix_title_closing_main_position(
@@ -358,6 +415,10 @@ def _fix_title_closing_main_position(
             paragraphs=enforced_paragraphs,
             line_spacing_pt=tb.line_spacing_pt,
             vertical_alignment=tb.vertical_alignment,
+            padding_left_px=tb.padding_left_px,
+            padding_right_px=tb.padding_right_px,
+            padding_top_px=tb.padding_top_px,
+            padding_bottom_px=tb.padding_bottom_px,
         )
         return [fixed_tb, *textboxes[1:]]
 
@@ -372,6 +433,10 @@ def _fix_title_closing_main_position(
         paragraphs=enforced_paragraphs,
         line_spacing_pt=tb.line_spacing_pt,
         vertical_alignment=tb.vertical_alignment,
+        padding_left_px=tb.padding_left_px,
+        padding_right_px=tb.padding_right_px,
+        padding_top_px=tb.padding_top_px,
+        padding_bottom_px=tb.padding_bottom_px,
     )
     return [fixed_tb, *textboxes[1:]]
 
@@ -393,8 +458,14 @@ def _center_content_vertically(
             and tb.top_px >= 100
             and tb.height_px >= 200
         ):
+            pad_l = tb.padding_left_px or 0.0
+            pad_r = tb.padding_right_px or 0.0
+            pad_t = tb.padding_top_px or 0.0
+            pad_b = tb.padding_bottom_px or 0.0
             content_h = calculate_required_height(
                 tb.paragraphs, tb.width_px, tb.line_spacing_pt,
+                padding_left_px=pad_l, padding_right_px=pad_r,
+                padding_top_px=pad_t, padding_bottom_px=pad_b,
             )
             if content_h < tb.height_px * threshold:
                 tb = PptxTextBox(
@@ -405,6 +476,10 @@ def _center_content_vertically(
                     paragraphs=tb.paragraphs,
                     line_spacing_pt=tb.line_spacing_pt,
                     vertical_alignment="middle",
+                    padding_left_px=tb.padding_left_px,
+                    padding_right_px=tb.padding_right_px,
+                    padding_top_px=tb.padding_top_px,
+                    padding_bottom_px=tb.padding_bottom_px,
                 )
         result.append(tb)
     return result
@@ -421,7 +496,9 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
     validated_shapes = _validate_shapes(spec.shapes)
 
     if spec.slide_type == "content":
-        validated_textboxes = _fix_content_title_position(validated_textboxes)
+        validated_textboxes, validated_shapes = _fix_content_title_position(
+            validated_textboxes, validated_shapes,
+        )
     elif spec.slide_type in ("title", "closing"):
         validated_textboxes = _fix_title_closing_main_position(validated_textboxes, spec.slide_type)
 

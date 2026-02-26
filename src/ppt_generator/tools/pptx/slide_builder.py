@@ -172,10 +172,22 @@ class SlideBuilder:
         tf.word_wrap = True
         tf.auto_size = MSO_AUTO_SIZE.NONE
 
-        tf.margin_left = Emu(0)
-        tf.margin_right = Emu(0)
-        tf.margin_top = Emu(0)
-        tf.margin_bottom = Emu(0)
+        if tb.padding_left_px is not None:
+            tf.margin_left = Emu(int(tb.padding_left_px * PX_TO_EMU))
+        else:
+            tf.margin_left = Emu(0)
+        if tb.padding_right_px is not None:
+            tf.margin_right = Emu(int(tb.padding_right_px * PX_TO_EMU))
+        else:
+            tf.margin_right = Emu(0)
+        if tb.padding_top_px is not None:
+            tf.margin_top = Emu(int(tb.padding_top_px * PX_TO_EMU))
+        else:
+            tf.margin_top = Emu(0)
+        if tb.padding_bottom_px is not None:
+            tf.margin_bottom = Emu(int(tb.padding_bottom_px * PX_TO_EMU))
+        else:
+            tf.margin_bottom = Emu(0)
 
         format_paragraphs(tf, tb.paragraphs)
 
