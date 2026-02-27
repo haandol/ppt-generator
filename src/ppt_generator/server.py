@@ -42,27 +42,22 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format=fmt)
 
     # File logging (for debugging)
-    # PPT_LOG_DIR: directory for per-session log files (e.g. /tmp/ppt-generator/)
+    # PPT_LOG_DIR: directory for per-project log files (e.g. /tmp/ppt-generator/)
     # PPT_LOG_FILE: single log file path (legacy, e.g. /tmp/ppt-generator.log)
     import os
-    import uuid
     from logging.handlers import RotatingFileHandler
-    from pathlib import Path
 
     log_dir = os.environ.get("PPT_LOG_DIR")
     log_file = os.environ.get("PPT_LOG_FILE")
 
-    resolved_path: str | None = None
+    # PPT_LOG_DIR → 프로젝트별 동적 핸들러 (ProjectService에서 처리)
     if log_dir:
-        d = Path(log_dir)
-        d.mkdir(parents=True, exist_ok=True)
-        resolved_path = str(d / f"{uuid.uuid4()}.log")
+        import ppt_generator.tools.project.service as ps
+        ps._log_dir = log_dir
+        ps._log_fmt = fmt
     elif log_file:
-        resolved_path = log_file
-
-    if resolved_path:
         fh = RotatingFileHandler(
-            resolved_path, maxBytes=10 * 1024 * 1024, backupCount=2, encoding="utf-8",
+            log_file, maxBytes=10 * 1024 * 1024, backupCount=2, encoding="utf-8",
         )
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(logging.Formatter(fmt))

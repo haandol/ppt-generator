@@ -106,6 +106,49 @@ PPTX 형식으로 내보내려면:
 ppt 로 내보내고 열어줘.
 ```
 
+## 디버깅 로그
+
+MCP 서버는 stdio 통신을 사용하므로 stdout 로그를 직접 확인할 수 없습니다. 파일 로그를 활성화하면 디버그 레벨 로그를 파일로 기록합니다.
+
+### 설정 방법
+
+MCP 서버 등록 시 `env`에 `PPT_LOG_DIR`을 추가합니다:
+
+```json
+{
+  "mcpServers": {
+    "ppt-generator": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"],
+      "env": {
+        "ANTHROPIC_API_KEY": "sk-ant-...",
+        "PPT_LOG_DIR": "/tmp/ppt-generator"
+      }
+    }
+  }
+}
+```
+
+### 환경변수
+
+| 변수 | 설명 |
+| --- | --- |
+| `PPT_LOG_DIR` | 프로젝트별 로그 파일이 저장될 디렉토리 (권장). 예: `/tmp/ppt-generator` |
+| `PPT_LOG_FILE` | 단일 로그 파일 경로 (레거시). `PPT_LOG_DIR` 설정 시 무시됨 |
+
+- 로그 파일은 10MB 단위로 회전하며 백업 2개를 유지합니다.
+- `PPT_LOG_DIR` 설정 시 프로젝트마다 `<project_id>.log` 파일이 생성됩니다.
+
+### 로그 확인
+
+```bash
+# 특정 프로젝트 로그 확인
+tail -f /tmp/ppt-generator/<project_id>.log
+
+# 전체 로그 확인
+tail -f /tmp/ppt-generator/*.log
+```
+
 ## 개발
 
 ```bash

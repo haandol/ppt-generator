@@ -5,6 +5,7 @@ import logging
 import shutil
 import uuid
 from datetime import datetime, timezone
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from threading import Lock
 
@@ -13,6 +14,11 @@ from ppt_generator.interfaces.schemas import DesignSpec, PptxSlideSpec, ProjectM
 from ppt_generator.tools.project.design_spec_store import DesignSpecStore
 
 logger = logging.getLogger(__name__)
+
+# server.py의 main()에서 설정됨
+_log_dir: str | None = None
+_log_fmt: str = "%(asctime)s %(name)s %(levelname)s %(message)s"
+_active_handlers: dict[str, RotatingFileHandler] = {}
 
 
 class ProjectService:
@@ -28,6 +34,7 @@ class ProjectService:
             project_id = str(uuid.uuid4())
         project_dir = PPT_GENERATOR_HOME / project_id
         project_dir.mkdir(parents=True, exist_ok=True)
+        _maybe_add_project_log_handler(project_id)
         return project_id, project_dir
 
     # --- 저장 메서드 ---
@@ -400,3 +407,19 @@ class ProjectService:
     @staticmethod
     def _ensure_dir(project_dir: Path) -> None:
         project_dir.mkdir(parents=True, exist_ok=True)
+
+
+def _maybe_add_project_log_handler(project_id: str) -> None:
+    """PPT_LOG_DIR 설정 시 프로젝트별 로그 파일 핸들러를 root logger에 추가."""
+    if not _log_dir or project_id in _active_handlers:
+        return
+    d = Path(_log_dir)
+    d.mkdir(parents=True, exist_ok=True)
+    fh = RotatingFileHandler(
+        str(d / f"{project_id}.log"),
+        maxBytes=10 * 1024 * 1024, backupCount=2, encoding="utf-8",
+    )
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(logging.Formatter(_log_fmt))
+    logging.getLogger().addHandler(fh)
+    _active_handlers[project_id] = fh
