@@ -131,7 +131,8 @@ ppt-generator/
 | `BEDROCK_OUTLINE_MODEL_ID` | 모델 ID 문자열          | 아웃라인/스크립트 Bedrock 모델 (기본: `global.anthropic.claude-sonnet-4-6`)                               |
 | `ANTHROPIC_OUTLINE_MODEL_ID`| 모델 ID 문자열         | 아웃라인/스크립트 Anthropic 모델 (기본: `claude-sonnet-4-6`)                                             |
 | `DESIGN_SPEC_PARALLEL`     | 정수 (기본: 8)          | 디자인 스펙 생성 시 슬라이드별 병렬 워커 수. API rate limit에 맞게 조절                                  |
-| `PPT_LOG_FILE`             | 파일 경로 문자열        | 로그 파일 경로 (설정 시 DEBUG 레벨로 파일에 기록, 토큰 사용량 포함)                                      |
+| `PPT_LOG_DIR`              | 디렉토리 경로 문자열    | 세션별 UUID 로그 파일 디렉토리 (권장, 예: `/tmp/ppt-generator`). 10MB 회전, 백업 2개                     |
+| `PPT_LOG_FILE`             | 파일 경로 문자열        | 단일 로그 파일 경로 (레거시, `PPT_LOG_DIR` 우선). 10MB 회전, 백업 2개                                    |
 
 > **Auto-detect 로직**: `LLM_PROVIDER` 미설정 시, `ANTHROPIC_API_KEY`가 있으면 `anthropic`, 없으면 `bedrock`으로 자동 선택됩니다.
 
@@ -420,7 +421,7 @@ Anthropic API 사용 시:
       "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"],
       "env": {
         "ANTHROPIC_API_KEY": "sk-ant-...",
-        "PPT_LOG_FILE": "/tmp/ppt-generator.log"
+        "PPT_LOG_DIR": "/tmp/ppt-generator"
       }
     }
   }
@@ -436,7 +437,7 @@ AWS Bedrock 사용 시 (`~/.aws/credentials` 설정 완료 가정):
       "command": "uv",
       "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"],
       "env": {
-        "PPT_LOG_FILE": "/tmp/ppt-generator.log"
+        "PPT_LOG_DIR": "/tmp/ppt-generator"
       }
     }
   }

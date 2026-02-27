@@ -41,12 +41,29 @@ def main() -> None:
     fmt = "%(asctime)s %(name)s %(levelname)s %(message)s"
     logging.basicConfig(level=logging.INFO, format=fmt)
 
-    # File logging (for debugging) — set path via PPT_LOG_FILE env var
+    # File logging (for debugging)
+    # PPT_LOG_DIR: directory for per-session log files (e.g. /tmp/ppt-generator/)
+    # PPT_LOG_FILE: single log file path (legacy, e.g. /tmp/ppt-generator.log)
     import os
+    import uuid
+    from logging.handlers import RotatingFileHandler
+    from pathlib import Path
 
+    log_dir = os.environ.get("PPT_LOG_DIR")
     log_file = os.environ.get("PPT_LOG_FILE")
-    if log_file:
-        fh = logging.FileHandler(log_file, encoding="utf-8")
+
+    resolved_path: str | None = None
+    if log_dir:
+        d = Path(log_dir)
+        d.mkdir(parents=True, exist_ok=True)
+        resolved_path = str(d / f"{uuid.uuid4()}.log")
+    elif log_file:
+        resolved_path = log_file
+
+    if resolved_path:
+        fh = RotatingFileHandler(
+            resolved_path, maxBytes=10 * 1024 * 1024, backupCount=2, encoding="utf-8",
+        )
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(logging.Formatter(fmt))
         logging.getLogger().addHandler(fh)
