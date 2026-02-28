@@ -34,6 +34,7 @@ adr/
 - [0020: 토큰 사용량 추적 및 비용 추정](./pipeline/0020-token-usage-tracking-and-cost-estimation.md)
 - [0021: 슬라이드 타입별 시스템 프롬프트 분리](./pipeline/0021-slide-type-specific-system-prompts.md)
 - [0023: 디자인 스펙 Validator](./pipeline/0023-design-spec-validator.md)
+- [0026: Visual QA Pipeline](./pipeline/0026-visual-qa-pipeline.md)
 
 ### Pipeline — Superseded
 

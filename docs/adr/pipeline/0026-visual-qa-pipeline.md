@@ -17,6 +17,21 @@ Playwright + Claude Vision 기반의 Visual QA 파이프라인을 opt-in MCP too
 - 런타임에 `try: import playwright` → `except ImportError`로 graceful degradation
 - 디자인 스펙 생성 완료 후 사용자에게 visual QA 실행을 제안하고, 동의 시에만 실행
 
+## Issue Types
+
+| Issue Type | Description |
+|---|---|
+| `word_break` | 단어 중간 줄바꿈 (특히 한/영 제목) |
+| `text_truncation` | 텍스트 컨테이너 경계에서 잘림 |
+| `overlap` | 의도하지 않은 요소 겹침 |
+| `overflow` | 텍스트가 박스 밖으로 넘침 |
+| `contrast` | 텍스트-배경 간 대비 부족 |
+| `misalignment` | 같은 행/열 정렬 불일치 |
+| `wrong_vertical_alignment` | 동일 행 peer 카드에 "middle" 사용으로 콘텐츠 시작 위치 불일치 |
+| `inconsistent_font_size` | 같은 레벨 peer 요소 간 폰트 크기 불일치 |
+| `inconsistent_spacing` | peer 요소 간 간격 불일치 |
+| `arrow_disconnected` | 화살표 시작/끝점이 연결 대상 블록 edge에 닿지 않음 (gap 또는 penetration) |
+
 ## Changes
 
 - `pyproject.toml`: `visual-qa` dependency group에 `playwright` 추가
@@ -24,6 +39,7 @@ Playwright + Claude Vision 기반의 Visual QA 파이프라인을 opt-in MCP too
 - `interfaces/llm_output_models.py`: `VisualQAIssue`, `VisualQAOutput` Pydantic 모델 추가
 - `interfaces/prompts/visual_qa_analysis.prompt.md`: 스크린샷 분석 시스템 프롬프트
 - `interfaces/prompts/visual_qa_fix.prompt.md`: 디자인 스펙 수정 시스템 프롬프트
+- `interfaces/prompts/design_system_content.prompt.md`: Arrow endpoint snapping 규칙 추가
 - `tools/visual_qa/__init__.py`, `controller.py`, `service.py`: 새 모듈
 - `di/model_factory.py`: visual_qa 모델 생성 함수 추가
 - `di/container.py`: `create_visual_qa_service` 메서드 추가
@@ -46,6 +62,12 @@ for iteration in range(max_iterations):
 
 - **분석(analysis)**: 시각적 렌더링 이슈만 감지. 슬라이드 콘텐츠(텍스트 문구, 데이터 값, 서술 흐름, 언어 선택)는 절대 지적하지 않는다.
 - **수정(fix)**: 시각적 속성(위치, 크기, 폰트 크기, 색상, 정렬)만 변경. 텍스트 내용 자체를 수정하지 않는다. `word_break`/`overflow`를 리사이징/리포지셔닝으로 해결할 수 없으면 폰트 크기를 줄인다.
+
+## Progress Reporting
+
+- `run_qa`는 각 iteration 완료 시 `per_slide` 상태 기반으로 progress를 보고한다.
+- `done = (status != "pending"인 슬라이드 수)` / `total = 전체 대상 슬라이드 수`
+- 주의: 이전에는 `completed_count` 누적 카운터를 사용하여 iteration 2회차 이후 `done > total`이 되는 버그가 있었다 (예: 11/10). 상태 기반 계산으로 수정됨.
 
 ## Consequences
 
