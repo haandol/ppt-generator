@@ -9,6 +9,7 @@ from ppt_generator.tools.pptx.controller import register_pptx_tools
 from ppt_generator.tools.project.controller import register_project_tools
 from ppt_generator.tools.script.controller import register_script_tools
 from ppt_generator.tools.slides.controller import register_slides_tools
+from ppt_generator.tools.visual_qa.controller import register_visual_qa_tools
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,9 @@ def create_server() -> FastMCP:
             "- After calling generate_slides_design_spec or modify_design_spec, "
             "you **must** call export_html(project_id=...) to export HTML.\n"
             "- Share the slides_html_path returned by export_html with the user.\n"
+            "- After design spec generation, suggest visual_qa(project_id=...) to the user "
+            "for pixel-perfect quality check.\n"
+            "- Only run visual_qa when the user agrees. It requires Playwright.\n"
         ),
     )
     container = DIContainer()
@@ -34,6 +38,11 @@ def create_server() -> FastMCP:
     register_pptx_tools(mcp, container.export_service, container.project_service)
     register_slides_tools(mcp, container.slides_service, container.project_service)
     register_project_tools(mcp, container.project_service)
+    register_visual_qa_tools(
+        mcp, container.project_service,
+        visual_qa_service_factory=container.create_visual_qa_service,
+        slides_service=container.slides_service,
+    )
     return mcp
 
 

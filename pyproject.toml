@@ -19,6 +19,9 @@ ppt-generator = "ppt_generator.server:main"
 dev = [
     "pytest",
 ]
+visual-qa = [
+    "playwright",
+]
 
 [build-system]
 requires = ["hatchling"]

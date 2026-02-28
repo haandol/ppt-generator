@@ -82,6 +82,32 @@ class ShapeOutput(BaseModel):
     dash_style: Literal["solid", "dash", "dot"] | None = None
 
 
+# --- Visual QA models ---
+
+class VisualQAIssue(BaseModel):
+    """Visual QA 분석에서 발견된 개별 이슈."""
+
+    issue_type: Literal[
+        "word_break", "text_truncation", "overlap",
+        "overflow", "contrast", "misalignment",
+        "inconsistent_font_size", "inconsistent_spacing",
+        "wrong_vertical_alignment",
+    ]
+    severity: Literal["high", "medium", "low"]
+    element_type: Literal["textbox", "shape"]
+    element_index: int = Field(ge=0)
+    description: str
+    suggested_fix: str
+
+
+class VisualQAOutput(BaseModel):
+    """Visual QA 스크린샷 분석 결과."""
+
+    has_issues: bool
+    issues: list[VisualQAIssue] = Field(default_factory=list)
+    overall_quality: Literal["good", "needs_improvement", "poor"]
+
+
 class SlideSpecOutput(BaseModel):
     """LLM structured_output용 슬라이드 스펙 Pydantic 모델."""
 

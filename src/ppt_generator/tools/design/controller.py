@@ -170,6 +170,10 @@ def register_design_tools(
             "success_count": pr.success_count,
             "error_count": pr.error_count,
             "results": pr.results,
+            "visual_qa_suggestion": (
+                "Visual QA를 실행하면 시각적 결함(줄바꿈, 겹침, 잘림 등)을 자동 감지하고 수정합니다. "
+                f"실행하려면 visual_qa(project_id='{project_id}') 를 호출하세요."
+            ),
         }
         if slides_html_path:
             resp["slides_html_path"] = slides_html_path

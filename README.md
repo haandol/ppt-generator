@@ -92,7 +92,24 @@ Anthropic API와 AWS Bedrock을 지원합니다.
 
 이후 아웃라인 → 스크립트 → 디자인 스펙 순서로 자동 생성됩니다. 각 단계에서 검토/수정 기회가 주어집니다.
 
-### Step 3 — 파일 내보내기
+### Step 3 — Visual QA (선택)
+
+디자인 스펙 생성 후 시각적 결함(줄바꿈, 겹침, 여백 불일치 등)을 자동 감지하고 수정할 수 있습니다.
+
+**사전 설치:**
+
+```bash
+uv sync --group visual-qa
+playwright install chromium
+```
+
+```
+visual_qa 실행해줘.
+```
+
+> Playwright가 설치되지 않으면 건너뛸 수 있습니다. 기존 기능에는 영향 없습니다.
+
+### Step 4 — 파일 내보내기
 
 디자인 스펙 생성이 완료되면 기본적으로 HTML 파일이 자동 내보내기됩니다. 만약 자동으로 내보내지지 않았다면 직접 요청할 수 있습니다:
 
@@ -133,6 +150,8 @@ MCP 서버 등록 시 `env`에 `PPT_LOG_DIR`을 추가합니다:
 
 | 변수 | 설명 |
 | --- | --- |
+| `VISUAL_QA_PARALLEL` | Visual QA 병렬 워커 수 (기본: 8) |
+| `VISUAL_QA_MAX_ITERATIONS` | Visual QA 최대 수정 반복 횟수 (기본: 2) |
 | `PPT_LOG_DIR` | 프로젝트별 로그 파일이 저장될 디렉토리 (권장). 예: `/tmp/ppt-generator` |
 | `PPT_LOG_FILE` | 단일 로그 파일 경로 (레거시). `PPT_LOG_DIR` 설정 시 무시됨 |
 

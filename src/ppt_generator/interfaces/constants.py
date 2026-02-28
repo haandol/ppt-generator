@@ -9,6 +9,12 @@ PPT_GENERATOR_HOME = Path.home() / ".ppt-generator"
 
 DESIGN_SPEC_PARALLEL = int(os.environ.get("DESIGN_SPEC_PARALLEL", "8"))
 
+# --- Visual QA ---
+VISUAL_QA_PARALLEL = int(os.environ.get("VISUAL_QA_PARALLEL", "8"))
+VISUAL_QA_MAX_ITERATIONS = int(os.environ.get("VISUAL_QA_MAX_ITERATIONS", "2"))
+VISUAL_QA_VIEWPORT_WIDTH = 1280
+VISUAL_QA_VIEWPORT_HEIGHT = 720
+
 # --- Design spec generation model ---
 BEDROCK_DESIGN_MODEL_ID = os.environ.get(
     "BEDROCK_DESIGN_MODEL_ID", "global.anthropic.claude-sonnet-4-6"
@@ -132,6 +138,8 @@ from ppt_generator.interfaces.prompts import (  # noqa: E402
     OUTLINE_USER_PROMPT_TEMPLATE,
     SCRIPT_SYSTEM_PROMPT,
     SCRIPT_USER_PROMPT_TEMPLATE,
+    VISUAL_QA_ANALYSIS_SYSTEM_PROMPT,
+    VISUAL_QA_FIX_SYSTEM_PROMPT,
 )
 
 __all__ = [
@@ -173,10 +181,14 @@ __all__ = [
     "DESIGN_SUMMARY_USER_PROMPT_TEMPLATE",
     "OUTLINE_SYSTEM_PROMPT", "OUTLINE_USER_PROMPT_TEMPLATE",
     "SCRIPT_SYSTEM_PROMPT", "SCRIPT_USER_PROMPT_TEMPLATE",
+    "VISUAL_QA_ANALYSIS_SYSTEM_PROMPT", "VISUAL_QA_FIX_SYSTEM_PROMPT",
     # Paths
     "PPT_GENERATOR_HOME",
     # Parallelism
     "DESIGN_SPEC_PARALLEL",
+    # Visual QA
+    "VISUAL_QA_MAX_ITERATIONS",
+    "VISUAL_QA_VIEWPORT_WIDTH", "VISUAL_QA_VIEWPORT_HEIGHT",
     # Complexity
     "COMPONENT_HINT_COMPLEXITY",
 ]

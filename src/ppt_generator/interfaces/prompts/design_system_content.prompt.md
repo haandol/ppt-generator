@@ -110,7 +110,9 @@ Always explicitly specify vertical_alignment for both textboxes and shapes. null
 - Recommended values by use case:
   - Title/subtitle textboxes: "middle"
   - Body/bullet textboxes: "middle" recommended if content is less than 65% of box height, "top" if 65% or more
-  - Card/banner/button shapes (with text or paragraphs): "middle"
+  - **Peer cards/shapes in a row (step_cards, info_cards, summary_grid, etc.): MUST use "top".**
+    Reason: When multiple cards of the same height are arranged in a row but contain different amounts of text, "middle" alignment causes each card's content to start at a different vertical position. This makes numbering labels (01, 02, 03…), titles, and descriptions misaligned across cards. Using "top" ensures all peer cards start content at the same vertical position, maintaining visual consistency.
+  - Standalone card/banner/button shapes (single element, not part of a peer row): "middle"
   - Footer/bottom labels: "bottom"
   - Decorative shapes (no text): "top"
 </vertical_alignment_guide>
@@ -410,6 +412,8 @@ Hard constraints (rendering will fail if violated):
    - Example: 3 color bars above cards → all 3 use top_px=493, height_px=10
    - Example: 3 bottom info badges → all 3 use top_px=626, height_px=30
    - Do not calculate each element's top_px individually. **First determine one top_px for the row**, then apply it uniformly to all elements in that row.
+   - **Internal paragraph consistency**: When peer cards/shapes contain paragraphs (e.g., step number + title + description), all peer shapes must use **identical paragraph structure, font sizes, and line spacing**. This ensures number labels (01, 02, 03…), titles, and descriptions are rendered at the same vertical position across all cards.
+   - **Separate label elements**: If number labels or icons are placed as separate textboxes/shapes above cards, all labels in the same row must share the exact same top_px, height_px, and font_size_pt.
    Reason: Even a 1px difference in top_px breaks visual alignment, significantly degrading design quality.
 
 10. No bottom auxiliary element overlap: When placing 2+ independent shapes/textboxes at the bottom of the slide (top_px >= 540),

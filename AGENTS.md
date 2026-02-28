@@ -36,6 +36,9 @@ ppt-generator/
 │   │   │   ├── controller.py      # MCP 인터페이스
 │   │   │   ├── service.py         # LLM 기반 디자인 스펙 생성
 │   │   │   └── parallel_runner.py # ThreadPoolExecutor 기반 병렬 생성 러너
+│   │   ├── visual_qa/             # Visual QA 도구 (opt-in, Playwright 필요)
+│   │   │   ├── controller.py      # MCP 인터페이스
+│   │   │   └── service.py         # 스크린샷 캡처 + LLM 분석 + 자동 수정
 │   │   ├── pptx/                  # PPTX 내보내기 도구 (F5)
 │   │   │   ├── controller.py      # MCP 인터페이스
 │   │   │   ├── service.py         # ExportService (디자인 스펙 → PPTX)
@@ -71,7 +74,9 @@ ppt-generator/
 │   │       ├── outline_system.prompt.md  # 아웃라인 시스템 프롬프트
 │   │       ├── outline_user.prompt.md    # 아웃라인 사용자 프롬프트
 │   │       ├── script_system.prompt.md   # 스크립트 시스템 프롬프트
-│   │       └── script_user.prompt.md     # 스크립트 사용자 프롬프트
+│   │       ├── script_user.prompt.md     # 스크립트 사용자 프롬프트
+│   │       ├── visual_qa_analysis.prompt.md  # Visual QA 스크린샷 분석 프롬프트
+│   │       └── visual_qa_fix.prompt.md       # Visual QA 디자인 스펙 수정 프롬프트
 │   └── templates/
 │       ├── slide.html             # 개별 슬라이드 HTML 템플릿 (완전한 HTML 문서)
 │       ├── slides.html            # 레거시 단일 HTML 템플릿 (하위 호환)
@@ -99,6 +104,7 @@ ppt-generator/
 - **LLM (아웃라인)**: Claude Sonnet 4.6 Extended Thinking (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 32K tokens, effort: medium)
 - **LLM (스크립트)**: Claude Sonnet 4.6 (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 32K tokens, thinking off)
 - **Slide Framework**: 순수 HTML/CSS (인라인 스타일, 슬라이드별 개별 HTML + iframe 컨테이너)
+- **Visual QA** (opt-in): Playwright headless Chromium (스크린샷) + Claude Vision (분석/수정)
 - **PPTX Export**: python-pptx (디자인 스펙 → SlideBuilder 직접 변환)
 - **레이아웃 그리드**: 48열×20행 (24×24px 정사각형 셀) — 콘텐츠 영역 1152×480px, 안전 영역 64~1216×64~656px. 상세 좌표 테이블은 `interfaces/prompts/design_system.prompt.md`의 `<layout_grid>`, `<diagram_grid>` 섹션 참조
 
@@ -131,6 +137,8 @@ ppt-generator/
 | `BEDROCK_OUTLINE_MODEL_ID` | 모델 ID 문자열          | 아웃라인/스크립트 Bedrock 모델 (기본: `global.anthropic.claude-sonnet-4-6`)                               |
 | `ANTHROPIC_OUTLINE_MODEL_ID`| 모델 ID 문자열         | 아웃라인/스크립트 Anthropic 모델 (기본: `claude-sonnet-4-6`)                                             |
 | `DESIGN_SPEC_PARALLEL`     | 정수 (기본: 8)          | 디자인 스펙 생성 시 슬라이드별 병렬 워커 수. API rate limit에 맞게 조절                                  |
+| `VISUAL_QA_PARALLEL`       | 정수 (기본: 8)          | Visual QA 병렬 워커 수 (스크린샷 캡처 + LLM 분석)                                                       |
+| `VISUAL_QA_MAX_ITERATIONS` | 정수 (기본: 2)          | Visual QA 최대 수정 반복 횟수                                                                            |
 | `PPT_LOG_DIR`              | 디렉토리 경로 문자열    | 세션별 UUID 로그 파일 디렉토리 (권장, 예: `/tmp/ppt-generator`). 10MB 회전, 백업 2개                     |
 | `PPT_LOG_FILE`             | 파일 경로 문자열        | 단일 로그 파일 경로 (레거시, `PPT_LOG_DIR` 우선). 10MB 회전, 백업 2개                                    |
 
@@ -171,6 +179,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 | `templates/layout_mapping.py` | layout_index → 슬라이드 레이아웃 매핑 (97종) |
 | `tools/design/service.py` | 디자인 스펙 생성 — 복잡도 기반 adaptive effort |
 | `tools/design/parallel_runner.py` | ThreadPoolExecutor 기반 슬라이드 병렬 생성, 토큰 집계 |
+| `tools/visual_qa/service.py` | Visual QA — Playwright 스크린샷 + Claude Vision 분석 + 자동 수정 루프 |
 | `di/model_factory.py` | LLM 모델 생성 팩토리 (Bedrock/Anthropic 프로바이더별) |
 | `tools/pptx/slide_builder.py` | PptxSlideSpec → python-pptx 변환 |
 | `tools/slides/html_renderer.py` | PptxSlideSpec → HTML 변환 |
@@ -272,6 +281,8 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
     ↓
     ⏸ (선택) modify_design_spec → 개별 슬라이드 추가/수정/삭제 (design_summary.json 파일 기반 스타일 참조)
     ↓
+    ⏸ (선택) visual_qa(project_id=...)    → Playwright 스크린샷 + Claude Vision 분석 → 자동 수정 (opt-in)
+    ↓
     ├→ export_html(project_id=...)            → 디자인 스펙 자동 로드 → HTML 변환 (결정론적)
     │
     └→ export_pptx(project_id=...)          → 디자인 스펙 자동 로드 → PPTX 생성 (결정론적)
@@ -294,6 +305,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 | `generate_script`            | `tools/script/`  | 아웃라인 JSON을 기반으로 슬라이드별 발표 스크립트 생성 (token_usage 포함)                           |
 | `generate_slides_design_spec` | `tools/design/`  | 슬라이드 디자인 스펙 생성 — 서버 내부 병렬 처리, token_usage 합산 + estimated_cost(USD) 포함       |
 | `modify_design_spec`          | `tools/design/`  | 디자인 스펙의 개별 슬라이드 추가/수정/삭제 (CRUD), add/update 시 token_usage + estimated_cost 포함  |
+| `visual_qa`                  | `tools/visual_qa/` | 렌더링된 슬라이드의 시각적 품질 검사 + 자동 수정 (opt-in, Playwright 필요). token_usage + estimated_cost 포함 |
 | `export_html`                | `tools/slides/`  | 디자인 스펙 또는 project_id 기반 HTML 슬라이드 내보내기 (결정론적 변환)                             |
 | `export_pptx`                | `tools/pptx/`    | 디자인 스펙 또는 project_id 기반 편집 가능한 PPTX 내보내기 (결정론적 변환)                         |
 | `list_projects`              | `tools/project/` | 기존 프로젝트 목록 조회 (파이프라인 시작 전 호출 권장)                                             |
@@ -329,6 +341,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 | `SlideSpecOutput`                   | strands `structured_output_model`용 Pydantic 모델. `to_dataclass()`로 `PptxSlideSpec`으로 변환 |
 | `TextRunOutput` / `ParagraphOutput` | LLM 출력용 텍스트 런/단락                                                                      |
 | `TextBoxOutput` / `ShapeOutput`     | LLM 출력용 텍스트박스/도형                                                                     |
+| `VisualQAIssue` / `VisualQAOutput`  | Visual QA 분석 결과 (이슈 타입, 심각도, 수정 제안)                                             |
 
 ### 슬라이드 아웃라인 JSONL
 
@@ -395,7 +408,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 - MCP 도구 함수에는 한국어 docstring 필수 (클라이언트에 노출됨)
 - 외부 API(Bedrock/Anthropic) 호출 테스트는 반드시 mock 처리
 - Conventional Commits 형식 사용: `<type>(<scope>): <subject>` (상세: [CONTRIBUTING.md](CONTRIBUTING.md))
-- LLM: 디자인 스펙은 Claude Sonnet 4.6 Extended Thinking 사용 (슬라이드 복잡도에 따라 thinking effort를 high/medium/low로 동적 적용), 아웃라인은 Claude Sonnet 4.6 Extended Thinking (effort: medium), 스크립트는 Claude Sonnet 4.6 (thinking off)
+- LLM: 디자인 스펙은 Claude Sonnet 4.6 Extended Thinking 사용 (슬라이드 복잡도에 따라 thinking effort를 high/medium/low로 동적 적용), 아웃라인은 Claude Sonnet 4.6 Extended Thinking (effort: medium), 스크립트는 Claude Sonnet 4.6 (thinking off), Visual QA 분석은 Claude Sonnet 4.6 Extended Thinking (effort: medium, vision), Visual QA 수정은 Claude Sonnet 4.6 Extended Thinking (effort: high)
 - Agent 프레임워크: AWS Strands SDK (`strands-agents`)
 
 ## Testing

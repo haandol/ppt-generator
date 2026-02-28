@@ -7,8 +7,10 @@ from ppt_generator.di.model_factory import (
     CachingAnthropicModel,
     create_anthropic_design_model,
     create_anthropic_outline_model,
+    create_anthropic_visual_qa_model,
     create_bedrock_design_model,
     create_bedrock_outline_model,
+    create_bedrock_visual_qa_model,
 )
 from ppt_generator.interfaces.constants import (
     BEDROCK_OUTLINE_MAX_TOKENS,
@@ -18,6 +20,8 @@ from ppt_generator.interfaces.constants import (
     OUTLINE_SYSTEM_PROMPT,
     SCRIPT_JSON_SCHEMA,
     SCRIPT_SYSTEM_PROMPT,
+    VISUAL_QA_ANALYSIS_SYSTEM_PROMPT,
+    VISUAL_QA_FIX_SYSTEM_PROMPT,
 )
 from ppt_generator.tools.design.service import DesignService
 from ppt_generator.tools.outline.service import OutlineService
@@ -83,6 +87,20 @@ class DIContainer:
             )
         return Agent(model=model, system_prompt=OUTLINE_SYSTEM_PROMPT, callback_handler=None, tools=[])
 
+    def _create_visual_qa_analysis_agent(self) -> Agent:
+        if self._provider == "anthropic":
+            model = create_anthropic_visual_qa_model(thinking_effort="medium")
+        else:
+            model = create_bedrock_visual_qa_model(thinking_effort="medium")
+        return Agent(model=model, system_prompt=VISUAL_QA_ANALYSIS_SYSTEM_PROMPT, callback_handler=None, tools=[])
+
+    def _create_visual_qa_fix_agent(self) -> Agent:
+        if self._provider == "anthropic":
+            model = create_anthropic_visual_qa_model(thinking_effort="high")
+        else:
+            model = create_bedrock_visual_qa_model(thinking_effort="high")
+        return Agent(model=model, system_prompt=VISUAL_QA_FIX_SYSTEM_PROMPT, callback_handler=None, tools=[])
+
     def _create_design_agent(self, thinking_effort: str, slide_type: str = "content") -> Agent:
         if self._provider == "anthropic":
             model = create_anthropic_design_model(thinking_effort=thinking_effort)
@@ -120,6 +138,14 @@ class DIContainer:
     def create_design_service(self, thinking_effort: str, slide_type: str = "content") -> DesignService:
         """새 Agent를 포함한 DesignService 인스턴스를 생성한다."""
         return DesignService(agent=self._create_design_agent(thinking_effort=thinking_effort, slide_type=slide_type))
+
+    def create_visual_qa_service(self) -> "VisualQAService":
+        """VisualQAService 인스턴스를 생성한다 (Playwright 필요)."""
+        from ppt_generator.tools.visual_qa.service import VisualQAService
+        return VisualQAService(
+            analysis_agent_factory=self._create_visual_qa_analysis_agent,
+            fix_agent_factory=self._create_visual_qa_fix_agent,
+        )
 
     @property
     def project_service(self) -> ProjectService:
