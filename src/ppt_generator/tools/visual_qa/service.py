@@ -264,7 +264,6 @@ class VisualQAService:
         pending_indices = list(indices)
         ever_fixed: set[int] = set()
 
-        completed_count = 0
         total_count = len(indices)
 
         iterations_used = 0
@@ -310,9 +309,6 @@ class VisualQAService:
                 per_slide[idx].iterations = iteration + 1
                 if not analysis.has_issues:
                     per_slide[idx].status = "fixed" if idx in ever_fixed else "pass"
-                    completed_count += 1
-                    if report_progress is not None:
-                        await report_progress(completed_count, f"슬라이드 {completed_count}/{total_count} 완료")
                 else:
                     issue_types = [i.issue_type for i in analysis.issues]
                     per_slide[idx].issues_found = issue_types
@@ -339,7 +335,6 @@ class VisualQAService:
             # ── Phase 4: 수정된 슬라이드 저장 + HTML 재렌더링 ──
             next_pending: list[int] = []
             for idx, fixed_spec in fix_results:
-                completed_count += 1
                 if fixed_spec is not None:
                     save_spec(project_dir, idx, fixed_spec)
                     html = render_html(idx, fixed_spec)
@@ -347,14 +342,15 @@ class VisualQAService:
                     ever_fixed.add(idx)
                     per_slide[idx].status = "fixed"
                     next_pending.append(idx)
-                    if report_progress is not None:
-                        await report_progress(completed_count, f"슬라이드 {completed_count}/{total_count} 수정 완료")
                 else:
                     per_slide[idx].status = "unfixed"
-                    if report_progress is not None:
-                        await report_progress(completed_count, f"슬라이드 {completed_count}/{total_count} 수정 실패")
 
             pending_indices = next_pending
+
+            # ── Progress 리포트 ──
+            if report_progress is not None:
+                done = sum(1 for r in per_slide.values() if r.status not in ("pending",))
+                await report_progress(done, f"슬라이드 {done}/{total_count} 처리 완료")
 
         result_list = sorted(per_slide.values(), key=lambda r: r.slide_index)
         slides_with_issues = sum(1 for r in result_list if r.issues_found)

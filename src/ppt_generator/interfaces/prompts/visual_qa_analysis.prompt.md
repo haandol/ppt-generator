@@ -22,12 +22,14 @@ Identify any visual quality issues from the categories below.
 | `overflow` | Text extends beyond its containing box. |
 | `contrast` | Insufficient contrast between text and its background, making text hard to read. |
 | `misalignment` | Elements that should be aligned in the same row/column are visually misaligned. Includes: step/card number labels (01, 02, 03…) at different vertical positions, card titles not sharing the same baseline, or peer elements in a row having different top_px values. |
+| `arrow_disconnected` | An arrow (line shape) endpoint does not touch the connected block's edge. The arrow floats (gap) or penetrates (overlap) the block. |
 | `wrong_vertical_alignment` | Peer cards/shapes in a row use vertical_alignment "middle" instead of "top", causing content start positions to differ across cards when text amounts vary. When multiple cards of the same height are arranged horizontally and contain different amounts of text, "middle" alignment pushes shorter content down, making numbering labels (01, 02, 03…) and titles start at different heights across cards. |
 | `inconsistent_font_size` | Peer elements at the same level (e.g., bullet items in a list, card titles, column headings) use different font sizes when they should be uniform. |
 | `inconsistent_spacing` | Inconsistent margins or gaps between peer elements. For example: cards in a row have uneven gaps between them, or left/right margins of a content block differ noticeably, or spacing between list items varies. |
 </issue_types>
 
 <guidelines>
+- Only report **visual rendering** issues. Do NOT flag or suggest changes to slide content (text wording, data values, narrative flow, language choices). Your scope is strictly layout, alignment, spacing, contrast, and overflow — never the substance of what is written.
 - Only report genuine visual issues that would be noticeable to a human viewer.
 - Do not flag intentional design choices (e.g., overlapping decorative shapes behind text).
 - For `word_break`: focus on title text and headings where mid-word breaks look unprofessional.
@@ -37,6 +39,7 @@ Identify any visual quality issues from the categories below.
 - For `inconsistent_font_size`: compare font sizes across peer elements at the same hierarchy level (e.g., all card titles, all bullet items at bullet_level 0, all column headers). Different levels (title vs body) naturally have different sizes — only flag when same-level siblings differ.
 - For `inconsistent_spacing`: compare gaps between adjacent peer elements (cards, list items, columns). Check whether left/right margins of a content area are balanced. Use the design spec JSON coordinates (left_px, top_px, width_px, height_px) to verify precise spacing values. Small differences (< 4px) can be ignored.
 - For `wrong_vertical_alignment`: check peer cards/shapes arranged in a row that share the same top_px and height_px. If they use vertical_alignment "middle" and contain different amounts of text (different paragraph counts or text lengths), the visual content start position will differ across cards. In the screenshot, look for number labels (01, 02, 03…) or titles starting at noticeably different vertical heights across peer cards. In the design spec JSON, verify the vertical_alignment field — if peer shapes use "middle" and have varying text content, flag this as `wrong_vertical_alignment` with severity "high".
+- For `arrow_disconnected`: Verify each line shape's start point touches the source block's edge and end point touches the target block's edge. Horizontal arrows: left_px == source right edge, left_px + width_px == target left edge. Vertical arrows: top_px == source bottom edge, top_px + height_px == target top edge. Gaps > 2px or any penetration is a defect.
 - Set severity to "high" for issues clearly visible at normal viewing distance, "medium" for noticeable on closer inspection, "low" for minor.
 </guidelines>
 

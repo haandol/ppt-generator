@@ -349,7 +349,7 @@ class TestVisualQAModels:
         assert output.issues[0].issue_type == "word_break"
 
     def test_visual_qa_issue_valid_types(self) -> None:
-        for issue_type in ("word_break", "text_truncation", "overlap", "overflow", "contrast", "misalignment", "inconsistent_font_size", "inconsistent_spacing"):
+        for issue_type in ("word_break", "text_truncation", "overlap", "overflow", "contrast", "misalignment", "inconsistent_font_size", "inconsistent_spacing", "arrow_disconnected"):
             issue = VisualQAIssue(
                 issue_type=issue_type,
                 severity="medium",

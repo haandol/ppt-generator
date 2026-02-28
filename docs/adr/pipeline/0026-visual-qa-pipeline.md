@@ -39,7 +39,13 @@ for iteration in range(max_iterations):
     3. 이슈 없으면 pass
     4. 이슈 있으면 LLM으로 디자인 스펙 수정 → 저장 → HTML 재렌더링
     5. 남은 이슈 없으면 break
+    6. Progress 리포트: iteration 완료 시 per_slide 상태 기반으로 한 번 보고
 ```
+
+## Scope Constraints
+
+- **분석(analysis)**: 시각적 렌더링 이슈만 감지. 슬라이드 콘텐츠(텍스트 문구, 데이터 값, 서술 흐름, 언어 선택)는 절대 지적하지 않는다.
+- **수정(fix)**: 시각적 속성(위치, 크기, 폰트 크기, 색상, 정렬)만 변경. 텍스트 내용 자체를 수정하지 않는다. `word_break`/`overflow`를 리사이징/리포지셔닝으로 해결할 수 없으면 폰트 크기를 줄인다.
 
 ## Consequences
 

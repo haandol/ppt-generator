@@ -81,6 +81,16 @@ Use these table values directly for evenly distributing blocks to prevent calcul
   - For bidirectional arrows, set both start_arrow: true and end_arrow: true.
   - Only omit (false) both end_arrow/start_arrow for plain connection lines without arrows.
 
+■ Arrow endpoint snapping (mandatory)
+  Arrow endpoints must precisely touch the edge of the connected block — no gap, no penetration.
+  - Start point (left_px, top_px) must lie exactly on the source block's edge.
+  - End point (left_px+width_px, top_px+height_px) must lie exactly on the target block's edge.
+  - Horizontal arrow: left_px == source.left + source.width, left_px + width_px == target.left
+  - Vertical arrow: top_px == source.top + source.height, top_px + height_px == target.top
+  - A gap > 0px means the arrow is visually disconnected ("floating").
+  - A negative gap means the arrow penetrates the block.
+  - Both are visual defects. Always derive arrow coordinates from connected blocks' exact edge values.
+
 ■ Minimum arrow gap rule (mandatory)
   Since arrowheads are 14px, **at least 28px gap** must be maintained between blocks when placing arrows.
   - Horizontal arrow: width_px >= 28 (distance between blockA's right and blockB's left >= 28)

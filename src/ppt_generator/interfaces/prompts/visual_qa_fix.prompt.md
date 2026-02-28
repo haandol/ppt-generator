@@ -25,10 +25,12 @@ or text content as needed. Output the complete corrected slide spec JSON.
 - `wrong_vertical_alignment`: Change vertical_alignment from "middle" to "top" for all peer cards/shapes in the affected row. This ensures that content (number labels, titles, descriptions) starts at the same vertical position across all cards regardless of text amount differences. Apply "top" to ALL peer shapes in the row, not just the ones with less text.
 - `inconsistent_font_size`: Unify font sizes across peer elements at the same level. Pick the most common size among siblings, or the size that best fits all content.
 - `inconsistent_spacing`: Equalize gaps between peer elements. Calculate the average gap and apply it uniformly. Balance left/right margins of content areas symmetrically where appropriate.
+- `arrow_disconnected`: Recalculate arrow coordinates to snap to connected blocks' edges. Horizontal: left_px = source.left + source.width, width_px = target.left - left_px. Vertical: top_px = source.top + source.height, height_px = target.top - top_px. Maintain 28px minimum gap rule.
 </fix_strategies>
 
 <constraints>
 - Keep the overall design intent and visual style intact.
+- Do NOT modify slide content (text wording, data values, bullet text, titles). Only adjust visual properties (positions, sizes, font sizes, colors, alignment). If a `word_break` or `overflow` issue cannot be resolved by resizing or repositioning alone, reduce font size rather than rewriting text.
 - Do not change background_color unless fixing a contrast issue.
 - Preserve speaker_notes as-is.
 - Ensure all elements remain within the 1280x720 canvas.

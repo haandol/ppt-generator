@@ -91,7 +91,7 @@ class VisualQAIssue(BaseModel):
         "word_break", "text_truncation", "overlap",
         "overflow", "contrast", "misalignment",
         "inconsistent_font_size", "inconsistent_spacing",
-        "wrong_vertical_alignment",
+        "wrong_vertical_alignment", "arrow_disconnected",
     ]
     severity: Literal["high", "medium", "low"]
     element_type: Literal["textbox", "shape"]
