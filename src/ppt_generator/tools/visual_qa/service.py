@@ -241,7 +241,7 @@ class VisualQAService:
         save_spec: Callable[[Path, int, PptxSlideSpec], None],
         render_html: Callable[[int, PptxSlideSpec], str],
         save_html: Callable[[Path, int, str], Path],
-        report_progress: Callable[[int, str], Awaitable[None]] | None = None,
+        report_progress: Callable[[int, int, str], Awaitable[None]] | None = None,
     ) -> VisualQAResult:
         """Visual QA 메인 오케스트레이션.
 
@@ -347,10 +347,15 @@ class VisualQAService:
 
             pending_indices = next_pending
 
-            # ── Progress 리포트 ──
+            # ── Progress 리포트 (iteration 기반) ──
             if report_progress is not None:
-                done = sum(1 for r in per_slide.values() if r.status not in ("pending",))
-                await report_progress(done, f"슬라이드 {done}/{total_count} 처리 완료")
+                await report_progress(
+                    iteration + 1, max_iterations,
+                    f"iteration {iteration + 1}/{max_iterations} 완료 "
+                    f"(pass={sum(1 for r in per_slide.values() if r.status == 'pass')}, "
+                    f"fixed={sum(1 for r in per_slide.values() if r.status == 'fixed')}, "
+                    f"pending={len(next_pending)})",
+                )
 
         result_list = sorted(per_slide.values(), key=lambda r: r.slide_index)
         slides_with_issues = sum(1 for r in result_list if r.issues_found)

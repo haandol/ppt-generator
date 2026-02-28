@@ -65,9 +65,10 @@ for iteration in range(max_iterations):
 
 ## Progress Reporting
 
-- `run_qa`는 각 iteration 완료 시 `per_slide` 상태 기반으로 progress를 보고한다.
-- `done = (status != "pending"인 슬라이드 수)` / `total = 전체 대상 슬라이드 수`
-- 주의: 이전에는 `completed_count` 누적 카운터를 사용했는데, `max_iterations >= 2`일 때 수정된 슬라이드가 2회차 재분석에서 pass되면 카운터가 중복 증가하여 `done > total`이 되는 버그가 있었다 (예: 11/10). 상태 기반 계산으로 수정됨.
+- progress 단위는 **iteration** 기반: `completed = iteration + 1`, `total = max_iterations`.
+- iteration 완료 시 pass/fixed/pending 상태를 메시지에 포함하여 보고.
+- 100% (`max_iterations/max_iterations`)는 `run_qa` 반환 후 controller에서만 보고 → 실제 완료 시점과 일치.
+- 주의: 이전에는 슬라이드 수 기반 `completed_count` 누적 카운터를 사용했는데, (1) `max_iterations >= 2`일 때 중복 증가로 `done > total` (예: 11/10), (2) iteration 0 완료 시 이미 100%에 도달하여 후속 iteration 진행 중에도 완료로 표시되는 문제가 있었다.
 
 ## Consequences
 

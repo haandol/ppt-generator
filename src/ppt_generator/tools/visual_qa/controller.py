@@ -68,11 +68,10 @@ def register_visual_qa_tools(
         # Create service (lazy — Playwright check happens at capture time)
         service: VisualQAService = visual_qa_service_factory()
 
-        total = len(indices)
         if ctx is not None:
-            await ctx.report_progress(0, total, "Visual QA 시작")
+            await ctx.report_progress(0, max_iterations, "Visual QA 시작")
 
-        async def _report_progress(completed: int, message: str) -> None:
+        async def _report_progress(completed: int, total: int, message: str) -> None:
             if ctx is not None:
                 await ctx.report_progress(completed, total, message)
 
@@ -94,7 +93,7 @@ def register_visual_qa_tools(
             (project_dir / "slides.html").write_text(container_html, encoding="utf-8")
 
         if ctx is not None:
-            await ctx.report_progress(total, total, "Visual QA 완료")
+            await ctx.report_progress(max_iterations, max_iterations, "Visual QA 완료")
 
         # Build response
         resp: dict = {
