@@ -11,11 +11,13 @@
 | 슬라이드 | 소요 시간 | Input tokens | Output tokens | 비용 (USD) |
 | --- | --- | --- | --- | --- |
 | 10장 | ~9 min | ~136K | ~108K | **~$2.0** |
-| 20장 | ~15 min | ~260K | ~210K | **~$3.9** |
+| 20장 | ~15 min | ~295K | ~466K | **~$7.7** |
 
 **Visual QA 포함 (max_iterations=2)**
 
-> TBU
+| 슬라이드 | Input tokens | Output tokens | 비용 (USD) |
+| --- | --- | --- | --- |
+| 20장 | ~573K | ~226K | **~$5.1** |
 
 Visual QA는 자동으로 실행되지 않으며, 사용자가 명시적으로 요청해야 합니다. 비용을 절감하려면 `max_iterations=1`로 설정하거나 문제가 있는 슬라이드만 별도로 Visual QA를 요청하세요.
 
