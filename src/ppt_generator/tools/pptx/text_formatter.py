@@ -119,9 +119,26 @@ def format_paragraphs(
             para.alignment = _ALIGN_MAP[para_spec.alignment]
 
 
-def apply_line_spacing(text_frame, line_spacing_pt: float) -> None:
-    """줄간격을 적용한다."""
-    for para in text_frame.paragraphs:
+def apply_line_spacing(
+    text_frame,
+    line_spacing_pt: float,
+    paragraphs: list[PptxParagraph] | None = None,
+) -> None:
+    """줄간격을 적용한다.
+
+    paragraph 스펙이 제공되면, 해당 paragraph 내 최대 font_size_pt보다
+    line_spacing_pt가 작은 경우 해당 paragraph에는 줄간격을 적용하지 않는다.
+    (PPTX line_spacing은 절대값이므로 폰트보다 작으면 텍스트가 겹침)
+    """
+    tf_paras = list(text_frame.paragraphs)
+    for i, para in enumerate(tf_paras):
+        if paragraphs and i < len(paragraphs):
+            max_font = max(
+                (r.font_size_pt for r in paragraphs[i].runs if r.font_size_pt),
+                default=0,
+            )
+            if max_font and line_spacing_pt < max_font * 1.2:
+                continue
         para.line_spacing = Pt(line_spacing_pt)
 
 

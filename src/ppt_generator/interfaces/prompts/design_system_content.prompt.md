@@ -152,9 +152,14 @@ Agenda slide (slide_type: "content", component_hint: "agenda") design rules:
 
 - The second slide of the presentation. Introduces the main sections/flow of the entire presentation
 - Agenda items should not list every individual slide, but rather abstract related slides into larger topic units (sections), keeping it concise with 3-6 items
-- Layout: Must use single-column layout only
-  · Title: left=64, top=72, width=1152, height=48
-  · Body: Single textbox below the title listing items vertically (left=64, top=148, width=1152, height=adjust to content)
+- Layout: **Default is single-column layout.** Only use two-column layout when the number of items exceeds 6 and a single column would waste excessive vertical space.
+  · Single-column (default, 6 items or fewer):
+    - Title: left=64, top=72, width=1152, height=48
+    - Body: Single textbox below the title listing items vertically (left=64, top=148, width=1152, height=adjust to content)
+  · Two-column (7+ items only, as a last resort):
+    - Title: left=64, top=72, width=1152, height=48
+    - Left: left=64, top=148, width=552, height=adjust to content
+    - Right: left=664, top=148, width=552, height=adjust to content
 - Each item should be written concisely as a section title
 </slide_type_agenda>
 

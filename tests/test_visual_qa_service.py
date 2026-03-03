@@ -126,7 +126,7 @@ class TestVisualQAServiceAnalyze:
 
         issues = [
             {
-                "issue_type": "word_break",
+                "issue_type": "text_truncation",
                 "severity": "high",
                 "element_type": "textbox",
                 "element_index": 0,
@@ -147,7 +147,7 @@ class TestVisualQAServiceAnalyze:
         result = svc.analyze_screenshot(png_path, 0, _make_spec())
         assert result.has_issues is True
         assert len(result.issues) == 1
-        assert result.issues[0].issue_type == "word_break"
+        assert result.issues[0].issue_type == "text_truncation"
 
 
 class TestVisualQAServiceFix:
@@ -170,7 +170,7 @@ class TestVisualQAServiceFix:
         )
         result = svc.fix_design_spec(
             png_path, _make_spec(),
-            issues=[{"issue_type": "word_break", "severity": "high",
+            issues=[{"issue_type": "text_truncation", "severity": "high",
                      "element_type": "textbox", "element_index": 0,
                      "description": "test", "suggested_fix": "test"}],
         )
@@ -256,7 +256,7 @@ class TestVisualQARunQA:
         (slides_dir / "slide_01.html").write_text("<html>slide 1</html>")
 
         issue = {
-            "issue_type": "word_break",
+            "issue_type": "text_truncation",
             "severity": "high",
             "element_type": "textbox",
             "element_index": 0,
@@ -332,7 +332,7 @@ class TestVisualQAModels:
 
     def test_visual_qa_output_with_issues(self) -> None:
         issue = VisualQAIssue(
-            issue_type="word_break",
+            issue_type="text_truncation",
             severity="high",
             element_type="textbox",
             element_index=0,
@@ -346,10 +346,10 @@ class TestVisualQAModels:
         )
         assert output.has_issues is True
         assert len(output.issues) == 1
-        assert output.issues[0].issue_type == "word_break"
+        assert output.issues[0].issue_type == "text_truncation"
 
     def test_visual_qa_issue_valid_types(self) -> None:
-        for issue_type in ("word_break", "text_truncation", "overlap", "overflow", "contrast", "misalignment", "inconsistent_font_size", "inconsistent_spacing", "arrow_disconnected"):
+        for issue_type in ("text_truncation", "overlap", "overflow", "contrast", "misalignment", "inconsistent_font_size", "inconsistent_spacing", "wrong_vertical_alignment", "arrow_disconnected", "zero_gap"):
             issue = VisualQAIssue(
                 issue_type=issue_type,
                 severity="medium",

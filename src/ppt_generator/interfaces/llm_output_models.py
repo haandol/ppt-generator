@@ -88,10 +88,11 @@ class VisualQAIssue(BaseModel):
     """Visual QA 분석에서 발견된 개별 이슈."""
 
     issue_type: Literal[
-        "word_break", "text_truncation", "overlap",
+        "text_truncation", "overlap",
         "overflow", "contrast", "misalignment",
         "inconsistent_font_size", "inconsistent_spacing",
         "wrong_vertical_alignment", "arrow_disconnected",
+        "zero_gap",
     ]
     severity: Literal["high", "medium", "low"]
     element_type: Literal["textbox", "shape"]

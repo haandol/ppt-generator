@@ -192,7 +192,7 @@ class SlideBuilder:
         format_paragraphs(tf, tb.paragraphs)
 
         if tb.line_spacing_pt:
-            apply_line_spacing(tf, tb.line_spacing_pt)
+            apply_line_spacing(tf, tb.line_spacing_pt, tb.paragraphs)
 
         if tb.vertical_alignment:
             apply_vertical_alignment(tf, tb.vertical_alignment)
@@ -261,7 +261,7 @@ class SlideBuilder:
             format_paragraphs(tf, shape_spec.paragraphs)
 
             if shape_spec.line_spacing_pt:
-                apply_line_spacing(tf, shape_spec.line_spacing_pt)
+                apply_line_spacing(tf, shape_spec.line_spacing_pt, shape_spec.paragraphs)
 
             if shape_spec.vertical_alignment:
                 apply_vertical_alignment(tf, shape_spec.vertical_alignment)
