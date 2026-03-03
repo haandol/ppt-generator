@@ -8,7 +8,7 @@
 
 1. Python 3.13+
 2. [uv](https://docs.astral.sh/uv/) 패키지 매니저
-3. Anthropic API Key 또는 AWS CLI 설정 (Bedrock 사용 시)
+3. AWS CLI 설정 (기본: Bedrock IAM) 또는 Anthropic API Key
 
 ## 1. 설치
 
@@ -29,10 +29,7 @@ MCP 클라이언트 설정 파일에 서버를 추가합니다.
   "mcpServers": {
     "ppt-generator": {
       "command": "uv",
-      "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"],
-      "env": {
-        "ANTHROPIC_API_KEY": "sk-ant-..."
-      }
+      "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"]
     }
   }
 }
@@ -45,16 +42,15 @@ MCP 클라이언트 설정 파일에 서버를 추가합니다.
   "mcpServers": {
     "ppt-generator": {
       "command": "uv",
-      "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"],
-      "env": {
-        "ANTHROPIC_API_KEY": "sk-ant-..."
-      }
+      "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"]
     }
   }
 }
 ```
 
 **Claude Desktop** — `claude_desktop_config.json`에 동일한 형식으로 추가합니다.
+
+> 기본적으로 AWS CLI 프로필의 IAM 자격 증명을 사용합니다 (Bedrock). Anthropic API를 사용하려면 `env`에 `"ANTHROPIC_API_KEY": "sk-ant-..."`를 추가하세요.
 
 > `/path/to/ppt-generator`를 실제 프로젝트 경로로 변경하세요.
 
@@ -64,9 +60,9 @@ Anthropic API와 AWS Bedrock을 지원합니다.
 
 | 프로바이더             | 필요한 환경변수                                            |
 | ---------------------- | ---------------------------------------------------------- |
-| Anthropic (기본)       | `ANTHROPIC_API_KEY`                                        |
-| Bedrock (IAM)          | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` |
+| Bedrock IAM (기본)     | AWS CLI 프로필 또는 `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` |
 | Bedrock (Bearer Token) | `AWS_BEARER_TOKEN_BEDROCK`, `AWS_REGION`                   |
+| Anthropic              | `ANTHROPIC_API_KEY`                                        |
 
 `LLM_PROVIDER` 미설정 시 `ANTHROPIC_API_KEY`가 있으면 `anthropic`, 없으면 `bedrock`으로 자동 선택됩니다.
 
@@ -138,7 +134,6 @@ MCP 서버 등록 시 `env`에 `PPT_LOG_DIR`을 추가합니다:
       "command": "uv",
       "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"],
       "env": {
-        "ANTHROPIC_API_KEY": "sk-ant-...",
         "PPT_LOG_DIR": "/tmp/ppt-generator"
       }
     }
