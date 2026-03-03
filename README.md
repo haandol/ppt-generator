@@ -13,11 +13,17 @@
 | 10장 | ~9 min | ~136K | ~108K | **~$2.0** |
 | 20장 | ~15 min | ~295K | ~466K | **~$7.7** |
 
-**Visual QA 포함 (max_iterations=2)**
+**Visual QA (max_iterations=2)**
 
 | 슬라이드 | Input tokens | Output tokens | 비용 (USD) |
 | --- | --- | --- | --- |
 | 20장 | ~573K | ~226K | **~$5.1** |
+
+**합산 (디자인 스펙 + Visual QA)**
+
+| 슬라이드 | Input tokens | Output tokens | 비용 (USD) |
+| --- | --- | --- | --- |
+| 20장 | ~868K | ~692K | **~$12.8** |
 
 Visual QA는 자동으로 실행되지 않으며, 사용자가 명시적으로 요청해야 합니다. 비용을 절감하려면 `max_iterations=1`로 설정하거나 문제가 있는 슬라이드만 별도로 Visual QA를 요청하세요.
 
