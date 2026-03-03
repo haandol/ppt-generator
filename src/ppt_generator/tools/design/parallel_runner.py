@@ -196,8 +196,12 @@ def run_parallel_generation(
     )
     total_all = result.total_input_tokens + result.total_output_tokens
     logger.info(
-        "[tokens] design_spec 합산: input=%s, output=%s, total=%s",
-        f"{result.total_input_tokens:,}", f"{result.total_output_tokens:,}", f"{total_all:,}",
+        "[tokens] design_spec 합산: input=%s, output=%s, total=%s, cache_read=%s, cache_write=%s",
+        f"{result.total_input_tokens:,}",
+        f"{result.total_output_tokens:,}",
+        f"{total_all:,}",
+        f"{result.total_cache_read_tokens:,}",
+        f"{result.total_cache_write_tokens:,}",
     )
 
     # 결과를 인덱스 순서로 정렬

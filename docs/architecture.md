@@ -6,6 +6,7 @@
 - **발표 스크립트 생성** — 아웃라인 기반으로 슬라이드별 발표 스크립트(speaker notes) 작성
 - **디자인 스펙 생성** — 슬라이드별 정밀한 레이아웃을 PptxSlideSpec JSON으로 설계
 - **슬라이드별 수정** — 개별 슬라이드의 디자인 스펙을 추가/수정/삭제 (전체 재생성 불필요)
+- **Visual QA** — Playwright 스크린샷 + Claude Vision으로 시각적 결함 자동 감지 및 수정 (opt-in)
 - **HTML 미리보기** — 디자인 스펙에서 결정론적으로 HTML 변환
 - **PPTX 내보내기** — 디자인 스펙에서 편집 가능한 PPTX로 결정론적 변환
 - **프로젝트 관리** — `project_id` 기반으로 중간 결과물 저장/로드, 중간 단계부터 재개 가능
@@ -17,10 +18,12 @@ flowchart LR
     A["주제 입력"] --> B["아웃라인\n생성"]
     B --> C["스크립트\n생성"]
     C --> D["디자인 스펙\n생성"]
+    D -.->|"개별 수정"| D
+    D -.->|"opt-in"| V["Visual QA\n(분석→수정 루프)"]
+    V -.-> D
     D --> E{"내보내기"}
     E --> F["HTML\n미리보기"]
     E --> G["PPTX\n다운로드"]
-    D -.->|"개별 수정"| D
 ```
 
 ## 사용 워크플로우
@@ -34,6 +37,8 @@ flowchart TD
     E --> F{"⏸ 검토"}
     F -->|"수정 필요"| G["modify_design_spec\n개별 슬라이드 수정"]
     G --> F
+    F -->|"Visual QA"| V["visual_qa\n스크린샷 분석→자동 수정\n(max_iterations 반복)"]
+    V --> F
     F -->|"완료"| H["4. 내보내기"]
     H --> I["export_pptx\n편집 가능한 .pptx"]
     H --> J["export_html\nHTML 미리보기"]
@@ -53,6 +58,7 @@ flowchart TD
 | `generate_script`            | 아웃라인 기반 슬라이드별 발표 스크립트 생성               |
 | `generate_slides_design_spec` | 슬라이드 디자인 스펙 생성 (전체 또는 선택적, 서버 내부 병렬 처리) |
 | `modify_design_spec`         | 디자인 스펙의 개별 슬라이드 추가/수정/삭제                |
+| `visual_qa`                  | 스크린샷 기반 시각적 결함 감지 및 자동 수정 (opt-in, Playwright 필요) |
 | `export_html`                | 디자인 스펙에서 HTML 슬라이드 내보내기 (결정론적 변환)    |
 | `export_pptx`                | 디자인 스펙에서 편집 가능한 PPTX 내보내기 (결정론적 변환) |
 
@@ -63,6 +69,32 @@ flowchart TD
 - **병렬 워커 수**: `DESIGN_SPEC_PARALLEL` 환경변수로 제어 (기본 `8`). API rate limit에 맞게 조절 가능
 - **Longest-job-first 스케줄링**: 슬라이드 복잡도 점수(1~13)를 산출하여 복잡한 슬라이드부터 먼저 처리 → wall-clock time 단축
 - **Adaptive thinking effort**: 복잡도에 따라 `high`(7~13) / `medium`(4~6) / `low`(1~3) effort를 동적 적용 → 단순 슬라이드 토큰 절약, 복잡한 슬라이드 품질 유지
+
+#### Visual QA 파이프라인
+
+`visual_qa`는 디자인 스펙 생성 후 실제 렌더링 결과의 시각적 결함을 자동 감지·수정합니다. Playwright + Claude Vision 기반이며 opt-in 방식으로 사용자 동의 후에만 실행됩니다.
+
+```
+for iteration in range(max_iterations):    # 기본 2회
+    1. Playwright 스크린샷 캡처 (1280×720, ThreadPoolExecutor 병렬)
+    2. Claude Vision 분석 (asyncio.gather 병렬, thinking_effort=medium)
+       → has_issues=false → "pass" / "fixed"
+       → has_issues=true  → 수정 대상 분류
+    3. LLM 디자인 스펙 수정 (asyncio.gather 병렬, thinking_effort=high)
+       → 스펙 저장 + HTML 재렌더링 → 다음 iteration에서 재검사
+    종료: 이슈 없음 / 모든 수정 실패 / max_iterations 도달
+```
+
+**감지 이슈 타입 (10가지)**: `word_break` · `text_truncation` · `overlap` · `overflow` · `contrast` · `misalignment` · `wrong_vertical_alignment` · `inconsistent_font_size` · `inconsistent_spacing` · `arrow_disconnected`
+
+**Scope 제약**: 시각적 속성(위치, 크기, 폰트, 색상, 정렬)만 수정하며 텍스트 콘텐츠는 변경하지 않습니다.
+
+| 환경변수 | 기본값 | 설명 |
+| --- | --- | --- |
+| `VISUAL_QA_PARALLEL` | `8` | 스크린샷 캡처 병렬 워커 수 |
+| `VISUAL_QA_MAX_ITERATIONS` | `2` | 분석→수정 최대 반복 횟수 |
+
+> Playwright 미설치 시 기존 기능에 영향 없습니다. 설치: `uv sync --group visual-qa && playwright install chromium`
 
 ### 프로젝트 관리 도구
 
@@ -83,6 +115,8 @@ flowchart TD
 | 디자인 스펙 생성  | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 64,000     | adaptive (슬라이드 복잡도 기반 high/medium/low) |
 | 아웃라인          | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 32,000     | medium                                           |
 | 스크립트          | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 32,000     | off                                              |
+| Visual QA 분석   | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 64,000     | adaptive (medium)                                |
+| Visual QA 수정   | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 64,000     | adaptive (high)                                  |
 
 ## 프로젝트 구조
 
@@ -106,6 +140,7 @@ ppt-generator/
 │       ├── script/                # 발표 스크립트 생성
 │       ├── design/                # 디자인 스펙 생성/수정
 │       ├── slides/                # HTML 슬라이드 생성
+│       ├── visual_qa/             # Visual QA (스크린샷 분석 + 자동 수정)
 │       ├── pptx/                  # PPTX 내보내기
 │       └── project/               # 프로젝트 관리
 ├── env/
@@ -127,4 +162,5 @@ ppt-generator/
 | 에이전트 프레임워크     | AWS Strands SDK (`strands-agents`) |
 | LLM                     | Claude Sonnet 4.6 Extended Thinking |
 | 슬라이드 프레임워크     | 순수 HTML/CSS (인라인 스타일)      |
+| Visual QA               | Playwright headless Chromium (opt-in) |
 | PPTX 내보내기           | python-pptx                        |

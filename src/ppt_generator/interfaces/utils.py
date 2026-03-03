@@ -180,11 +180,9 @@ def log_token_usage(result: object, label: str) -> dict[str, int]:
             f"input={input_tokens:,}",
             f"output={output_tokens:,}",
             f"total={total_tokens:,}",
+            f"cache_read={cache_read:,}",
+            f"cache_write={cache_write:,}",
         ]
-        if cache_read:
-            parts.append(f"cache_read={cache_read:,}")
-        if cache_write:
-            parts.append(f"cache_write={cache_write:,}")
 
         logger.info("[tokens] %s: %s", label, ", ".join(parts))
         return dict(usage)

@@ -120,11 +120,9 @@ def register_visual_qa_tools(
                 "inputTokens": result.total_input_tokens,
                 "outputTokens": result.total_output_tokens,
                 "totalTokens": result.total_input_tokens + result.total_output_tokens,
+                "cacheReadInputTokens": result.total_cache_read_tokens,
+                "cacheWriteInputTokens": result.total_cache_write_tokens,
             }
-            if result.total_cache_read_tokens:
-                aggregated_usage["cacheReadInputTokens"] = result.total_cache_read_tokens
-            if result.total_cache_write_tokens:
-                aggregated_usage["cacheWriteInputTokens"] = result.total_cache_write_tokens
         if aggregated_usage:
             resp["token_usage"] = format_token_usage(aggregated_usage)
             resp["estimated_cost"] = estimate_cost(aggregated_usage, BEDROCK_DESIGN_MODEL_ID)

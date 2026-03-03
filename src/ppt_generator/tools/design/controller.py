@@ -156,11 +156,9 @@ def register_design_tools(
                 "inputTokens": pr.total_input_tokens,
                 "outputTokens": pr.total_output_tokens,
                 "totalTokens": pr.total_input_tokens + pr.total_output_tokens,
+                "cacheReadInputTokens": pr.total_cache_read_tokens,
+                "cacheWriteInputTokens": pr.total_cache_write_tokens,
             }
-            if pr.total_cache_read_tokens:
-                aggregated_usage["cacheReadInputTokens"] = pr.total_cache_read_tokens
-            if pr.total_cache_write_tokens:
-                aggregated_usage["cacheWriteInputTokens"] = pr.total_cache_write_tokens
 
         resp: dict = {
             "design_spec_dir": str(project_dir / "design_spec"),

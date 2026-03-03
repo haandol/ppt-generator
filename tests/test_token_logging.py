@@ -74,14 +74,14 @@ class TestLogTokenUsage:
         assert "cache_read=3,000" in msg
         assert "cache_write=500" in msg
 
-    def test_omits_cache_tokens_when_zero(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_includes_cache_tokens_when_zero(self, caplog: pytest.LogCaptureFixture) -> None:
         result = _make_agent_result(SAMPLE_USAGE)
         with caplog.at_level(logging.INFO, logger="ppt_generator.interfaces.utils"):
             log_token_usage(result, "test")
 
         msg = caplog.records[0].message
-        assert "cache_read" not in msg
-        assert "cache_write" not in msg
+        assert "cache_read=0" in msg
+        assert "cache_write=0" in msg
 
     def test_returns_empty_dict_on_no_metrics(self) -> None:
         """result.metrics가 없으면 빈 dict를 반환한다."""

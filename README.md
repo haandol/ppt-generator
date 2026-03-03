@@ -1,8 +1,26 @@
 # PPT Generator
 
-> **Cost & Time Warning**: 7장 분량의 PPT를 처음부터 끝까지 생성하는 데 약 **9분 / $2.3 USD**, 20장 분량은 약 **17분 / $6.7 USD**가 소요됩니다. 슬라이드 수와 슬라이드의 복잡도에 비례하여 시간과 비용이 증가합니다.
-
 주제를 입력하면 AI가 자동으로 프레젠테이션을 생성하는 MCP(Model Context Protocol) 서버입니다.
+
+### Cost & Time
+
+> Claude Sonnet 4.6 기준, 슬라이드 수와 복잡도에 비례하여 시간·비용이 증가합니다.
+
+**Visual QA 없이 (디자인 스펙 생성까지)**
+
+| 슬라이드 | 소요 시간 | Input tokens | Output tokens | 비용 (USD) |
+| --- | --- | --- | --- | --- |
+| 10장 | ~6 min | ~136K | ~108K | **~$2.0** |
+| 20장 | ~12 min | ~260K | ~210K | **~$3.9** |
+
+**Visual QA 포함 (max_iterations=2)**
+
+| 슬라이드 | 소요 시간 | Input tokens | Output tokens | 비용 (USD) |
+| --- | --- | --- | --- | --- |
+| 10장 | ~25 min | ~1.18M | ~549K | **~$11.8** |
+| 20장 | ~45 min | ~2.3M | ~1.1M | **~$23.4** |
+
+Visual QA가 전체 비용의 약 80%를 차지합니다. 비용을 절감하려면 `max_iterations=1`로 설정하거나, 문제가 있는 슬라이드만 `slide_indices`로 지정하세요.
 
 ## Prerequisites
 
