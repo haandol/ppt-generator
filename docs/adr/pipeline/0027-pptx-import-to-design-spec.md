@@ -22,7 +22,7 @@ Outline → Script → Design Spec → HTML / PPTX
 2. **전체 슬라이드 임포트**: 일부가 아닌 전체 프레젠테이션을 한 번에 변환
 3. **기존 파이프라인 통합**: 임포트 결과가 DesignSpec으로 저장되어 기존 도구(`export_html`, `export_pptx`, `modify_design_spec`, `visual_qa`)와 즉시 호환
 
-추가로 Visual QA 결과에서 **contrast(대비 부족, 22/29장)**이 가장 빈번한 이슈로 확인되었다. 기존 `validate_slide_spec()`은 폰트 클램핑, 경계 여백, 빈 텍스트박스 제거, 텍스트 오버플로우만 처리하며, 색상 대비와 요소 간 간격 검증은 없었다.
+색상 대비와 요소 간 간격은 validator가 아닌 디자인 서머리의 테마/색상 팔레트와 프롬프트를 통해 LLM이 올바르게 출력하도록 가이드한다.
 
 ## Decision
 
@@ -284,57 +284,7 @@ def import_service(self) -> ImportService:
 - 내보내기/렌더링 시 시스템 폰트로 자동 대체 (기존 동작)
 - 모노스페이스 폰트 감지: `Consolas`, `Courier`, `Monaco` 등 알려진 폰트명 매칭
 
-### 2. 임포트 시 대비·간격 자동 보정
-
-`validate_slide_spec()`에 두 가지 보정 규칙을 추가한다.
-
-#### 텍스트-배경 색상 대비 보정 (WCAG AA)
-
-WCAG AA 기준 contrast ratio를 검사하고, 미달 시 텍스트 색상을 자동 교체한다.
-
-| 텍스트 유형 | 기준 |
-|---|---|
-| 본문 (< 18pt bold, < 24pt) | ≥ 4.5:1 |
-| 대형 텍스트 (≥ 18pt bold 또는 ≥ 24pt) | ≥ 3:1 |
-
-**보정 전략:**
-- textbox: 각 run의 `color`와 slide `background_color` 간 대비 검사
-- shape: 각 run/text의 `color`와 shape `fill_color` (없으면 slide `background_color`) 간 대비 검사
-- 대비 부족 시 `#FFFFFF` / `#000000` 중 대비가 높은 쪽으로 교체
-
-**구현 모듈:** `spec_utils/contrast_utils.py`
-- `_hex_to_relative_luminance()` — sRGB → 상대 휘도 변환 (bg_image_utils.py와 공유)
-- `_contrast_ratio()` — WCAG contrast ratio 계산
-- `ensure_text_contrast()` — 대비 부족 시 텍스트 색상 교체
-
-`bg_image_utils.py`의 luminance 계산 로직을 `contrast_utils`로 이관하여 중복 제거.
-
-#### 텍스트 shape 간 최소 간격 확보
-
-텍스트가 있는 shape 쌍의 수평/수직 간격이 `SPEC_VALIDATE_MIN_GAP_PX` (8px) 미만이면 균등하게 벌린다.
-
-**적용 대상:** 텍스트가 있는 shape끼리만 (장식 요소 제외)
-
-**보정 전략:**
-- 수평 겹침이 있는 쌍 → 수직 간격 검사
-- 수직 겹침이 있는 쌍 → 수평 간격 검사
-- 간격 부족 시 양쪽을 절반씩 벌림
-
-#### 검증 파이프라인 (확장)
-
-```
-LLM 출력 JSON
-  → parse_slide_spec()
-  → validate_slide_spec()
-    ├─ _validate_textboxes()     (기존)
-    ├─ _validate_shapes()        (기존)
-    ├─ _fix_textbox_contrast()   (신규)
-    ├─ _fix_shape_contrast()     (신규)
-    └─ _fix_zero_gap()           (신규)
-  → 검증된 PptxSlideSpec
-```
-
-### 3. 임포트 시 autofit 비활성화
+### 2. 임포트 시 autofit 비활성화
 
 임포트된 PPTX는 원본에서 레이아웃이 확정된 상태이므로, `validate_slide_spec()`의 autofit(텍스트 오버플로우 방지) 로직을 적용하면 텍스트 크기가 원본보다 축소되는 문제가 발생한다.
 
@@ -377,8 +327,7 @@ LLM 출력 JSON
 8. `modify_design_spec`으로 임포트된 슬라이드를 수정할 수 있다
 9. 미지원 요소(차트, 비디오 등) 발견 시 경고 메시지가 반환된다
 10. Import → Export 라운드트립 시 이미지가 PPTX에 포함된다 (`PptxImage.src` 기반 복원)
-11. WCAG AA 대비 기준 미달 시 텍스트 색상이 자동 보정된다
-12. 텍스트 shape 간 최소 간격(8px)이 확보된다
+11. 임포트된 PPTX의 원본 텍스트 크기가 보존된다 (autofit 비활성화)
 
 ### Out of Scope
 
@@ -399,9 +348,7 @@ LLM 출력 JSON
 - **결정론적 변환**: 같은 입력에 항상 같은 결과 — 테스트 용이
 - **역변환 일관성**: `SlideBuilder`와 `SlideReader`가 서로의 역변환으로 설계되어 라운드트립 정확도 높음
 - **이미지 라운드트립**: `PptxImage.src` 필드로 이미지 파일 경로를 보존하여 Import → Export 시 이미지 누락 방지
-- **대비 자동 보정**: PPTX 임포트 시 대비 부족 이슈를 자동 보정하여 Visual QA 이전에 품질 향상
-- **luminance 로직 통합**: `contrast_utils`로 중복 제거
-- **최소 간격 확보**: 텍스트 shape 간 최소 간격 보정으로 가독성 개선
+- **원본 텍스트 크기 보존**: 임포트 시 autofit 비활성화로 원본 폰트 크기 유지
 
 ### Negative
 
@@ -409,8 +356,7 @@ LLM 출력 JSON
 - **복잡한 레이아웃 손실 가능**: 그룹 도형 평탄화, 표 → 도형 변환 시 편집 편의성 저하
 - **외부 PPTX 다양성**: 다양한 PPTX 생성 도구(PowerPoint, Google Slides, Keynote 등)의 비표준 요소 처리에 엣지 케이스 발생 가능
 - **이미지 용량**: 차트 래스터화, 배경 이미지 등으로 프로젝트 디렉토리 크기 증가 가능
-- **대비 보정 한계**: `#FFFFFF`/`#000000`으로만 교체하므로, 원래 디자인의 미묘한 색상 차이가 사라질 수 있음
-- **간격 보정 한계**: 양쪽 shape을 동시에 이동하므로, 한쪽이 이미 원하는 위치에 있었을 경우 불필요한 이동이 발생할 수 있음
+- **색상 대비 미검증**: validator에서 색상 대비를 보정하지 않으므로, 원본 PPTX에 대비 부족이 있으면 그대로 유지됨 (Visual QA로 확인 가능)
 
 ## References
 
@@ -421,7 +367,7 @@ LLM 출력 JSON
 - Spec 유틸리티: `src/ppt_generator/interfaces/spec_utils/` — parser, serializer, validator
 - 대비 유틸리티: `src/ppt_generator/interfaces/spec_utils/contrast_utils.py`
 - 배경 이미지 유틸리티: `src/ppt_generator/interfaces/bg_image_utils.py`
-- 상수: `src/ppt_generator/interfaces/constants.py` — `PX_TO_EMU`, `EXPORT_PX_TO_INCHES_*`, `SPEC_VALIDATE_MIN_GAP_PX`
+- 상수: `src/ppt_generator/interfaces/constants.py` — `PX_TO_EMU`, `EXPORT_PX_TO_INCHES_*`
 - 슬라이드 서비스: `src/ppt_generator/tools/slides/service.py` — `generate_from_design_spec()`
 - 테스트: `tests/test_pptx_import.py`, `tests/test_contrast_utils.py`, `tests/test_spec_utils_validation.py`
 - 관련 ADR: [0013-design-spec-pipeline](./0013-design-spec-pipeline.md), [0014-file-based-communication-and-per-slide-crud](./0014-file-based-communication-and-per-slide-crud.md), [0023-design-spec-validator](./0023-design-spec-validator.md), [0026-visual-qa-pipeline](./0026-visual-qa-pipeline.md)
