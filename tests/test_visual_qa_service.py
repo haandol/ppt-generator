@@ -16,6 +16,7 @@ from ppt_generator.interfaces.llm_output_models import (
     VisualQAOutput,
 )
 from ppt_generator.interfaces.schemas import (
+    PptxImage,
     PptxParagraph,
     PptxSlideSpec,
     PptxTextBox,
@@ -196,6 +197,50 @@ class TestVisualQAServiceFix:
                      "description": "test", "suggested_fix": "test"}],
         )
         assert result is None
+
+
+    def test_fix_preserves_images(self, tmp_path: Path) -> None:
+        """수정 시 기존 spec의 images가 보존된다."""
+        png_path = tmp_path / "test.png"
+        png_path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+
+        mock_result = MagicMock()
+        mock_result.structured_output = _make_slide_spec_output()
+        mock_result.metrics.accumulated_usage = {"inputTokens": 300, "outputTokens": 200}
+
+        mock_agent = MagicMock(return_value=mock_result)
+
+        svc = VisualQAService(
+            analysis_agent_factory=MagicMock(),
+            fix_agent_factory=lambda: mock_agent,
+        )
+
+        # 기존 spec에 images 포함
+        spec_with_images = PptxSlideSpec(
+            background_color="#1a1a2e",
+            textboxes=[
+                PptxTextBox(
+                    left_px=40, top_px=40, width_px=600, height_px=60,
+                    paragraphs=[
+                        PptxParagraph(runs=[PptxTextRun(text="테스트", font_size_pt=32, bold=True)]),
+                    ],
+                ),
+            ],
+            shapes=[],
+            images=[
+                PptxImage(left_px=0, top_px=0, width_px=1280, height_px=720, src="images/bg.png"),
+            ],
+        )
+
+        result = svc.fix_design_spec(
+            png_path, spec_with_images,
+            issues=[{"issue_type": "text_truncation", "severity": "high",
+                     "element_type": "textbox", "element_index": 0,
+                     "description": "test", "suggested_fix": "test"}],
+        )
+        assert result is not None
+        assert len(result.images) == 1
+        assert result.images[0].src == "images/bg.png"
 
 
 class TestVisualQARunQA:

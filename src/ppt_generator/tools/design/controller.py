@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from dataclasses import replace
 from typing import Callable
 
 from mcp.server.fastmcp import Context, FastMCP
@@ -253,6 +254,8 @@ def register_design_tools(
         elif action == "update":
             if slide_index < 0 or slide_index >= slide_count:
                 raise ValueError(f"Invalid slide_index: {slide_index} (total {slide_count} slides)")
+            # 기존 슬라이드의 images 보존을 위해 먼저 로드
+            existing_spec = project_service.load_design_spec_slide(project_dir, slide_index)
             # Read slide at target index from outline/script JSONL
             outline_raw = project_service.load_script_or_outline_slide(project_dir, slide_index)
             outline = parse_outline_json(outline_raw)
@@ -265,6 +268,9 @@ def register_design_tools(
                 slide_outline, design_summary, color_theme=color_theme,
             )
             token_usage = svc.last_token_usage
+            # LLM 출력에는 images가 없으므로 기존 spec의 images를 복원
+            if existing_spec.images:
+                new_spec = replace(new_spec, images=existing_spec.images)
             project_service.save_design_spec_slide(project_dir, slide_index, new_spec)
             if slides_service is not None:
                 html = slides_service.render_single_slide_html(slide_index, new_spec)

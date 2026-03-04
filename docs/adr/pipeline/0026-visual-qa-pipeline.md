@@ -63,6 +63,17 @@ for iteration in range(max_iterations):
 - **분석(analysis)**: 시각적 렌더링 이슈만 감지. 슬라이드 콘텐츠(텍스트 문구, 데이터 값, 서술 흐름, 언어 선택)는 절대 지적하지 않는다.
 - **수정(fix)**: 시각적 속성(위치, 크기, 폰트 크기, 색상, 정렬)만 변경. 텍스트 내용 자체를 수정하지 않는다. `word_break`/`overflow`를 리사이징/리포지셔닝으로 해결할 수 없으면 폰트 크기를 줄인다.
 
+## 기존 필드 보존
+
+`SlideSpecOutput` Pydantic 모델(LLM structured output)에는 `images`와 `slide_type` 필드가 없다. LLM은 시각적 속성만 수정하므로 이 필드를 생성할 수 없다.
+
+`fix_design_spec()` 에서 LLM 출력을 `to_dataclass()`로 변환한 후, 기존 spec의 다음 필드를 복원한다:
+
+| 필드 | 복원 조건 | 이유 |
+|------|----------|------|
+| `images` | 기존 spec에 images가 있을 때 | 배경 이미지, 임포트된 이미지 등 LLM이 생성할 수 없는 바이너리 데이터 |
+| `slide_type` | 기존 spec의 slide_type이 `"content"`가 아닐 때 | title/closing 슬라이드의 배경 이미지 적용에 필요 |
+
 ## Progress Reporting
 
 - progress 단위는 **iteration** 기반: `completed = iteration + 1`, `total = max_iterations`.

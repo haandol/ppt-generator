@@ -18,7 +18,7 @@ import json
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
@@ -223,6 +223,14 @@ class VisualQAService:
             self._accumulate_tokens(usage)
             output: SlideSpecOutput = result.structured_output
             spec = output.to_dataclass()
+            # LLM 출력에는 images/slide_type이 없으므로 기존 spec에서 복원
+            restore = {}
+            if current_spec.images:
+                restore["images"] = current_spec.images
+            if current_spec.slide_type != "content":
+                restore["slide_type"] = current_spec.slide_type
+            if restore:
+                spec = replace(spec, **restore)
             return validate_slide_spec(spec)
         except Exception:
             logger.exception("디자인 스펙 수정 실패")

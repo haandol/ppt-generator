@@ -324,7 +324,7 @@ def import_service(self) -> ImportService:
 5. 위치/크기 좌표가 ±2px 이내 오차로 변환된다
 6. 색상(배경, 텍스트, 도형 fill/border)이 정확히 보존된다
 7. 발표자 노트가 보존된다
-8. `modify_design_spec`으로 임포트된 슬라이드를 수정할 수 있다
+8. `modify_design_spec`으로 임포트된 슬라이드를 수정할 수 있으며, 기존 images가 보존된다
 9. 미지원 요소(차트, 비디오 등) 발견 시 경고 메시지가 반환된다
 10. Import → Export 라운드트립 시 이미지가 PPTX에 포함된다 (`PptxImage.src` 기반 복원)
 11. 임포트된 PPTX의 원본 텍스트 크기가 보존된다 (autofit 비활성화)
