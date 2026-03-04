@@ -80,13 +80,26 @@ def run_parallel_generation(
     if not parallel_indices:
         return ParallelResult()
 
+    # 캐시 워밍업: content 슬라이드 중 가장 단순한 1개를 먼저 생성하여
+    # Bedrock prompt cache를 만든 뒤 나머지를 병렬 처리한다.
+    # content가 대다수이고 system prompt가 가장 크므로 절감 효과가 크다.
+    warmup_idx: int | None = None
+    content_indices = [
+        i for i in parallel_indices
+        if (outline.slides[i].slide_type or "content") == "content"
+    ]
+    if len(content_indices) >= 2:
+        # 가장 단순한 content 슬라이드 선택 (병렬 목록 끝 = complexity 최소)
+        warmup_idx = content_indices[-1]
+
     result = ParallelResult()
     results_map: dict[int, dict] = {}
     max_workers = min(DESIGN_SPEC_PARALLEL, len(parallel_indices))
 
     logger.info(
-        "병렬 처리 설정: DESIGN_SPEC_PARALLEL=%d, 대상 슬라이드=%d개, max_workers=%d",
+        "병렬 처리 설정: DESIGN_SPEC_PARALLEL=%d, 대상 슬라이드=%d개, max_workers=%d, cache_warmup=slide[%s]",
         DESIGN_SPEC_PARALLEL, len(parallel_indices), max_workers,
+        warmup_idx if warmup_idx is not None else "none",
     )
 
     active_threads: list[int] = [0]
@@ -163,32 +176,42 @@ def run_parallel_generation(
             logger.error("slide[%d] 생성 실패 (thread=%s, %.1fs): %s", idx, thread_name, elapsed, exc)
             return {"slide_index": idx, "status": "error", "error": str(exc)}
 
+    def _collect_result(res: dict) -> None:
+        idx = res["slide_index"]
+        usage = res.pop("_token_usage", None)
+        if isinstance(usage, dict) and usage:
+            result.total_input_tokens += usage.get("inputTokens", 0)
+            result.total_output_tokens += usage.get("outputTokens", 0)
+            result.total_cache_read_tokens += usage.get("cacheReadInputTokens", 0)
+            result.total_cache_write_tokens += usage.get("cacheWriteInputTokens", 0)
+        results_map[idx] = res
+        if res["status"] == "success":
+            result.success_count += 1
+        else:
+            result.error_count += 1
+        completed = result.success_count + result.error_count
+        if report_progress:
+            report_progress(
+                completed,
+                f"슬라이드 {completed}/{len(parallel_indices)} "
+                f"{'완료' if res['status'] == 'success' else '실패'}",
+            )
+
+    # 캐시 워밍업 슬라이드를 먼저 동기 실행
+    if warmup_idx is not None:
+        logger.info("cache warmup: slide[%d] 먼저 생성하여 prompt cache 준비", warmup_idx)
+        _collect_result(_generate_slide(warmup_idx))
+        remaining_indices = [i for i in parallel_indices if i != warmup_idx]
+    else:
+        remaining_indices = parallel_indices
+
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_idx = {
             executor.submit(_generate_slide, i): i
-            for i in parallel_indices
+            for i in remaining_indices
         }
         for future in as_completed(future_to_idx):
-            res = future.result()
-            idx = res["slide_index"]
-            usage = res.pop("_token_usage", None)
-            if isinstance(usage, dict) and usage:
-                result.total_input_tokens += usage.get("inputTokens", 0)
-                result.total_output_tokens += usage.get("outputTokens", 0)
-                result.total_cache_read_tokens += usage.get("cacheReadInputTokens", 0)
-                result.total_cache_write_tokens += usage.get("cacheWriteInputTokens", 0)
-            results_map[idx] = res
-            if res["status"] == "success":
-                result.success_count += 1
-            else:
-                result.error_count += 1
-            completed = result.success_count + result.error_count
-            if report_progress:
-                report_progress(
-                    completed,
-                    f"슬라이드 {completed}/{len(parallel_indices)} "
-                    f"{'완료' if res['status'] == 'success' else '실패'}",
-                )
+            _collect_result(future.result())
 
     logger.info(
         "병렬 처리 완료: 최대 동시실행 스레드=%d, 성공=%d, 실패=%d",

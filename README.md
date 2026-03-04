@@ -5,25 +5,24 @@
 ### Cost & Time
 
 > Claude Sonnet 4.6 기준, 슬라이드 수와 복잡도에 비례하여 시간·비용이 증가합니다.
+> Bedrock prompt caching이 적용되어 system prompt가 캐시됩니다. 첫 호출 시 cache_write 비용이 발생하고, 이후 동일 세션 내 호출에서 cache_read로 입력 비용이 ~90% 절감됩니다.
 
-**Visual QA 없이 (디자인 스펙 생성까지)**
+**10장 슬라이드 실측 (Script + Design + Visual QA)**
 
-| 슬라이드 | 소요 시간 | Input tokens | Output tokens | 비용 (USD) |
-| --- | --- | --- | --- | --- |
-| 10장 | ~9 min | ~136K | ~108K | **~$2.0** |
-| 20장 | ~15 min | ~295K | ~466K | **~$7.7** |
+| 단계 | Input | Output | Cache Write | Cache Read | 비용 (USD) |
+| --- | --- | --- | --- | --- | --- |
+| Script | 3.5K | 1.9K | — | — | $0.04 |
+| Design (summary + slides) | 16K | 186K | 112K | — | $3.25 |
+| Visual QA (2 iterations) | 131K | 62K | 17K | 29K | $1.39 |
+| **합계** | **150K** | **250K** | **129K** | **29K** | **~$4.7** |
 
-**Visual QA (max_iterations=2)**
+**20장 슬라이드 추정**
 
-| 슬라이드 | Input tokens | Output tokens | 비용 (USD) |
-| --- | --- | --- | --- |
-| 20장 | ~573K | ~226K | **~$5.1** |
-
-**합산 (디자인 스펙 + Visual QA)**
-
-| 슬라이드 | Input tokens | Output tokens | 비용 (USD) |
-| --- | --- | --- | --- |
-| 20장 | ~868K | ~692K | **~$12.8** |
+| 단계 | 비용 (USD) |
+| --- | --- |
+| Script + Design | **~$6.5** |
+| Visual QA (2 iterations) | **~$2.8** |
+| **합계** | **~$9.3** |
 
 Visual QA는 자동으로 실행되지 않으며, 사용자가 명시적으로 요청해야 합니다. 비용을 절감하려면 `max_iterations=1`로 설정하거나 문제가 있는 슬라이드만 별도로 Visual QA를 요청하세요.
 
