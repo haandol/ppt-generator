@@ -33,8 +33,11 @@ def register_pptx_tools(mcp: FastMCP, export_service: ExportService, project_ser
         else:
             try:
                 design_spec = project_service.load_design_spec_with_images(project_dir)
+                metadata = project_service.load_metadata(project_dir)
+                is_imported = "import" in metadata.steps_completed
                 response = export_service.export_from_design_spec(
                     design_spec, output_dir=project_dir,
+                    skip_autofit=is_imported,
                 )
             except FileNotFoundError:
                 raise ValueError(

@@ -28,6 +28,7 @@ class SlidesService:
         design_spec: DesignSpec,
         *,
         slide_image_srcs: list[list[str]] | None = None,
+        skip_autofit: bool = False,
     ) -> SlidesResponse:
         """DesignSpec(PptxSlideSpec 리스트)을 슬라이드별 HTML + iframe 컨테이너로 변환한다.
 
@@ -44,7 +45,7 @@ class SlidesService:
 
         slide_htmls: list[str] = []
         for idx, raw_spec in enumerate(design_spec.slides):
-            spec = validate_slide_spec(raw_spec)
+            spec = validate_slide_spec(raw_spec, autofit=not skip_autofit)
             bg_b64: str | None = None
             if spec.slide_type in ("title", "closing"):
                 bg_b64 = bg_image_utils.get_bg_image_base64(spec.background_color)
@@ -75,13 +76,14 @@ class SlidesService:
         spec: PptxSlideSpec,
         *,
         image_srcs: list[str] | None = None,
+        skip_autofit: bool = False,
     ) -> str:
         """단일 PptxSlideSpec을 완전한 HTML 문서로 변환한다 (외부 호출용).
 
         title/closing 슬라이드의 배경 이미지를 자동 처리한다.
         """
         bg_image_utils.reset_cache()
-        validated = validate_slide_spec(spec)
+        validated = validate_slide_spec(spec, autofit=not skip_autofit)
         bg_b64: str | None = None
         if validated.slide_type in ("title", "closing"):
             bg_b64 = bg_image_utils.get_bg_image_base64(validated.background_color)

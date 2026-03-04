@@ -59,6 +59,18 @@ paragraphs의 모든 run에 텍스트가 없는 textbox를 삭제한다.
 - **textbox**: height 부족 시 폰트를 비례 축소 (최소 10pt)
 - **shape**: 먼저 height 확장 시도 → 캔버스 한계 초과 시 폰트 축소. padding을 차감하여 실제 텍스트 영역 기준으로 계산
 
+**autofit 비활성화 (`autofit=False`):**
+
+임포트된 PPTX처럼 원본에서 레이아웃이 이미 확정된 경우, autofit 로직이 텍스트 크기를 과도하게 축소할 수 있다. `line_spacing_pt`가 `None`이면 줄 높이를 `font_size × 2.0`으로 과대 추정하여 불필요한 폰트 스케일링이 발생하기 때문이다.
+
+이를 방지하기 위해 `validate_slide_spec(spec, autofit=False)`로 호출하면 폰트 스케일링(높이 계산 → 폰트 축소)을 완전히 스킵한다. 폰트 클램핑, 경계 여백 강제, 대비 보정, 최소 간격 보정은 autofit과 무관하게 항상 적용된다.
+
+| 호출 경로 | autofit |
+|---|---|
+| LLM 생성 디자인 스펙 (generate_slides_design_spec) | `True` (기본값) |
+| PPTX 임포트 (import_pptx) | `False` |
+| 임포트된 프로젝트의 PPTX 내보내기 (export_pptx) | `False` (metadata `steps_completed`에 `"import"` 키 존재 시) |
+
 ### 레이아웃 비개입 원칙
 
 Validator는 요소의 위치(좌표)를 직접 변경하지 않는다. 레이아웃 관련 규칙은 프롬프트와 예제로 가이드한다.

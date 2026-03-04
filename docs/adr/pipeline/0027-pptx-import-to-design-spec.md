@@ -334,6 +334,22 @@ LLM 출력 JSON
   → 검증된 PptxSlideSpec
 ```
 
+### 3. 임포트 시 autofit 비활성화
+
+임포트된 PPTX는 원본에서 레이아웃이 확정된 상태이므로, `validate_slide_spec()`의 autofit(텍스트 오버플로우 방지) 로직을 적용하면 텍스트 크기가 원본보다 축소되는 문제가 발생한다.
+
+**원인:** `calculate_required_height()`에서 `line_spacing_pt`가 `None`이면 줄 높이를 `font_size × 2.0`으로 과대 추정 → 필요 높이가 박스 높이를 초과 → 폰트 축소.
+
+**해결:** 임포트 경로에서 `validate_slide_spec(spec, autofit=False)`를 호출하여 폰트 스케일링을 스킵한다. 자세한 내용은 [ADR-0023](./0023-design-spec-validator.md)의 "autofit 비활성화" 섹션 참조.
+
+| 파이프라인 단계 | autofit |
+|---|---|
+| `import_pptx` → HTML 미리보기 생성 | `False` (`SlidesService.generate_from_design_spec(skip_autofit=True)`) |
+| `export_pptx` (임포트된 프로젝트) | `False` (`ExportService.export_from_design_spec(skip_autofit=True)`) |
+| `export_pptx` (LLM 생성 프로젝트) | `True` (기본값) |
+
+임포트된 프로젝트 판별은 `ProjectMetadata.steps_completed`에 `"import"` 키가 있는지로 수행한다.
+
 #### 보정 대상이 아닌 항목
 
 - **Inconsistent Font Size** — 컨텍스트 의존적, LLM(Visual QA)에 위임

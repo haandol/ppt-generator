@@ -34,6 +34,8 @@ class ExportService:
         self,
         design_spec: DesignSpec,
         output_dir: Path | None = None,
+        *,
+        skip_autofit: bool = False,
     ) -> ExportPptxResponse:
         """DesignSpec → PPTX 직접 변환.
 
@@ -50,7 +52,7 @@ class ExportService:
         blank_layout = prs.slide_layouts[6]
 
         for idx, raw_spec in enumerate(design_spec.slides):
-            spec = validate_slide_spec(raw_spec)
+            spec = validate_slide_spec(raw_spec, autofit=not skip_autofit)
             slide = prs.slides.add_slide(blank_layout)
             self._builder.remove_placeholders(slide)
 

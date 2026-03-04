@@ -67,6 +67,7 @@ def register_pptx_import_tools(
         # HTML 미리보기 자동 생성
         response = slides_service.generate_from_design_spec(
             design_spec, slide_image_srcs=slide_image_srcs,
+            skip_autofit=True,
         )
         project_service.save_slides_html(
             project_dir, response.session_id, response.slide_htmls, response.container_html,

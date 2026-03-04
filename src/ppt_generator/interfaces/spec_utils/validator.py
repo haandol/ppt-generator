@@ -115,6 +115,8 @@ def _validate_textboxes(
     font_max: int = _FONT_MAX,
     lh_factor: float = _LH_FACTOR,
     margin: int = _MARGIN,
+    *,
+    autofit: bool = True,
 ) -> list[PptxTextBox]:
     validated: list[PptxTextBox] = []
     for tb in textboxes:
@@ -147,17 +149,18 @@ def _validate_textboxes(
         pad_t = tb.padding_top_px or 0.0
         pad_b = tb.padding_bottom_px or 0.0
 
-        required_h = calculate_required_height(
-            new_paragraphs, width, tb.line_spacing_pt,
-            padding_left_px=pad_l, padding_right_px=pad_r,
-            padding_top_px=pad_t, padding_bottom_px=pad_b,
-        )
-
-        if required_h > 0 and height < required_h:
-            scale = calculate_autofit_font_scale(
-                required_h, height, font_min, max_font_in_tb,
+        if autofit:
+            required_h = calculate_required_height(
+                new_paragraphs, width, tb.line_spacing_pt,
+                padding_left_px=pad_l, padding_right_px=pad_r,
+                padding_top_px=pad_t, padding_bottom_px=pad_b,
             )
-            new_paragraphs = _apply_font_scale(new_paragraphs, scale, font_min)
+
+            if required_h > 0 and height < required_h:
+                scale = calculate_autofit_font_scale(
+                    required_h, height, font_min, max_font_in_tb,
+                )
+                new_paragraphs = _apply_font_scale(new_paragraphs, scale, font_min)
 
         validated.append(PptxTextBox(
             left_px=left,
@@ -195,6 +198,8 @@ def _validate_shapes(
     font_max: int = _FONT_MAX,
     lh_factor: float = _LH_FACTOR,
     margin: int = _MARGIN,
+    *,
+    autofit: bool = True,
 ) -> list[PptxShape]:
     validated: list[PptxShape] = []
     for s in shapes:
@@ -224,37 +229,38 @@ def _validate_shapes(
         pad_t = s.padding_top_px if s.padding_top_px is not None else TEXT_MEASURE_DEFAULT_SHAPE_PADDING_TB_PX
         pad_b = s.padding_bottom_px if s.padding_bottom_px is not None else TEXT_MEASURE_DEFAULT_SHAPE_PADDING_TB_PX
 
-        required_h = 0.0
+        if autofit:
+            required_h = 0.0
 
-        if s.text and clamped_text_size:
-            required_h = calculate_required_height_simple_text(
-                s.text, clamped_text_size, width,
-                line_spacing_pt=s.line_spacing_pt,
-                padding_left_px=pad_l, padding_right_px=pad_r,
-                padding_top_px=pad_t, padding_bottom_px=pad_b,
-            )
-
-        if new_shape_paragraphs:
-            para_h = calculate_required_height(
-                new_shape_paragraphs, width, s.line_spacing_pt,
-                padding_left_px=pad_l, padding_right_px=pad_r,
-                padding_top_px=pad_t, padding_bottom_px=pad_b,
-            )
-            required_h = max(required_h, para_h)
-
-        if required_h > 0 and height < required_h:
-            height = min(required_h, max_bottom - top)
-
-        if required_h > 0 and height < required_h:
-            scale = calculate_autofit_font_scale(
-                required_h, height, font_min, shape_max_font,
-            )
-            if new_shape_paragraphs:
-                new_shape_paragraphs = _apply_font_scale(
-                    new_shape_paragraphs, scale, font_min,
+            if s.text and clamped_text_size:
+                required_h = calculate_required_height_simple_text(
+                    s.text, clamped_text_size, width,
+                    line_spacing_pt=s.line_spacing_pt,
+                    padding_left_px=pad_l, padding_right_px=pad_r,
+                    padding_top_px=pad_t, padding_bottom_px=pad_b,
                 )
-            if clamped_text_size and scale < 1.0:
-                clamped_text_size = max(font_min, int(clamped_text_size * scale))
+
+            if new_shape_paragraphs:
+                para_h = calculate_required_height(
+                    new_shape_paragraphs, width, s.line_spacing_pt,
+                    padding_left_px=pad_l, padding_right_px=pad_r,
+                    padding_top_px=pad_t, padding_bottom_px=pad_b,
+                )
+                required_h = max(required_h, para_h)
+
+            if required_h > 0 and height < required_h:
+                height = min(required_h, max_bottom - top)
+
+            if required_h > 0 and height < required_h:
+                scale = calculate_autofit_font_scale(
+                    required_h, height, font_min, shape_max_font,
+                )
+                if new_shape_paragraphs:
+                    new_shape_paragraphs = _apply_font_scale(
+                        new_shape_paragraphs, scale, font_min,
+                    )
+                if clamped_text_size and scale < 1.0:
+                    clamped_text_size = max(font_min, int(clamped_text_size * scale))
 
         validated.append(replace(
             s,
@@ -443,7 +449,7 @@ def _fix_zero_gap(
 # ---------------------------------------------------------------------------
 
 
-def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
+def validate_slide_spec(spec: PptxSlideSpec, *, autofit: bool = True) -> PptxSlideSpec:
     """LLM 출력 PptxSlideSpec을 검증하고 보정한다.
 
     수행하는 보정:
@@ -459,8 +465,8 @@ def validate_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
     - 수직 중앙 정렬
     - 겹침 해소를 위한 요소 밀어내기
     """
-    validated_textboxes = _validate_textboxes(spec.textboxes)
-    validated_shapes = _validate_shapes(spec.shapes)
+    validated_textboxes = _validate_textboxes(spec.textboxes, autofit=autofit)
+    validated_shapes = _validate_shapes(spec.shapes, autofit=autofit)
 
     # 대비 보정
     bg_color = spec.background_color or "#FFFFFF"

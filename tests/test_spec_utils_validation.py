@@ -92,6 +92,25 @@ class TestAutofitFontScale:
         assert font < 20
         assert font >= 10
 
+    def test_autofit_false_preserves_font_size(self) -> None:
+        """autofit=False → 오버플로우 텍스트라도 폰트 크기 유지."""
+        very_long = "가" * 500
+        tb = _tb(very_long, font=24, top_px=500, width_px=200, height_px=50)
+        result = validate_slide_spec(_slide(textboxes=[tb]), autofit=False)
+        font = result.textboxes[0].paragraphs[0].runs[0].font_size_pt
+        assert font == 24
+
+    def test_autofit_false_preserves_shape_font_size(self) -> None:
+        """autofit=False → shape의 폰트 크기도 축소하지 않음."""
+        long_text = "가나다라마바사아자차" * 5
+        shape = PptxShape(
+            left_px=64, top_px=64, width_px=200, height_px=40,
+            shape_type="rounded_rectangle", fill_color="#2a2a4e",
+            text=long_text, text_size_pt=24,
+        )
+        result = validate_slide_spec(_slide(shapes=[shape]), autofit=False)
+        assert result.shapes[0].text_size_pt == 24
+
 
 # ---------------------------------------------------------------------------
 # 여백 강제
