@@ -50,8 +50,16 @@ def register_pptx_import_tools(
         project_service.update_step(project_dir, "import")
         project_service.update_step(project_dir, "design_spec")
 
+        # 이미지 파일 저장 (image_bytes → PNG)
+        slide_image_srcs: list[list[str]] = []
+        for idx, slide in enumerate(design_spec.slides):
+            srcs = project_service.save_slide_images(project_dir, idx, slide.images)
+            slide_image_srcs.append(srcs)
+
         # HTML 미리보기 자동 생성
-        response = slides_service.generate_from_design_spec(design_spec)
+        response = slides_service.generate_from_design_spec(
+            design_spec, slide_image_srcs=slide_image_srcs,
+        )
         project_service.save_slides_html(
             project_dir, response.session_id, response.slide_htmls, response.container_html,
         )

@@ -6,6 +6,7 @@ import pytest
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
     ProjectMetadata,
+    PptxImage,
     PptxParagraph,
     PptxSlideSpec,
     PptxTextBox,
@@ -500,3 +501,79 @@ class TestLoadNonexistentRaises:
     def test_metadata(self, project_service: ProjectService, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
             project_service.load_metadata(tmp_path / "empty")
+
+
+class TestSlideImages:
+    """save_slide_images / get_slide_image_srcs 테스트."""
+
+    def test_save_and_get_images(self, project_service: ProjectService, project_dir: Path) -> None:
+        images = [
+            PptxImage(left_px=0, top_px=0, width_px=100, height_px=100, image_bytes=b"\x89PNG_fake"),
+            PptxImage(left_px=50, top_px=50, width_px=200, height_px=200, image_bytes=b"\x89PNG_fake2"),
+        ]
+        srcs = project_service.save_slide_images(project_dir, 0, images)
+
+        assert srcs == ["images/slide_01_img_01.png", "images/slide_01_img_02.png"]
+        assert (project_dir / "slides/images/slide_01_img_01.png").exists()
+        assert (project_dir / "slides/images/slide_01_img_02.png").read_bytes() == b"\x89PNG_fake2"
+
+        # get_slide_image_srcs로 조회
+        got = project_service.get_slide_image_srcs(project_dir, 0, 2)
+        assert got == ["images/slide_01_img_01.png", "images/slide_01_img_02.png"]
+
+    def test_empty_image_bytes_returns_empty_src(self, project_service: ProjectService, project_dir: Path) -> None:
+        images = [
+            PptxImage(left_px=0, top_px=0, width_px=100, height_px=100, image_bytes=b""),
+        ]
+        srcs = project_service.save_slide_images(project_dir, 0, images)
+
+        assert srcs == [""]
+        assert not (project_dir / "slides/images/slide_01_img_01.png").exists()
+
+    def test_get_missing_images_returns_empty_src(self, project_service: ProjectService, project_dir: Path) -> None:
+        got = project_service.get_slide_image_srcs(project_dir, 0, 2)
+        assert got == ["", ""]
+
+    def test_mixed_images(self, project_service: ProjectService, project_dir: Path) -> None:
+        images = [
+            PptxImage(left_px=0, top_px=0, width_px=100, height_px=100, image_bytes=b"data"),
+            PptxImage(left_px=50, top_px=50, width_px=200, height_px=200, image_bytes=b""),
+        ]
+        srcs = project_service.save_slide_images(project_dir, 2, images)
+
+        assert srcs == ["images/slide_03_img_01.png", ""]
+        assert (project_dir / "slides/images/slide_03_img_01.png").read_bytes() == b"data"
+
+    def test_save_slides_html_preserves_images(self, project_service: ProjectService, project_dir: Path) -> None:
+        """save_slide_images 후 save_slides_html 호출해도 이미지 파일이 보존되어야 한다."""
+        images = [
+            PptxImage(left_px=0, top_px=0, width_px=100, height_px=100, image_bytes=b"PNG_DATA"),
+        ]
+        project_service.save_slide_images(project_dir, 0, images)
+        assert (project_dir / "slides/images/slide_01_img_01.png").exists()
+
+        # save_slides_html은 slides/ 디렉토리를 정리하지만 images/는 보존해야 함
+        project_service.save_slides_html(
+            project_dir, "test-session", ["<html>slide1</html>"], "<html>container</html>",
+        )
+
+        assert (project_dir / "slides/images/slide_01_img_01.png").exists()
+        assert (project_dir / "slides/images/slide_01_img_01.png").read_bytes() == b"PNG_DATA"
+        assert (project_dir / "slides/slide_01.html").exists()
+
+    def test_save_slides_html_twice_preserves_images(self, project_service: ProjectService, project_dir: Path) -> None:
+        """save_slides_html을 두 번 호출해도 이미지 파일이 보존되어야 한다."""
+        images = [
+            PptxImage(left_px=0, top_px=0, width_px=100, height_px=100, image_bytes=b"DATA"),
+        ]
+        project_service.save_slide_images(project_dir, 0, images)
+
+        project_service.save_slides_html(
+            project_dir, "s1", ["<html>v1</html>"], "<html>c1</html>",
+        )
+        project_service.save_slides_html(
+            project_dir, "s2", ["<html>v2</html>"], "<html>c2</html>",
+        )
+
+        assert (project_dir / "slides/images/slide_01_img_01.png").read_bytes() == b"DATA"
+        assert (project_dir / "slides/slide_01.html").read_text() == "<html>v2</html>"

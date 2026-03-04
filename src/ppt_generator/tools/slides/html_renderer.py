@@ -11,6 +11,7 @@ from ppt_generator.interfaces.constants import (
     PX_TO_EMU,
 )
 from ppt_generator.interfaces.schemas import (
+    PptxImage,
     PptxParagraph,
     PptxShape,
     PptxSlideSpec,
@@ -98,6 +99,52 @@ def textbox_to_html(tb: PptxTextBox) -> str:
             inner_parts.append(paragraph_to_html(para))
 
     return f'<div style="{style}">{"".join(inner_parts)}</div>'
+
+
+# SVG 이미지 아이콘 (산/태양 형태)
+_IMAGE_ICON_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" '
+    'fill="none" stroke="rgba(128,128,128,0.6)" stroke-width="1.5" stroke-linecap="round" '
+    'stroke-linejoin="round">'
+    '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>'
+    '<circle cx="8.5" cy="8.5" r="1.5"/>'
+    '<polyline points="21 15 16 10 5 21"/>'
+    "</svg>"
+)
+
+
+def image_to_html(image: PptxImage, *, image_src: str | None = None) -> str:
+    """PptxImage -> position:absolute <div> 변환.
+
+    image_src가 주어지면 <img> 태그로 실제 이미지를 표시하고,
+    없으면 회색 플레이스홀더를 표시한다.
+    """
+    pos_style = (
+        f"position:absolute;"
+        f"left:{image.left_px}px;top:{image.top_px}px;"
+        f"width:{image.width_px}px;height:{image.height_px}px;"
+    )
+    if image_src:
+        style = pos_style + "overflow:hidden;"
+        return (
+            f'<div style="{style}">'
+            f'<img src="{image_src}" '
+            f'style="width:100%;height:100%;object-fit:contain" alt="image" />'
+            "</div>"
+        )
+    style = (
+        pos_style
+        + "background:rgba(128,128,128,0.15);"
+        "border:1px dashed rgba(128,128,128,0.4);"
+        "display:flex;flex-direction:column;align-items:center;justify-content:center;"
+        "box-sizing:border-box;overflow:hidden;"
+    )
+    return (
+        f'<div style="{style}">'
+        f"{_IMAGE_ICON_SVG}"
+        '<span style="font-size:9pt;color:rgba(128,128,128,0.6);margin-top:4px">IMAGE</span>'
+        "</div>"
+    )
 
 
 # CSS clip-path polygon 매핑: shape_type → polygon points
@@ -290,8 +337,14 @@ def spec_to_html_section(
     spec: PptxSlideSpec,
     *,
     bg_image_base64: str | None = None,
+    image_srcs: list[str] | None = None,
 ) -> str:
-    """PptxSlideSpec 하나를 <section> HTML로 결정론적 변환."""
+    """PptxSlideSpec 하나를 <section> HTML로 결정론적 변환.
+
+    Args:
+        image_srcs: 각 spec.images 요소에 대응하는 이미지 파일 상대경로 리스트.
+                    None이면 모든 이미지가 플레이스홀더로 렌더링된다.
+    """
     bg = spec.background_color or "#1a1a2e"
     notes_attr = ""
     if spec.speaker_notes:
@@ -305,6 +358,8 @@ def spec_to_html_section(
             "background-size:cover;background-position:center;"
         )
 
+    srcs = image_srcs or []
+
     parts: list[str] = []
     parts.append(
         f'<section id="slide-{slide_index}"{notes_attr}>'
@@ -315,6 +370,11 @@ def spec_to_html_section(
     # shapes를 먼저 렌더링 (z-order 하단)
     for shape in spec.shapes:
         parts.append(shape_to_html(shape))
+
+    # images 렌더링 (파일이 있으면 <img>, 없으면 플레이스홀더)
+    for i, image in enumerate(spec.images):
+        src = srcs[i] if i < len(srcs) else None
+        parts.append(image_to_html(image, image_src=src))
 
     # textboxes를 나중에 렌더링 (z-order 상단)
     for tb in spec.textboxes:

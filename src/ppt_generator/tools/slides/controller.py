@@ -27,17 +27,30 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
         """
         if design_spec_json:
             design_spec = parse_design_spec_json(design_spec_json)
-            response = slides_service.generate_from_design_spec(design_spec)
         elif project_id:
             _, proj_dir = project_service.resolve_project_dir(project_id)
             design_spec = project_service.load_design_spec(proj_dir)
-            response = slides_service.generate_from_design_spec(design_spec)
         else:
             raise ValueError(
                 "Either design_spec_json or project_id must be provided."
             )
 
         project_id, project_dir = project_service.resolve_project_dir(project_id)
+
+        # 기존 이미지 파일이 있으면 경로 조회
+        slide_image_srcs: list[list[str]] = []
+        for idx, slide in enumerate(design_spec.slides):
+            if slide.images:
+                srcs = project_service.get_slide_image_srcs(
+                    project_dir, idx, len(slide.images),
+                )
+                slide_image_srcs.append(srcs)
+            else:
+                slide_image_srcs.append([])
+
+        response = slides_service.generate_from_design_spec(
+            design_spec, slide_image_srcs=slide_image_srcs,
+        )
         project_service.save_slides_html(
             project_dir, response.session_id, response.slide_htmls, response.container_html,
         )

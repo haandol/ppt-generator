@@ -23,11 +23,19 @@ class SlidesService:
     def __init__(self) -> None:
         self._sessions: dict[str, str] = {}
 
-    def generate_from_design_spec(self, design_spec: DesignSpec) -> SlidesResponse:
+    def generate_from_design_spec(
+        self,
+        design_spec: DesignSpec,
+        *,
+        slide_image_srcs: list[list[str]] | None = None,
+    ) -> SlidesResponse:
         """DesignSpec(PptxSlideSpec 리스트)을 슬라이드별 HTML + iframe 컨테이너로 변환한다.
 
         LLM 호출 없이 PptxSlideSpec -> position:absolute HTML div로 변환.
         각 슬라이드는 완전한 HTML 문서로 생성되며, 컨테이너는 iframe으로 참조.
+
+        Args:
+            slide_image_srcs: 슬라이드별 이미지 상대경로 리스트. None이면 플레이스홀더.
         """
         if not design_spec.slides:
             raise ValueError("디자인 스펙에 슬라이드가 없습니다.")
@@ -40,8 +48,9 @@ class SlidesService:
             bg_b64: str | None = None
             if spec.slide_type in ("title", "closing"):
                 bg_b64 = bg_image_utils.get_bg_image_base64(spec.background_color)
+            img_srcs = slide_image_srcs[idx] if slide_image_srcs and idx < len(slide_image_srcs) else None
             slide_html = self._spec_to_html_document(
-                idx, spec, bg_image_base64=bg_b64,
+                idx, spec, bg_image_base64=bg_b64, image_srcs=img_srcs,
             )
             slide_htmls.append(slide_html)
 
@@ -64,6 +73,8 @@ class SlidesService:
     def render_single_slide_html(
         slide_index: int,
         spec: PptxSlideSpec,
+        *,
+        image_srcs: list[str] | None = None,
     ) -> str:
         """단일 PptxSlideSpec을 완전한 HTML 문서로 변환한다 (외부 호출용).
 
@@ -77,6 +88,7 @@ class SlidesService:
         return SlidesService._spec_to_html_document(
             slide_index, validated,
             bg_image_base64=bg_b64,
+            image_srcs=image_srcs,
         )
 
     @staticmethod
@@ -85,11 +97,13 @@ class SlidesService:
         spec: PptxSlideSpec,
         *,
         bg_image_base64: str | None = None,
+        image_srcs: list[str] | None = None,
     ) -> str:
         """PptxSlideSpec 하나를 완전한 HTML 문서로 변환."""
         section_html = spec_to_html_section(
             slide_index, spec,
             bg_image_base64=bg_image_base64,
+            image_srcs=image_srcs,
         )
         template = SLIDE_TEMPLATE_PATH.read_text(encoding="utf-8")
         return template.replace("{slide_content}", section_html)
