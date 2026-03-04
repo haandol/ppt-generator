@@ -84,8 +84,28 @@ Thread pool에 슬라이드를 제출할 때 복잡도 내림차순으로 정렬
 
 | 프로바이더 | 캐싱 방식 | 구현 |
 |-----------|----------|------|
-| **Bedrock** | `CacheConfig(strategy="auto")` — 시스템 프롬프트, 메시지에 자동 cache point 주입 | `_create_bedrock_model()` 파라미터 |
+| **Bedrock** | `SystemContentBlock`에 `cachePoint` 직접 포함 + `CacheConfig(strategy="auto")`로 assistant 메시지 캐싱 | `_with_cache_point()` 헬퍼 + `BedrockModel` 파라미터 |
 | **Anthropic** | `CachingAnthropicModel` — `format_request()` 오버라이드로 system 필드에 `cache_control: {"type": "ephemeral"}` 적용 | `AnthropicModel` 서브클래스 |
+
+Bedrock의 `cache_prompt` 파라미터는 deprecated이므로, Agent 생성 시 `system_prompt`를 `[{"text": "..."}, {"cachePoint": {"type": "default"}}]` 형태의 `SystemContentBlock` 리스트로 전달한다.
+
+### 7. 캐시 워밍업 (Cache Warmup)
+
+Bedrock prompt caching은 동일 계정·모델·prefix 기준으로 서버 측에서 캐시되지만, **첫 번째 요청의 응답이 완료된 후**에야 캐시가 생성된다. 모든 슬라이드를 동시에 병렬 시작하면 첫 완료 전에 나머지도 이미 처리 중이므로 전부 `cache_write`만 발생하고 `cache_read`가 없다.
+
+이를 해결하기 위해 content 슬라이드가 2개 이상일 때 가장 단순한(complexity 최소) content 슬라이드 1개를 **먼저 동기 생성**하여 prompt cache를 워밍업한 뒤 나머지를 병렬 처리한다.
+
+```
+generate_slides_design_spec(project_id, total_slides=10)
+    ├── Step 1: design_summary 사전 생성 (순차, 1회)
+    ├── Step 2: cache warmup — content 중 가장 단순한 슬라이드 1개 동기 생성
+    ├── Step 3: ThreadPoolExecutor — 나머지 슬라이드 병렬 생성 (cache_read 활용)
+    └── Step 4: slides.html 컨테이너 생성 (순차)
+```
+
+- content system prompt가 ~12,852 토큰으로 가장 크므로 content를 워밍업 대상으로 선택
+- title/closing은 system prompt가 다르므로(~4,400 토큰) content 캐시와 무관
+- content 슬라이드가 1개 이하면 워밍업 없이 즉시 병렬 처리
 
 ## Consequences
 
@@ -93,7 +113,7 @@ Thread pool에 슬라이드를 제출할 때 복잡도 내림차순으로 정렬
 
 - **처리 시간 단축**: 10장 기준 순차 ~5분 → 병렬 ~1분 (워커 8개 기준)
 - **Wall-clock time 최적화**: 복잡한 슬라이드가 먼저 시작되어 워커 idle time 감소
-- **토큰 비용 절감**: 시스템 프롬프트 캐싱 + 단순 슬라이드에 `low` effort 사용
+- **토큰 비용 절감**: 시스템 프롬프트 캐싱 + 캐시 워밍업으로 cache_read 극대화 + 단순 슬라이드에 `low` effort 사용
 - **품질 유지**: 복잡한 슬라이드는 여전히 `high` effort로 충분한 추론 수행
 - **부분 실패 복구**: 실패 슬라이드만 `slide_indices`로 재시도 가능
 - **스레드 안전**: Agent 인스턴스 격리 + 메타데이터 Lock으로 race condition 방지
@@ -104,6 +124,7 @@ Thread pool에 슬라이드를 제출할 때 복잡도 내림차순으로 정렬
 - **API 쓰로틀링 위험**: 동시 요청 수가 많으면 rate limit에 도달 가능 (`DESIGN_SPEC_PARALLEL`로 제어)
 - **복잡도 추정 오차**: `component_hint` 기반 정적 매핑이므로 실제 내용에 따라 난이도가 다를 수 있음
 - **캐시 최소 토큰 요건**: Anthropic prompt caching은 시스템 프롬프트가 최소 1,024 토큰 이상이어야 활성화됨
+- **캐시 워밍업 지연**: content 1개를 먼저 동기 생성하므로 전체 wall-clock time이 해당 슬라이드의 생성 시간만큼 증가 (단순 슬라이드 선택으로 최소화)
 
 ## References
 
