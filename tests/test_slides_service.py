@@ -262,3 +262,45 @@ class TestLineShapeHtml:
         y_vals = re.findall(r'y[12]="([^"]+)"', html)
         assert float(x_vals[1]) > float(x_vals[0]), "x2 > x1"
         assert float(y_vals[1]) > float(y_vals[0]), "y2 > y1"
+
+
+class TestClipPathShapes:
+    """clip-path 기반 도형 HTML 렌더링 테스트."""
+
+    @pytest.mark.parametrize("shape_type", [
+        "up_arrow", "down_arrow", "left_arrow", "right_arrow", "chevron",
+        "triangle", "diamond", "pentagon", "hexagon",
+        "trapezoid", "parallelogram", "cross",
+        "star_4", "star_5", "heart",
+        "flowchart_decision",
+    ])
+    def test_clip_path_applied(self, shape_type):
+        """polygon clip-path가 적용된 도형은 clip-path CSS가 포함되어야 한다."""
+        shape = PptxShape(
+            left_px=100, top_px=100, width_px=200, height_px=200,
+            shape_type=shape_type,
+            fill_color="#4472C4",
+        )
+        html = shape_to_html(shape)
+        assert "clip-path:polygon(" in html
+
+    def test_flowchart_process_no_clip(self):
+        """flowchart_process는 rectangle과 동일하게 clip-path 없이 렌더링."""
+        shape = PptxShape(
+            left_px=100, top_px=100, width_px=200, height_px=200,
+            shape_type="flowchart_process",
+            fill_color="#4472C4",
+        )
+        html = shape_to_html(shape)
+        assert "clip-path" not in html
+
+    def test_flowchart_terminator_border_radius(self):
+        """flowchart_terminator는 큰 border-radius로 렌더링."""
+        shape = PptxShape(
+            left_px=100, top_px=100, width_px=300, height_px=100,
+            shape_type="flowchart_terminator",
+            fill_color="#4472C4",
+        )
+        html = shape_to_html(shape)
+        assert "border-radius:50.0px" in html
+        assert "clip-path" not in html

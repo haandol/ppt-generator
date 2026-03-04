@@ -1,0 +1,68 @@
+"""PPTX 임포트 MCP tool 등록."""
+
+import json
+
+from mcp.server.fastmcp import FastMCP
+
+from ppt_generator.interfaces.schemas import ProjectMetadata
+from ppt_generator.tools.project.service import ProjectService
+from ppt_generator.tools.pptx_import.service import ImportService
+from ppt_generator.tools.slides.service import SlidesService
+
+
+def register_pptx_import_tools(
+    mcp: FastMCP,
+    import_service: ImportService,
+    project_service: ProjectService,
+    slides_service: SlidesService,
+) -> None:
+    @mcp.tool()
+    def import_pptx(file_path: str, project_id: str = "") -> str:
+        """Imports an external PPTX file and converts it to a design spec for editing.
+
+        Reads the PPTX file, extracts all design elements (shapes, textboxes, images,
+        backgrounds, speaker notes), and creates a new project with the design spec.
+        HTML preview is automatically generated.
+
+        After import, you can use modify_design_spec, export_html, export_pptx,
+        and visual_qa on the imported project.
+
+        Args:
+            file_path: Absolute path to the PPTX file to import
+            project_id: Project ID (auto-generated if not specified)
+
+        Returns:
+            JSON string containing project_id, num_slides, slides_html_path, and warnings
+        """
+        project_id, project_dir = project_service.resolve_project_dir(project_id)
+
+        design_spec, warnings = import_service.import_from_file(file_path)
+
+        # 디자인 스펙 저장
+        project_service.save_design_spec(project_dir, design_spec)
+
+        # 메타데이터 저장
+        metadata = ProjectMetadata(
+            topic=f"Imported from {file_path.split('/')[-1] if '/' in file_path else file_path}",
+            num_slides=len(design_spec.slides),
+        )
+        project_service.save_metadata(project_dir, metadata)
+        project_service.update_step(project_dir, "import")
+        project_service.update_step(project_dir, "design_spec")
+
+        # HTML 미리보기 자동 생성
+        response = slides_service.generate_from_design_spec(design_spec)
+        project_service.save_slides_html(
+            project_dir, response.session_id, response.slide_htmls, response.container_html,
+        )
+        project_service.update_step(project_dir, "slides")
+
+        result = {
+            "project_id": project_id,
+            "num_slides": len(design_spec.slides),
+            "slides_html_path": str(project_dir / "slides.html"),
+        }
+        if warnings:
+            result["warnings"] = warnings
+
+        return json.dumps(result, ensure_ascii=False)

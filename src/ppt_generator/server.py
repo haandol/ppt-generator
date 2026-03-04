@@ -6,6 +6,7 @@ from ppt_generator.di.container import DIContainer
 from ppt_generator.tools.design.controller import register_design_tools
 from ppt_generator.tools.outline.controller import register_outline_tools
 from ppt_generator.tools.pptx.controller import register_pptx_tools
+from ppt_generator.tools.pptx_import.controller import register_pptx_import_tools
 from ppt_generator.tools.project.controller import register_project_tools
 from ppt_generator.tools.script.controller import register_script_tools
 from ppt_generator.tools.slides.controller import register_slides_tools
@@ -25,6 +26,7 @@ def create_server() -> FastMCP:
             "- After design spec generation, suggest visual_qa(project_id=...) to the user "
             "for pixel-perfect quality check.\n"
             "- Only run visual_qa when the user agrees. It requires Playwright.\n"
+            "- Use import_pptx to import an external PPTX file for editing.\n"
         ),
     )
     container = DIContainer()
@@ -36,6 +38,9 @@ def create_server() -> FastMCP:
         slides_service=container.slides_service,
     )
     register_pptx_tools(mcp, container.export_service, container.project_service)
+    register_pptx_import_tools(
+        mcp, container.import_service, container.project_service, container.slides_service,
+    )
     register_slides_tools(mcp, container.slides_service, container.project_service)
     register_project_tools(mcp, container.project_service)
     register_visual_qa_tools(

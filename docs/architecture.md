@@ -9,6 +9,7 @@
 - **Visual QA** — Playwright 스크린샷 + Claude Vision으로 시각적 결함 자동 감지 및 수정 (opt-in)
 - **HTML 미리보기** — 디자인 스펙에서 결정론적으로 HTML 변환
 - **PPTX 내보내기** — 디자인 스펙에서 편집 가능한 PPTX로 결정론적 변환
+- **PPTX 임포트** — 기존 PPTX 파일을 디자인 스펙으로 역변환하여 편집·미리보기 (LLM 호출 없이 결정론적 파싱)
 - **프로젝트 관리** — `project_id` 기반으로 중간 결과물 저장/로드, 중간 단계부터 재개 가능
 
 ## 생성 파이프라인
@@ -24,6 +25,8 @@ flowchart LR
     D --> E{"내보내기"}
     E --> F["HTML\n미리보기"]
     E --> G["PPTX\n다운로드"]
+
+    H["기존 PPTX\n파일"] -->|"import_pptx"| D
 ```
 
 ## 사용 워크플로우
@@ -42,6 +45,8 @@ flowchart TD
     F -->|"완료"| H["4. 내보내기"]
     H --> I["export_pptx\n편집 가능한 .pptx"]
     H --> J["export_html\nHTML 미리보기"]
+
+    K["기존 PPTX 파일"] -->|"import_pptx"| F
 ```
 
 - 모든 도구는 `project_id`를 자동 생성하여 `~/.ppt-generator/<UUID>/`에 결과물을 저장합니다
@@ -61,6 +66,19 @@ flowchart TD
 | `visual_qa`                  | 스크린샷 기반 시각적 결함 감지 및 자동 수정 (opt-in, Playwright 필요) |
 | `export_html`                | 디자인 스펙에서 HTML 슬라이드 내보내기 (결정론적 변환)    |
 | `export_pptx`                | 디자인 스펙에서 편집 가능한 PPTX 내보내기 (결정론적 변환) |
+| `import_pptx`                | 기존 PPTX 파일을 디자인 스펙으로 역변환 (결정론적 파싱, HTML 미리보기 자동 생성) |
+
+#### PPTX 임포트
+
+`import_pptx`는 기존 PPTX 파일을 python-pptx 오브젝트 모델 기반으로 결정론적 파싱하여 DesignSpec으로 변환합니다. LLM 호출 없이 순수 파싱 로직으로 동작하므로 추가 비용이 없습니다.
+
+- **지원 요소**: 텍스트박스, 도형(22종), 커넥터/선, 이미지, 배경, 발표자 노트
+- **도형 22종**: Basic(3) + Arrows(5) + Polygons(7) + Stars(3) + Flowchart(3) + Line(1)
+- **Graceful degradation**: 그룹 도형 → 평탄화, 테이블 → 도형 격자, 차트 → 경고, 비디오/오디오 → 무시
+- **슬라이드 크기 정규화**: 외부 PPTX의 크기가 1280×720px이 아닌 경우 비례 스케일링
+- 임포트 후 `modify_design_spec`, `visual_qa`, `export_html`, `export_pptx` 모두 즉시 사용 가능
+
+> 상세 설계: [ADR-0027](adr/pipeline/0027-pptx-import-to-design-spec.md)
 
 #### 디자인 스펙 병렬 생성
 
@@ -142,6 +160,7 @@ ppt-generator/
 │       ├── slides/                # HTML 슬라이드 생성
 │       ├── visual_qa/             # Visual QA (스크린샷 분석 + 자동 수정)
 │       ├── pptx/                  # PPTX 내보내기
+│       ├── pptx_import/           # PPTX 임포트 (외부 PPTX → 디자인 스펙)
 │       └── project/               # 프로젝트 관리
 ├── env/
 │   └── local.env                  # 샘플 환경변수 파일

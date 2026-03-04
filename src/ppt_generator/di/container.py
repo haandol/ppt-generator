@@ -26,6 +26,7 @@ from ppt_generator.interfaces.constants import (
 from ppt_generator.tools.design.service import DesignService
 from ppt_generator.tools.outline.service import OutlineService
 from ppt_generator.tools.pptx.service import ExportService
+from ppt_generator.tools.pptx_import.service import ImportService
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.script.service import ScriptService
 from ppt_generator.tools.slides.service import SlidesService
@@ -43,6 +44,7 @@ class DIContainer:
         self._export_service: ExportService | None = None
         self._slides_service: SlidesService | None = None
         self._project_service: ProjectService | None = None
+        self._import_service: ImportService | None = None
 
     @staticmethod
     def _resolve_provider() -> str:
@@ -146,6 +148,12 @@ class DIContainer:
             analysis_agent_factory=self._create_visual_qa_analysis_agent,
             fix_agent_factory=self._create_visual_qa_fix_agent,
         )
+
+    @property
+    def import_service(self) -> ImportService:
+        if self._import_service is None:
+            self._import_service = ImportService()
+        return self._import_service
 
     @property
     def project_service(self) -> ProjectService:

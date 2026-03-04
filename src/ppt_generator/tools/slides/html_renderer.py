@@ -100,6 +100,32 @@ def textbox_to_html(tb: PptxTextBox) -> str:
     return f'<div style="{style}">{"".join(inner_parts)}</div>'
 
 
+# CSS clip-path polygon 매핑: shape_type → polygon points
+_CLIP_PATH_MAP: dict[str, str] = {
+    # Arrows
+    "up_arrow": "polygon(50% 0%, 100% 40%, 70% 40%, 70% 100%, 30% 100%, 30% 40%, 0% 40%)",
+    "down_arrow": "polygon(30% 0%, 70% 0%, 70% 60%, 100% 60%, 50% 100%, 0% 60%, 30% 60%)",
+    "left_arrow": "polygon(40% 0%, 40% 30%, 100% 30%, 100% 70%, 40% 70%, 40% 100%, 0% 50%)",
+    "right_arrow": "polygon(0% 30%, 60% 30%, 60% 0%, 100% 50%, 60% 100%, 60% 70%, 0% 70%)",
+    "chevron": "polygon(0% 0%, 75% 0%, 100% 50%, 75% 100%, 0% 100%, 25% 50%)",
+    # Polygons
+    "triangle": "polygon(50% 0%, 100% 100%, 0% 100%)",
+    "diamond": "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
+    "pentagon": "polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)",
+    "hexagon": "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)",
+    "trapezoid": "polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%)",
+    "parallelogram": "polygon(20% 0%, 100% 0%, 80% 100%, 0% 100%)",
+    "cross": "polygon(35% 0%, 65% 0%, 65% 35%, 100% 35%, 100% 65%, 65% 65%, 65% 100%, 35% 100%, 35% 65%, 0% 65%, 0% 35%, 35% 35%)",
+    # Stars
+    "star_4": "polygon(50% 0%, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0% 50%, 38% 38%)",
+    "star_5": "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)",
+    "heart": "polygon(50% 18%, 62% 0%, 82% 0%, 100% 18%, 100% 40%, 50% 100%, 0% 40%, 0% 18%, 18% 0%, 38% 0%)",
+    # Flowchart
+    "flowchart_process": None,  # rectangle (no clip needed)
+    "flowchart_decision": "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
+    "flowchart_terminator": None,  # rounded_rectangle variant (handled via border-radius)
+}
+
 _ARROW_SIZE = 14  # 화살표 머리 길이 (px)
 _ARROW_HALF = 10  # 화살표 머리 높이 (px)
 
@@ -206,6 +232,15 @@ def shape_to_html(shape: PptxShape) -> str:
         style += "border-radius:8px;"
     if shape.shape_type == "ellipse":
         style += "border-radius:50%;"
+    if shape.shape_type == "flowchart_terminator":
+        style += f"border-radius:{min(shape.width_px, shape.height_px) / 2}px;"
+
+    # CSS clip-path for polygon-based shapes
+    clip_path = _CLIP_PATH_MAP.get(shape.shape_type)
+    if clip_path:
+        style += f"clip-path:{clip_path};"
+        # clip-path가 border를 잘라내므로 outline으로 대체할 수 없음
+        # border 제거하고 box-shadow 없이 깨끗하게 렌더링
 
     style += "overflow:hidden;"
 

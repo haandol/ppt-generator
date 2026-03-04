@@ -212,6 +212,28 @@ class SlideBuilder:
             "rectangle": MSO_SHAPE.RECTANGLE,
             "rounded_rectangle": MSO_SHAPE.ROUNDED_RECTANGLE,
             "ellipse": MSO_SHAPE.OVAL,
+            # Arrows
+            "up_arrow": MSO_SHAPE.UP_ARROW,
+            "down_arrow": MSO_SHAPE.DOWN_ARROW,
+            "left_arrow": MSO_SHAPE.LEFT_ARROW,
+            "right_arrow": MSO_SHAPE.RIGHT_ARROW,
+            "chevron": MSO_SHAPE.CHEVRON,
+            # Polygons
+            "triangle": MSO_SHAPE.ISOSCELES_TRIANGLE,
+            "diamond": MSO_SHAPE.DIAMOND,
+            "pentagon": MSO_SHAPE.PENTAGON,
+            "hexagon": MSO_SHAPE.HEXAGON,
+            "trapezoid": MSO_SHAPE.TRAPEZOID,
+            "parallelogram": MSO_SHAPE.PARALLELOGRAM,
+            "cross": MSO_SHAPE.CROSS,
+            # Stars
+            "star_4": MSO_SHAPE.STAR_4_POINT,
+            "star_5": MSO_SHAPE.STAR_5_POINT,
+            "heart": MSO_SHAPE.HEART,
+            # Flowchart
+            "flowchart_process": MSO_SHAPE.FLOWCHART_PROCESS,
+            "flowchart_decision": MSO_SHAPE.FLOWCHART_DECISION,
+            "flowchart_terminator": MSO_SHAPE.FLOWCHART_TERMINATOR,
         }
         mso_shape = shape_type_map.get(shape_spec.shape_type, MSO_SHAPE.RECTANGLE)
 

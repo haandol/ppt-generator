@@ -117,7 +117,13 @@ class PptxTextBox:
 class PptxShape:
     """Shape: position/size, background color, inner text (optional).
 
-    shape_type: "rectangle" | "rounded_rectangle" | "ellipse" | "line"
+    shape_type:
+      Basic: "rectangle" | "rounded_rectangle" | "ellipse" | "line"
+      Arrows: "up_arrow" | "down_arrow" | "left_arrow" | "right_arrow" | "chevron"
+      Polygons: "triangle" | "diamond" | "pentagon" | "hexagon" | "trapezoid"
+                | "parallelogram" | "cross"
+      Stars: "star_4" | "star_5" | "heart"
+      Flowchart: "flowchart_process" | "flowchart_decision" | "flowchart_terminator"
     """
 
     left_px: float

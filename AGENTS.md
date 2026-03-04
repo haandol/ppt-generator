@@ -44,6 +44,10 @@ ppt-generator/
 │   │   │   ├── service.py         # ExportService (디자인 스펙 → PPTX)
 │   │   │   ├── slide_builder.py   # PptxSlideSpec → python-pptx 변환
 │   │   │   └── text_formatter.py  # run/paragraph 포매팅 공통 함수
+│   │   ├── pptx_import/           # PPTX 임포트 도구 (외부 PPTX → 디자인 스펙)
+│   │   │   ├── controller.py      # MCP 인터페이스 (import_pptx 도구)
+│   │   │   ├── service.py         # ImportService (PPTX → DesignSpec 오케스트레이션)
+│   │   │   └── slide_reader.py    # SlideReader (python-pptx → PptxSlideSpec 역변환)
 │   │   ├── project/               # 프로젝트 저장/로드 도구 (F6)
 │   │   │   ├── controller.py
 │   │   │   ├── service.py         # 프로젝트 코어 관리 (파일 I/O, 메타데이터)
@@ -292,6 +296,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 * project_id 기반 체이닝 (권장): generate_slides_design_spec → export_html/export_pptx(project_id=...)
 * 모든 도구가 project_id를 자동 생성하여 ~/.ppt-generator/<UUID>/에 결과물을 저장
 * load_* 도구에 project_id를 전달하여 저장된 결과물을 로드, 중간 단계부터 재개 가능
+* **임포트 경로**: import_pptx(file_path) → 디자인 스펙 + HTML 미리보기 자동 생성 → modify_design_spec/export_html/export_pptx/visual_qa 사용 가능
 * generate_slides_design_spec은 전체 아웃라인 기반으로 design_summary.json을 LLM으로 사전 생성하여 모든 슬라이드의 테마 일관성 유지
 * content 슬라이드의 배경색은 design_summary의 background_color로 강제 보정 (title/closing 슬라이드는 null 유지)
 * 디자인 스펙 생성 완료 시 slides.html (iframe 컨테이너)도 자동 생성하여 별도 export_html 호출 없이 미리보기 가능
@@ -308,6 +313,7 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 | `visual_qa`                  | `tools/visual_qa/` | 렌더링된 슬라이드의 시각적 품질 검사 + 자동 수정 (opt-in, Playwright 필요). token_usage + estimated_cost 포함 |
 | `export_html`                | `tools/slides/`  | 디자인 스펙 또는 project_id 기반 HTML 슬라이드 내보내기 (결정론적 변환)                             |
 | `export_pptx`                | `tools/pptx/`    | 디자인 스펙 또는 project_id 기반 편집 가능한 PPTX 내보내기 (결정론적 변환)                         |
+| `import_pptx`                | `tools/pptx_import/` | 외부 PPTX 파일 → 디자인 스펙 변환 (결정론적 파싱, HTML 미리보기 자동 생성)                     |
 | `list_projects`              | `tools/project/` | 기존 프로젝트 목록 조회 (파이프라인 시작 전 호출 권장)                                             |
 | `load_project_status`        | `tools/project/` | 프로젝트 상태 및 메타데이터 로드                                                                   |
 | `load_outline`               | `tools/project/` | 저장된 아웃라인 JSON 로드                                                                          |
