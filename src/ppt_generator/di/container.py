@@ -35,6 +35,11 @@ from ppt_generator.tools.slides.service import SlidesService
 __all__ = ["CachingAnthropicModel", "DIContainer"]
 
 
+def _with_cache_point(system_prompt: str) -> list[dict]:
+    """System prompt에 Bedrock cachePoint를 추가한 content block 리스트를 반환한다."""
+    return [{"text": system_prompt}, {"cachePoint": {"type": "default"}}]
+
+
 class DIContainer:
     def __init__(self, project_root: Path | None = None) -> None:
         self._project_root = project_root or Path(__file__).resolve().parents[3]
@@ -64,13 +69,15 @@ class DIContainer:
                 json_schema=SCRIPT_JSON_SCHEMA,
                 json_schema_name="script_output",
             )
+            system_prompt: str | list[dict] = SCRIPT_SYSTEM_PROMPT
         else:
             model = create_bedrock_outline_model(
                 max_tokens=BEDROCK_SCRIPT_MAX_TOKENS,
                 json_schema=SCRIPT_JSON_SCHEMA,
                 json_schema_name="script_output",
             )
-        return Agent(model=model, system_prompt=SCRIPT_SYSTEM_PROMPT, callback_handler=None, tools=[])
+            system_prompt = _with_cache_point(SCRIPT_SYSTEM_PROMPT)
+        return Agent(model=model, system_prompt=system_prompt, callback_handler=None, tools=[])
 
     def _create_outline_agent(self) -> Agent:
         if self._provider == "anthropic":
@@ -80,6 +87,7 @@ class DIContainer:
                 json_schema_name="outline_output",
                 thinking_effort="medium",
             )
+            system_prompt: str | list[dict] = OUTLINE_SYSTEM_PROMPT
         else:
             model = create_bedrock_outline_model(
                 max_tokens=BEDROCK_OUTLINE_MAX_TOKENS,
@@ -87,28 +95,35 @@ class DIContainer:
                 json_schema_name="outline_output",
                 thinking_effort="medium",
             )
-        return Agent(model=model, system_prompt=OUTLINE_SYSTEM_PROMPT, callback_handler=None, tools=[])
+            system_prompt = _with_cache_point(OUTLINE_SYSTEM_PROMPT)
+        return Agent(model=model, system_prompt=system_prompt, callback_handler=None, tools=[])
 
     def _create_visual_qa_analysis_agent(self) -> Agent:
         if self._provider == "anthropic":
             model = create_anthropic_visual_qa_model(thinking_effort="medium")
+            system_prompt: str | list[dict] = VISUAL_QA_ANALYSIS_SYSTEM_PROMPT
         else:
             model = create_bedrock_visual_qa_model(thinking_effort="medium")
-        return Agent(model=model, system_prompt=VISUAL_QA_ANALYSIS_SYSTEM_PROMPT, callback_handler=None, tools=[])
+            system_prompt = _with_cache_point(VISUAL_QA_ANALYSIS_SYSTEM_PROMPT)
+        return Agent(model=model, system_prompt=system_prompt, callback_handler=None, tools=[])
 
     def _create_visual_qa_fix_agent(self) -> Agent:
         if self._provider == "anthropic":
             model = create_anthropic_visual_qa_model(thinking_effort="high")
+            system_prompt: str | list[dict] = VISUAL_QA_FIX_SYSTEM_PROMPT
         else:
             model = create_bedrock_visual_qa_model(thinking_effort="high")
-        return Agent(model=model, system_prompt=VISUAL_QA_FIX_SYSTEM_PROMPT, callback_handler=None, tools=[])
+            system_prompt = _with_cache_point(VISUAL_QA_FIX_SYSTEM_PROMPT)
+        return Agent(model=model, system_prompt=system_prompt, callback_handler=None, tools=[])
 
     def _create_design_agent(self, thinking_effort: str, slide_type: str = "content") -> Agent:
+        prompt_text = DESIGN_SPEC_SYSTEM_PROMPTS.get(slide_type, DESIGN_SPEC_SYSTEM_PROMPTS["content"])
         if self._provider == "anthropic":
             model = create_anthropic_design_model(thinking_effort=thinking_effort)
+            system_prompt: str | list[dict] = prompt_text
         else:
             model = create_bedrock_design_model(thinking_effort=thinking_effort)
-        system_prompt = DESIGN_SPEC_SYSTEM_PROMPTS.get(slide_type, DESIGN_SPEC_SYSTEM_PROMPTS["content"])
+            system_prompt = _with_cache_point(prompt_text)
         return Agent(model=model, system_prompt=system_prompt, callback_handler=None, tools=[])
 
     # ---- Service properties (lazy init) ----

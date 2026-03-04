@@ -125,6 +125,7 @@ def create_bedrock_outline_model(
         boto_client_config=build_client_config(),
         temperature=1.0,
         max_tokens=max_tokens,
+        cache_config=CacheConfig(strategy="auto"),
         additional_args=additional_args,
         **({"additional_request_fields": additional_request_fields} if additional_request_fields else {}),
     )
