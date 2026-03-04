@@ -1,6 +1,6 @@
 [project]
 name = "ppt-generator"
-version = "0.2.1"
+version = "0.3.0"
 description = "자동 프레젠테이션 생성 MCP 서버"
 requires-python = ">=3.13"
 dependencies = [
