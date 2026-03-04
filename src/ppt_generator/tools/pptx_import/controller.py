@@ -1,10 +1,11 @@
 """PPTX 임포트 MCP tool 등록."""
 
 import json
+from dataclasses import replace
 
 from mcp.server.fastmcp import FastMCP
 
-from ppt_generator.interfaces.schemas import ProjectMetadata
+from ppt_generator.interfaces.schemas import DesignSpec, PptxImage, ProjectMetadata, PptxSlideSpec
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.pptx_import.service import ImportService
 from ppt_generator.tools.slides.service import SlidesService
@@ -38,9 +39,6 @@ def register_pptx_import_tools(
 
         design_spec, warnings = import_service.import_from_file(file_path)
 
-        # 디자인 스펙 저장
-        project_service.save_design_spec(project_dir, design_spec)
-
         # 메타데이터 저장
         metadata = ProjectMetadata(
             topic=f"Imported from {file_path.split('/')[-1] if '/' in file_path else file_path}",
@@ -50,11 +48,21 @@ def register_pptx_import_tools(
         project_service.update_step(project_dir, "import")
         project_service.update_step(project_dir, "design_spec")
 
-        # 이미지 파일 저장 (image_bytes → PNG)
+        # 이미지 파일 저장 (image_bytes → PNG) 및 src 설정
         slide_image_srcs: list[list[str]] = []
+        updated_slides: list[PptxSlideSpec] = []
         for idx, slide in enumerate(design_spec.slides):
             srcs = project_service.save_slide_images(project_dir, idx, slide.images)
             slide_image_srcs.append(srcs)
+            # 각 이미지에 src 경로 설정
+            new_images = [
+                replace(img, src=src) if src else img
+                for img, src in zip(slide.images, srcs)
+            ]
+            updated_slides.append(replace(slide, images=new_images))
+        design_spec = DesignSpec(slides=updated_slides)
+        # src가 포함된 design_spec 재저장
+        project_service.save_design_spec(project_dir, design_spec)
 
         # HTML 미리보기 자동 생성
         response = slides_service.generate_from_design_spec(

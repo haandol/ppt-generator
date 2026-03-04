@@ -160,6 +160,7 @@ class PptxImage:
     width_px: float
     height_px: float
     image_bytes: bytes = b""
+    src: str = ""  # 이미지 파일 상대경로 (e.g. "images/slide_01_img_01.png")
 
 
 @dataclass(frozen=True)

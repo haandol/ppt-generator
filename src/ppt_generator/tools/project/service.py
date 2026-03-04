@@ -10,6 +10,8 @@ from pathlib import Path
 from threading import Lock
 
 from ppt_generator.interfaces.constants import PPT_GENERATOR_HOME
+from dataclasses import replace
+
 from ppt_generator.interfaces.schemas import DesignSpec, PptxImage, PptxSlideSpec, ProjectMetadata
 from ppt_generator.tools.project.design_spec_store import DesignSpecStore
 
@@ -191,6 +193,29 @@ class ProjectService:
 
     def load_design_spec(self, project_dir: Path) -> DesignSpec:
         return self.design_spec_store.load_design_spec(project_dir)
+
+    def load_design_spec_with_images(self, project_dir: Path) -> DesignSpec:
+        """design spec을 로드한 후, 각 이미지의 src로부터 image_bytes를 복원한다."""
+        spec = self.load_design_spec(project_dir)
+        slides_dir = project_dir / self.SLIDES_DIR
+        updated_slides: list[PptxSlideSpec] = []
+        for slide in spec.slides:
+            new_images: list[PptxImage] = []
+            for img in slide.images:
+                if img.src:
+                    img_path = slides_dir / img.src
+                    if img_path.exists():
+                        new_images.append(replace(img, image_bytes=img_path.read_bytes()))
+                    else:
+                        logger.warning("이미지 파일 없음: %s", img_path)
+                        new_images.append(img)
+                else:
+                    new_images.append(img)
+            if new_images != list(slide.images):
+                updated_slides.append(replace(slide, images=new_images))
+            else:
+                updated_slides.append(slide)
+        return DesignSpec(slides=updated_slides)
 
     def save_design_spec_slide(self, project_dir: Path, index: int, slide: PptxSlideSpec) -> None:
         self.design_spec_store.save_design_spec_slide(project_dir, index, slide)

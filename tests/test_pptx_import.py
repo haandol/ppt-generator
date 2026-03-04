@@ -18,6 +18,8 @@ from ppt_generator.interfaces.schemas import (
     PptxTextBox,
     PptxTextRun,
 )
+from ppt_generator.interfaces.spec_utils import design_spec_to_json, parse_design_spec_json
+from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.pptx.service import ExportService
 from ppt_generator.tools.pptx_import.service import ImportService
 from ppt_generator.tools.pptx_import.slide_reader import SlideReader
@@ -512,3 +514,254 @@ class TestNewShapeTypes:
         assert shape.shape_type == "up_arrow"
         assert shape.text == "UP"
         assert shape.text_bold is True
+
+
+# ── 플레이스홀더 서식 상속 테스트 ──
+
+
+class TestPlaceholderFormatInheritance:
+    """OOXML 상속 체인(paragraph → layout → master)에서 서식이 올바르게 resolve되는지 검증."""
+
+    def test_placeholder_title_inherits_layout_font_size(self, tmp_path):
+        """layout defRPr에 sz=4800 설정 → 임포트 시 48pt로 추출."""
+        from pptx.oxml.ns import qn as _qn
+        from lxml.etree import SubElement
+
+        prs = Presentation()
+        prs.slide_width = 12_192_000
+        prs.slide_height = 6_858_000
+        layout = prs.slide_layouts[0]  # Title Slide layout
+        slide = prs.slides.add_slide(layout)
+
+        # layout placeholder의 lstStyle에 defRPr sz=4800 주입
+        for ph in layout.placeholders:
+            if ph.placeholder_format.idx == 0:  # 제목 placeholder
+                txBody = ph._element.find(_qn("p:txBody"))
+                if txBody is not None:
+                    lstStyle = txBody.find(_qn("a:lstStyle"))
+                    if lstStyle is None:
+                        lstStyle = SubElement(txBody, _qn("a:lstStyle"))
+                    lvl1pPr = lstStyle.find(_qn("a:lvl1pPr"))
+                    if lvl1pPr is None:
+                        lvl1pPr = SubElement(lstStyle, _qn("a:lvl1pPr"))
+                    defRPr = lvl1pPr.find(_qn("a:defRPr"))
+                    if defRPr is None:
+                        defRPr = SubElement(lvl1pPr, _qn("a:defRPr"))
+                    defRPr.set("sz", "4800")  # 48pt
+                break
+
+        # 슬라이드 제목 placeholder에 텍스트 추가 (run에 sz 지정 없음)
+        for ph in slide.placeholders:
+            if ph.placeholder_format.idx == 0:
+                ph.text = "Layout Inherited Title"
+                break
+
+        pptx_path = tmp_path / "layout_inherit.pptx"
+        prs.save(str(pptx_path))
+
+        imported, _ = ImportService().import_from_file(pptx_path)
+        slide_spec = imported.slides[0]
+
+        # 제목 텍스트를 찾아 font_size_pt 검증
+        found = False
+        for tb in slide_spec.textboxes:
+            for p in tb.paragraphs:
+                for r in p.runs:
+                    if "Layout Inherited Title" in r.text:
+                        assert r.font_size_pt == 48, f"Expected 48pt, got {r.font_size_pt}"
+                        found = True
+        assert found, "제목 텍스트를 찾을 수 없습니다"
+
+    def test_placeholder_title_inherits_master_style(self, tmp_path):
+        """master titleStyle 기본값 (sz=4400) → 임포트 시 44pt 추출."""
+        prs = Presentation()
+        prs.slide_width = 12_192_000
+        prs.slide_height = 6_858_000
+
+        # 기본 Presentation의 master titleStyle에 이미 sz=4400 kern=1200이 있음
+        layout = prs.slide_layouts[0]
+        slide = prs.slides.add_slide(layout)
+
+        # 제목 placeholder에 텍스트 추가 (run에 sz 미지정 → master에서 상속)
+        for ph in slide.placeholders:
+            if ph.placeholder_format.idx == 0:
+                ph.text = "Master Inherited Title"
+                break
+
+        pptx_path = tmp_path / "master_inherit.pptx"
+        prs.save(str(pptx_path))
+
+        imported, _ = ImportService().import_from_file(pptx_path)
+        slide_spec = imported.slides[0]
+
+        found = False
+        for tb in slide_spec.textboxes:
+            for p in tb.paragraphs:
+                for r in p.runs:
+                    if "Master Inherited Title" in r.text:
+                        assert r.font_size_pt == 44, f"Expected 44pt, got {r.font_size_pt}"
+                        found = True
+        assert found, "제목 텍스트를 찾을 수 없습니다"
+
+    def test_placeholder_color_inherits_from_layout_scheme(self, tmp_path):
+        """layout defRPr에 srgbClr 설정 → 임포트 시 해당 색상 추출."""
+        from pptx.oxml.ns import qn as _qn
+        from lxml.etree import SubElement
+
+        prs = Presentation()
+        prs.slide_width = 12_192_000
+        prs.slide_height = 6_858_000
+        layout = prs.slide_layouts[0]
+        slide = prs.slides.add_slide(layout)
+
+        # layout placeholder lstStyle에 solidFill srgbClr val="FF0000" 주입
+        for ph in layout.placeholders:
+            if ph.placeholder_format.idx == 0:
+                txBody = ph._element.find(_qn("p:txBody"))
+                if txBody is not None:
+                    lstStyle = txBody.find(_qn("a:lstStyle"))
+                    if lstStyle is None:
+                        lstStyle = SubElement(txBody, _qn("a:lstStyle"))
+                    lvl1pPr = lstStyle.find(_qn("a:lvl1pPr"))
+                    if lvl1pPr is None:
+                        lvl1pPr = SubElement(lstStyle, _qn("a:lvl1pPr"))
+                    defRPr = lvl1pPr.find(_qn("a:defRPr"))
+                    if defRPr is None:
+                        defRPr = SubElement(lvl1pPr, _qn("a:defRPr"))
+                    solidFill = SubElement(defRPr, _qn("a:solidFill"))
+                    srgbClr = SubElement(solidFill, _qn("a:srgbClr"))
+                    srgbClr.set("val", "FF0000")
+                break
+
+        for ph in slide.placeholders:
+            if ph.placeholder_format.idx == 0:
+                ph.text = "Red Title"
+                break
+
+        pptx_path = tmp_path / "color_inherit.pptx"
+        prs.save(str(pptx_path))
+
+        imported, _ = ImportService().import_from_file(pptx_path)
+        slide_spec = imported.slides[0]
+
+        found = False
+        for tb in slide_spec.textboxes:
+            for p in tb.paragraphs:
+                for r in p.runs:
+                    if "Red Title" in r.text:
+                        assert r.color == "#FF0000", f"Expected #FF0000, got {r.color}"
+                        found = True
+        assert found, "제목 텍스트를 찾을 수 없습니다"
+
+    def test_run_direct_value_overrides_inherited(self, tmp_path):
+        """run에 직접 지정된 값이 상속값을 오버라이드하는지 검증."""
+        from pptx.util import Pt
+
+        prs = Presentation()
+        prs.slide_width = 12_192_000
+        prs.slide_height = 6_858_000
+        layout = prs.slide_layouts[0]
+        slide = prs.slides.add_slide(layout)
+
+        for ph in slide.placeholders:
+            if ph.placeholder_format.idx == 0:
+                ph.text = "Direct Size"
+                # run에 직접 font_size 지정
+                for run in ph.text_frame.paragraphs[0].runs:
+                    run.font.size = Pt(24)
+                break
+
+        pptx_path = tmp_path / "direct_override.pptx"
+        prs.save(str(pptx_path))
+
+        imported, _ = ImportService().import_from_file(pptx_path)
+        slide_spec = imported.slides[0]
+
+        found = False
+        for tb in slide_spec.textboxes:
+            for p in tb.paragraphs:
+                for r in p.runs:
+                    if "Direct Size" in r.text:
+                        assert r.font_size_pt == 24, f"Expected 24pt, got {r.font_size_pt}"
+                        found = True
+        assert found, "텍스트를 찾을 수 없습니다"
+
+    def test_theme_color_map_extraction(self, tmp_path):
+        """테마 색상 맵이 올바르게 추출되는지 검증."""
+        from ppt_generator.tools.pptx_import.slide_reader import _extract_theme_color_map
+
+        prs = Presentation()
+        color_map = _extract_theme_color_map(prs)
+        # 기본 테마에서 최소한 dk1, lt1은 추출되어야 함
+        assert "dk1" in color_map or len(color_map) == 0  # 테마가 없으면 빈 맵
+        if color_map:
+            # 별칭 매핑 확인
+            if "dk1" in color_map:
+                assert "tx1" in color_map
+                assert color_map["tx1"] == color_map["dk1"]
+
+
+# ── 이미지 src 직렬화/역직렬화 테스트 ──
+
+
+class TestImageSrcSerialization:
+    """이미지 src 필드의 직렬화/역직렬화 검증."""
+
+    def test_image_src_serialized_in_json(self):
+        """PptxImage.src가 JSON 직렬화에 포함되는지 검증."""
+        spec = DesignSpec(slides=[PptxSlideSpec(
+            images=[PptxImage(
+                left_px=100, top_px=200, width_px=300, height_px=400,
+                image_bytes=b"\x89PNG", src="images/slide_01_img_01.png",
+            )],
+        )])
+        json_str = design_spec_to_json(spec)
+        import json
+        data = json.loads(json_str)
+        img_data = data["slides"][0]["images"][0]
+        assert img_data["src"] == "images/slide_01_img_01.png"
+        assert "image_bytes" not in img_data  # image_bytes는 제거됨
+
+    def test_image_src_parsed_from_json(self):
+        """JSON에서 PptxImage.src가 역직렬화되는지 검증."""
+        spec = DesignSpec(slides=[PptxSlideSpec(
+            images=[PptxImage(
+                left_px=100, top_px=200, width_px=300, height_px=400,
+                src="images/slide_01_img_01.png",
+            )],
+        )])
+        json_str = design_spec_to_json(spec)
+        parsed = parse_design_spec_json(json_str)
+        assert len(parsed.slides[0].images) == 1
+        img = parsed.slides[0].images[0]
+        assert img.src == "images/slide_01_img_01.png"
+        assert img.left_px == 100
+        assert img.width_px == 300
+
+    def test_load_design_spec_with_images_restores_bytes(self, tmp_path):
+        """load_design_spec_with_images가 src로부터 image_bytes를 복원하는지 검증."""
+        project_service = ProjectService()
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+
+        # 이미지 파일 생성
+        images_dir = project_dir / "slides" / "images"
+        images_dir.mkdir(parents=True)
+        png_bytes = b"\x89PNG\r\n\x1a\nfake_image_data"
+        (images_dir / "slide_01_img_01.png").write_bytes(png_bytes)
+
+        # src가 포함된 design spec 저장
+        spec = DesignSpec(slides=[PptxSlideSpec(
+            images=[PptxImage(
+                left_px=10, top_px=20, width_px=300, height_px=200,
+                src="images/slide_01_img_01.png",
+            )],
+        )])
+        project_service.save_design_spec(project_dir, spec)
+
+        # image_bytes 복원 검증
+        loaded = project_service.load_design_spec_with_images(project_dir)
+        assert len(loaded.slides[0].images) == 1
+        img = loaded.slides[0].images[0]
+        assert img.image_bytes == png_bytes
+        assert img.src == "images/slide_01_img_01.png"

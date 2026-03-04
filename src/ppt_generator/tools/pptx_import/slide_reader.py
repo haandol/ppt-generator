@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
+from xml.etree.ElementTree import Element
 
 from pptx.dml.color import RGBColor
 from pptx.enum.dml import MSO_THEME_COLOR
@@ -38,6 +40,15 @@ from ppt_generator.interfaces.schemas import (
 if TYPE_CHECKING:
     from pptx.presentation import Presentation
     from pptx.slide import Slide
+
+
+@dataclass
+class _DefaultRunProps:
+    """OOXML 상속 체인에서 추출한 기본 run 서식."""
+
+    font_size_pt: int | None = None
+    color: str | None = None
+    bold: bool | None = None
 
 logger = logging.getLogger(__name__)
 
@@ -101,26 +112,35 @@ _CLOSING_KEYWORDS = re.compile(
 )
 
 
-def _resolve_scheme_color(scheme_el) -> str | None:
+# Office 기본 테마 색상 폴백 매핑
+_SCHEME_FALLBACK: dict[str, str] = {
+    "bg1": "#FFFFFF", "bg2": "#E7E6E6",
+    "tx1": "#000000", "tx2": "#44546A",
+    "lt1": "#FFFFFF", "lt2": "#E7E6E6",
+    "dk1": "#000000", "dk2": "#44546A",
+    "accent1": "#4472C4", "accent2": "#ED7D31",
+    "accent3": "#A5A5A5", "accent4": "#FFC000",
+    "accent5": "#5B9BD5", "accent6": "#70AD47",
+    "hlink": "#0563C1", "folHlink": "#954F72",
+}
+
+
+def _resolve_scheme_color(
+    scheme_el,
+    theme_color_map: dict[str, str] | None = None,
+) -> str | None:
     """schemeClr XML 요소에서 RGB 색상을 근사 추출.
 
-    lumMod/lumOff 변환을 지원하며, 알려진 테마 색상 이름을 폴백 매핑한다.
+    lumMod/lumOff 변환을 지원하며, 테마 색상 맵을 우선 사용하고 Office 기본 팔레트를 폴백으로 사용한다.
     """
     val = scheme_el.get("val", "")
 
-    # 기본 테마 색상 폴백 매핑 (Office 기본 테마 기준)
-    _SCHEME_FALLBACK = {
-        "bg1": "#FFFFFF", "bg2": "#E7E6E6",
-        "tx1": "#000000", "tx2": "#44546A",
-        "lt1": "#FFFFFF", "lt2": "#E7E6E6",
-        "dk1": "#000000", "dk2": "#44546A",
-        "accent1": "#4472C4", "accent2": "#ED7D31",
-        "accent3": "#A5A5A5", "accent4": "#FFC000",
-        "accent5": "#5B9BD5", "accent6": "#70AD47",
-        "hlink": "#0563C1", "folHlink": "#954F72",
-    }
-
-    base_hex = _SCHEME_FALLBACK.get(val)
+    # 테마 색상 맵 우선 → 폴백 매핑
+    base_hex: str | None = None
+    if theme_color_map:
+        base_hex = theme_color_map.get(val)
+    if base_hex is None:
+        base_hex = _SCHEME_FALLBACK.get(val)
     if base_hex is None:
         return None
 
@@ -141,12 +161,169 @@ def _resolve_scheme_color(scheme_el) -> str | None:
     return base_hex
 
 
+def _extract_color_from_rpr(rpr_el: Element | None, theme_color_map: dict[str, str] | None = None) -> str | None:
+    """a:rPr 또는 a:defRPr XML 요소에서 색상을 추출."""
+    if rpr_el is None:
+        return None
+    solid = rpr_el.find(qn("a:solidFill"))
+    if solid is None:
+        return None
+    srgb = solid.find(qn("a:srgbClr"))
+    if srgb is not None:
+        val = srgb.get("val")
+        if val:
+            return f"#{val}"
+    scheme = solid.find(qn("a:schemeClr"))
+    if scheme is not None:
+        return _resolve_scheme_color(scheme, theme_color_map)
+    return None
+
+
+def _extract_props_from_rpr(rpr_el: Element | None, theme_color_map: dict[str, str] | None = None) -> _DefaultRunProps:
+    """a:rPr 또는 a:defRPr XML 요소에서 font_size, color, bold를 추출."""
+    if rpr_el is None:
+        return _DefaultRunProps()
+    font_size_pt: int | None = None
+    sz = rpr_el.get("sz")
+    if sz is not None:
+        font_size_pt = round(int(sz) / 100)
+    bold: bool | None = None
+    b = rpr_el.get("b")
+    if b is not None:
+        bold = b == "1" or b.lower() == "true"
+    color = _extract_color_from_rpr(rpr_el, theme_color_map)
+    return _DefaultRunProps(font_size_pt=font_size_pt, color=color, bold=bold)
+
+
+def _extract_theme_color_map(presentation: Presentation) -> dict[str, str]:
+    """프레젠테이션 테마에서 실제 색상 맵을 추출."""
+    color_map: dict[str, str] = {}
+    try:
+        master = presentation.slide_masters[0]
+        # theme part를 찾기 위해 rels를 순회
+        theme_part = None
+        for rel in master.part.rels.values():
+            if "theme" in rel.reltype:
+                theme_part = rel.target_part
+                break
+        if theme_part is None:
+            return color_map
+
+        from xml.etree.ElementTree import fromstring
+        theme_xml = fromstring(theme_part.blob)
+
+        # a:themeElements > a:clrScheme
+        ns = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main"}
+        clr_scheme = theme_xml.find(".//a:clrScheme", ns)
+        if clr_scheme is None:
+            return color_map
+
+        for child in clr_scheme:
+            # 태그에서 네임스페이스 제거하여 이름 추출
+            tag_name = child.tag.split("}")[-1] if "}" in child.tag else child.tag
+            # srgbClr 또는 sysClr에서 색상값 추출
+            srgb = child.find(qn("a:srgbClr"))
+            if srgb is not None:
+                val = srgb.get("val")
+                if val:
+                    color_map[tag_name] = f"#{val}"
+                    continue
+            sys_clr = child.find(qn("a:sysClr"))
+            if sys_clr is not None:
+                last_clr = sys_clr.get("lastClr")
+                if last_clr:
+                    color_map[tag_name] = f"#{last_clr}"
+
+        # clrMap 기반 별칭 매핑 (마스터의 p:clrMap이 실제 매핑을 정의)
+        # 예: 다크 테마에서는 tx1→lt1, tx2→lt2 (일반: tx1→dk1, tx2→dk2)
+        clr_map_el = master.element.find(qn("p:clrMap"))
+        if clr_map_el is not None:
+            # clrMap 속성: bg1, tx1, bg2, tx2 등이 실제 테마 색상 이름을 가리킴
+            for attr_name, target_name in clr_map_el.attrib.items():
+                local_attr = attr_name.split("}")[-1] if "}" in attr_name else attr_name
+                if local_attr not in color_map and target_name in color_map:
+                    color_map[local_attr] = color_map[target_name]
+        else:
+            # clrMap이 없으면 기본 별칭 매핑
+            _ALIASES = {"tx1": "dk1", "tx2": "dk2", "bg1": "lt1", "bg2": "lt2"}
+            for alias, target in _ALIASES.items():
+                if alias not in color_map and target in color_map:
+                    color_map[alias] = color_map[target]
+    except Exception:
+        logger.debug("테마 색상 맵 추출 실패, 폴백 사용", exc_info=True)
+    return color_map
+
+
+# placeholder type → master txStyle 매핑
+_PH_TYPE_TO_TXSTYLE: dict[int, str] = {
+    1: "titleStyle",   # TITLE
+    3: "titleStyle",   # CENTER_TITLE
+    15: "titleStyle",  # TITLE (some variants)
+    2: "bodyStyle",    # BODY
+    7: "bodyStyle",    # OBJECT
+    4: "bodyStyle",    # SUBTITLE
+}
+
+
+def _extract_master_tx_styles(presentation: Presentation) -> dict[str, dict[int, _DefaultRunProps]]:
+    """마스터의 p:txStyles에서 titleStyle/bodyStyle/otherStyle의 레벨별 기본 서식을 추출.
+
+    Returns:
+        {"titleStyle": {0: props, 1: props, ...}, "bodyStyle": {...}, "otherStyle": {...}}
+    """
+    result: dict[str, dict[int, _DefaultRunProps]] = {}
+    try:
+        master = presentation.slide_masters[0]
+        txStyles = master.element.find(qn("p:txStyles"))
+        if txStyles is None:
+            return result
+
+        # 테마 색상 맵은 별도로 넘기지 않고 호출 시점에 전달
+        theme_map = _extract_theme_color_map(presentation)
+
+        for style_name in ("titleStyle", "bodyStyle", "otherStyle"):
+            style_el = txStyles.find(qn(f"p:{style_name}"))
+            if style_el is None:
+                continue
+            level_map: dict[int, _DefaultRunProps] = {}
+            # a:lvl1pPr ~ a:lvl9pPr
+            for lvl_idx in range(9):
+                lvl_pPr = style_el.find(qn(f"a:lvl{lvl_idx + 1}pPr"))
+                if lvl_pPr is None:
+                    continue
+                def_rPr = lvl_pPr.find(qn("a:defRPr"))
+                if def_rPr is not None:
+                    level_map[lvl_idx] = _extract_props_from_rpr(def_rPr, theme_map)
+            result[style_name] = level_map
+    except Exception:
+        logger.debug("마스터 txStyles 추출 실패", exc_info=True)
+    return result
+
+
 class SlideReader:
     """python-pptx 슬라이드에서 PptxSlideSpec을 추출하는 리더."""
 
-    def __init__(self, scale_x: float = 1.0, scale_y: float = 1.0) -> None:
+    def __init__(
+        self,
+        scale_x: float = 1.0,
+        scale_y: float = 1.0,
+        presentation: Presentation | None = None,
+    ) -> None:
         self._scale_x = scale_x
         self._scale_y = scale_y
+        self._theme_color_map: dict[str, str] = {}
+        self._master_tx_styles: dict[str, dict[int, _DefaultRunProps]] = {}
+        if presentation is not None:
+            self._theme_color_map = _extract_theme_color_map(presentation)
+            self._master_tx_styles = _extract_master_tx_styles(presentation)
+        # 현재 슬라이드의 레이아웃 placeholder defRPr 캐시 (read_slide마다 갱신)
+        self._layout_def_rpr: dict[int, dict[int, _DefaultRunProps]] = {}
+        # 기본 배경색 (2번째 슬라이드에서 추출, 최종 폴백으로 사용)
+        self._default_bg_color: str | None = None
+
+    def set_default_bg_color(self, color: str | None) -> None:
+        """기본 배경색을 설정 (최종 폴백으로 사용)."""
+        self._default_bg_color = color
 
     @staticmethod
     def compute_scale(presentation: Presentation) -> tuple[float, float]:
@@ -157,6 +334,34 @@ class SlideReader:
         scale_y = SLIDES_HEIGHT_PX / src_height_px if src_height_px else 1.0
         return scale_x, scale_y
 
+    def _cache_layout_def_rpr(self, slide: Slide) -> None:
+        """현재 슬라이드의 layout placeholder별 lstStyle > defRPr을 캐시."""
+        self._layout_def_rpr = {}
+        try:
+            layout = slide.slide_layout
+            for ph in layout.placeholders:
+                ph_idx = ph.placeholder_format.idx
+                ph_el = ph._element
+                # sp > p:txBody > a:lstStyle > a:lvlNpPr > a:defRPr
+                txBody = ph_el.find(qn("p:txBody"))
+                if txBody is None:
+                    continue
+                lstStyle = txBody.find(qn("a:lstStyle"))
+                if lstStyle is None:
+                    continue
+                level_map: dict[int, _DefaultRunProps] = {}
+                for lvl_idx in range(9):
+                    lvl_pPr = lstStyle.find(qn(f"a:lvl{lvl_idx + 1}pPr"))
+                    if lvl_pPr is None:
+                        continue
+                    def_rPr = lvl_pPr.find(qn("a:defRPr"))
+                    if def_rPr is not None:
+                        level_map[lvl_idx] = _extract_props_from_rpr(def_rPr, self._theme_color_map)
+                if level_map:
+                    self._layout_def_rpr[ph_idx] = level_map
+        except Exception:
+            logger.debug("레이아웃 defRPr 캐시 실패", exc_info=True)
+
     def read_slide(
         self,
         slide: Slide,
@@ -164,6 +369,7 @@ class SlideReader:
         total_slides: int,
     ) -> PptxSlideSpec:
         """단일 슬라이드 → PptxSlideSpec 변환."""
+        self._cache_layout_def_rpr(slide)
         background_color = self._extract_background_color(slide)
         textboxes: list[PptxTextBox] = []
         shapes: list[PptxShape] = []
@@ -216,25 +422,72 @@ class SlideReader:
 
     # ── 배경 추출 ──
 
-    @staticmethod
-    def _extract_background_color(slide: Slide) -> str | None:
-        try:
-            bg = slide.background
-            fill = bg.fill
-            if fill.type is not None:
-                from pptx.enum.dml import MSO_THEME_COLOR  # noqa: F401
+    def _extract_background_color(self, slide: Slide) -> str | None:
+        # 1) 슬라이드 자체 배경
+        color = self._try_extract_bg_fill(slide.background)
+        if color:
+            return color
 
-                try:
-                    rgb = fill.fore_color.rgb
-                    if rgb:
-                        return f"#{rgb}"
-                except (AttributeError, TypeError):
-                    pass
+        # 2) 레이아웃 배경
+        try:
+            color = self._try_extract_bg_fill(slide.slide_layout.background)
+            if color:
+                return color
+        except Exception:
+            pass
+
+        # 3) 마스터 배경
+        try:
+            color = self._try_extract_bg_fill(slide.slide_layout.slide_master.background)
+            if color:
+                return color
+        except Exception:
+            pass
+
+        # 4) 기본 배경색 (2번째 슬라이드에서 추출한 값) 또는 테마 bg1 폴백
+        return self._default_bg_color or self._theme_color_map.get("bg1")
+
+    def _try_extract_bg_fill(self, bg) -> str | None:
+        """background 객체에서 solid fill 색상을 XML 직접 파싱으로 추출.
+
+        python-pptx fill API는 사용하지 않음: bgRef가 있는 배경에서
+        fill 속성 접근 시 bgRef XML이 bgPr/noFill로 변경되는 부작용이 있음.
+        """
+        try:
+            bg_el = bg._element if hasattr(bg, "_element") else bg
+            p_bg = bg_el.find(qn("p:bg")) if bg_el.tag != qn("p:bg") else bg_el
+            if p_bg is None:
+                return None
+            # noFill 확인
+            if p_bg.find(f".//{qn('a:noFill')}") is not None:
+                return None
+            # srgbClr 직접 지정 확인
+            for srgb in p_bg.iter(qn("a:srgbClr")):
+                val = srgb.get("val")
+                if val:
+                    return f"#{val}"
+            # schemeClr 참조 확인
+            for scheme_el in p_bg.iter(qn("a:schemeClr")):
+                return _resolve_scheme_color(scheme_el, self._theme_color_map)
         except Exception:
             pass
         return None
 
     # ── Shape 분기 ──
+
+    @staticmethod
+    def _get_placeholder_info(shape) -> tuple[int | None, int | None]:
+        """shape에서 placeholder type과 idx를 추출. placeholder가 아니면 (None, None)."""
+        try:
+            ph_fmt = shape.placeholder_format
+        except (ValueError, AttributeError):
+            return None, None
+        if ph_fmt is None:
+            return None, None
+        ph_type = getattr(ph_fmt, "type", None)
+        ph_idx = getattr(ph_fmt, "idx", None)
+        # ph_type은 enum이므로 int로 변환
+        return (int(ph_type) if ph_type is not None else None, ph_idx)
 
     def _extract_shape(
         self,
@@ -302,9 +555,14 @@ class SlideReader:
             warnings.append(f"미디어 요소는 미지원입니다 (name={shape.name})")
             return
 
-        # 기타: 텍스트가 있으면 텍스트박스로 추출 시도
+        # 기타 (placeholder 텍스트 등): 텍스트가 있으면 텍스트박스로 추출 시도
         if hasattr(shape, "text_frame"):
-            paragraphs = self._extract_paragraphs(shape.text_frame)
+            ph_type, ph_idx = self._get_placeholder_info(shape)
+            paragraphs = self._extract_paragraphs(
+                shape.text_frame,
+                placeholder_type=ph_type,
+                placeholder_idx=ph_idx,
+            )
             if paragraphs:
                 textboxes.append(PptxTextBox(
                     left_px=self._emu_to_px_x(shape.left),
@@ -540,14 +798,24 @@ class SlideReader:
 
     # ── 텍스트 추출 ──
 
-    def _extract_paragraphs(self, text_frame) -> list[PptxParagraph]:
+    def _extract_paragraphs(
+        self,
+        text_frame,
+        placeholder_type: int | None = None,
+        placeholder_idx: int | None = None,
+    ) -> list[PptxParagraph]:
         paragraphs: list[PptxParagraph] = []
         for para in text_frame.paragraphs:
-            runs = self._extract_runs(para)
+            bullet_level = self._extract_bullet_level(para)
+            runs = self._extract_runs(
+                para,
+                placeholder_type=placeholder_type,
+                placeholder_idx=placeholder_idx,
+                bullet_level=max(bullet_level, 0),
+            )
             # 빈 paragraph (run 없음 + 텍스트 없음) 스킵
             if not runs:
                 continue
-            bullet_level = self._extract_bullet_level(para)
             alignment = self._extract_alignment(para)
             paragraphs.append(PptxParagraph(
                 runs=runs,
@@ -556,17 +824,83 @@ class SlideReader:
             ))
         return paragraphs
 
-    @staticmethod
-    def _extract_runs(paragraph) -> list[PptxTextRun]:
+    def _resolve_inherited_props(
+        self,
+        paragraph,
+        placeholder_type: int | None,
+        placeholder_idx: int | None,
+        bullet_level: int,
+    ) -> _DefaultRunProps:
+        """OOXML 상속 체인에서 paragraph → layout → master 순으로 기본 서식을 resolve."""
+        font_size: int | None = None
+        color: str | None = None
+        bold: bool | None = None
+
+        # 1) paragraph a:pPr > a:defRPr
+        pPr = paragraph._p.find(qn("a:pPr"))
+        if pPr is not None:
+            def_rPr = pPr.find(qn("a:defRPr"))
+            para_props = _extract_props_from_rpr(def_rPr, self._theme_color_map)
+            if para_props.font_size_pt is not None:
+                font_size = para_props.font_size_pt
+            if para_props.color is not None:
+                color = para_props.color
+            if para_props.bold is not None:
+                bold = para_props.bold
+
+        # 2) layout placeholder lstStyle > lvlNpPr > defRPr
+        if placeholder_idx is not None and placeholder_idx in self._layout_def_rpr:
+            layout_levels = self._layout_def_rpr[placeholder_idx]
+            layout_props = layout_levels.get(bullet_level)
+            if layout_props is not None:
+                if font_size is None and layout_props.font_size_pt is not None:
+                    font_size = layout_props.font_size_pt
+                if color is None and layout_props.color is not None:
+                    color = layout_props.color
+                if bold is None and layout_props.bold is not None:
+                    bold = layout_props.bold
+
+        # 3) master p:txStyles > titleStyle/bodyStyle/otherStyle > lvlNpPr > defRPr
+        if placeholder_type is not None:
+            style_name = _PH_TYPE_TO_TXSTYLE.get(placeholder_type, "otherStyle")
+            master_levels = self._master_tx_styles.get(style_name, {})
+            master_props = master_levels.get(bullet_level)
+            if master_props is not None:
+                if font_size is None and master_props.font_size_pt is not None:
+                    font_size = master_props.font_size_pt
+                if color is None and master_props.color is not None:
+                    color = master_props.color
+                if bold is None and master_props.bold is not None:
+                    bold = master_props.bold
+
+        return _DefaultRunProps(font_size_pt=font_size, color=color, bold=bold)
+
+    def _extract_runs(
+        self,
+        paragraph,
+        placeholder_type: int | None = None,
+        placeholder_idx: int | None = None,
+        bullet_level: int = 0,
+    ) -> list[PptxTextRun]:
+        # 상속 기본값을 미리 resolve
+        inherited = self._resolve_inherited_props(
+            paragraph, placeholder_type, placeholder_idx, bullet_level,
+        )
+
         runs: list[PptxTextRun] = []
         for run in paragraph.runs:
             if not run.text:
                 continue
             font = run.font
+
+            # font_size: run 직접 지정 → 상속값
             font_size: int | None = None
             if font.size is not None:
                 font_size = round(font.size.pt)
+            if font_size is None:
+                font_size = inherited.font_size_pt
 
+            # color: run 직접 지정 → 상속값
             color: str | None = None
             try:
                 if font.color and font.color.rgb:
@@ -578,19 +912,18 @@ class SlideReader:
                 try:
                     rPr = run._r.find(qn("a:rPr"))
                     if rPr is not None:
-                        solid = rPr.find(qn("a:solidFill"))
-                        if solid is not None:
-                            srgb = solid.find(qn("a:srgbClr"))
-                            if srgb is not None:
-                                val = srgb.get("val")
-                                if val:
-                                    color = f"#{val}"
-                            else:
-                                scheme = solid.find(qn("a:schemeClr"))
-                                if scheme is not None:
-                                    color = _resolve_scheme_color(scheme)
+                        color = _extract_color_from_rpr(rPr, self._theme_color_map)
                 except Exception:
                     pass
+            if color is None:
+                color = inherited.color
+
+            # bold: run 직접 지정 → 상속값
+            run_bold = font.bold
+            if run_bold is None:
+                run_bold = inherited.bold if inherited.bold is not None else False
+            else:
+                run_bold = bool(run_bold)
 
             font_family: str | None = None
             if font.name and font.name.lower() in _MONOSPACE_FONTS:
@@ -600,7 +933,7 @@ class SlideReader:
                 text=run.text,
                 font_size_pt=font_size,
                 color=color,
-                bold=bool(font.bold),
+                bold=run_bold,
                 italic=bool(font.italic),
                 font_family=font_family,
             ))
@@ -679,8 +1012,7 @@ class SlideReader:
 
     # ── 스타일 추출 헬퍼 ──
 
-    @staticmethod
-    def _resolve_color_from_xml(fill_element) -> str | None:
+    def _resolve_color_from_xml(self, fill_element) -> str | None:
         """XML 요소에서 색상을 추출. srgbClr 우선, schemeClr 폴백."""
         if fill_element is None:
             return None
@@ -694,13 +1026,10 @@ class SlideReader:
                 return f"#{val}"
         scheme = solid.find(qn("a:schemeClr"))
         if scheme is not None:
-            # schemeClr에서 직접 srgbClr 속성을 찾기 어려우므로
-            # 대표적인 테마 색상을 폴백으로 매핑
-            return _resolve_scheme_color(scheme)
+            return _resolve_scheme_color(scheme, self._theme_color_map)
         return None
 
-    @staticmethod
-    def _extract_fill_color(shape) -> str | None:
+    def _extract_fill_color(self, shape) -> str | None:
         # python-pptx API로 시도 (RGB 색상)
         try:
             fill = shape.fill
@@ -723,7 +1052,7 @@ class SlideReader:
                             return f"#{val}"
                     scheme = solid.find(qn("a:schemeClr"))
                     if scheme is not None:
-                        return _resolve_scheme_color(scheme)
+                        return _resolve_scheme_color(scheme, self._theme_color_map)
         except Exception:
             pass
         # p:style/a:fillRef 폴백 (테마 스타일 참조 도형)
@@ -734,13 +1063,12 @@ class SlideReader:
                 if fill_ref is not None and fill_ref.get("idx", "0") != "0":
                     scheme = fill_ref.find(qn("a:schemeClr"))
                     if scheme is not None:
-                        return _resolve_scheme_color(scheme)
+                        return _resolve_scheme_color(scheme, self._theme_color_map)
         except Exception:
             pass
         return None
 
-    @staticmethod
-    def _extract_line_style(shape) -> tuple[str | None, float | None]:
+    def _extract_line_style(self, shape) -> tuple[str | None, float | None]:
         border_color: str | None = None
         border_width: float | None = None
         # python-pptx API로 시도
@@ -769,7 +1097,7 @@ class SlideReader:
                             else:
                                 scheme = solid.find(qn("a:schemeClr"))
                                 if scheme is not None:
-                                    border_color = _resolve_scheme_color(scheme)
+                                    border_color = _resolve_scheme_color(scheme, self._theme_color_map)
                         if border_width is None:
                             w_attr = ln.get("w")
                             if w_attr is not None:
@@ -785,7 +1113,7 @@ class SlideReader:
                     if ln_ref is not None and ln_ref.get("idx", "0") != "0":
                         scheme = ln_ref.find(qn("a:schemeClr"))
                         if scheme is not None:
-                            border_color = _resolve_scheme_color(scheme)
+                            border_color = _resolve_scheme_color(scheme, self._theme_color_map)
                             if border_width is None:
                                 border_width = 0.5  # 테마 기본 선 굵기
             except Exception:

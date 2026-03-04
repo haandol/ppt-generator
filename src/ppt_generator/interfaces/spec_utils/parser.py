@@ -9,6 +9,7 @@ import json
 
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
+    PptxImage,
     PptxParagraph,
     PptxShape,
     PptxSlideSpec,
@@ -97,11 +98,22 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
             dash_style=s.get("dash_style"),
         ))
 
+    images: list[PptxImage] = [
+        PptxImage(
+            left_px=img.get("left_px", 0),
+            top_px=img.get("top_px", 0),
+            width_px=img.get("width_px", 0),
+            height_px=img.get("height_px", 0),
+            src=img.get("src", ""),
+        )
+        for img in data.get("images", [])
+    ]
+
     return PptxSlideSpec(
         background_color=data.get("background_color"),
         textboxes=textboxes,
         shapes=shapes,
-        images=[],
+        images=images,
         speaker_notes=data.get("speaker_notes", ""),
         slide_type=data.get("slide_type", "content"),
     )

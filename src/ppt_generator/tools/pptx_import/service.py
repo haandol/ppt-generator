@@ -48,11 +48,17 @@ class ImportService:
     def _convert(self, prs: Presentation) -> tuple[DesignSpec, list[str]]:
         """Presentation 객체 → DesignSpec 변환."""
         scale_x, scale_y = SlideReader.compute_scale(prs)
-        reader = SlideReader(scale_x=scale_x, scale_y=scale_y)
+        reader = SlideReader(scale_x=scale_x, scale_y=scale_y, presentation=prs)
 
         total_slides = len(prs.slides)
         if total_slides == 0:
             raise ValueError("PPTX 파일에 슬라이드가 없습니다.")
+
+        # 2번째 슬라이드(인덱스 1)의 배경색을 기본 배경색으로 사용
+        # (1번째 슬라이드는 이미지 배경일 수 있어 신뢰도가 낮음)
+        if total_slides >= 2:
+            ref_spec = reader.read_slide(prs.slides[1], 1, total_slides)
+            reader.set_default_bg_color(ref_spec.background_color)
 
         slides: list[PptxSlideSpec] = []
         warnings: list[str] = []

@@ -22,11 +22,13 @@ Outline → Script → Design Spec → HTML / PPTX
 2. **전체 슬라이드 임포트**: 일부가 아닌 전체 프레젠테이션을 한 번에 변환
 3. **기존 파이프라인 통합**: 임포트 결과가 DesignSpec으로 저장되어 기존 도구(`export_html`, `export_pptx`, `modify_design_spec`, `visual_qa`)와 즉시 호환
 
+추가로 Visual QA 결과에서 **contrast(대비 부족, 22/29장)**이 가장 빈번한 이슈로 확인되었다. 기존 `validate_slide_spec()`은 폰트 클램핑, 경계 여백, 빈 텍스트박스 제거, 텍스트 오버플로우만 처리하며, 색상 대비와 요소 간 간격 검증은 없었다.
+
 ## Decision
 
-**python-pptx 오브젝트 모델 기반의 결정론적 PPTX → DesignSpec 변환기**를 구현한다. LLM 호출 없이 순수 파싱 로직으로 변환하며, 새 MCP tool `import_pptx`를 통해 노출한다.
+### 1. PPTX → DesignSpec 변환기
 
-### Technical Details
+**python-pptx 오브젝트 모델 기반의 결정론적 PPTX → DesignSpec 변환기**를 구현한다. LLM 호출 없이 순수 파싱 로직으로 변환하며, 새 MCP tool `import_pptx`를 통해 노출한다.
 
 #### 변환 방향
 
@@ -146,19 +148,53 @@ PptxImage(
     width_px   = shape.width / 914400 * 96,
     height_px  = shape.height / 914400 * 96,
     image_bytes = shape.image.blob,
+    src         = "",  # 임포트 시 파일 저장 후 설정
 )
 ```
 
-##### 6. 텍스트 런/문단 추출
+**이미지 파일 경로 보존 (Import → Export 라운드트립):**
+
+`PptxImage`에 `src: str` 필드를 추가하여 이미지 파일의 상대경로를 저장한다. 이는 JSON 직렬화 시 `image_bytes`가 제거되는 문제를 해결한다.
+
+- **임포트 시**: `save_slide_images()`로 PNG 파일 저장 → 반환된 경로를 `dataclasses.replace()`로 각 `PptxImage.src`에 설정 → design spec 재저장
+- **직렬화**: `slide_spec_to_json()`이 `image_bytes`를 제거하되 `src`는 보존
+- **역직렬화**: `parse_slide_spec()`이 `images` 배열의 `src`, 좌표 등을 파싱
+- **내보내기 시**: `load_design_spec_with_images()`가 각 이미지의 `src`로부터 파일을 읽어 `image_bytes`를 복원
+
+```
+Import:  PPTX → image_bytes → save PNG → set src → save JSON (src 포함, bytes 제거)
+Export:  load JSON (src 포함) → read PNG → restore image_bytes → build PPTX
+```
+
+##### 6. 텍스트 런/문단 추출 (OOXML 서식 상속 포함)
+
+플레이스홀더(제목, 본문 등)의 run에 font_size/color/bold가 직접 지정되지 않은 경우, OOXML 상속 체인을 순회하여 resolve한다:
+
+```
+font_size 결정: run rPr.sz → para defRPr.sz → layout defRPr.sz → master style defRPr.sz
+color 결정:     run rPr solidFill → para defRPr solidFill → layout defRPr solidFill → master style defRPr solidFill
+bold 결정:      run rPr.b → para defRPr.b → layout defRPr.b → master style defRPr.b
+```
+
+placeholder type → master txStyle 매핑:
+- TITLE(1), CENTER_TITLE(3) → `p:titleStyle`
+- BODY(2), OBJECT(7), SUBTITLE(4) → `p:bodyStyle`
+- 나머지 → `p:otherStyle`
+
+**테마 색상 맵**: `SlideReader` 초기화 시 프레젠테이션 테마(`a:clrScheme`)에서 실제 색상을 추출·캐시하여 `schemeClr` 참조 시 사용한다. tx1→dk1, tx2→dk2, bg1→lt1, bg2→lt2 별칭 매핑을 포함한다. 테마가 없는 경우 Office 기본 팔레트를 폴백으로 사용한다.
+
+**마스터 txStyles 캐시**: `p:txStyles`의 titleStyle/bodyStyle/otherStyle에서 레벨별(lvl1pPr~lvl9pPr) 기본 서식을 미리 추출한다.
+
+**레이아웃 defRPr 캐시**: `read_slide()` 시 해당 슬라이드 레이아웃의 placeholder별 `lstStyle > lvlNpPr > defRPr`을 조회한다.
 
 ```python
 PptxParagraph(
     runs = [
         PptxTextRun(
             text         = run.text,
-            font_size_pt = run.font.size.pt if run.font.size else None,
-            color        = f"#{run.font.color.rgb}" if run.font.color.rgb else None,
-            bold         = bool(run.font.bold),
+            font_size_pt = run.font.size.pt or inherited.font_size_pt,  # 상속 체인
+            color        = run_color or inherited.color,                 # 상속 체인
+            bold         = run.font.bold if run.font.bold is not None else inherited.bold,
             italic       = bool(run.font.italic),
             font_family  = "monospace" if is_monospace(run.font.name) else None,
         )
@@ -248,6 +284,62 @@ def import_service(self) -> ImportService:
 - 내보내기/렌더링 시 시스템 폰트로 자동 대체 (기존 동작)
 - 모노스페이스 폰트 감지: `Consolas`, `Courier`, `Monaco` 등 알려진 폰트명 매칭
 
+### 2. 임포트 시 대비·간격 자동 보정
+
+`validate_slide_spec()`에 두 가지 보정 규칙을 추가한다.
+
+#### 텍스트-배경 색상 대비 보정 (WCAG AA)
+
+WCAG AA 기준 contrast ratio를 검사하고, 미달 시 텍스트 색상을 자동 교체한다.
+
+| 텍스트 유형 | 기준 |
+|---|---|
+| 본문 (< 18pt bold, < 24pt) | ≥ 4.5:1 |
+| 대형 텍스트 (≥ 18pt bold 또는 ≥ 24pt) | ≥ 3:1 |
+
+**보정 전략:**
+- textbox: 각 run의 `color`와 slide `background_color` 간 대비 검사
+- shape: 각 run/text의 `color`와 shape `fill_color` (없으면 slide `background_color`) 간 대비 검사
+- 대비 부족 시 `#FFFFFF` / `#000000` 중 대비가 높은 쪽으로 교체
+
+**구현 모듈:** `spec_utils/contrast_utils.py`
+- `_hex_to_relative_luminance()` — sRGB → 상대 휘도 변환 (bg_image_utils.py와 공유)
+- `_contrast_ratio()` — WCAG contrast ratio 계산
+- `ensure_text_contrast()` — 대비 부족 시 텍스트 색상 교체
+
+`bg_image_utils.py`의 luminance 계산 로직을 `contrast_utils`로 이관하여 중복 제거.
+
+#### 텍스트 shape 간 최소 간격 확보
+
+텍스트가 있는 shape 쌍의 수평/수직 간격이 `SPEC_VALIDATE_MIN_GAP_PX` (8px) 미만이면 균등하게 벌린다.
+
+**적용 대상:** 텍스트가 있는 shape끼리만 (장식 요소 제외)
+
+**보정 전략:**
+- 수평 겹침이 있는 쌍 → 수직 간격 검사
+- 수직 겹침이 있는 쌍 → 수평 간격 검사
+- 간격 부족 시 양쪽을 절반씩 벌림
+
+#### 검증 파이프라인 (확장)
+
+```
+LLM 출력 JSON
+  → parse_slide_spec()
+  → validate_slide_spec()
+    ├─ _validate_textboxes()     (기존)
+    ├─ _validate_shapes()        (기존)
+    ├─ _fix_textbox_contrast()   (신규)
+    ├─ _fix_shape_contrast()     (신규)
+    └─ _fix_zero_gap()           (신규)
+  → 검증된 PptxSlideSpec
+```
+
+#### 보정 대상이 아닌 항목
+
+- **Inconsistent Font Size** — 컨텍스트 의존적, LLM(Visual QA)에 위임
+- **Misalignment** — 정렬 기준점 판단 복잡, LLM에 위임
+- **Inconsistent Spacing** — 간격 불일치 판단 컨텍스트 의존적, LLM에 위임
+
 ### Alternatives Considered
 
 | 대안 | 설명 | 판단 |
@@ -268,6 +360,9 @@ def import_service(self) -> ImportService:
 7. 발표자 노트가 보존된다
 8. `modify_design_spec`으로 임포트된 슬라이드를 수정할 수 있다
 9. 미지원 요소(차트, 비디오 등) 발견 시 경고 메시지가 반환된다
+10. Import → Export 라운드트립 시 이미지가 PPTX에 포함된다 (`PptxImage.src` 기반 복원)
+11. WCAG AA 대비 기준 미달 시 텍스트 색상이 자동 보정된다
+12. 텍스트 shape 간 최소 간격(8px)이 확보된다
 
 ### Out of Scope
 
@@ -287,6 +382,10 @@ def import_service(self) -> ImportService:
 - **LLM 비용 없음**: 순수 파싱 기반이므로 추가 LLM 호출 비용이 없음
 - **결정론적 변환**: 같은 입력에 항상 같은 결과 — 테스트 용이
 - **역변환 일관성**: `SlideBuilder`와 `SlideReader`가 서로의 역변환으로 설계되어 라운드트립 정확도 높음
+- **이미지 라운드트립**: `PptxImage.src` 필드로 이미지 파일 경로를 보존하여 Import → Export 시 이미지 누락 방지
+- **대비 자동 보정**: PPTX 임포트 시 대비 부족 이슈를 자동 보정하여 Visual QA 이전에 품질 향상
+- **luminance 로직 통합**: `contrast_utils`로 중복 제거
+- **최소 간격 확보**: 텍스트 shape 간 최소 간격 보정으로 가독성 개선
 
 ### Negative
 
@@ -294,6 +393,8 @@ def import_service(self) -> ImportService:
 - **복잡한 레이아웃 손실 가능**: 그룹 도형 평탄화, 표 → 도형 변환 시 편집 편의성 저하
 - **외부 PPTX 다양성**: 다양한 PPTX 생성 도구(PowerPoint, Google Slides, Keynote 등)의 비표준 요소 처리에 엣지 케이스 발생 가능
 - **이미지 용량**: 차트 래스터화, 배경 이미지 등으로 프로젝트 디렉토리 크기 증가 가능
+- **대비 보정 한계**: `#FFFFFF`/`#000000`으로만 교체하므로, 원래 디자인의 미묘한 색상 차이가 사라질 수 있음
+- **간격 보정 한계**: 양쪽 shape을 동시에 이동하므로, 한쪽이 이미 원하는 위치에 있었을 경우 불필요한 이동이 발생할 수 있음
 
 ## References
 
@@ -302,6 +403,9 @@ def import_service(self) -> ImportService:
 - 텍스트 포매터: `src/ppt_generator/tools/pptx/text_formatter.py` — `parse_color`, `format_paragraphs`
 - 디자인 스펙 저장소: `src/ppt_generator/tools/project/design_spec_store.py` — `DesignSpecStore`
 - Spec 유틸리티: `src/ppt_generator/interfaces/spec_utils/` — parser, serializer, validator
+- 대비 유틸리티: `src/ppt_generator/interfaces/spec_utils/contrast_utils.py`
+- 배경 이미지 유틸리티: `src/ppt_generator/interfaces/bg_image_utils.py`
+- 상수: `src/ppt_generator/interfaces/constants.py` — `PX_TO_EMU`, `EXPORT_PX_TO_INCHES_*`, `SPEC_VALIDATE_MIN_GAP_PX`
 - 슬라이드 서비스: `src/ppt_generator/tools/slides/service.py` — `generate_from_design_spec()`
-- 상수: `src/ppt_generator/interfaces/constants.py` — `PX_TO_EMU`, `EXPORT_PX_TO_INCHES_*`
-- 관련 ADR: [0013-design-spec-pipeline](./0013-design-spec-pipeline.md), [0014-file-based-communication-and-per-slide-crud](./0014-file-based-communication-and-per-slide-crud.md), [0023-design-spec-validator](./0023-design-spec-validator.md)
+- 테스트: `tests/test_pptx_import.py`, `tests/test_contrast_utils.py`, `tests/test_spec_utils_validation.py`
+- 관련 ADR: [0013-design-spec-pipeline](./0013-design-spec-pipeline.md), [0014-file-based-communication-and-per-slide-crud](./0014-file-based-communication-and-per-slide-crud.md), [0023-design-spec-validator](./0023-design-spec-validator.md), [0026-visual-qa-pipeline](./0026-visual-qa-pipeline.md)

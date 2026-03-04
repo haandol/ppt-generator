@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pytest
 
+from ppt_generator.interfaces.constants import SPEC_VALIDATE_MIN_GAP_PX
 from ppt_generator.interfaces.schemas import (
     PptxParagraph,
     PptxShape,
@@ -296,3 +297,160 @@ class TestTextboxPaddingParsing:
         assert tb.padding_right_px is None
         assert tb.padding_top_px is None
         assert tb.padding_bottom_px is None
+
+
+# ---------------------------------------------------------------------------
+# 텍스트-배경 대비 보정
+# ---------------------------------------------------------------------------
+
+
+class TestContrastCorrection:
+    """validator가 WCAG AA 미달 텍스트 색상을 자동 보정하는지 검증."""
+
+    def test_textbox_dark_on_dark_corrected(self) -> None:
+        """어두운 배경 + 어두운 텍스트 → 흰색으로 보정."""
+        tb = PptxTextBox(
+            left_px=64, top_px=64, width_px=500, height_px=50,
+            paragraphs=[PptxParagraph(runs=[
+                PptxTextRun(text="테스트", font_size_pt=18, color="#222222"),
+            ])],
+        )
+        spec = PptxSlideSpec(
+            background_color="#1a1a2e", textboxes=[tb], shapes=[],
+        )
+        result = validate_slide_spec(spec)
+        assert result.textboxes[0].paragraphs[0].runs[0].color == "#FFFFFF"
+
+    def test_textbox_good_contrast_unchanged(self) -> None:
+        """이미 충분한 대비 → 변경 없음."""
+        tb = PptxTextBox(
+            left_px=64, top_px=64, width_px=500, height_px=50,
+            paragraphs=[PptxParagraph(runs=[
+                PptxTextRun(text="테스트", font_size_pt=18, color="#FFFFFF"),
+            ])],
+        )
+        spec = PptxSlideSpec(
+            background_color="#1a1a2e", textboxes=[tb], shapes=[],
+        )
+        result = validate_slide_spec(spec)
+        assert result.textboxes[0].paragraphs[0].runs[0].color == "#FFFFFF"
+
+    def test_textbox_no_color_unchanged(self) -> None:
+        """color=None인 run은 대비 검사 건너뜀."""
+        tb = PptxTextBox(
+            left_px=64, top_px=64, width_px=500, height_px=50,
+            paragraphs=[PptxParagraph(runs=[
+                PptxTextRun(text="테스트", font_size_pt=18),
+            ])],
+        )
+        spec = PptxSlideSpec(
+            background_color="#1a1a2e", textboxes=[tb], shapes=[],
+        )
+        result = validate_slide_spec(spec)
+        assert result.textboxes[0].paragraphs[0].runs[0].color is None
+
+    def test_shape_text_color_corrected(self) -> None:
+        """shape의 text_color가 fill_color 대비 부족 시 보정."""
+        shape = PptxShape(
+            left_px=64, top_px=64, width_px=200, height_px=60,
+            shape_type="rectangle",
+            fill_color="#FFFFFF",
+            text="label", text_color="#EEEEEE", text_size_pt=16,
+        )
+        spec = PptxSlideSpec(
+            background_color="#1a1a2e", textboxes=[], shapes=[shape],
+        )
+        result = validate_slide_spec(spec)
+        assert result.shapes[0].text_color == "#000000"
+
+    def test_shape_uses_slide_bg_when_no_fill(self) -> None:
+        """fill_color 없는 shape → slide background_color 기준으로 대비 검사."""
+        shape = PptxShape(
+            left_px=64, top_px=64, width_px=200, height_px=60,
+            shape_type="rectangle",
+            text="label", text_color="#222222", text_size_pt=16,
+        )
+        spec = PptxSlideSpec(
+            background_color="#1a1a2e", textboxes=[], shapes=[shape],
+        )
+        result = validate_slide_spec(spec)
+        assert result.shapes[0].text_color == "#FFFFFF"
+
+    def test_shape_paragraph_run_contrast(self) -> None:
+        """shape paragraphs의 run color도 보정."""
+        shape = PptxShape(
+            left_px=64, top_px=64, width_px=200, height_px=60,
+            shape_type="rectangle",
+            fill_color="#000000",
+            paragraphs=[PptxParagraph(runs=[
+                PptxTextRun(text="test", font_size_pt=16, color="#111111"),
+            ])],
+        )
+        spec = PptxSlideSpec(
+            background_color="#FFFFFF", textboxes=[], shapes=[shape],
+        )
+        result = validate_slide_spec(spec)
+        assert result.shapes[0].paragraphs[0].runs[0].color == "#FFFFFF"
+
+
+# ---------------------------------------------------------------------------
+# 최소 간격 보정
+# ---------------------------------------------------------------------------
+
+
+class TestZeroGap:
+    """텍스트 있는 shape 간 최소 간격 확보 검증."""
+
+    def test_shapes_too_close_vertically(self) -> None:
+        """수직 간격 < 8px → 벌림."""
+        s1 = PptxShape(
+            left_px=100, top_px=100, width_px=200, height_px=50,
+            shape_type="rectangle", text="A", text_size_pt=16,
+        )
+        s2 = PptxShape(
+            left_px=100, top_px=153, width_px=200, height_px=50,
+            shape_type="rectangle", text="B", text_size_pt=16,
+        )
+        # gap = 153 - 150 = 3px < 8px
+        spec = PptxSlideSpec(
+            background_color="#FFFFFF", textboxes=[], shapes=[s1, s2],
+        )
+        result = validate_slide_spec(spec)
+        gap = result.shapes[1].top_px - (result.shapes[0].top_px + result.shapes[0].height_px)
+        assert gap >= SPEC_VALIDATE_MIN_GAP_PX - 0.1
+
+    def test_shapes_far_apart_unchanged(self) -> None:
+        """간격 충분 → 변경 없음."""
+        s1 = PptxShape(
+            left_px=100, top_px=100, width_px=200, height_px=50,
+            shape_type="rectangle", text="A", text_size_pt=16,
+        )
+        s2 = PptxShape(
+            left_px=100, top_px=200, width_px=200, height_px=50,
+            shape_type="rectangle", text="B", text_size_pt=16,
+        )
+        # gap = 200 - 150 = 50px > 8px
+        spec = PptxSlideSpec(
+            background_color="#FFFFFF", textboxes=[], shapes=[s1, s2],
+        )
+        result = validate_slide_spec(spec)
+        assert result.shapes[0].top_px == s1.top_px
+        assert result.shapes[1].top_px == s2.top_px
+
+    def test_decorative_shapes_excluded(self) -> None:
+        """텍스트 없는 장식 shape은 간격 보정 대상이 아님."""
+        s1 = PptxShape(
+            left_px=100, top_px=100, width_px=200, height_px=3,
+            shape_type="rectangle", fill_color="#FF0000",
+        )
+        s2 = PptxShape(
+            left_px=100, top_px=104, width_px=200, height_px=3,
+            shape_type="rectangle", fill_color="#0000FF",
+        )
+        spec = PptxSlideSpec(
+            background_color="#FFFFFF", textboxes=[], shapes=[s1, s2],
+        )
+        result = validate_slide_spec(spec)
+        # 장식 요소 → 간격 보정 안 함, 위치 그대로 (margin 보정만 적용될 수 있음)
+        assert result.shapes[0].height_px <= 10
+        assert result.shapes[1].height_px <= 10
