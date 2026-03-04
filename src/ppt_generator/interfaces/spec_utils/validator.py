@@ -16,11 +16,9 @@ from ppt_generator.interfaces.constants import (
     SLIDES_WIDTH_PX,
     SPEC_VALIDATE_MARGIN_BOTTOM_PX,
     SPEC_VALIDATE_MARGIN_PX,
-    SPEC_VALIDATE_MIN_GAP_PX,
     TEXT_MEASURE_DEFAULT_SHAPE_PADDING_LR_PX,
     TEXT_MEASURE_DEFAULT_SHAPE_PADDING_TB_PX,
 )
-from ppt_generator.interfaces.spec_utils.contrast_utils import ensure_text_contrast
 from ppt_generator.interfaces.schemas import (
     PptxParagraph,
     PptxShape,
@@ -275,181 +273,15 @@ def _validate_shapes(
 
 
 # ---------------------------------------------------------------------------
-# 대비 보정
-# ---------------------------------------------------------------------------
-
-
-def _fix_run_contrast(run: PptxTextRun, bg_color: str) -> PptxTextRun:
-    """단일 run의 텍스트 색상 대비를 보정한다."""
-    if not run.color:
-        return run
-    fixed = ensure_text_contrast(
-        run.color, bg_color,
-        font_size_pt=run.font_size_pt or 16,
-        bold=run.bold,
-    )
-    if fixed != run.color:
-        return replace(run, color=fixed)
-    return run
-
-
-def _fix_textbox_contrast(
-    textboxes: list[PptxTextBox],
-    bg_color: str,
-) -> list[PptxTextBox]:
-    """모든 textbox의 텍스트 색상 대비를 보정한다."""
-    result: list[PptxTextBox] = []
-    for tb in textboxes:
-        new_paragraphs: list[PptxParagraph] = []
-        changed = False
-        for para in tb.paragraphs:
-            new_runs: list[PptxTextRun] = []
-            for run in para.runs:
-                fixed = _fix_run_contrast(run, bg_color)
-                if fixed is not run:
-                    changed = True
-                new_runs.append(fixed)
-            new_paragraphs.append(replace(para, runs=new_runs))
-        if changed:
-            result.append(replace(tb, paragraphs=new_paragraphs))
-        else:
-            result.append(tb)
-    return result
-
-
-def _fix_shape_contrast(
-    shapes: list[PptxShape],
-    slide_bg_color: str,
-) -> list[PptxShape]:
-    """모든 shape의 텍스트 색상 대비를 보정한다.
-
-    shape에 fill_color가 있으면 그것을 배경으로, 없으면 slide 배경색을 사용한다.
-    """
-    result: list[PptxShape] = []
-    for s in shapes:
-        bg = s.fill_color or slide_bg_color
-        changed = False
-
-        # text_color 보정
-        new_text_color = s.text_color
-        if s.text_color and s.text:
-            fixed = ensure_text_contrast(
-                s.text_color, bg,
-                font_size_pt=s.text_size_pt or 16,
-                bold=s.text_bold,
-            )
-            if fixed != s.text_color:
-                new_text_color = fixed
-                changed = True
-
-        # paragraphs 내 run color 보정
-        new_paragraphs: list[PptxParagraph] = []
-        for para in s.paragraphs:
-            new_runs: list[PptxTextRun] = []
-            for run in para.runs:
-                fixed_run = _fix_run_contrast(run, bg)
-                if fixed_run is not run:
-                    changed = True
-                new_runs.append(fixed_run)
-            new_paragraphs.append(replace(para, runs=new_runs))
-
-        if changed:
-            result.append(replace(s, text_color=new_text_color, paragraphs=new_paragraphs))
-        else:
-            result.append(s)
-    return result
-
-
-# ---------------------------------------------------------------------------
-# 최소 간격 보정
-# ---------------------------------------------------------------------------
-
-
-def _has_text(s: PptxShape) -> bool:
-    """shape에 텍스트가 있는지 판별한다."""
-    if s.text:
-        return True
-    return any(
-        run.text.strip()
-        for para in s.paragraphs
-        for run in para.runs
-    )
-
-
-def _fix_zero_gap(
-    shapes: list[PptxShape],
-    min_gap: int = SPEC_VALIDATE_MIN_GAP_PX,
-) -> list[PptxShape]:
-    """텍스트 있는 shape 간 최소 간격을 확보한다.
-
-    수평/수직 겹침 영역이 있는 인접 shape 쌍의 간격이 min_gap 미만이면 균등하게 벌린다.
-    """
-    if len(shapes) < 2:
-        return shapes
-
-    # 텍스트가 있는 shape 인덱스만 추출
-    text_indices = [i for i, s in enumerate(shapes) if _has_text(s)]
-    if len(text_indices) < 2:
-        return shapes
-
-    # mutable copy
-    result = list(shapes)
-    adjusted: dict[int, PptxShape] = {}
-
-    for idx_a in range(len(text_indices)):
-        for idx_b in range(idx_a + 1, len(text_indices)):
-            i = text_indices[idx_a]
-            j = text_indices[idx_b]
-            a = adjusted.get(i, result[i])
-            b = adjusted.get(j, result[j])
-
-            # 수평 겹침 여부 (두 shape의 x 범위가 겹쳐야 수직 간격이 의미 있음)
-            a_right = a.left_px + a.width_px
-            b_right = b.left_px + b.width_px
-            h_overlap = min(a_right, b_right) - max(a.left_px, b.left_px)
-
-            # 수직 겹침 여부 (두 shape의 y 범위가 겹쳐야 수평 간격이 의미 있음)
-            a_bottom = a.top_px + a.height_px
-            b_bottom = b.top_px + b.height_px
-            v_overlap = min(a_bottom, b_bottom) - max(a.top_px, b.top_px)
-
-            if h_overlap > 0:
-                # 수직 간격 검사
-                v_gap = max(a.top_px, b.top_px) - min(a_bottom, b_bottom)
-                if 0 <= v_gap < min_gap:
-                    fix = (min_gap - v_gap) / 2.0
-                    if a.top_px <= b.top_px:
-                        adjusted[i] = replace(a, top_px=a.top_px - fix)
-                        adjusted[j] = replace(b, top_px=b.top_px + fix)
-                    else:
-                        adjusted[i] = replace(a, top_px=a.top_px + fix)
-                        adjusted[j] = replace(b, top_px=b.top_px - fix)
-
-            if v_overlap > 0:
-                # 수평 간격 검사
-                h_gap = max(a.left_px, b.left_px) - min(a_right, b_right)
-                if 0 <= h_gap < min_gap:
-                    fix = (min_gap - h_gap) / 2.0
-                    a = adjusted.get(i, result[i])
-                    b = adjusted.get(j, result[j])
-                    if a.left_px <= b.left_px:
-                        adjusted[i] = replace(a, left_px=a.left_px - fix)
-                        adjusted[j] = replace(b, left_px=b.left_px + fix)
-                    else:
-                        adjusted[i] = replace(a, left_px=a.left_px + fix)
-                        adjusted[j] = replace(b, left_px=b.left_px - fix)
-
-    for idx, shape in adjusted.items():
-        result[idx] = shape
-    return result
-
-
-# ---------------------------------------------------------------------------
 # 공개 API
 # ---------------------------------------------------------------------------
 
 
-def validate_slide_spec(spec: PptxSlideSpec, *, autofit: bool = True) -> PptxSlideSpec:
+def validate_slide_spec(
+    spec: PptxSlideSpec,
+    *,
+    autofit: bool = True,
+) -> PptxSlideSpec:
     """LLM 출력 PptxSlideSpec을 검증하고 보정한다.
 
     수행하는 보정:
@@ -457,24 +289,16 @@ def validate_slide_spec(spec: PptxSlideSpec, *, autofit: bool = True) -> PptxSli
     - 경계 여백 강제 (캔버스 밖 방지)
     - 빈 텍스트박스 제거
     - 텍스트 오버플로우 방지 (autofit)
-    - 텍스트-배경 색상 대비 보정 (WCAG AA)
-    - 텍스트 shape 간 최소 간격 확보
 
     수행하지 않는 보정 (프롬프트로 가이드):
     - 제목/메인 텍스트 위치 고정
     - 수직 중앙 정렬
     - 겹침 해소를 위한 요소 밀어내기
+    - 텍스트-배경 색상 대비
+    - 텍스트 shape 간 최소 간격
     """
     validated_textboxes = _validate_textboxes(spec.textboxes, autofit=autofit)
     validated_shapes = _validate_shapes(spec.shapes, autofit=autofit)
-
-    # 대비 보정
-    bg_color = spec.background_color or "#FFFFFF"
-    validated_textboxes = _fix_textbox_contrast(validated_textboxes, bg_color)
-    validated_shapes = _fix_shape_contrast(validated_shapes, bg_color)
-
-    # 최소 간격 보정
-    validated_shapes = _fix_zero_gap(validated_shapes)
 
     return PptxSlideSpec(
         background_color=spec.background_color,

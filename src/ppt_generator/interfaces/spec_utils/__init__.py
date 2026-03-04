@@ -13,9 +13,6 @@ from ppt_generator.interfaces.spec_utils.serializer import (
     design_spec_to_json,
     slide_spec_to_json,
 )
-from ppt_generator.interfaces.spec_utils.contrast_utils import (
-    ensure_text_contrast,
-)
 from ppt_generator.interfaces.spec_utils.validator import (
     validate_slide_spec,
 )
@@ -27,5 +24,4 @@ __all__ = [
     "slide_spec_to_json",
     "design_spec_to_json",
     "validate_slide_spec",
-    "ensure_text_contrast",
 ]
