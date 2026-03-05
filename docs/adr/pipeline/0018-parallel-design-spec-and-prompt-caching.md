@@ -93,18 +93,22 @@ Bedrock의 `cache_prompt` 파라미터는 deprecated이므로, Agent 생성 시 
 
 Bedrock prompt caching은 동일 계정·모델·prefix 기준으로 서버 측에서 캐시되지만, **첫 번째 요청의 응답이 완료된 후**에야 캐시가 생성된다. 모든 슬라이드를 동시에 병렬 시작하면 첫 완료 전에 나머지도 이미 처리 중이므로 전부 `cache_write`만 발생하고 `cache_read`가 없다.
 
-이를 해결하기 위해 content 슬라이드가 2개 이상일 때 가장 단순한(complexity 최소) content 슬라이드 1개를 **먼저 동기 생성**하여 prompt cache를 워밍업한 뒤 나머지를 병렬 처리한다.
+또한 Bedrock의 캐시 키는 `additionalModelRequestFields`를 포함하므로, **thinking effort가 다르면 동일한 시스템 프롬프트라도 별도의 캐시로 취급**된다. 따라서 content 슬라이드를 effort별로 그룹핑하여 각 그룹에서 1개씩 워밍업해야 cache hit를 극대화할 수 있다.
 
 ```
 generate_slides_design_spec(project_id, total_slides=10)
     ├── Step 1: design_summary 사전 생성 (순차, 1회)
-    ├── Step 2: cache warmup — content 중 가장 단순한 슬라이드 1개 동기 생성
-    ├── Step 3: ThreadPoolExecutor — 나머지 슬라이드 병렬 생성 (cache_read 활용)
+    ├── Step 2: cache warmup — content 슬라이드를 effort별로 1개씩 순차 생성
+    │     ├── effort=low 워밍업 (해당 그룹 2개 이상일 때)
+    │     ├── effort=medium 워밍업 (해당 그룹 2개 이상일 때)
+    │     └── effort=high 워밍업 (해당 그룹 2개 이상일 때)
+    ├── Step 3: ThreadPoolExecutor — 나머지 슬라이드 병렬 생성 (effort별 cache_read 활용)
     └── Step 4: slides.html 컨테이너 생성 (순차)
 ```
 
 - content system prompt가 ~12,852 토큰으로 가장 크므로 content를 워밍업 대상으로 선택
 - title/closing은 system prompt가 다르므로(~4,400 토큰) content 캐시와 무관
+- 각 effort 그룹에 슬라이드가 1개만 있으면 워밍업 스킵 (캐시를 읽을 후속 슬라이드가 없으므로)
 - content 슬라이드가 1개 이하면 워밍업 없이 즉시 병렬 처리
 
 ## Consequences
@@ -124,7 +128,7 @@ generate_slides_design_spec(project_id, total_slides=10)
 - **API 쓰로틀링 위험**: 동시 요청 수가 많으면 rate limit에 도달 가능 (`DESIGN_SPEC_PARALLEL`로 제어)
 - **복잡도 추정 오차**: `component_hint` 기반 정적 매핑이므로 실제 내용에 따라 난이도가 다를 수 있음
 - **캐시 최소 토큰 요건**: Anthropic prompt caching은 시스템 프롬프트가 최소 1,024 토큰 이상이어야 활성화됨
-- **캐시 워밍업 지연**: content 1개를 먼저 동기 생성하므로 전체 wall-clock time이 해당 슬라이드의 생성 시간만큼 증가 (단순 슬라이드 선택으로 최소화)
+- **캐시 워밍업 지연**: effort별 content 슬라이드를 순차 생성하므로 전체 wall-clock time이 워밍업 슬라이드 수만큼 증가 (최대 3개, 각 effort 그룹에서 가장 단순한 슬라이드 선택으로 최소화)
 
 ## References
 

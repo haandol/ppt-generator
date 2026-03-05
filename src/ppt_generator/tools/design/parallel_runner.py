@@ -80,26 +80,34 @@ def run_parallel_generation(
     if not parallel_indices:
         return ParallelResult()
 
-    # 캐시 워밍업: content 슬라이드 중 가장 단순한 1개를 먼저 생성하여
+    # 캐시 워밍업: content 슬라이드를 effort별로 1개씩 먼저 생성하여
     # Bedrock prompt cache를 만든 뒤 나머지를 병렬 처리한다.
-    # content가 대다수이고 system prompt가 가장 크므로 절감 효과가 크다.
-    warmup_idx: int | None = None
+    # additionalModelRequestFields(thinking effort)가 다르면 캐시 키가 달라지므로
+    # effort별로 각각 워밍업해야 cache hit를 극대화할 수 있다.
+    warmup_indices: list[int] = []
     content_indices = [
         i for i in parallel_indices
         if (outline.slides[i].slide_type or "content") == "content"
     ]
     if len(content_indices) >= 2:
-        # 가장 단순한 content 슬라이드 선택 (병렬 목록 끝 = complexity 최소)
-        warmup_idx = content_indices[-1]
+        # effort별로 가장 단순한 content 슬라이드 1개씩 선택
+        effort_to_candidates: dict[str, list[int]] = {}
+        for i in content_indices:
+            effort = complexity_to_thinking_effort(estimate_slide_complexity(outline.slides[i]))
+            effort_to_candidates.setdefault(effort, []).append(i)
+        for effort, candidates in effort_to_candidates.items():
+            if len(candidates) >= 2:
+                # 복잡도 내림차순이므로 마지막이 가장 단순
+                warmup_indices.append(candidates[-1])
 
     result = ParallelResult()
     results_map: dict[int, dict] = {}
     max_workers = min(DESIGN_SPEC_PARALLEL, len(parallel_indices))
 
     logger.info(
-        "병렬 처리 설정: DESIGN_SPEC_PARALLEL=%d, 대상 슬라이드=%d개, max_workers=%d, cache_warmup=slide[%s]",
+        "병렬 처리 설정: DESIGN_SPEC_PARALLEL=%d, 대상 슬라이드=%d개, max_workers=%d, cache_warmup=slides%s",
         DESIGN_SPEC_PARALLEL, len(parallel_indices), max_workers,
-        warmup_idx if warmup_idx is not None else "none",
+        warmup_indices if warmup_indices else "[]",
     )
 
     active_threads: list[int] = [0]
@@ -197,11 +205,13 @@ def run_parallel_generation(
                 f"{'완료' if res['status'] == 'success' else '실패'}",
             )
 
-    # 캐시 워밍업 슬라이드를 먼저 동기 실행
-    if warmup_idx is not None:
-        logger.info("cache warmup: slide[%d] 먼저 생성하여 prompt cache 준비", warmup_idx)
-        _collect_result(_generate_slide(warmup_idx))
-        remaining_indices = [i for i in parallel_indices if i != warmup_idx]
+    # 캐시 워밍업: effort별 content 슬라이드를 순차 실행하여 캐시 준비
+    warmup_set = set(warmup_indices)
+    if warmup_indices:
+        logger.info("cache warmup: slides%s 먼저 생성하여 effort별 prompt cache 준비", warmup_indices)
+        for wi in warmup_indices:
+            _collect_result(_generate_slide(wi))
+        remaining_indices = [i for i in parallel_indices if i not in warmup_set]
     else:
         remaining_indices = parallel_indices
 
