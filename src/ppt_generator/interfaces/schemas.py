@@ -124,6 +124,7 @@ class PptxShape:
                 | "parallelogram" | "cross"
       Stars: "star_4" | "star_5" | "heart"
       Flowchart: "flowchart_process" | "flowchart_decision" | "flowchart_terminator"
+      Custom: "custom" (requires svg_path)
     """
 
     left_px: float
@@ -149,6 +150,7 @@ class PptxShape:
     end_arrow: bool = False  # arrowhead at end point (right/bottom)
     start_arrow: bool = False  # arrowhead at start point (left/top)
     dash_style: str | None = None  # "solid", "dash", "dot" (line shape only)
+    svg_path: str | None = None  # SVG path data for custom freeform shapes (shape_type="custom")
 
 
 @dataclass(frozen=True)

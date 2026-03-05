@@ -96,6 +96,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
             end_arrow=s.get("end_arrow", False),
             start_arrow=s.get("start_arrow", False),
             dash_style=s.get("dash_style"),
+            svg_path=s.get("svg_path"),
         ))
 
     images: list[PptxImage] = [

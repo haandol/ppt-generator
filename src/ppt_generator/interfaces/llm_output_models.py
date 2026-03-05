@@ -80,6 +80,7 @@ class ShapeOutput(BaseModel):
     end_arrow: bool = False
     start_arrow: bool = False
     dash_style: Literal["solid", "dash", "dot"] | None = None
+    svg_path: str | None = None
 
 
 # --- Visual QA models ---
@@ -194,6 +195,7 @@ class SlideSpecOutput(BaseModel):
                 end_arrow=s.end_arrow,
                 start_arrow=s.start_arrow,
                 dash_style=s.dash_style,
+                svg_path=s.svg_path,
             )
             for s in self.shapes
         ]

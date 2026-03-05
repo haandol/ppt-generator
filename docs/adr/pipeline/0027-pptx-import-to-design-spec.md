@@ -116,9 +116,37 @@ PptxTextBox(
 
 매핑되지 않은 도형은 `rectangle`로 폴백된다. HTML 렌더링은 CSS `clip-path: polygon()`으로 구현.
 
+##### 3-1. 커스텀 Freeform 도형 (Custom SVG Path)
+
+`MSO_SHAPE_TYPE.FREEFORM`이면서 `a:custGeom`(Custom Geometry)을 가진 도형은 OOXML path 명령을 SVG path data로 변환하여 보존한다.
+
+```python
+PptxShape(
+    shape_type = "custom",
+    svg_path   = "460061 282632 M 357541 21590 C 345768 7606 ...",  # "vb_w vb_h d"
+    fill_color = "#FBA91E",
+    ...
+)
+```
+
+**svg_path 형식**: `"{viewBox_width} {viewBox_height} {SVG_path_data}"` — viewBox 크기와 SVG path `d` 속성을 공백으로 구분.
+
+**변환 매핑 (OOXML → SVG)**:
+
+| OOXML 명령 | SVG 명령 |
+|-----------|----------|
+| `a:moveTo` → `a:pt(x,y)` | `M x y` |
+| `a:lnTo` → `a:pt(x,y)` | `L x y` |
+| `a:cubicBezTo` → `a:pt` × 3 | `C x1 y1 x2 y2 x3 y3` |
+| `a:close` | `Z` |
+
+**렌더링**: HTML에서는 `<svg>` + `<path>` 요소로 직접 렌더링. PPTX export에서는 SVG path를 역변환하여 `a:custGeom/a:pathLst/a:path`로 복원.
+
+**폴백**: custGeom이 없는 FREEFORM은 기존과 동일하게 AutoShape(`rectangle` 폴백)로 처리.
+
 ##### 4. 커넥터/선 (Line)
 
-`MSO_SHAPE_TYPE.FREEFORM` 또는 Connector (`p:cxnSp`):
+Connector (`p:cxnSp`):
 
 ```python
 PptxShape(

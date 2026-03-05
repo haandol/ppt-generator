@@ -258,10 +258,38 @@ def _line_shape_to_html(shape: PptxShape) -> str:
     )
 
 
+def _custom_svg_shape_to_html(shape: PptxShape) -> str:
+    """Custom SVG path shape -> position:absolute <svg> 변환."""
+    svg_path = shape.svg_path or ""
+    # svg_path 형식: "viewbox_w viewbox_h M x y L x y ..."
+    parts = svg_path.split(" ", 2)
+    if len(parts) < 3:
+        return f'<div style="position:absolute;left:{shape.left_px}px;top:{shape.top_px}px;width:{shape.width_px}px;height:{shape.height_px}px;"></div>'
+    vb_w, vb_h, path_d = parts[0], parts[1], parts[2]
+
+    fill = shape.fill_color or "none"
+    stroke = shape.border_color or "none"
+    stroke_width = shape.border_width_pt or 0
+
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" '
+        f'viewBox="0 0 {vb_w} {vb_h}" '
+        f'preserveAspectRatio="none" '
+        f'style="position:absolute;left:{shape.left_px}px;top:{shape.top_px}px;'
+        f'width:{shape.width_px}px;height:{shape.height_px}px;overflow:visible;">'
+        f'<path d="{path_d}" fill="{fill}" stroke="{stroke}" '
+        f'stroke-width="{stroke_width}" />'
+        f"</svg>"
+    )
+    return svg
+
+
 def shape_to_html(shape: PptxShape) -> str:
     """PptxShape -> position:absolute <div> 변환."""
     if shape.shape_type == "line":
         return _line_shape_to_html(shape)
+    if shape.shape_type == "custom" and shape.svg_path:
+        return _custom_svg_shape_to_html(shape)
 
     style = (
         f"position:absolute;"

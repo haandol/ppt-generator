@@ -125,6 +125,58 @@ _SCHEME_FALLBACK: dict[str, str] = {
 }
 
 
+def _custgeom_to_svg_path(spPr: Element) -> str | None:
+    """spPr 내 a:custGeom을 SVG path 문자열로 변환.
+
+    OOXML path 명령(moveTo, lnTo, cubicBezTo, close)을 SVG path data로 변환한다.
+    viewBox 좌표계는 path 요소의 w/h를 그대로 사용한다.
+
+    Returns:
+        "w h d" 형식 문자열. w/h는 viewBox 크기, d는 SVG path data.
+        custGeom이 없으면 None.
+    """
+    cust_geom = spPr.find(qn("a:custGeom"))
+    if cust_geom is None:
+        return None
+    path_lst = cust_geom.find(qn("a:pathLst"))
+    if path_lst is None:
+        return None
+
+    parts: list[str] = []
+    vb_w = 0
+    vb_h = 0
+
+    for path_el in path_lst.findall(qn("a:path")):
+        pw = int(path_el.get("w", "0"))
+        ph = int(path_el.get("h", "0"))
+        if pw > vb_w:
+            vb_w = pw
+        if ph > vb_h:
+            vb_h = ph
+
+        for cmd in path_el:
+            tag = cmd.tag.split("}")[-1] if "}" in cmd.tag else cmd.tag
+            if tag == "moveTo":
+                pt = cmd.find(qn("a:pt"))
+                if pt is not None:
+                    parts.append(f"M {pt.get('x', '0')} {pt.get('y', '0')}")
+            elif tag == "lnTo":
+                pt = cmd.find(qn("a:pt"))
+                if pt is not None:
+                    parts.append(f"L {pt.get('x', '0')} {pt.get('y', '0')}")
+            elif tag == "cubicBezTo":
+                pts = cmd.findall(qn("a:pt"))
+                if len(pts) == 3:
+                    coords = " ".join(f"{p.get('x', '0')} {p.get('y', '0')}" for p in pts)
+                    parts.append(f"C {coords}")
+            elif tag == "close":
+                parts.append("Z")
+
+    if not parts:
+        return None
+    return f"{vb_w} {vb_h} {' '.join(parts)}"
+
+
 def _resolve_scheme_color(
     scheme_el,
     theme_color_map: dict[str, str] | None = None,
@@ -537,6 +589,15 @@ class SlideReader:
                 textboxes.append(tb)
             return
 
+        # Freeform + custGeom → custom SVG shape
+        if shape_type == MSO_SHAPE_TYPE.FREEFORM:
+            spPr = shape._element.find(qn("p:spPr"))
+            svg_path = _custgeom_to_svg_path(spPr) if spPr is not None else None
+            if svg_path is not None:
+                shapes.append(self._extract_freeform_shape(shape, svg_path))
+                return
+            # custGeom이 없으면 일반 AutoShape로 폴백
+
         # 일반 도형 (AutoShape 등)
         if shape_type in (
             MSO_SHAPE_TYPE.AUTO_SHAPE,
@@ -592,6 +653,69 @@ class SlideReader:
             padding_right_px=self._emu_to_px_padding(tf.margin_right),
             padding_top_px=self._emu_to_px_padding(tf.margin_top),
             padding_bottom_px=self._emu_to_px_padding(tf.margin_bottom),
+        )
+
+    # ── Freeform (custGeom) 추출 ──
+
+    def _extract_freeform_shape(self, shape, svg_path: str) -> PptxShape:
+        """Freeform custGeom 도형 → PptxShape (shape_type="custom", svg_path 포함)."""
+        fill_color = self._extract_fill_color(shape)
+        border_color, border_width = self._extract_line_style(shape)
+
+        paragraphs: list[PptxParagraph] = []
+        line_spacing: float | None = None
+        vertical_alignment = "top"
+        padding_left: float | None = None
+        padding_right: float | None = None
+        padding_top: float | None = None
+        padding_bottom: float | None = None
+        text: str | None = None
+        text_color: str | None = None
+        text_size_pt: int | None = None
+        text_bold = False
+
+        if shape.has_text_frame:
+            tf = shape.text_frame
+            paragraphs = self._extract_paragraphs(tf)
+            line_spacing = self._extract_line_spacing(tf)
+            vertical_alignment = self._extract_vertical_alignment(tf)
+            padding_left = self._emu_to_px_padding(tf.margin_left)
+            padding_right = self._emu_to_px_padding(tf.margin_right)
+            padding_top = self._emu_to_px_padding(tf.margin_top)
+            padding_bottom = self._emu_to_px_padding(tf.margin_bottom)
+
+            if (
+                len(paragraphs) == 1
+                and len(paragraphs[0].runs) == 1
+                and paragraphs[0].bullet_level < 0
+            ):
+                run = paragraphs[0].runs[0]
+                text = run.text
+                text_color = run.color
+                text_size_pt = run.font_size_pt
+                text_bold = run.bold
+
+        return PptxShape(
+            left_px=self._emu_to_px_x(shape.left),
+            top_px=self._emu_to_px_y(shape.top),
+            width_px=self._emu_to_px_x(shape.width),
+            height_px=self._emu_to_px_y(shape.height),
+            shape_type="custom",
+            fill_color=fill_color,
+            border_color=border_color,
+            border_width_pt=border_width,
+            paragraphs=paragraphs,
+            line_spacing_pt=line_spacing,
+            vertical_alignment=vertical_alignment,
+            padding_left_px=padding_left,
+            padding_right_px=padding_right,
+            padding_top_px=padding_top,
+            padding_bottom_px=padding_bottom,
+            text=text,
+            text_color=text_color,
+            text_size_pt=text_size_pt,
+            text_bold=text_bold,
+            svg_path=svg_path,
         )
 
     # ── AutoShape 추출 ──
