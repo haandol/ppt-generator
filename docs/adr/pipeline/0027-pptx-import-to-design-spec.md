@@ -179,7 +179,8 @@ bold 결정:      run rPr.b → para defRPr.b → layout defRPr.b → master sty
 placeholder type → master txStyle 매핑:
 - TITLE(1), CENTER_TITLE(3) → `p:titleStyle`
 - BODY(2), OBJECT(7), SUBTITLE(4) → `p:bodyStyle`
-- 나머지 → `p:otherStyle`
+- 기타 placeholder → `p:otherStyle`
+- **비-placeholder (일반 TextBox)** → `p:otherStyle` 폴백 적용. PowerPoint는 placeholder가 아닌 일반 TextBox에서도 색상이 직접 지정되지 않으면 master의 `otherStyle`에서 상속하므로, `placeholder_type`이 `None`인 경우에도 `otherStyle`을 폴백으로 사용한다.
 
 **테마 색상 맵**: `SlideReader` 초기화 시 프레젠테이션 테마(`a:clrScheme`)에서 실제 색상을 추출·캐시하여 `schemeClr` 참조 시 사용한다. tx1→dk1, tx2→dk2, bg1→lt1, bg2→lt2 별칭 매핑을 포함한다. 테마가 없는 경우 Office 기본 팔레트를 폴백으로 사용한다.
 

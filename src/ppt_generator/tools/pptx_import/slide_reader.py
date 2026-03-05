@@ -861,17 +861,17 @@ class SlideReader:
                     bold = layout_props.bold
 
         # 3) master p:txStyles > titleStyle/bodyStyle/otherStyle > lvlNpPr > defRPr
-        if placeholder_type is not None:
-            style_name = _PH_TYPE_TO_TXSTYLE.get(placeholder_type, "otherStyle")
-            master_levels = self._master_tx_styles.get(style_name, {})
-            master_props = master_levels.get(bullet_level)
-            if master_props is not None:
-                if font_size is None and master_props.font_size_pt is not None:
-                    font_size = master_props.font_size_pt
-                if color is None and master_props.color is not None:
-                    color = master_props.color
-                if bold is None and master_props.bold is not None:
-                    bold = master_props.bold
+        # placeholder가 아닌 일반 TextBox도 otherStyle 폴백 적용
+        style_name = _PH_TYPE_TO_TXSTYLE.get(placeholder_type, "otherStyle") if placeholder_type is not None else "otherStyle"
+        master_levels = self._master_tx_styles.get(style_name, {})
+        master_props = master_levels.get(bullet_level)
+        if master_props is not None:
+            if font_size is None and master_props.font_size_pt is not None:
+                font_size = master_props.font_size_pt
+            if color is None and master_props.color is not None:
+                color = master_props.color
+            if bold is None and master_props.bold is not None:
+                bold = master_props.bold
 
         return _DefaultRunProps(font_size_pt=font_size, color=color, bold=bold)
 
