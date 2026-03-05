@@ -17,49 +17,19 @@ import base64
 import json
 import logging
 import threading
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field, replace
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
-from ppt_generator.interfaces.constants import (
-    VISUAL_QA_PARALLEL,
-    VISUAL_QA_VIEWPORT_HEIGHT,
-    VISUAL_QA_VIEWPORT_WIDTH,
-)
 from ppt_generator.interfaces.llm_output_models import SlideSpecOutput, VisualQAOutput
 from ppt_generator.interfaces.schemas import PptxSlideSpec
 from ppt_generator.interfaces.spec_utils import validate_slide_spec
 from ppt_generator.interfaces.spec_utils.serializer import slide_spec_to_json
 from ppt_generator.interfaces.utils import log_token_usage
+from ppt_generator.tools.visual_qa.models import SlideQAResult, VisualQAResult
+from ppt_generator.tools.visual_qa.screenshot import capture_screenshots
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class SlideQAResult:
-    """단일 슬라이드의 QA 결과."""
-
-    slide_index: int
-    status: str  # "pass", "fixed", "unfixed", "error"
-    issues_found: list[str] = field(default_factory=list)
-    iterations: int = 0
-
-
-@dataclass
-class VisualQAResult:
-    """전체 Visual QA 실행 결과."""
-
-    slides_analyzed: int = 0
-    slides_with_issues: int = 0
-    slides_fixed: int = 0
-    iterations_used: int = 0
-    screenshots_dir: str = ""
-    per_slide: list[SlideQAResult] = field(default_factory=list)
-    total_input_tokens: int = 0
-    total_output_tokens: int = 0
-    total_cache_read_tokens: int = 0
-    total_cache_write_tokens: int = 0
 
 
 class VisualQAService:
@@ -75,65 +45,17 @@ class VisualQAService:
         self._token_lock = threading.Lock()
 
     # ------------------------------------------------------------------
-    # Phase 1: 스크린샷 캡처 (ThreadPoolExecutor 병렬)
+    # Phase 1: 스크린샷 캡처 (위임)
     # ------------------------------------------------------------------
 
+    @staticmethod
     def capture_screenshots(
-        self,
         project_dir: Path,
         indices: list[int],
         iteration: int = 0,
     ) -> dict[int, Path]:
         """Playwright headless Chromium으로 슬라이드 스크린샷을 캡처한다."""
-        try:
-            from playwright.sync_api import sync_playwright
-        except ImportError:
-            raise RuntimeError(
-                "Playwright가 설치되지 않았습니다. "
-                "설치: uv sync --group visual-qa && playwright install chromium"
-            )
-
-        screenshots_dir = project_dir / "screenshots"
-        screenshots_dir.mkdir(parents=True, exist_ok=True)
-        slides_dir = project_dir / "slides"
-
-        results: dict[int, Path] = {}
-
-        def _capture_one(idx: int) -> tuple[int, Path | None]:
-            html_file = slides_dir / f"slide_{idx + 1:02d}.html"
-            if not html_file.exists():
-                logger.warning("슬라이드 HTML 파일 없음: %s", html_file)
-                return idx, None
-            png_path = screenshots_dir / f"slide_{idx + 1:02d}_v{iteration}.png"
-            try:
-                with sync_playwright() as p:
-                    browser = p.chromium.launch(headless=True)
-                    page = browser.new_page(
-                        viewport={
-                            "width": VISUAL_QA_VIEWPORT_WIDTH,
-                            "height": VISUAL_QA_VIEWPORT_HEIGHT,
-                        },
-                    )
-                    page.goto(f"file://{html_file.resolve()}")
-                    page.wait_for_load_state("networkidle")
-                    page.screenshot(path=str(png_path))
-                    browser.close()
-                logger.info("스크린샷 캡처: %s", png_path)
-                return idx, png_path
-            except Exception:
-                logger.exception("스크린샷 캡처 실패: slide_index=%d", idx)
-                return idx, None
-
-        logger.info("스크린샷 캡처 시작: %d슬라이드 (workers=%d)", len(indices), VISUAL_QA_PARALLEL)
-        with ThreadPoolExecutor(max_workers=VISUAL_QA_PARALLEL) as pool:
-            futures = [pool.submit(_capture_one, idx) for idx in indices]
-            for future in futures:
-                idx, path = future.result()
-                if path is not None:
-                    results[idx] = path
-        logger.info("스크린샷 캡처 완료: %d/%d 성공", len(results), len(indices))
-
-        return results
+        return capture_screenshots(project_dir, indices, iteration)
 
     # ------------------------------------------------------------------
     # Phase 2: 스크린샷 분석 (개별)
@@ -223,7 +145,6 @@ class VisualQAService:
             self._accumulate_tokens(usage)
             output: SlideSpecOutput = result.structured_output
             spec = output.to_dataclass()
-            # LLM 출력에는 images/slide_type이 없으므로 기존 spec에서 복원
             restore = {}
             if current_spec.images:
                 restore["images"] = current_spec.images
@@ -251,14 +172,7 @@ class VisualQAService:
         save_html: Callable[[Path, int, str], Path],
         report_progress: Callable[[int, int, str], Awaitable[None]] | None = None,
     ) -> VisualQAResult:
-        """Visual QA 메인 오케스트레이션.
-
-        각 반복:
-          1. 스크린샷 캡처 (대상 슬라이드 전체, ThreadPoolExecutor 병렬)
-          2. LLM 분석 (전체 병렬, asyncio.gather)
-          3. 이슈 있는 슬라이드만 LLM 수정 (병렬, asyncio.gather)
-          4. 수정된 슬라이드 HTML 재렌더링
-        """
+        """Visual QA 메인 오케스트레이션."""
         self._total_input_tokens = 0
         self._total_output_tokens = 0
         self._total_cache_read_tokens = 0
@@ -272,15 +186,13 @@ class VisualQAService:
         pending_indices = list(indices)
         ever_fixed: set[int] = set()
 
-        total_count = len(indices)
-
         iterations_used = 0
         for iteration in range(max_iterations):
             if not pending_indices:
                 break
             iterations_used = iteration + 1
 
-            # ── Phase 1: 스크린샷 캡처 (전체 한번에) ──
+            # ── Phase 1: 스크린샷 캡처 ──
             logger.info("iteration %d: 스크린샷 캡처 %d슬라이드", iteration, len(pending_indices))
             screenshots = await asyncio.to_thread(
                 self.capture_screenshots, project_dir, pending_indices, iteration,
@@ -310,7 +222,7 @@ class VisualQAService:
             )
 
             # 분석 결과 분류
-            slides_to_fix: list[tuple[int, list[dict]]] = []  # (idx, issues_dicts)
+            slides_to_fix: list[tuple[int, list[dict]]] = []
             for idx, analysis in analysis_results:
                 if analysis is None:
                     continue
@@ -355,7 +267,6 @@ class VisualQAService:
 
             pending_indices = next_pending
 
-            # ── Progress 리포트 (iteration 기반) ──
             if report_progress is not None:
                 await report_progress(
                     iteration + 1, max_iterations,

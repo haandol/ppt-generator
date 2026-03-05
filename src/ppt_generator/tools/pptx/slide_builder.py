@@ -1,21 +1,21 @@
-"""python-pptx 슬라이드 객체를 생성/조작하는 빌더 모듈."""
+"""python-pptx 슬라이드 객체를 생성/조작하는 빌더 모듈.
+
+도형 생성은 shape_builders 모듈, 텍스트 서식은 text_formatter 모듈로 분리.
+"""
 
 from __future__ import annotations
 
 from io import BytesIO
 
 from lxml.etree import SubElement
-from pptx.enum.shapes import MSO_CONNECTOR_TYPE, MSO_SHAPE, MSO_SHAPE_TYPE
+from pptx.enum.shapes import MSO_SHAPE_TYPE
 from pptx.enum.text import MSO_AUTO_SIZE
 from pptx.oxml.ns import qn
-from pptx.util import Emu, Inches, Pt
+from pptx.util import Emu, Inches
 
 from ppt_generator.interfaces.constants import (
     EXPORT_PX_TO_INCHES_X,
     EXPORT_PX_TO_INCHES_Y,
-    PPTX_FONT_NAME,
-    PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU,
-    PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU,
     PX_TO_EMU,
 )
 from ppt_generator.interfaces.schemas import (
@@ -23,6 +23,11 @@ from ppt_generator.interfaces.schemas import (
     PptxShape,
     PptxSlideSpec,
     PptxTextBox,
+)
+from ppt_generator.tools.pptx.shape_builders import (
+    add_auto_shape_from_spec,
+    add_connector_from_spec,
+    add_freeform_from_svg,
 )
 from ppt_generator.tools.pptx.text_formatter import (
     apply_line_spacing,
@@ -200,285 +205,9 @@ class SlideBuilder:
     def _add_shape_from_spec(self, slide, shape_spec: PptxShape) -> None:
         """PptxShape spec으로 도형을 생성."""
         if shape_spec.shape_type == "line":
-            self._add_connector_from_spec(slide, shape_spec)
-            return
-        if shape_spec.shape_type == "custom" and shape_spec.svg_path:
-            self._add_freeform_from_svg(slide, shape_spec)
-            return
-
-        left = shape_spec.left_px * EXPORT_PX_TO_INCHES_X
-        top = shape_spec.top_px * EXPORT_PX_TO_INCHES_Y
-        width = shape_spec.width_px * EXPORT_PX_TO_INCHES_X
-        height = shape_spec.height_px * EXPORT_PX_TO_INCHES_Y
-
-        shape_type_map = {
-            "rectangle": MSO_SHAPE.RECTANGLE,
-            "rounded_rectangle": MSO_SHAPE.ROUNDED_RECTANGLE,
-            "ellipse": MSO_SHAPE.OVAL,
-            # Arrows
-            "up_arrow": MSO_SHAPE.UP_ARROW,
-            "down_arrow": MSO_SHAPE.DOWN_ARROW,
-            "left_arrow": MSO_SHAPE.LEFT_ARROW,
-            "right_arrow": MSO_SHAPE.RIGHT_ARROW,
-            "chevron": MSO_SHAPE.CHEVRON,
-            # Polygons
-            "triangle": MSO_SHAPE.ISOSCELES_TRIANGLE,
-            "diamond": MSO_SHAPE.DIAMOND,
-            "pentagon": MSO_SHAPE.PENTAGON,
-            "hexagon": MSO_SHAPE.HEXAGON,
-            "trapezoid": MSO_SHAPE.TRAPEZOID,
-            "parallelogram": MSO_SHAPE.PARALLELOGRAM,
-            "cross": MSO_SHAPE.CROSS,
-            # Stars
-            "star_4": MSO_SHAPE.STAR_4_POINT,
-            "star_5": MSO_SHAPE.STAR_5_POINT,
-            "heart": MSO_SHAPE.HEART,
-            # Flowchart
-            "flowchart_process": MSO_SHAPE.FLOWCHART_PROCESS,
-            "flowchart_decision": MSO_SHAPE.FLOWCHART_DECISION,
-            "flowchart_terminator": MSO_SHAPE.FLOWCHART_TERMINATOR,
-        }
-        mso_shape = shape_type_map.get(shape_spec.shape_type, MSO_SHAPE.RECTANGLE)
-
-        shape = slide.shapes.add_shape(
-            mso_shape, Inches(left), Inches(top), Inches(width), Inches(height),
-        )
-
-        if shape_spec.fill_color:
-            rgb = parse_color(shape_spec.fill_color)
-            if rgb:
-                shape.fill.solid()
-                shape.fill.fore_color.rgb = rgb
+            add_connector_from_spec(slide, shape_spec)
+        elif shape_spec.shape_type == "custom" and shape_spec.svg_path:
+            add_freeform_from_svg(slide, shape_spec)
         else:
-            shape.fill.background()
+            add_auto_shape_from_spec(slide, shape_spec)
 
-        if shape_spec.border_color:
-            rgb = parse_color(shape_spec.border_color)
-            if rgb:
-                shape.line.color.rgb = rgb
-            if shape_spec.border_width_pt:
-                shape.line.width = Pt(shape_spec.border_width_pt)
-        else:
-            shape.line.fill.background()
-
-        if shape_spec.paragraphs:
-            tf = shape.text_frame
-            tf.word_wrap = True
-            tf.auto_size = MSO_AUTO_SIZE.NONE
-
-            if shape_spec.padding_left_px is not None:
-                tf.margin_left = Emu(int(shape_spec.padding_left_px * PX_TO_EMU))
-            else:
-                tf.margin_left = Emu(PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU)
-            if shape_spec.padding_right_px is not None:
-                tf.margin_right = Emu(int(shape_spec.padding_right_px * PX_TO_EMU))
-            else:
-                tf.margin_right = Emu(PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU)
-            if shape_spec.padding_top_px is not None:
-                tf.margin_top = Emu(int(shape_spec.padding_top_px * PX_TO_EMU))
-            else:
-                tf.margin_top = Emu(PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU)
-            if shape_spec.padding_bottom_px is not None:
-                tf.margin_bottom = Emu(int(shape_spec.padding_bottom_px * PX_TO_EMU))
-            else:
-                tf.margin_bottom = Emu(PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU)
-
-            format_paragraphs(tf, shape_spec.paragraphs)
-
-            if shape_spec.line_spacing_pt:
-                apply_line_spacing(tf, shape_spec.line_spacing_pt, shape_spec.paragraphs)
-
-            if shape_spec.vertical_alignment:
-                apply_vertical_alignment(tf, shape_spec.vertical_alignment)
-
-        elif shape_spec.text:
-            tf = shape.text_frame
-            tf.word_wrap = True
-            tf.auto_size = MSO_AUTO_SIZE.NONE
-
-            tf.margin_left = Emu(45720)
-            tf.margin_right = Emu(45720)
-            tf.margin_top = Emu(22860)
-            tf.margin_bottom = Emu(22860)
-
-            txBody = tf._txBody
-            bodyPr = txBody.find(qn("a:bodyPr"))
-            if bodyPr is not None:
-                bodyPr.set("anchor", "ctr")
-
-            p = tf.paragraphs[0]
-            run = p.add_run()
-            run.text = shape_spec.text
-            run.font.name = PPTX_FONT_NAME
-            if shape_spec.text_size_pt:
-                run.font.size = Pt(shape_spec.text_size_pt)
-            run.font.bold = shape_spec.text_bold
-            if shape_spec.text_color:
-                rgb = parse_color(shape_spec.text_color)
-                if rgb:
-                    run.font.color.rgb = rgb
-
-    def _add_freeform_from_svg(self, slide, shape_spec: PptxShape) -> None:
-        """SVG path data → python-pptx freeform 도형 생성."""
-        import re as _re
-
-        svg_path = shape_spec.svg_path or ""
-        parts = svg_path.split(" ", 2)
-        if len(parts) < 3:
-            return
-        vb_w, vb_h, path_d = int(parts[0]), int(parts[1]), parts[2]
-        if vb_w <= 0 or vb_h <= 0:
-            return
-
-        left_emu = int(shape_spec.left_px * EXPORT_PX_TO_INCHES_X * 914400)
-        top_emu = int(shape_spec.top_px * EXPORT_PX_TO_INCHES_Y * 914400)
-        width_emu = int(shape_spec.width_px * EXPORT_PX_TO_INCHES_X * 914400)
-        height_emu = int(shape_spec.height_px * EXPORT_PX_TO_INCHES_Y * 914400)
-
-        # SVG path를 OOXML custGeom으로 직접 구축
-        sp_tree = slide.shapes._spTree
-        sp = SubElement(sp_tree, qn("p:sp"))
-        nvSpPr = SubElement(sp, qn("p:nvSpPr"))
-        cNvPr = SubElement(nvSpPr, qn("p:cNvPr"))
-        cNvPr.set("id", str(len(slide.shapes) + 100))
-        cNvPr.set("name", "Freeform")
-        SubElement(nvSpPr, qn("p:cNvSpPr"))
-        SubElement(nvSpPr, qn("p:nvPr"))
-
-        spPr = SubElement(sp, qn("p:spPr"))
-        xfrm = SubElement(spPr, qn("a:xfrm"))
-        off = SubElement(xfrm, qn("a:off"))
-        off.set("x", str(left_emu))
-        off.set("y", str(top_emu))
-        ext = SubElement(xfrm, qn("a:ext"))
-        ext.set("cx", str(width_emu))
-        ext.set("cy", str(height_emu))
-
-        custGeom = SubElement(spPr, qn("a:custGeom"))
-        SubElement(custGeom, qn("a:avLst"))
-        SubElement(custGeom, qn("a:gdLst"))
-        SubElement(custGeom, qn("a:ahLst"))
-        SubElement(custGeom, qn("a:cxnLst"))
-        rect = SubElement(custGeom, qn("a:rect"))
-        rect.set("l", "l")
-        rect.set("t", "t")
-        rect.set("r", "r")
-        rect.set("b", "b")
-        pathLst = SubElement(custGeom, qn("a:pathLst"))
-        path_el = SubElement(pathLst, qn("a:path"))
-        path_el.set("w", str(vb_w))
-        path_el.set("h", str(vb_h))
-
-        # SVG path data 파싱: M, L, C, Z 명령
-        tokens = _re.findall(r"[MLCZ]|[-]?\d+", path_d)
-        i = 0
-        while i < len(tokens):
-            cmd = tokens[i]
-            if cmd == "M" and i + 2 < len(tokens):
-                move = SubElement(path_el, qn("a:moveTo"))
-                pt = SubElement(move, qn("a:pt"))
-                pt.set("x", tokens[i + 1])
-                pt.set("y", tokens[i + 2])
-                i += 3
-            elif cmd == "L" and i + 2 < len(tokens):
-                ln = SubElement(path_el, qn("a:lnTo"))
-                pt = SubElement(ln, qn("a:pt"))
-                pt.set("x", tokens[i + 1])
-                pt.set("y", tokens[i + 2])
-                i += 3
-            elif cmd == "C" and i + 6 < len(tokens):
-                bez = SubElement(path_el, qn("a:cubicBezTo"))
-                for j in range(3):
-                    pt = SubElement(bez, qn("a:pt"))
-                    pt.set("x", tokens[i + 1 + j * 2])
-                    pt.set("y", tokens[i + 2 + j * 2])
-                i += 7
-            elif cmd == "Z":
-                SubElement(path_el, qn("a:close"))
-                i += 1
-            else:
-                i += 1
-
-        # fill
-        if shape_spec.fill_color:
-            rgb = parse_color(shape_spec.fill_color)
-            if rgb:
-                solid = SubElement(spPr, qn("a:solidFill"))
-                srgb = SubElement(solid, qn("a:srgbClr"))
-                srgb.set("val", str(rgb))
-        else:
-            SubElement(spPr, qn("a:noFill"))
-
-        # border
-        if shape_spec.border_color:
-            rgb = parse_color(shape_spec.border_color)
-            if rgb:
-                ln = SubElement(spPr, qn("a:ln"))
-                if shape_spec.border_width_pt:
-                    ln.set("w", str(int(shape_spec.border_width_pt * 12700)))
-                solid = SubElement(ln, qn("a:solidFill"))
-                srgb = SubElement(solid, qn("a:srgbClr"))
-                srgb.set("val", str(rgb))
-        else:
-            ln = SubElement(spPr, qn("a:ln"))
-            SubElement(ln, qn("a:noFill"))
-
-    # 선/화살표 전용 dash_style 매핑
-    _DASH_STYLE_MAP = {
-        "dash": "dash",
-        "dot": "dot",
-    }
-
-    # 수평/수직 스냅 임계값 (px): 이 값 이하면 의도하지 않은 오차로 판단
-    _SNAP_THRESHOLD = 12
-
-    def _add_connector_from_spec(self, slide, shape_spec: PptxShape) -> None:
-        """Line shape를 python-pptx Connector(직선)로 생성하고 화살표 머리를 설정."""
-        w = shape_spec.width_px
-        h = shape_spec.height_px
-        if w > 0 and 0 < h <= self._SNAP_THRESHOLD:
-            h = 0  # 수평선 보정
-        elif h > 0 and 0 < w <= self._SNAP_THRESHOLD:
-            w = 0  # 수직선 보정
-
-        start_x = Inches(shape_spec.left_px * EXPORT_PX_TO_INCHES_X)
-        start_y = Inches(shape_spec.top_px * EXPORT_PX_TO_INCHES_Y)
-        end_x = Inches((shape_spec.left_px + w) * EXPORT_PX_TO_INCHES_X)
-        end_y = Inches((shape_spec.top_px + h) * EXPORT_PX_TO_INCHES_Y)
-
-        connector = slide.shapes.add_connector(
-            MSO_CONNECTOR_TYPE.STRAIGHT, start_x, start_y, end_x, end_y,
-        )
-
-        # 선 색상/굵기
-        if shape_spec.border_color:
-            rgb = parse_color(shape_spec.border_color)
-            if rgb:
-                connector.line.color.rgb = rgb
-        if shape_spec.border_width_pt:
-            connector.line.width = Pt(shape_spec.border_width_pt)
-
-        # 화살표 머리 설정 (a:ln 안에 headEnd/tailEnd XML 추가)
-        spPr = connector._element.find(qn("p:spPr"))
-        ln = spPr.find(qn("a:ln"))
-        if ln is None:
-            ln = SubElement(spPr, qn("a:ln"))
-
-        if shape_spec.end_arrow:
-            tail = SubElement(ln, qn("a:tailEnd"))
-            tail.set("type", "triangle")
-            tail.set("w", "med")
-            tail.set("len", "med")
-
-        if shape_spec.start_arrow:
-            head = SubElement(ln, qn("a:headEnd"))
-            head.set("type", "triangle")
-            head.set("w", "med")
-            head.set("len", "med")
-
-        # 대시 스타일
-        dash_key = (shape_spec.dash_style or "").lower()
-        prstDash = self._DASH_STYLE_MAP.get(dash_key)
-        if prstDash:
-            dash_el = SubElement(ln, qn("a:prstDash"))
-            dash_el.set("val", prstDash)
