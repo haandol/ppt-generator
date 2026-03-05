@@ -43,6 +43,7 @@ def register_pptx_import_tools(
         metadata = ProjectMetadata(
             topic=f"Imported from {file_path.split('/')[-1] if '/' in file_path else file_path}",
             num_slides=len(design_spec.slides),
+            source="imported",
         )
         project_service.save_metadata(project_dir, metadata)
         project_service.update_step(project_dir, "import")

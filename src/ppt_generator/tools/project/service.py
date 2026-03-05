@@ -196,6 +196,7 @@ class ProjectService:
             "steps_completed": metadata.steps_completed,
             "audience_type": metadata.audience_type,
             "presentation_minutes": metadata.presentation_minutes,
+            "source": metadata.source,
         }
         (project_dir / "project.json").write_text(
             json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -221,6 +222,7 @@ class ProjectService:
             steps_completed=data.get("steps_completed", {}),
             audience_type=data.get("audience_type", "general"),
             presentation_minutes=data.get("presentation_minutes", 15),
+            source=data.get("source", "generated"),
         )
 
     # --- 프로젝트 목록 ---
@@ -255,6 +257,7 @@ class ProjectService:
                 "steps_completed": data.get("steps_completed", {}),
                 "audience_type": data.get("audience_type", "general"),
                 "presentation_minutes": data.get("presentation_minutes", 15),
+                "source": data.get("source", "generated"),
                 "created_at": created_at,
             })
 

@@ -280,6 +280,65 @@ class TestSaveMetadataAndUpdateStep:
         assert "T" in loaded.steps_completed["outline"]
 
 
+class TestProjectSource:
+    def test_default_source_is_generated(self, project_service: ProjectService, project_dir: Path) -> None:
+        meta = ProjectMetadata(topic="테스트", num_slides=5)
+        project_service.save_metadata(project_dir, meta)
+
+        loaded = project_service.load_metadata(project_dir)
+        assert loaded.source == "generated"
+
+    def test_imported_source_roundtrip(self, project_service: ProjectService, project_dir: Path) -> None:
+        meta = ProjectMetadata(topic="임포트 프로젝트", num_slides=3, source="imported")
+        project_service.save_metadata(project_dir, meta)
+
+        loaded = project_service.load_metadata(project_dir)
+        assert loaded.source == "imported"
+
+    def test_source_persisted_in_json(self, project_service: ProjectService, project_dir: Path) -> None:
+        meta = ProjectMetadata(topic="테스트", num_slides=2, source="imported")
+        project_service.save_metadata(project_dir, meta)
+
+        data = json.loads((project_dir / "project.json").read_text(encoding="utf-8"))
+        assert data["source"] == "imported"
+
+    def test_backward_compatibility_defaults_to_generated(self, project_service: ProjectService, project_dir: Path) -> None:
+        """source 필드가 없는 기존 project.json도 로드 가능 (기본값 generated)."""
+        old_data = {"topic": "구형 프로젝트", "num_slides": 3, "steps_completed": {}}
+        (project_dir / "project.json").write_text(json.dumps(old_data, ensure_ascii=False), encoding="utf-8")
+
+        loaded = project_service.load_metadata(project_dir)
+        assert loaded.source == "generated"
+
+    def test_list_projects_includes_source(self, project_service: ProjectService, tmp_path: Path, monkeypatch) -> None:
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        for name, source in [("proj-gen", "generated"), ("proj-imp", "imported")]:
+            d = tmp_path / name
+            d.mkdir()
+            meta = {"topic": name, "num_slides": 3, "steps_completed": {}, "source": source}
+            (d / "project.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+
+        result = project_service.list_projects()
+        sources = {p["project_id"]: p["source"] for p in result}
+        assert sources["proj-gen"] == "generated"
+        assert sources["proj-imp"] == "imported"
+
+    def test_list_projects_defaults_source_for_legacy(self, project_service: ProjectService, tmp_path: Path, monkeypatch) -> None:
+        """source 필드가 없는 기존 프로젝트는 list_projects에서 generated로 표시."""
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        d = tmp_path / "legacy-proj"
+        d.mkdir()
+        meta = {"topic": "레거시", "num_slides": 2, "steps_completed": {}}
+        (d / "project.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+
+        result = project_service.list_projects()
+        assert result[0]["source"] == "generated"
+
+
 class TestResolveProjectDir:
     def test_generates_uuid_when_empty(self, project_service: ProjectService, tmp_path: Path, monkeypatch) -> None:
         import ppt_generator.tools.project.service as svc_module

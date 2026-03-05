@@ -70,6 +70,7 @@ class ProjectMetadata:
     audience_type: str = "general"
     presentation_minutes: int = 15
     purpose: str = ""
+    source: str = "generated"  # "generated" | "imported"
 
 
 # --- PPTX element schemas (for LLM conversion) ---

@@ -194,11 +194,18 @@ def register_design_tools(
         Performs slide-level CRUD on an existing project's design spec.
         For add/update, maintains consistent style based on the first slide's design.
 
-        **Precondition (add/update):**
+        **Precondition (add/update) for generated projects:**
         Before calling this tool, you must first modify the outline/script JSONL file.
         - add: Pre-insert a new slide line at the insertion position
         - update: Pre-modify the line at the target slide_index
         This tool reads the outline at the specified slide_index from the file to generate the design spec.
+
+        **For imported projects (source="imported"):**
+        Imported projects do NOT have outline or script files.
+        Do NOT use add/update actions on imported projects — they will fail because
+        no outline/script exists. Instead, directly edit the design spec JSON files
+        in the design_spec directory, or use generate_slides_design_spec with explicit
+        outline_json to regenerate specific slides.
 
         Args:
             project_id: Target project ID (required)
