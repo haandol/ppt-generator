@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 from xml.etree.ElementTree import Element
 
@@ -861,15 +861,78 @@ class SlideReader:
         images: list[PptxImage],
         warnings: list[str],
     ) -> None:
+        # 그룹 좌표 변환 정보 읽기
+        grp_xfrm = group_shape._element.find(qn("p:grpSpPr") + "/" + qn("a:xfrm"))
+        scale_x = scale_y = 1.0
+        offset_x_emu = offset_y_emu = 0
+        ch_offset_x_emu = ch_offset_y_emu = 0
+        if grp_xfrm is not None:
+            off = grp_xfrm.find(qn("a:off"))
+            ext = grp_xfrm.find(qn("a:ext"))
+            ch_off = grp_xfrm.find(qn("a:chOff"))
+            ch_ext = grp_xfrm.find(qn("a:chExt"))
+            if off is not None and ext is not None and ch_off is not None and ch_ext is not None:
+                offset_x_emu = int(off.get("x", "0"))
+                offset_y_emu = int(off.get("y", "0"))
+                ext_cx = int(ext.get("cx", "1"))
+                ext_cy = int(ext.get("cy", "1"))
+                ch_offset_x_emu = int(ch_off.get("x", "0"))
+                ch_offset_y_emu = int(ch_off.get("y", "0"))
+                ch_ext_cx = int(ch_ext.get("cx", "1"))
+                ch_ext_cy = int(ch_ext.get("cy", "1"))
+                if ch_ext_cx > 0:
+                    scale_x = ext_cx / ch_ext_cx
+                if ch_ext_cy > 0:
+                    scale_y = ext_cy / ch_ext_cy
+
+        # 자식을 임시 리스트에 추출
+        tmp_tb: list[PptxTextBox] = []
+        tmp_sh: list[PptxShape] = []
+        tmp_img: list[PptxImage] = []
         for child in group_shape.shapes:
             try:
-                self._extract_shape(child, textboxes, shapes, images, warnings)
+                self._extract_shape(child, tmp_tb, tmp_sh, tmp_img, warnings)
             except Exception:
                 logger.warning(
                     "그룹 내 shape 추출 실패 (name=%s)",
                     getattr(child, "name", "?"),
                     exc_info=True,
                 )
+
+        # 좌표 변환: child space → slide absolute space (frozen dataclass → replace)
+        if grp_xfrm is not None:
+            ch_off_x_px = self._emu_to_px_x(ch_offset_x_emu)
+            ch_off_y_px = self._emu_to_px_y(ch_offset_y_emu)
+            off_x_px = self._emu_to_px_x(offset_x_emu)
+            off_y_px = self._emu_to_px_y(offset_y_emu)
+
+            def _tx(left: float, top: float, w: float, h: float) -> tuple[float, float, float, float]:
+                return (
+                    round((left - ch_off_x_px) * scale_x + off_x_px, 1),
+                    round((top - ch_off_y_px) * scale_y + off_y_px, 1),
+                    round(w * scale_x, 1),
+                    round(h * scale_y, 1),
+                )
+
+            tmp_tb = [
+                replace(tb, left_px=c[0], top_px=c[1], width_px=c[2], height_px=c[3])
+                for tb in tmp_tb
+                for c in [_tx(tb.left_px, tb.top_px, tb.width_px, tb.height_px)]
+            ]
+            tmp_sh = [
+                replace(sh, left_px=c[0], top_px=c[1], width_px=c[2], height_px=c[3])
+                for sh in tmp_sh
+                for c in [_tx(sh.left_px, sh.top_px, sh.width_px, sh.height_px)]
+            ]
+            tmp_img = [
+                replace(img, left_px=c[0], top_px=c[1], width_px=c[2], height_px=c[3])
+                for img in tmp_img
+                for c in [_tx(img.left_px, img.top_px, img.width_px, img.height_px)]
+            ]
+
+        textboxes.extend(tmp_tb)
+        shapes.extend(tmp_sh)
+        images.extend(tmp_img)
 
     # ── 테이블 → Shape 배열 변환 ──
 

@@ -297,7 +297,7 @@ def import_service(self) -> ImportService:
 
 | 미지원 요소 | 처리 방식 |
 |-------------|----------|
-| 그룹 도형 (GroupShape) | 그룹을 평탄화(flatten)하여 개별 Shape/TextBox로 추출 |
+| 그룹 도형 (GroupShape) | 그룹을 평탄화(flatten)하여 개별 Shape/TextBox로 추출. 그룹의 `grpSpPr/a:xfrm`에서 `off/ext/chOff/chExt`를 읽어 자식 좌표를 슬라이드 절대 좌표로 변환: `slide_coord = (child_coord - chOff) × (ext / chExt) + off` |
 | 표 (Table) | 셀별 텍스트를 포함한 격자형 Shape 배열로 변환 |
 | 차트 (Chart) | 이미지로 래스터화하여 PptxImage로 저장 |
 | 비디오/오디오 | 무시 (경고 로그) |
