@@ -6,10 +6,9 @@ Date: 2026-02-11
 
 Proposed
 
-> **Note (2026-02-11)**: AWS 기본 템플릿에 대해서는 정적 추출을 먼저 적용하였다.
-> `scripts/extract_layout_positions.py`로 placeholder 위치를 추출하여 `template/layout.json`에 저장하고,
-> `constants.py`의 `_load_layout_regions()`로 `LAYOUT_REGIONS` 딕셔너리에 로드하여 `build_layout_skeleton()`에서 사용.
-> 또한 `scripts/extract_layout_json.py`로 전체 97종 레이아웃 정보를 JSON으로 추출함.
+> **Note (2026-02-11)**: AWS 기본 템플릿에 대해서는 정적 추출을 적용하였다.
+> `templates/layout_mapping.py`에 97종 레이아웃 매핑이 정의되어 있다.
+> 기존 `build_layout_skeleton()`, `LAYOUT_REGIONS` 기반 접근은 ADR-0013(디자인 스펙 파이프라인)으로 대체되어 제거되었다.
 > 동적 `analyze_template` 도구 구현은 추후 진행 예정.
 
 ## Context
@@ -285,5 +284,5 @@ sequenceDiagram
 - 스키마 확장: `src/ppt_generator/interfaces/schemas.py` — `TemplateAnalysis` 등
 - 상수 추가: `src/ppt_generator/interfaces/constants.py` — `SLIDES_DESIGN_CONTEXT_TEMPLATE`
 - 레이아웃 매핑: `src/ppt_generator/templates/layout_mapping.py` — `build_layout_map()` 추가
-- 관련 ADR: [0004-html-slide-generation](./0004-html-slide-generation.md), [0006-pptx-export](./0006-pptx-export.md)
+- 관련 ADR: [0013-design-spec-pipeline](./0013-design-spec-pipeline.md)
 - ALPS: Section 7 (파이프라인)

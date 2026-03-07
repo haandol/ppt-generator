@@ -98,7 +98,7 @@ generate_outline → generate_script
 | `save_design_summary(dir, dict)` | design_summary.json 저장 |
 | `load_design_summary(dir) -> dict \| None` | design_summary.json 로드 (없으면 None) |
 
-#### 유틸리티 함수 (spec_utils.py)
+#### 유틸리티 함수 (spec_utils/)
 
 | 함수 | 설명 |
 |------|------|
@@ -163,7 +163,7 @@ generate_outline → generate_script
 - 디자인 스펙 저장소: `src/ppt_generator/tools/project/design_spec_store.py` — `DesignSpecStore` (파일 CRUD 전담)
 - 프로젝트 서비스: `src/ppt_generator/tools/project/service.py` — `DesignSpecStore`에 위임하는 메서드 + 아웃라인/스크립트 JSONL CRUD (`update_outline_slide`, `insert_outline_slide`, `delete_outline_slide`)
 - 디자인 서비스: `src/ppt_generator/tools/design/service.py` — `generate_single_slide()`, `extract_design_summary()`
-- 유틸리티: `src/ppt_generator/interfaces/spec_utils.py` — `slide_spec_to_json()`, `parse_slide_spec_json()`
+- 유틸리티: `src/ppt_generator/interfaces/spec_utils/` — `slide_spec_to_json()`, `parse_slide_spec_json()`
 - 컨트롤러: `src/ppt_generator/tools/design/controller.py`, `tools/slides/controller.py`, `tools/pptx/controller.py`, `tools/project/controller.py`
 - 테스트: `tests/test_project_service.py` — `TestSaveAndLoadDesignSpec`, `TestDesignSpecSlideCRUD`
 - 관련 ADR: [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md), [0013-design-spec-pipeline](./0013-design-spec-pipeline.md), [0016-per-slide-html-iframe](./0016-per-slide-html-iframe.md)

@@ -48,4 +48,4 @@ Accepted
 ## Related
 
 - [ADR-0018: 병렬 디자인 스펙 생성 및 프롬프트 캐싱](./0018-parallel-design-spec-and-prompt-caching.md)
-- [ADR-0019: 복잡도 기반 스케줄링 및 Adaptive Thinking Effort](./0019-complexity-based-scheduling-and-adaptive-effort.md)
+- [ADR-0018: 디자인 스펙 병렬 생성, 프롬프트 캐싱 및 Adaptive Effort](./0018-parallel-design-spec-and-prompt-caching.md) (복잡도 기반 스케줄링 및 Adaptive Thinking Effort 포함)

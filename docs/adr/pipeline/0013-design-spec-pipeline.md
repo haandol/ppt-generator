@@ -18,7 +18,7 @@ Accepted
 
 1. **복잡성**: Playwright DOM 추출, LLM 변환, 룰 기반 폴백의 3단계 체인이 복잡하고 유지보수 어려움
 2. **부정확성**: HTML/CSS의 시각적 렌더링 결과를 역분석하여 좌표를 추출하므로, flex/grid 레이아웃 등의 계산 결과가 부정확할 수 있음
-3. **의존성**: Playwright 브라우저 인스턴스가 필요하고, 추가 LLM 호출(Sonnet 4.5) 비용 발생
+3. **의존성**: Playwright 브라우저 인스턴스가 필요하고, 추가 LLM 호출(Sonnet 4.6) 비용 발생
 4. **정보 손실**: LLM이 자유 형식 HTML을 생성한 후 다시 LLM으로 PPTX 좌표를 추출하는 과정에서 디자인 의도가 손실됨
 
 ## Decision
@@ -53,10 +53,11 @@ class DesignSpec:
 
 #### 새 MCP 도구
 
-| 도구                         | 설명                                                       |
-| ---------------------------- | ---------------------------------------------------------- |
-| `generate_slide_design_spec` | 단일 슬라이드 디자인 스펙 생성 (슬라이드별 검토/수정 가능) |
-| `load_design_spec`           | 저장된 디자인 스펙 로드                                    |
+| 도구                          | 설명                                                                       |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `generate_slides_design_spec` | 전체/선택적 슬라이드 디자인 스펙 병렬 생성 ([ADR-0018](./0018-parallel-design-spec-and-prompt-caching.md)) |
+| `modify_design_spec`          | 개별 슬라이드 추가/수정/삭제 ([ADR-0014](./0014-file-based-communication-and-per-slide-crud.md))           |
+| `load_design_spec`            | 저장된 디자인 스펙 로드                                                    |
 
 #### 기존 도구 변경
 
@@ -70,7 +71,7 @@ class DesignSpec:
 - `tools/design/service.py` — `DesignService.generate_single_slide()`
 - 슬라이드별 개별 LLM 호출
 - 첫 슬라이드 생성 후 `extract_design_summary()` → 후속 슬라이드에 전달하여 일관성 유지
-- `parse_slide_spec()` + `validate_slide_spec()` 재사용 (`interfaces/spec_utils.py`)
+- `parse_slide_spec()` + `validate_slide_spec()` 재사용 (`interfaces/spec_utils/`)
 - LLM structured_output용 Pydantic 모델: `interfaces/llm_output_models.py` — `SlideSpecOutput`
 - Bedrock Claude Sonnet 4.6 사용 (`global.anthropic.claude-sonnet-4-6`, 64K tokens)
 - 슬라이드 타입별 시스템 프롬프트 분리 ([ADR-0021](./0021-slide-type-specific-system-prompts.md))
@@ -133,14 +134,15 @@ class DesignSpec:
 
 #### 공유 유틸리티
 
-`interfaces/spec_utils.py`에 다음 함수를 통합:
+`interfaces/spec_utils/` 패키지에 다음 함수를 통합:
 
-- `parse_slide_spec()` / `validate_slide_spec()` — llm_converter.py에서 이동
-- `design_spec_to_json()` / `parse_design_spec_json()` — 직렬화/역직렬화
+- `parse_slide_spec()` / `validate_slide_spec()` — parser.py, validator.py
+- `design_spec_to_json()` / `parse_design_spec_json()` — serializer.py, parser.py
+- `slide_spec_to_json()` / `parse_slide_spec_json()` — serializer.py, parser.py
 
 #### 프로젝트 영속화
 
-- `~/.ppt-generator/<UUID>/design_spec/slide_NN.json` — 슬라이드별 개별 파일 저장 ([ADR-0015](./0015-per-slide-file-separation.md))
+- `~/.ppt-generator/<UUID>/design_spec/slide_NN.json` — 슬라이드별 개별 파일 저장 ([ADR-0014](./0014-file-based-communication-and-per-slide-crud.md))
 - `~/.ppt-generator/<UUID>/design_spec/design_summary.json` — 첫 슬라이드에서 추출한 디자인 테마 요약 (슬라이드별 생성 시 테마 일관성 유지용)
 - 디자인 스펙 파일 CRUD는 `DesignSpecStore` (`tools/project/design_spec_store.py`)에 전담:
   - `save_design_spec`, `load_design_spec`, 슬라이드별 CRUD, 디자인 요약 관리
@@ -165,7 +167,7 @@ class DesignSpec:
 ### Out of Scope
 
 - ~~디자인 스펙 수정 도구 (modify_design_spec)~~ → [ADR-0014](./0014-file-based-communication-and-per-slide-crud.md)에서 구현됨
-- ~~기존 HTML → PPTX 폴백 경로 제거~~ → 레거시 경로 완전 제거 완료 (ADR-0004, 0005, 0006 Superseded)
+- ~~기존 HTML → PPTX 폴백 경로 제거~~ → 레거시 경로 완전 제거 완료
 
 ## Consequences
 
@@ -174,7 +176,7 @@ class DesignSpec:
 - **정확성 향상**: 단일 소스에서 HTML/PPTX를 생성하므로 변환 과정의 정보 손실 없음
 - **단순성**: PPTX 생성 시 3단계 폴백 체인 대신 SlideBuilder 직접 호출
 - **속도**: PPTX 생성 시 Playwright/추가 LLM 호출 불필요
-- **비용 절감**: PPTX 변환용 Sonnet 4.5 호출 제거
+- **비용 절감**: PPTX 변환용 Sonnet 4.6 호출 제거
 - **단일 파이프라인**: 레거시 HTML 기반 경로를 완전 제거하여 코드 단순화 달성
 
 ### Negative
@@ -188,7 +190,7 @@ class DesignSpec:
 - 디자인 서비스: `src/ppt_generator/tools/design/` (service.py, controller.py)
 - LLM 출력 모델: `src/ppt_generator/interfaces/llm_output_models.py` — `SlideSpecOutput`
 - 도메인 스키마: `src/ppt_generator/interfaces/schemas.py` — `DesignSpec`, `PptxSlideSpec`
-- 유틸리티: `src/ppt_generator/interfaces/spec_utils.py` — `parse_slide_spec`, `validate_slide_spec`, `slide_spec_to_json`, `parse_slide_spec_json`, `design_spec_to_json`, `parse_design_spec_json`
+- 유틸리티: `src/ppt_generator/interfaces/spec_utils/` — `parse_slide_spec`, `validate_slide_spec`, `slide_spec_to_json`, `parse_slide_spec_json`, `design_spec_to_json`, `parse_design_spec_json`
 - 텍스트 측정: `src/ppt_generator/interfaces/text_measurement.py` — 폰트 메트릭 기반 줄바꿈/높이 계산 ([ADR-0017](./0017-font-metric-text-overflow-prevention.md))
 - 프롬프트: `src/ppt_generator/interfaces/prompts/` — slide_type별 시스템 프롬프트 ([ADR-0021](./0021-slide-type-specific-system-prompts.md))
 - 슬라이드 서비스: `src/ppt_generator/tools/slides/service.py` — `generate_from_design_spec()`
@@ -200,4 +202,4 @@ class DesignSpec:
 - DI 컨테이너: `src/ppt_generator/di/container.py` — `_create_design_agent()`, `design_service` 프로퍼티
 - MCP 서버: `src/ppt_generator/server.py` — `register_design_tools()` 호출
 - Spec 검증: `src/ppt_generator/interfaces/spec_utils/validator.py` — [ADR-0023](./0023-design-spec-validator.md) 참조
-- 관련 ADR: [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md), [0011-progressive-refinement-pipeline](./0011-progressive-refinement-pipeline.md), [0015-per-slide-file-separation](./0015-per-slide-file-separation.md), [0016-per-slide-html-iframe](./0016-per-slide-html-iframe.md), [0017-font-metric-text-overflow-prevention](./0017-font-metric-text-overflow-prevention.md), [0021-slide-type-specific-system-prompts](./0021-slide-type-specific-system-prompts.md), [0023-design-spec-validator](./0023-design-spec-validator.md)
+- 관련 ADR: [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md), [0011-progressive-refinement-pipeline](./0011-progressive-refinement-pipeline.md), [0014-file-based-communication-and-per-slide-crud](./0014-file-based-communication-and-per-slide-crud.md), [0016-per-slide-html-iframe](./0016-per-slide-html-iframe.md), [0017-font-metric-text-overflow-prevention](./0017-font-metric-text-overflow-prevention.md), [0021-slide-type-specific-system-prompts](./0021-slide-type-specific-system-prompts.md), [0023-design-spec-validator](./0023-design-spec-validator.md)

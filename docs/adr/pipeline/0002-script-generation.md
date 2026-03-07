@@ -4,7 +4,7 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted (Updated: Claude Sonnet 4.5 사용, project_id 파라미터 추가, script.jsonl에 slide_index 명시 추가)
+Accepted (Updated: Claude Sonnet 4.6 사용, project_id 파라미터 추가, script.jsonl에 slide_index 명시 추가)
 
 ## Context
 
@@ -14,11 +14,11 @@ F1에서 생성한 아웃라인 JSON의 speaker_notes는 비어있다. 각 슬�
 
 ## Decision
 
-MCP 도구 `generate_script`를 구현하여, 아웃라인 JSON을 입력받아 Bedrock Claude Sonnet 4.5가 슬라이드별 발표자 노트를 생성하고, speaker_notes가 채워진 아웃라인 JSON을 반환한다.
+MCP 도구 `generate_script`를 구현하여, 아웃라인 JSON을 입력받아 Bedrock Claude Sonnet 4.6가 슬라이드별 발표자 노트를 생성하고, speaker_notes가 채워진 아웃라인 JSON을 반환한다.
 
 ### Technical Details
 
-- Bedrock Claude Sonnet 4.5 호출 (Strands SDK 경유, 16K max tokens)
+- Bedrock Claude Sonnet 4.6 호출 (Strands SDK 경유, 16K max tokens)
 - 프롬프트: 아웃라인 JSON을 기반으로 슬라이드별 발표자 노트(speaker_notes) 생성 요청
 - LLM 출력 JSON 스키마: `{ scripts: [{ slide_index, speaker_notes }] }`
 - 출력의 speaker_notes를 원본 아웃라인의 각 슬라이드에 적용하여 최종 아웃라인 JSON 반환
@@ -46,7 +46,7 @@ MCP 도구 `generate_script`를 구현하여, 아웃라인 JSON을 입력받아 
 sequenceDiagram
     participant Client as MCP Client
     participant Server as MCP Server
-    participant LLM as Bedrock Claude Sonnet 4.5
+    participant LLM as Claude Sonnet 4.6
 
     Client->>Server: generate_script(outline_json, project_id)
     Server->>LLM: 슬라이드별 발표자 노트 생성 요청
@@ -68,6 +68,6 @@ sequenceDiagram
 
 - 구현: `src/ppt_generator/tools/script/` (controller.py, service.py)
 - 스키마: `src/ppt_generator/interfaces/schemas.py` — `ScriptRequest(outline)`, `ScriptResponse(slides)`
-- 프롬프트: `src/ppt_generator/interfaces/constants.py` — `SCRIPT_SYSTEM_PROMPT`, `SCRIPT_USER_PROMPT_TEMPLATE`
+- 프롬프트: `src/ppt_generator/interfaces/prompts/` — `SCRIPT_SYSTEM_PROMPT`, `SCRIPT_USER_PROMPT_TEMPLATE` (`constants.py`에서 re-export)
 - 관련 ADR: [0001-outline-generation](./0001-outline-generation.md)
 - ALPS: Section 7.2

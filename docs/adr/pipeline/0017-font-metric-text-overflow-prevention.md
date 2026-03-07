@@ -10,7 +10,7 @@ Accepted
 
 LLM이 생성한 디자인 스펙에서 텍스트가 박스보다 커서 넘치는 문제가 빈번하게 발생한다.
 
-근본 원인은 기존 `spec_utils.py`의 높이 검증이 **paragraph 개수**만 세고, 텍스트가 박스 너비 안에서 **몇 줄로 줄바꿈되는지** 계산하지 않기 때문이다.
+근본 원인은 기존 `spec_utils/validator.py`의 높이 검증이 **paragraph 개수**만 세고, 텍스트가 박스 너비 안에서 **몇 줄로 줄바꿈되는지** 계산하지 않기 때문이다.
 
 ```
 기존: min_height = num_paragraphs × max_font × 2.0  (줄바꿈 무시)
@@ -21,7 +21,7 @@ LLM이 생성한 디자인 스펙에서 텍스트가 박스보다 커서 넘치�
 
 ## Decision
 
-**폰트 메트릭 기반 텍스트 크기 추정 모듈**(`text_measurement.py`)을 신규 도입하고, `spec_utils.py`의 검증 로직을 재작성하여 실제 줄바꿈을 반영한 높이 검증과 auto-fit 폰트 축소를 적용한다.
+**폰트 메트릭 기반 텍스트 크기 추정 모듈**(`text_measurement.py`)을 신규 도입하고, `spec_utils/validator.py`의 검증 로직을 재작성하여 실제 줄바꿈을 반영한 높이 검증과 auto-fit 폰트 축소를 적용한다.
 
 ### Technical Details
 
@@ -63,7 +63,7 @@ TEXT_MEASURE_DEFAULT_SHAPE_PADDING_TB_PX = 2.4
 
 텍스트 측정 모듈을 validator에서 호출하여 높이 검증과 autofit 폰트 축소를 수행한다. validator의 적용 상세는 [ADR-0023](./0023-design-spec-validator.md) 참조.
 
-#### 4. 프롬프트 강화 (`interfaces/prompts/design_prompts.py`)
+#### 4. 프롬프트 강화 (`interfaces/prompts/design_system_content.prompt.md`)
 
 하드 제약 조건 앞에 텍스트 크기 추정 가이드 섹션 추가:
 - 한글 1글자 ≈ `font_size_pt × 1.2px`, Latin 1글자 ≈ `font_size_pt × 0.73px`

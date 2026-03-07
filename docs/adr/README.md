@@ -33,15 +33,12 @@ adr/
 - [0018: 디자인 스펙 병렬 생성, 프롬프트 캐싱 및 Adaptive Effort](./pipeline/0018-parallel-design-spec-and-prompt-caching.md)
 - [0020: 토큰 사용량 추적 및 비용 추정](./pipeline/0020-token-usage-tracking-and-cost-estimation.md)
 - [0021: 슬라이드 타입별 시스템 프롬프트 분리](./pipeline/0021-slide-type-specific-system-prompts.md)
+- [0022: 타이틀 슬라이드 긴 제목 텍스트 잘림 수정](./pipeline/0022-title-slide-long-title-overflow-fix.md)
 - [0023: 디자인 스펙 Validator](./pipeline/0023-design-spec-validator.md)
+- [0024: Agenda Slide Optional Numbering](./pipeline/0024-agenda-optional-numbering.md)
+- [0025: Enable Medium Thinking for Outline Generation](./pipeline/0025-outline-thinking-medium.md)
 - [0026: Visual QA Pipeline](./pipeline/0026-visual-qa-pipeline.md)
-
-### Pipeline — Superseded
-
-- [0004: HTML 슬라이드 생성 (F3)](./pipeline/0004-html-slide-generation.md) — _Superseded by 0013_
-- [0005: 슬라이드 수정 (F4)](./pipeline/0005-slide-modification.md) — _Superseded by 0013/0014_
-- [0006: PPTX 내보내기 (F5)](./pipeline/0006-pptx-export.md) — _Superseded by 0013_
-- [0012: 레이아웃 골격 기반 위치 강제](./pipeline/0012-layout-skeleton-enforcement.md) — _Superseded by 0013_
+- [0027: PPTX 임포트 → 디자인 스펙 변환](./pipeline/0027-pptx-import-to-design-spec.md)
 
 ## ADR 작성 가이드
 

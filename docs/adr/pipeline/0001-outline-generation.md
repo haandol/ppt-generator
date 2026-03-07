@@ -4,7 +4,7 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted (Updated: layout_type → layout_index, freeform/elements 제거, Claude Sonnet 4.5 사용, component_hint 추가, outline.json → outline.jsonl + slide_index 추가)
+Accepted (Updated: layout_type → layout_index, freeform/elements 제거, Claude Sonnet 4.6 Extended Thinking (medium) 사용, component_hint 추가, outline.json → outline.jsonl + slide_index 추가)
 
 ## Context
 
@@ -14,11 +14,11 @@ Accepted (Updated: layout_type → layout_index, freeform/elements 제거, Claud
 
 ## Decision
 
-MCP 도구 `generate_outline`을 구현하여, 주제와 슬라이드 수를 입력받아 Bedrock Claude Sonnet 4.5가 구조화된 JSON 아웃라인을 생성한다. 각 슬라이드에 `layout_index`(PPTX 템플릿 레이아웃 인덱스)와 `component_hint`(시각적 컴포넌트 유형)를 포함하여, HTML 슬라이드 생성 시 레이아웃 골격과 본문 구조를 결정한다.
+MCP 도구 `generate_outline`을 구현하여, 주제와 슬라이드 수를 입력받아 Bedrock Claude Sonnet 4.6 Extended Thinking (effort: medium)가 구조화된 JSON 아웃라인을 생성한다. 각 슬라이드에 `layout_index`(PPTX 템플릿 레이아웃 인덱스)와 `component_hint`(시각적 컴포넌트 유형)를 포함하여, HTML 슬라이드 생성 시 레이아웃 골격과 본문 구조를 결정한다.
 
 ### Technical Details
 
-- Bedrock Claude Sonnet 4.5 호출 (Strands SDK 경유, 16K max tokens)
+- Bedrock Claude Sonnet 4.6 Extended Thinking (effort: medium) 호출 (Strands SDK 경유, 16K max tokens)
 - 프롬프트: 주제를 기반으로 구조화된 JSON 아웃라인 생성 요청
 - 출력 JSON 스키마: `{ slides: [{ slide_index, title, content_summary, layout_index, component_hint, speaker_notes: "" }] }`
 - 저장 형식: JSONL (`outline.jsonl`) — 각 슬라이드가 한 줄씩 저장, `slide_index` 명시 포함. 하위 호환: `outline.json` fallback 지원
@@ -52,7 +52,7 @@ sequenceDiagram
     actor User
     participant Client as MCP Client
     participant Server as MCP Server
-    participant LLM as Bedrock Claude Sonnet 4.5
+    participant LLM as Claude Sonnet 4.6
 
     User->>Client: "클라우드 트렌드 5장 발표자료"
     Client->>Server: generate_outline(topic, 5)
@@ -73,5 +73,5 @@ sequenceDiagram
 
 - 구현: `src/ppt_generator/tools/outline/` (controller.py, service.py)
 - 스키마: `src/ppt_generator/interfaces/schemas.py` — `OutlineRequest(topic, num_slides)`, `OutlineResponse`, `SlideOutline(title, content_summary, layout_index, component_hint, speaker_notes, slide_index)`
-- 프롬프트: `src/ppt_generator/interfaces/constants.py` — `OUTLINE_SYSTEM_PROMPT`, `OUTLINE_USER_PROMPT_TEMPLATE`
+- 프롬프트: `src/ppt_generator/interfaces/prompts/` — `OUTLINE_SYSTEM_PROMPT`, `OUTLINE_USER_PROMPT_TEMPLATE` (`constants.py`에서 re-export)
 - ALPS: Section 7.1

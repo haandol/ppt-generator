@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-디자인 스펙은 ADR-0015에서 `design_spec/slide_NN.json`으로 슬라이드별 파일 분리가 완료되었다. 그러나 HTML 슬라이드는 여전히 단일 `slides.html` 파일에 모든 슬라이드가 포함되어 있다.
+디자인 스펙은 ADR-0014에서 `design_spec/slide_NN.json`으로 슬라이드별 파일 분리가 완료되었다. 그러나 HTML 슬라이드는 여전히 단일 `slides.html` 파일에 모든 슬라이드가 포함되어 있다.
 
 기존 구조:
 ```
@@ -170,4 +170,4 @@ class SlidesResponse:
 - 스키마: `src/ppt_generator/interfaces/schemas.py` — `SlidesResponse`
 - 템플릿: `src/ppt_generator/templates/slide.html` (슬라이드용), `src/ppt_generator/templates/slides_container.html` (iframe 컨테이너용)
 - 테스트: `tests/test_slides_service.py`, `tests/test_slides_controller.py`
-- 관련 ADR: [0013-design-spec-pipeline](./0013-design-spec-pipeline.md), [0015-per-slide-file-separation](./0015-per-slide-file-separation.md)
+- 관련 ADR: [0013-design-spec-pipeline](./0013-design-spec-pipeline.md), [0014-file-based-communication-and-per-slide-crud](./0014-file-based-communication-and-per-slide-crud.md)
