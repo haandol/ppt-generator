@@ -112,8 +112,9 @@ class TestComplexityToThinkingEffort:
         (4, "medium"),
         (5, "medium"),
         (6, "medium"),
-        (7, "high"),
-        (8, "high"),
+        (7, "medium"),
+        (8, "medium"),
+        (9, "high"),
         (10, "high"),
         (13, "high"),
     ])
@@ -129,5 +130,8 @@ class TestComplexityToThinkingEffort:
     def test_boundary_6_is_medium(self) -> None:
         assert complexity_to_thinking_effort(6) == "medium"
 
-    def test_boundary_7_is_high(self) -> None:
-        assert complexity_to_thinking_effort(7) == "high"
+    def test_boundary_8_is_medium(self) -> None:
+        assert complexity_to_thinking_effort(8) == "medium"
+
+    def test_boundary_9_is_high(self) -> None:
+        assert complexity_to_thinking_effort(9) == "high"

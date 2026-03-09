@@ -74,8 +74,8 @@ Thread pool에 슬라이드를 제출할 때 복잡도 내림차순으로 정렬
 
 | 복잡도 범위 | thinking_effort | 대상 |
 |------------|-----------------|------|
-| 7~13 (high) | `high` | arch_diagram, process_flow, pipeline 등 |
-| 4~6 (medium) | `medium` | step_cards, code_block, two_column 등 |
+| 9~13 (high) | `high` | arch_diagram, process_flow 등 |
+| 4~8 (medium) | `medium` | pipeline, concept_list, step_cards, code_block 등 |
 | 1~3 (low) | `low` | title, closing, bullets, quote, agenda 등 |
 
 `DIContainer.create_design_service(thinking_effort, slide_type)` 팩토리가 effort와 slide_type을 인자로 받아 해당 설정의 Agent를 생성한다.
