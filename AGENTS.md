@@ -349,13 +349,13 @@ F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크
 | `TextBoxOutput` / `ShapeOutput`     | LLM 출력용 텍스트박스/도형                                                                     |
 | `VisualQAIssue` / `VisualQAOutput`  | Visual QA 분석 결과 (이슈 타입, 심각도, 수정 제안)                                             |
 
-### 슬라이드 아웃라인 JSONL
+### 슬라이드 아웃라인/스크립트 저장
 
-아웃라인(`outline.jsonl`)과 스크립트(`script.jsonl`)는 JSONL 형식으로 저장됩니다. 각 줄이 하나의 슬라이드이며, `slide_index`가 명시적으로 포함됩니다.
+아웃라인과 스크립트는 개별 JSON 파일로 저장됩니다. `outline/slide_01.json`, `script/slide_01.json` 형식이며, `slide_index`가 명시적으로 포함됩니다. Legacy fallback으로 JSONL(`outline.jsonl`) → JSON(`outline.json`) 순서로 지원합니다.
 
-```jsonl
+```json
+// outline/slide_01.json
 {"slide_index": 0, "title": "슬라이드 제목", "content_summary": "슬라이드에 담길 핵심 내용 요약", "component_hint": "bullets", "speaker_notes": "", "slide_type": "title"}
-{"slide_index": 1, "title": "본문 슬라이드", "content_summary": "핵심 내용", "component_hint": "bullets", "speaker_notes": "", "slide_type": "content"}
 ```
 
 개별 슬라이드 접근: `load_outline_slide(project_id, slide_index)`, `load_script_slide(project_id, slide_index)`

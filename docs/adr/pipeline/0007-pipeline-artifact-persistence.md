@@ -32,8 +32,14 @@ Accepted
 ```
 ~/.ppt-generator/<UUID>/
   project.json         # 메타데이터 (topic, num_slides, 각 단계 완료 상태/타임스탬프)
-  outline.jsonl        # F1 출력 (JSONL: 한 줄 = 한 슬라이드, slide_index 포함)
-  script.jsonl         # F2 출력 (JSONL: 한 줄 = 한 슬라이드, slide_index 포함)
+  outline/             # F1 출력 (슬라이드별 개별 JSON 파일)
+    slide_01.json      # 슬라이드 아웃라인 (slide_index 포함)
+    slide_02.json
+    ...
+  script/              # F2 출력 (슬라이드별 개별 JSON 파일)
+    slide_01.json      # 슬라이드 스크립트 (slide_index, speaker_notes 포함)
+    slide_02.json
+    ...
   design_spec/         # 디자인 스펙 출력 (슬라이드별 개별 파일, ADR-0014)
     slide_01.json      # 단일 PptxSlideSpec (wrapper 없음)
     slide_02.json

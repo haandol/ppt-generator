@@ -4,7 +4,7 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted (Updated: Claude Sonnet 4.6 사용, project_id 파라미터 추가, script.jsonl에 slide_index 명시 추가)
+Accepted (Updated: Claude Sonnet 4.6 사용, project_id 파라미터 추가, 개별 JSON 파일 저장 + JSONL/JSON legacy fallback)
 
 ## Context
 
@@ -36,7 +36,7 @@ MCP 도구 `generate_script`를 구현하여, 아웃라인 JSON을 입력받아 
 1. 아웃라인 JSON을 입력하면 speaker_notes가 채워진 아웃라인 JSON이 반환된다
 2. 각 슬라이드의 speaker_notes가 해당 슬라이드 내용에 맞는 자연스러운 발표 스크립트를 포함한다
 3. 슬라이드 간 자연스러운 전환이 반영된다
-4. project_id가 자동 생성되어 `~/.ppt-generator/<UUID>/script.jsonl`에 결과물이 저장된다 (JSONL 형식, 각 줄에 slide_index 포함)
+4. project_id가 자동 생성되어 `~/.ppt-generator/<UUID>/script/` 디렉토리에 개별 JSON 파일로 저장된다 (슬라이드별 `slide_01.json`, `slide_02.json`, ...)
 
 ### Out of Scope
 
@@ -52,7 +52,7 @@ sequenceDiagram
     Server->>LLM: 슬라이드별 발표자 노트 생성 요청
     LLM-->>Server: { scripts: [{ slide_index, speaker_notes }] }
     Server->>Server: speaker_notes를 원본 아웃라인에 적용
-    Server->>Server: ~/.ppt-generator/<UUID>/script.jsonl 저장
+    Server->>Server: ~/.ppt-generator/<UUID>/script/ 개별 파일 저장
     Server-->>Client: speaker_notes가 채워진 아웃라인 JSON (project_id 포함)
 ```
 
