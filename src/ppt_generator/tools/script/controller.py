@@ -69,7 +69,7 @@ def register_script_tools(mcp: FastMCP, script_service: ScriptService, project_s
         project_service.update_step(project_dir, "script")
 
         resp: dict = {
-            "script_path": str(project_dir / "script.jsonl"),
+            "script_path": str(project_dir / "script"),
             "project_id": project_id,
         }
         usage = format_token_usage(script_service.last_token_usage)

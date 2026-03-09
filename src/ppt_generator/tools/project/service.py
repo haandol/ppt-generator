@@ -83,6 +83,10 @@ class ProjectService:
     def delete_outline_slide(self, project_dir: Path, index: int) -> None:
         self._jsonl_store.delete_outline_slide(project_dir, index)
 
+    def save_outline_slide(self, project_dir: Path, index: int, slide_json: str) -> None:
+        self._ensure_dir(project_dir)
+        self._jsonl_store.save_outline_slide(project_dir, index, slide_json)
+
     # --- HTML/이미지 (HtmlStore 위임) ---
 
     def save_slides_html(

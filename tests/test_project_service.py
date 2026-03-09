@@ -103,25 +103,35 @@ class TestSaveAndLoadOutline:
         assert loaded_slides[0]["title"] == original_slides[0]["title"]
         assert loaded_slides[0]["slide_index"] == 0
 
-    def test_saves_as_jsonl(self, project_service: ProjectService, project_dir: Path) -> None:
+    def test_saves_as_individual_files(self, project_service: ProjectService, project_dir: Path) -> None:
         project_service.save_outline(project_dir, SAMPLE_OUTLINE)
-        assert (project_dir / "outline.jsonl").exists()
-        assert not (project_dir / "outline.json").exists()
-        lines = (project_dir / "outline.jsonl").read_text(encoding="utf-8").splitlines()
-        assert len(lines) == 1
-        slide = json.loads(lines[0])
+        outline_dir = project_dir / "outline"
+        assert outline_dir.exists()
+        files = sorted(outline_dir.glob("slide_*.json"))
+        assert len(files) == 1
+        slide = json.loads(files[0].read_text(encoding="utf-8"))
         assert slide["title"] == "제목"
         assert slide["slide_index"] == 0
 
     def test_slide_index_injected(self, project_service: ProjectService, project_dir: Path) -> None:
         project_service.save_outline(project_dir, MULTI_SLIDE_OUTLINE)
-        lines = (project_dir / "outline.jsonl").read_text(encoding="utf-8").splitlines()
-        for i, line in enumerate(lines):
-            slide = json.loads(line)
+        outline_dir = project_dir / "outline"
+        files = sorted(outline_dir.glob("slide_*.json"))
+        for i, f in enumerate(files):
+            slide = json.loads(f.read_text(encoding="utf-8"))
             assert slide["slide_index"] == i
 
+    def test_legacy_jsonl_fallback(self, project_service: ProjectService, project_dir: Path) -> None:
+        """outline/ 디렉토리가 없고 outline.jsonl이 있으면 fallback으로 읽는다."""
+        lines = [json.dumps(s, ensure_ascii=False) for s in json.loads(SAMPLE_OUTLINE)["slides"]]
+        (project_dir / "outline.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        loaded = project_service.load_outline(project_dir)
+        loaded_slides = json.loads(loaded)["slides"]
+        original_slides = json.loads(SAMPLE_OUTLINE)["slides"]
+        assert loaded_slides[0]["title"] == original_slides[0]["title"]
+
     def test_legacy_json_fallback(self, project_service: ProjectService, project_dir: Path) -> None:
-        """outline.jsonl이 없고 outline.json이 있으면 fallback으로 읽는다."""
+        """outline.jsonl도 없고 outline.json이 있으면 fallback으로 읽는다."""
         (project_dir / "outline.json").write_text(SAMPLE_OUTLINE, encoding="utf-8")
         loaded = project_service.load_outline(project_dir)
         assert json.loads(loaded) == json.loads(SAMPLE_OUTLINE)
@@ -137,25 +147,35 @@ class TestSaveAndLoadScript:
         assert loaded_slides[0]["title"] == original_slides[0]["title"]
         assert loaded_slides[0]["slide_index"] == 0
 
-    def test_saves_as_jsonl(self, project_service: ProjectService, project_dir: Path) -> None:
+    def test_saves_as_individual_files(self, project_service: ProjectService, project_dir: Path) -> None:
         project_service.save_script(project_dir, SAMPLE_SCRIPT)
-        assert (project_dir / "script.jsonl").exists()
-        assert not (project_dir / "script.json").exists()
-        lines = (project_dir / "script.jsonl").read_text(encoding="utf-8").splitlines()
-        assert len(lines) == 1
-        slide = json.loads(lines[0])
+        script_dir = project_dir / "script"
+        assert script_dir.exists()
+        files = sorted(script_dir.glob("slide_*.json"))
+        assert len(files) == 1
+        slide = json.loads(files[0].read_text(encoding="utf-8"))
         assert slide["title"] == "제목"
         assert slide["slide_index"] == 0
 
     def test_slide_index_injected(self, project_service: ProjectService, project_dir: Path) -> None:
         project_service.save_script(project_dir, MULTI_SLIDE_SCRIPT)
-        lines = (project_dir / "script.jsonl").read_text(encoding="utf-8").splitlines()
-        for i, line in enumerate(lines):
-            slide = json.loads(line)
+        script_dir = project_dir / "script"
+        files = sorted(script_dir.glob("slide_*.json"))
+        for i, f in enumerate(files):
+            slide = json.loads(f.read_text(encoding="utf-8"))
             assert slide["slide_index"] == i
 
+    def test_legacy_jsonl_fallback(self, project_service: ProjectService, project_dir: Path) -> None:
+        """script/ 디렉토리가 없고 script.jsonl이 있으면 fallback으로 읽는다."""
+        lines = [json.dumps(s, ensure_ascii=False) for s in json.loads(SAMPLE_SCRIPT)["slides"]]
+        (project_dir / "script.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        loaded = project_service.load_script(project_dir)
+        loaded_slides = json.loads(loaded)["slides"]
+        original_slides = json.loads(SAMPLE_SCRIPT)["slides"]
+        assert loaded_slides[0]["title"] == original_slides[0]["title"]
+
     def test_legacy_json_fallback(self, project_service: ProjectService, project_dir: Path) -> None:
-        """script.jsonl이 없고 script.json이 있으면 fallback으로 읽는다."""
+        """script.jsonl도 없고 script.json이 있으면 fallback으로 읽는다."""
         (project_dir / "script.json").write_text(SAMPLE_SCRIPT, encoding="utf-8")
         loaded = project_service.load_script(project_dir)
         assert json.loads(loaded) == json.loads(SAMPLE_SCRIPT)

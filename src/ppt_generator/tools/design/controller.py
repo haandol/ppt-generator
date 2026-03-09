@@ -194,18 +194,11 @@ def register_design_tools(
         Performs slide-level CRUD on an existing project's design spec.
         For add/update, maintains consistent style based on the first slide's design.
 
-        **Precondition (add/update) for generated projects:**
-        Before calling this tool, you must first modify the outline/script JSONL file.
-        - add: Pre-insert a new slide line at the insertion position
-        - update: Pre-modify the line at the target slide_index
-        This tool reads the outline at the specified slide_index from the file to generate the design spec.
-
-        **For imported projects (source="imported"):**
-        Imported projects do NOT have outline or script files.
-        Do NOT use add/update actions on imported projects — they will fail because
-        no outline/script exists. Instead, directly edit the design spec JSON files
-        in the design_spec directory, or use generate_slides_design_spec with explicit
-        outline_json to regenerate specific slides.
+        **Precondition (add/update):**
+        Before calling this tool, the outline file for the target slide must exist.
+        - For generated projects: modify the outline/script JSONL file first.
+        - For imported projects: call `save_outline_slide` first to create the outline file for the target slide.
+        This tool reads the outline at the specified slide_index to generate the design spec.
 
         Args:
             project_id: Target project ID (required)
@@ -236,7 +229,7 @@ def register_design_tools(
 
         if action == "add":
             insert_idx = slide_index if 0 <= slide_index < slide_count else slide_count
-            # Read slide at target index from outline/script JSONL
+            # Read slide at target index from outline/script
             outline_raw = project_service.load_script_or_outline_slide(project_dir, insert_idx)
             outline = parse_outline_json(outline_raw)
             slide_outline = outline.slides[0]
@@ -263,7 +256,7 @@ def register_design_tools(
                 raise ValueError(f"Invalid slide_index: {slide_index} (total {slide_count} slides)")
             # 기존 슬라이드의 images 보존을 위해 먼저 로드
             existing_spec = project_service.load_design_spec_slide(project_dir, slide_index)
-            # Read slide at target index from outline/script JSONL
+            # Read slide at target index from outline/script
             outline_raw = project_service.load_script_or_outline_slide(project_dir, slide_index)
             outline = parse_outline_json(outline_raw)
             slide_outline = outline.slides[0]

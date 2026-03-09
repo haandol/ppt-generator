@@ -84,10 +84,9 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         _, project_dir = project_service.resolve_project_dir(project_id)
         # Verify file exists (raises exception if not found)
         project_service.load_outline(project_dir)
-        return json.dumps(
-            {"outline_path": str(project_dir / "outline.jsonl")},
-            ensure_ascii=False,
-        )
+        outline_dir = project_dir / "outline"
+        outline_path = str(outline_dir) if outline_dir.exists() else str(project_dir / "outline.jsonl")
+        return json.dumps({"outline_path": outline_path}, ensure_ascii=False)
 
     @mcp.tool()
     def load_script(project_id: str) -> str:
@@ -105,8 +104,61 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         _, project_dir = project_service.resolve_project_dir(project_id)
         # Verify file exists (raises exception if not found)
         project_service.load_script(project_dir)
+        script_dir = project_dir / "script"
+        script_path = str(script_dir) if script_dir.exists() else str(project_dir / "script.jsonl")
+        return json.dumps({"script_path": script_path}, ensure_ascii=False)
+
+    @mcp.tool()
+    def save_outline_slide(
+        project_id: str,
+        slide_index: int,
+        title: str,
+        content_summary: str,
+        component_hint: str = "bullets",
+        slide_type: str = "content",
+        speaker_notes: str = "",
+    ) -> str:
+        """Saves a single slide outline to the project.
+
+        Creates or overwrites the outline file for a specific slide index.
+        Use this before calling modify_design_spec (add/update) to provide
+        the slide content that the LLM will use for design spec generation.
+
+        **Workflow for imported projects:**
+        1. Call save_outline_slide to write the outline for the target slide.
+        2. Call modify_design_spec(action="add" or "update", slide_index=...) to generate the design.
+
+        **Workflow for generated projects:**
+        Can also be used instead of manually editing outline JSONL files.
+
+        Args:
+            project_id: Target project ID (required)
+            slide_index: Target slide index (0-based). For add, use the insertion position.
+            title: Slide title
+            content_summary: Detailed slide content description for the LLM
+            component_hint: Layout hint ("bullets", "step_cards", "comparison_table", "arch_diagram", etc.)
+            slide_type: Slide type ("title", "content", "closing", "agenda")
+            speaker_notes: Optional speaker notes
+
+        Returns:
+            JSON string containing project_id, slide_index, outline_path
+        """
+        _, project_dir = project_service.resolve_project_dir(project_id)
+        slide_data = json.dumps({
+            "title": title,
+            "content_summary": content_summary,
+            "component_hint": component_hint,
+            "slide_type": slide_type,
+            "speaker_notes": speaker_notes,
+        }, ensure_ascii=False)
+        project_service.save_outline_slide(project_dir, slide_index, slide_data)
+        outline_dir = project_dir / "outline"
         return json.dumps(
-            {"script_path": str(project_dir / "script.jsonl")},
+            {
+                "project_id": project_id,
+                "slide_index": slide_index,
+                "outline_path": str(outline_dir / f"slide_{slide_index + 1:02d}.json"),
+            },
             ensure_ascii=False,
         )
 

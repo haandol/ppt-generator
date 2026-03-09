@@ -91,7 +91,7 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
         project_service.update_step(project_dir, "outline")
 
         resp: dict = {
-            "outline_path": str(project_dir / "outline.jsonl"),
+            "outline_path": str(project_dir / "outline"),
             "project_id": project_id,
         }
         usage = format_token_usage(outline_service.last_token_usage)

@@ -10,7 +10,7 @@ Accepted
 
 MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 때, 인라인 JSON 콘텐츠가 컨텍스트 윈도우를 낭비한다. 디자인 스펙 생성 도구가 반환하는 `design_spec_json`은 수십 KB에 달하며, 이를 `export_html`이나 `export_pptx`의 인자로 다시 전달하면 토큰이 중복 소비된다.
 
-또한 디자인 스펙이 단일 `design_spec.json` 파일(13슬라이드 기준 약 9,000줄, 260KB)에 모든 슬라이드를 포함하고 있어, 1개 슬라이드만 수정해도 전체 파일을 읽고/파싱/재직렬화/저장해야 하는 비효율이 있었다.
+또한 디자인 스펙이 단일 파일(13슬라이드 기준 약 9,000줄, 260KB)에 모든 슬라이드를 포함하고 있어, 1개 슬라이드만 수정해도 전체 파일을 읽고/파싱/재직렬화/저장해야 하는 비효율이 있었다.
 
 ## Decision
 
@@ -25,42 +25,28 @@ MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 �
 
 ### 2. 슬라이드별 파일 분리
 
-디자인 스펙을 슬라이드별 개별 JSON 파일로 분리하여 `design_spec/` 디렉토리에 저장한다.
-
-```
-~/.ppt-generator/<UUID>/
-├── design_spec/
-│   ├── slide_01.json        # 단일 PptxSlideSpec (wrapper 없음)
-│   ├── slide_02.json
-│   ├── ...
-│   └── design_summary.json   # 첫 슬라이드에서 추출한 디자인 테마 요약
-```
-
-**파일 명명 규칙**: `slide_{index+1:02d}.json` — 1-based, 2자리 zero-padded (slide_01.json ~ slide_99.json). sorted glob으로 순서 보장.
+디자인 스펙을 슬라이드별 개별 JSON 파일로 분리하여 저장한다. 1-based, 2자리 zero-padded 파일명을 사용하며 sorted glob으로 순서를 보장한다. 첫 슬라이드에서 추출한 디자인 테마 요약도 별도 파일로 저장한다.
 
 ### 3. 슬라이드 단위 CRUD
 
 #### generate_slide_design_spec
 
-- MCP 도구 `generate_slide_design_spec(outline_json, slide_index, total_slides, project_id)` 추가
 - 슬라이드를 하나씩 생성하고 검토/수정한 뒤 다음 슬라이드로 진행하는 점진적 워크플로우 지원
-- `slide_index == 0` (첫 슬라이드): 디자인 요약 추출 → `design_summary.json` 저장
-- `slide_index > 0` (후속 슬라이드): `design_summary.json` 로드 → 디자인 테마 일관성 유지
+- 첫 슬라이드 생성 시 디자인 요약 추출·저장, 후속 슬라이드에서 로드하여 테마 일관성 유지
 
 #### modify_design_spec
 
-- MCP 도구 `modify_design_spec(project_id, action, slide_index, color_theme)` 추가
 - `action`: "add" (삽입), "update" (교체), "delete" (삭제)
-- **파일 기반 아웃라인 참조**: add/update 시 호출자가 먼저 outline/script JSONL 파일을 수정한 뒤, `modify_design_spec`은 파일에서 해당 `slide_index`의 아웃라인을 읽어 디자인 스펙을 생성한다.
-- **delete 시 동기화**: delete action에서만 outline/script JSONL의 해당 줄을 함께 삭제한다.
+- **파일 기반 아웃라인 참조**: add/update 시 호출자가 먼저 outline/script 파일을 수정한 뒤, `modify_design_spec`은 파일에서 해당 `slide_index`의 아웃라인을 읽어 디자인 스펙을 생성한다.
+- **delete 시 동기화**: delete action에서만 outline/script의 해당 슬라이드를 함께 삭제한다.
 
 | action | slide_index | 사전 조건 | 동작 |
 |--------|-------------|----------|------|
-| add | -1 (끝) 또는 삽입 위치 | outline/script JSONL에 새 줄을 미리 삽입 | 파일에서 해당 인덱스 읽기 → 디자인 스펙 생성 후 삽입 |
-| update | 대상 인덱스 | outline/script JSONL의 해당 줄을 미리 수정 | 파일에서 해당 인덱스 읽기 → 디자인 스펙 재생성 후 교체 |
-| delete | 대상 인덱스 | 없음 | 디자인 스펙 제거 + outline/script JSONL 해당 줄 삭제 |
+| add | -1 (끝) 또는 삽입 위치 | outline/script에 새 슬라이드를 미리 삽입 | 파일에서 해당 인덱스 읽기 → 디자인 스펙 생성 후 삽입 |
+| update | 대상 인덱스 | outline/script의 해당 슬라이드를 미리 수정 | 파일에서 해당 인덱스 읽기 → 디자인 스펙 재생성 후 교체 |
+| delete | 대상 인덱스 | 없음 | 디자인 스펙 제거 + outline/script 해당 슬라이드 삭제 |
 
-> **읽기 우선순위**: script.jsonl이 존재하면 우선 읽고, 없으면 outline.jsonl에서 읽는다. 둘 다 없으면 에러를 발생시킨다.
+> **읽기 우선순위**: script가 존재하면 우선 읽고, 없으면 outline에서 읽는다. 둘 다 없으면 에러를 발생시킨다.
 
 ### Technical Details
 
@@ -81,39 +67,16 @@ generate_outline → generate_script
     → export_html(project_id=...) → export_pptx(project_id=...)
 ```
 
-#### DesignSpecStore (design_spec_store.py)
+#### DesignSpecStore
 
-디자인 스펙 파일 I/O 로직은 `tools/project/design_spec_store.py`의 `DesignSpecStore` 클래스에 전담한다. `ProjectService`는 동일 시그니처의 위임 메서드를 제공하여 기존 호출자의 변경을 최소화한다.
+디자인 스펙 파일 I/O를 전담하는 저장소 클래스. 주요 기능:
 
-| 메서드 | 설명 |
-|--------|------|
-| `save_design_spec(dir, DesignSpec)` | design_spec/ 디렉토리에 개별 파일 저장 |
-| `load_design_spec(dir) -> DesignSpec` | slide_*.json glob으로 읽기 |
-| `save_design_spec_slide(dir, index, slide)` | 개별 슬라이드 덮어쓰기 (파일 존재 필수) |
-| `create_design_spec_slide(dir, index, slide)` | 개별 슬라이드 저장 (파일 유무 무관, 디렉토리 자동 생성) |
-| `load_design_spec_slide(dir, index)` | 개별 슬라이드 로드 |
-| `delete_design_spec_slide(dir, index)` | 삭제 + 재번호 |
-| `insert_design_spec_slide(dir, index, slide)` | 삽입 + 재번호 |
-| `get_design_spec_slide_count(dir)` | 슬라이드 파일 수 반환 |
-| `save_design_summary(dir, dict)` | design_summary.json 저장 |
-| `load_design_summary(dir) -> dict \| None` | design_summary.json 로드 (없으면 None) |
+- 전체 디자인 스펙 저장/로드
+- 개별 슬라이드 CRUD (save/load/create/delete/insert)
+- 슬라이드 수 조회
+- 디자인 요약 저장/로드
 
-#### 유틸리티 함수 (spec_utils/)
-
-| 함수 | 설명 |
-|------|------|
-| `slide_spec_to_json(PptxSlideSpec) -> str` | 단일 슬라이드 직렬화 |
-| `parse_slide_spec_json(str) -> PptxSlideSpec` | 단일 슬라이드 역직렬화 |
-
-기존 `design_spec_to_json`, `parse_design_spec_json`은 인라인 파라미터 하위 호환용으로 유지.
-
-#### 컨트롤러 반환값
-
-| 도구 | 반환 |
-|------|------|
-| `generate_slide_design_spec` | `design_spec_dir` + `slide_count` |
-| `modify_design_spec` | `design_spec_dir` + `slide_count` |
-| `load_design_spec` | `design_spec_dir` + `slide_count` + `slide_files` |
+`ProjectService`는 동일 시그니처의 위임 메서드를 제공하여 기존 호출자의 변경을 최소화한다.
 
 ### Alternatives Considered
 
@@ -132,13 +95,13 @@ generate_outline → generate_script
 3. `export_pptx(project_id=...)` 만으로 PPTX가 생성된다
 4. `modify_design_spec`으로 개별 슬라이드 add/update/delete가 동작한다
 5. `design_spec_json` 직접 전달 경로도 동작한다 (인라인 파라미터 하위 호환)
-6. `save_design_spec`으로 저장 시 design_spec/ 디렉토리에 슬라이드별 파일이 생성된다
-7. `load_design_spec`으로 design_spec/ 디렉토리에서 DesignSpec을 복원할 수 있다
-8. 첫 슬라이드 생성 시 `design_summary.json`가 생성되고, 후속 슬라이드에서 로드된다
+6. 디자인 스펙 저장 시 슬라이드별 개별 파일이 생성된다
+7. 개별 파일에서 전체 DesignSpec을 복원할 수 있다
+8. 첫 슬라이드 생성 시 디자인 요약이 생성되고, 후속 슬라이드에서 로드된다
 
 ### Out of Scope
 
-- 기존 `design_spec.json` 단일 파일에서의 자동 마이그레이션
+- 기존 단일 파일에서의 자동 마이그레이션
 - 99슬라이드 초과 시 3자리 파일명 (현 MVP에서 충분)
 
 ## Consequences
@@ -160,10 +123,4 @@ generate_outline → generate_script
 
 ## References
 
-- 디자인 스펙 저장소: `src/ppt_generator/tools/project/design_spec_store.py` — `DesignSpecStore` (파일 CRUD 전담)
-- 프로젝트 서비스: `src/ppt_generator/tools/project/service.py` — `DesignSpecStore`에 위임하는 메서드 + 아웃라인/스크립트 JSONL CRUD (`update_outline_slide`, `insert_outline_slide`, `delete_outline_slide`)
-- 디자인 서비스: `src/ppt_generator/tools/design/service.py` — `generate_single_slide()`, `extract_design_summary()`
-- 유틸리티: `src/ppt_generator/interfaces/spec_utils/` — `slide_spec_to_json()`, `parse_slide_spec_json()`
-- 컨트롤러: `src/ppt_generator/tools/design/controller.py`, `tools/slides/controller.py`, `tools/pptx/controller.py`, `tools/project/controller.py`
-- 테스트: `tests/test_project_service.py` — `TestSaveAndLoadDesignSpec`, `TestDesignSpecSlideCRUD`
 - 관련 ADR: [0007-pipeline-artifact-persistence](./0007-pipeline-artifact-persistence.md), [0013-design-spec-pipeline](./0013-design-spec-pipeline.md), [0016-per-slide-html-iframe](./0016-per-slide-html-iframe.md)
