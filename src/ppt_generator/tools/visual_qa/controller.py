@@ -42,7 +42,7 @@ def register_visual_qa_tools(
 
         Args:
             project_id: Target project ID (required)
-            slide_indices: Slide indices to check (0-based, comma-separated). Empty = all slides.
+            slide_indices: Slide indices to check (1-based, comma-separated). E.g., "1,3,5". Empty = all slides.
             max_iterations: Maximum fix iterations per slide (default: 2)
 
         Returns:
@@ -56,17 +56,22 @@ def register_visual_qa_tools(
         if slide_count == 0:
             raise ValueError("디자인 스펙이 없습니다. 먼저 generate_slides_design_spec을 실행하세요.")
 
-        # Parse indices
+        # Parse indices (1-based → 0-based)
         if slide_indices:
-            indices = sorted(set(int(x.strip()) for x in slide_indices.split(",")))
-            for idx in indices:
-                if idx < 0 or idx >= slide_count:
-                    raise ValueError(f"유효하지 않은 slide_index: {idx} (전체 {slide_count}장)")
+            raw_indices = sorted(set(int(x.strip()) for x in slide_indices.split(",")))
+            for idx in raw_indices:
+                if idx < 1 or idx > slide_count:
+                    raise ValueError(f"유효하지 않은 slide_index: {idx} (유효 범위: 1-{slide_count})")
+            indices = [i - 1 for i in raw_indices]
         else:
             indices = list(range(slide_count))
 
         # Create service (lazy — Playwright check happens at capture time)
         service: VisualQAService = visual_qa_service_factory()
+
+        # design_summary에서 color_theme 로드
+        design_summary = project_service.load_design_summary(project_dir)
+        color_theme = (design_summary or {}).get("color_theme", "dark")
 
         if ctx is not None:
             await ctx.report_progress(0, max_iterations, "Visual QA 시작")
@@ -81,7 +86,7 @@ def register_visual_qa_tools(
             max_iterations=max_iterations,
             load_spec=project_service.load_design_spec_slide,
             save_spec=project_service.save_design_spec_slide,
-            render_html=SlidesService.render_single_slide_html,
+            render_html=lambda idx, spec: SlidesService.render_single_slide_html(idx, spec, color_theme=color_theme),
             save_html=project_service.save_single_slide_html,
             report_progress=_report_progress,
         )
@@ -105,7 +110,7 @@ def register_visual_qa_tools(
             "screenshots_dir": result.screenshots_dir,
             "per_slide": [
                 {
-                    "slide_index": r.slide_index,
+                    "slide_index": r.slide_index + 1,  # 0-based → 1-based
                     "status": r.status,
                     **({"issues_found": r.issues_found} if r.issues_found else {}),
                     **({"iterations": r.iterations} if r.iterations else {}),

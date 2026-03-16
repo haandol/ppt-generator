@@ -48,8 +48,13 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
             else:
                 slide_image_srcs.append([])
 
+        # design_summary에서 color_theme 로드
+        design_summary = project_service.load_design_summary(project_dir)
+        color_theme = (design_summary or {}).get("color_theme", "dark")
+
         response = slides_service.generate_from_design_spec(
             design_spec, slide_image_srcs=slide_image_srcs,
+            color_theme=color_theme,
         )
         project_service.save_slides_html(
             project_dir, response.session_id, response.slide_htmls, response.container_html,

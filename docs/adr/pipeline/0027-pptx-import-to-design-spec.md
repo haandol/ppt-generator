@@ -162,9 +162,10 @@ import_pptx(file_path: str) -> { project_id, num_slides, slides_html_path }
 1. python-pptx로 PPTX 로드
 2. 슬라이드별 PptxSlideSpec 추출
 3. DesignSpec 구성 및 저장
-4. 디자인 요약 추출·저장 (첫 슬라이드 기반 테마 색상)
-5. ProjectMetadata 생성 (`steps_completed`에 `"import"` 포함)
-6. HTML 미리보기 자동 생성
+4. 디자인 요약 추출·저장 (대표 content 슬라이드 기반 테마 색상)
+5. `color_theme` 자동 판별 — design_summary의 `background_color`에서 상대 휘도 분석으로 `"dark"` / `"light"` 결정 후 design_summary에 저장 (후속 `modify_design_spec` 호출 시 LLM에 올바른 color_theme 전달, title/closing 슬라이드의 배경 이미지 선택에도 사용)
+6. ProjectMetadata 생성 (`steps_completed`에 `"import"` 포함)
+7. HTML 미리보기 자동 생성 (`color_theme`에 맞는 배경 이미지 적용)
 
 #### 지원하지 않는 요소 처리 (Graceful Degradation)
 

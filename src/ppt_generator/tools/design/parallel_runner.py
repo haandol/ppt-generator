@@ -157,7 +157,7 @@ def run_parallel_generation(
 
             html_path_str: str | None = None
             if slides_service is not None:
-                html = slides_service.render_single_slide_html(idx, spec)
+                html = slides_service.render_single_slide_html(idx, spec, color_theme=color_theme)
                 hp = project_service.save_single_slide_html(project_dir, idx, html)
                 html_path_str = str(hp)
 
@@ -237,6 +237,8 @@ def run_parallel_generation(
         f"{result.total_cache_write_tokens:,}",
     )
 
-    # 결과를 인덱스 순서로 정렬
+    # 결과를 인덱스 순서로 정렬, 외부 노출 시 1-based로 변환
+    for res in results_map.values():
+        res["slide_index"] = res["slide_index"] + 1
     result.results = [results_map[i] for i in sorted(results_map)]
     return result

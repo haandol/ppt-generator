@@ -1,4 +1,4 @@
-"""배경 이미지 유틸리티 — 테마 감지 및 이미지 선택.
+"""배경 이미지 유틸리티 — 테마 기반 이미지 선택.
 
 제목 슬라이드와 Takeaway 슬라이드에 배경 이미지를 적용하기 위한 공유 유틸리티.
 HTML 렌더러와 PPTX 서비스 양쪽에서 사용한다.
@@ -11,7 +11,6 @@ import random
 from pathlib import Path
 
 from ppt_generator.interfaces.constants import TEMPLATE_BG_IMAGES_DIR
-from ppt_generator.interfaces.spec_utils.contrast_utils import _hex_to_relative_luminance
 
 # 테마(dark/light)별 선택된 이미지를 캐시하여 세션 내 일관성 보장
 _theme_cache: dict[str, Path] = {}
@@ -22,24 +21,16 @@ def reset_cache() -> None:
     _theme_cache.clear()
 
 
-def is_dark_background(color: str | None) -> bool:
-    """배경색의 밝기를 분석하여 dark 테마 여부를 반환한다.
-
-    W3C 상대 휘도(relative luminance) 기준 0.5 이하이면 dark로 판단.
-    """
-    if not color:
-        return True  # 기본값: dark
-    luminance = _hex_to_relative_luminance(color)
-    return luminance < 0.5
-
-
-def get_bg_image_path(background_color: str | None) -> Path | None:
+def get_bg_image_path(color_theme: str = "dark") -> Path | None:
     """테마(dark/light) 폴더에서 배경 이미지 1개를 선택하여 반환한다.
 
     같은 테마 내에서는 캐시된 이미지를 반환하여 제목/Takeaway 슬라이드가
     동일한 배경을 사용하도록 보장한다.
+
+    Args:
+        color_theme: "dark" 또는 "light" (기본: "dark")
     """
-    theme = "dark" if is_dark_background(background_color) else "light"
+    theme = color_theme if color_theme in ("dark", "light") else "dark"
 
     if theme in _theme_cache:
         return _theme_cache[theme]
@@ -57,17 +48,17 @@ def get_bg_image_path(background_color: str | None) -> Path | None:
     return selected
 
 
-def get_bg_image_bytes(background_color: str | None) -> bytes | None:
+def get_bg_image_bytes(color_theme: str = "dark") -> bytes | None:
     """배경 이미지 PNG 파일을 바이트로 읽어 반환한다 (PPTX용)."""
-    path = get_bg_image_path(background_color)
+    path = get_bg_image_path(color_theme)
     if path is None:
         return None
     return path.read_bytes()
 
 
-def get_bg_image_base64(background_color: str | None) -> str | None:
+def get_bg_image_base64(color_theme: str = "dark") -> str | None:
     """배경 이미지를 base64로 인코딩하여 반환한다 (HTML용)."""
-    image_bytes = get_bg_image_bytes(background_color)
+    image_bytes = get_bg_image_bytes(color_theme)
     if image_bytes is None:
         return None
     return base64.b64encode(image_bytes).decode("ascii")

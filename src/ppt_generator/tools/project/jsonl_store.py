@@ -144,6 +144,70 @@ class JsonlStore:
             raise IndexError(f"유효하지 않은 slide index: {index} (전체 {len(slides)}장)")
         return json.dumps(slides[index], ensure_ascii=False)
 
+    def get_outline_slide_count(self, project_dir: Path) -> int:
+        """script/outline의 슬라이드 수를 반환한다. 없으면 0."""
+        for dir_name in (SCRIPT_DIR, OUTLINE_DIR):
+            files = self._sorted_slide_files(project_dir / dir_name)
+            if files:
+                return len(files)
+        for jsonl_name in ("script.jsonl", "outline.jsonl"):
+            path = project_dir / jsonl_name
+            if path.exists():
+                return len(self._load_jsonl_lines(path))
+        return 0
+
+    _PLACEHOLDER_OUTLINE: dict = {
+        "title": "",
+        "content_summary": "",
+        "slide_type": "content",
+        "component_hint": "bullets",
+        "speaker_notes": "",
+    }
+
+    def sync_outline_to_design_spec_count(
+        self, project_dir: Path, design_spec_count: int,
+    ) -> bool:
+        """outline 수를 design_spec 수에 맞춰 placeholder로 채운다.
+
+        outline < design_spec이면 부족한 슬롯을 빈 placeholder로 채워서
+        양쪽 수를 일치시킨다. 이미 일치하거나 outline이 더 많으면 아무것도 안 한다.
+
+        Returns:
+            True if outline was padded, False otherwise.
+        """
+        outline_dir = project_dir / OUTLINE_DIR
+        files = self._sorted_slide_files(outline_dir)
+        current_count = len(files)
+
+        if current_count == 0:
+            # outline이 전혀 없으면 전체를 placeholder로 생성
+            outline_dir.mkdir(parents=True, exist_ok=True)
+            for i in range(design_spec_count):
+                data = {**self._PLACEHOLDER_OUTLINE, "slide_index": i}
+                (outline_dir / self._slide_filename(i)).write_text(
+                    json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8",
+                )
+            logger.info(
+                "outline 전체 placeholder 생성: %d장, dir=%s",
+                design_spec_count, outline_dir,
+            )
+            return True
+
+        if current_count >= design_spec_count:
+            return False
+
+        # 부족한 슬롯만 끝에 추가
+        for i in range(current_count, design_spec_count):
+            data = {**self._PLACEHOLDER_OUTLINE, "slide_index": i}
+            (outline_dir / self._slide_filename(i)).write_text(
+                json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8",
+            )
+        logger.info(
+            "outline placeholder 패딩: %d → %d장, dir=%s",
+            current_count, design_spec_count, outline_dir,
+        )
+        return True
+
     def load_script_or_outline(self, project_dir: Path) -> str:
         """script 우선, 없으면 outline으로 fallback."""
         # script 개별 파일

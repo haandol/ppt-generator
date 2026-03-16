@@ -147,7 +147,7 @@ class TestModifyDesignSpec:
         result = json.loads(mcp_tools["modify_design_spec"](
             project_id=project_id,
             action="add",
-            slide_index=1,
+            slide_index=2,
             title="새 슬라이드",
             content_summary="내용",
         ))
@@ -171,7 +171,7 @@ class TestModifyDesignSpec:
         result = json.loads(mcp_tools["modify_design_spec"](
             project_id=project_id,
             action="update",
-            slide_index=0,
+            slide_index=1,
         ))
         assert result["slide_count"] == 3  # 슬라이드 수 변경 없음
 
@@ -188,7 +188,7 @@ class TestModifyDesignSpec:
         result = json.loads(mcp_tools["modify_design_spec"](
             project_id=project_id,
             action="delete",
-            slide_index=1,
+            slide_index=2,
         ))
         assert result["slide_count"] == 2
 
@@ -274,14 +274,14 @@ class TestModifyDesignSpec:
         assert len(files) >= 1
 
     def test_update_with_save_outline_slide(self, mcp_tools: dict, monkeypatch, tmp_path: Path) -> None:
-        """save_outline_slide로 개별 파일 저장 후 modify_design_spec update가 성공한다."""
+        """save_outline_slide로 개별 파일 저장 후 modify_design_spec update가 성공한다 (generated 프로젝트)."""
         import ppt_generator.tools.project.service as svc_module
         monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
 
         project_service = mcp_tools["_project_service"]
-        project_dir = tmp_path / "imported-proj2"
+        project_dir = tmp_path / "generated-proj2"
         project_dir.mkdir()
-        meta = {"topic": "Imported", "num_slides": 3, "steps_completed": {"import": "2025-01-01"}, "source": "imported"}
+        meta = {"topic": "Generated", "num_slides": 3, "steps_completed": {}, "source": "generated"}
         (project_dir / "project.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
 
         spec = _make_design_spec(3)
@@ -296,9 +296,9 @@ class TestModifyDesignSpec:
         project_service.save_outline_slide(project_dir, 1, slide_data)
 
         result = json.loads(mcp_tools["modify_design_spec"](
-            project_id="imported-proj2",
+            project_id="generated-proj2",
             action="update",
-            slide_index=1,
+            slide_index=2,
         ))
         assert result["slide_count"] == 3  # 수 변경 없음
 
@@ -349,7 +349,7 @@ class TestModifyDesignSpec:
         result = json.loads(mcp_tools["modify_design_spec"](
             project_id=project_id,
             action="update",
-            slide_index=0,
+            slide_index=1,
         ))
         assert "token_usage" in result
         assert result["token_usage"]["inputTokens"] == 300
@@ -370,7 +370,7 @@ class TestModifyDesignSpec:
         result = json.loads(mcp_tools["modify_design_spec"](
             project_id=project_id,
             action="delete",
-            slide_index=1,
+            slide_index=2,
         ))
         assert "token_usage" not in result
         assert "estimated_cost" not in result
@@ -391,7 +391,7 @@ class TestModifyDesignSpec:
         mcp_tools["modify_design_spec"](
             project_id=project_id,
             action="add",
-            slide_index=1,
+            slide_index=2,
             title="새 슬라이드",
             content_summary="내용",
         )
@@ -425,7 +425,7 @@ class TestModifyDesignSpec:
         mcp_tools["modify_design_spec"](
             project_id=project_id,
             action="update",
-            slide_index=0,
+            slide_index=1,
         )
 
         # outline JSONL이 여전히 3줄이고 사전에 수정한 내용이 반영되어 있는지 확인
@@ -448,7 +448,7 @@ class TestModifyDesignSpec:
         mcp_tools["modify_design_spec"](
             project_id=project_id,
             action="delete",
-            slide_index=1,
+            slide_index=2,
         )
 
         # outline JSONL이 2줄이 되었는지 확인
@@ -490,7 +490,7 @@ class TestModifyDesignSpec:
         mcp_tools["modify_design_spec"](
             project_id=project_id,
             action="update",
-            slide_index=0,
+            slide_index=1,
         )
 
         # script에서 수정된 내용이 반영되어 있는지 확인
@@ -518,13 +518,65 @@ class TestModifyDesignSpec:
             {"background_color": "#1a1a2e", "text_colors": ["#ffffff"], "title_font_pt": 32, "body_font_pt": 18, "card_fills": [], "card_borders": []},
         )
 
-        # outline 파일이 없으면 에러가 발생해야 함
-        with pytest.raises((FileNotFoundError, IndexError)):
+        # outline 파일이 없어도 sync로 placeholder가 생성되어 정상 동작
+        result = json.loads(mcp_tools["modify_design_spec"](
+            project_id="no-outline-proj",
+            action="update",
+            slide_index=1,
+        ))
+        assert result["slide_count"] == 3
+
+    def test_imported_project_update_without_title_raises(self, mcp_tools: dict, monkeypatch, tmp_path: Path) -> None:
+        """imported 프로젝트에서 title/content_summary 없이 update하면 ValueError."""
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        project_service = mcp_tools["_project_service"]
+        project_dir = tmp_path / "imported-proj"
+        project_dir.mkdir()
+        meta = {"topic": "Imported", "num_slides": 3, "steps_completed": {}, "source": "imported"}
+        (project_dir / "project.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+
+        spec = _make_design_spec(3)
+        project_service.save_design_spec(project_dir, spec)
+        project_service.save_design_summary(
+            project_dir,
+            {"background_color": "#1a1a2e", "text_colors": ["#ffffff"], "title_font_pt": 32, "body_font_pt": 18, "card_fills": [], "card_borders": []},
+        )
+
+        with pytest.raises(ValueError, match="title and content_summary are required.*imported"):
             mcp_tools["modify_design_spec"](
-                project_id="no-outline-proj",
+                project_id="imported-proj",
                 action="update",
-                slide_index=0,
+                slide_index=1,
             )
+
+    def test_imported_project_update_with_title_succeeds(self, mcp_tools: dict, monkeypatch, tmp_path: Path) -> None:
+        """imported 프로젝트에서 title/content_summary를 제공하면 update 성공."""
+        import ppt_generator.tools.project.service as svc_module
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        project_service = mcp_tools["_project_service"]
+        project_dir = tmp_path / "imported-proj2"
+        project_dir.mkdir()
+        meta = {"topic": "Imported", "num_slides": 3, "steps_completed": {}, "source": "imported"}
+        (project_dir / "project.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+
+        spec = _make_design_spec(3)
+        project_service.save_design_spec(project_dir, spec)
+        project_service.save_design_summary(
+            project_dir,
+            {"background_color": "#1a1a2e", "text_colors": ["#ffffff"], "title_font_pt": 32, "body_font_pt": 18, "card_fills": [], "card_borders": []},
+        )
+
+        result = json.loads(mcp_tools["modify_design_spec"](
+            project_id="imported-proj2",
+            action="update",
+            slide_index=1,
+            title="수정된 제목",
+            content_summary="수정된 내용",
+        ))
+        assert result["slide_count"] == 3
 
 
 @pytest.fixture()
@@ -595,7 +647,7 @@ class TestModifyDesignSpecHtmlSync:
         result = json.loads(mcp_tools["modify_design_spec"](
             project_id=project_id,
             action="delete",
-            slide_index=1,
+            slide_index=2,
         ))
         assert result["slide_count"] == 2
 
@@ -615,7 +667,7 @@ class TestModifyDesignSpecHtmlSync:
         result = json.loads(mcp_tools["modify_design_spec"](
             project_id=project_id,
             action="delete",
-            slide_index=0,
+            slide_index=1,
         ))
         assert result["slide_count"] == 2
 
@@ -633,7 +685,7 @@ class TestModifyDesignSpecHtmlSync:
         result = json.loads(mcp_tools["modify_design_spec"](
             project_id=project_id,
             action="delete",
-            slide_index=2,
+            slide_index=3,
         ))
         assert result["slide_count"] == 2
 
@@ -650,7 +702,7 @@ class TestModifyDesignSpecHtmlSync:
         result = json.loads(mcp_tools_with_slides["modify_design_spec"](
             project_id=project_id,
             action="add",
-            slide_index=1,
+            slide_index=2,
             title="새 슬라이드",
             content_summary="내용",
         ))
@@ -687,7 +739,7 @@ class TestModifyDesignSpecHtmlSync:
         result = json.loads(mcp_tools["modify_design_spec"](
             project_id=project_id,
             action="delete",
-            slide_index=1,
+            slide_index=2,
         ))
         assert result["slide_count"] == 2
 
@@ -719,7 +771,7 @@ class TestModifyDesignSpecHtmlSync:
         result = json.loads(mcp_tools_with_slides["modify_design_spec"](
             project_id=project_id,
             action="add",
-            slide_index=1,
+            slide_index=2,
             title="새 슬라이드",
             content_summary="내용",
         ))
@@ -741,19 +793,19 @@ class TestModifyDesignSpecHtmlSync:
         """연속 삭제 시 HTML 파일 수가 올바르게 줄어든다."""
         project_id, dest = self._setup_with_html(mcp_tools, project_with_design_spec, monkeypatch, tmp_path)
 
-        # 첫 번째 삭제 (인덱스 1)
+        # 첫 번째 삭제 (2번째 슬라이드)
+        result = json.loads(mcp_tools["modify_design_spec"](
+            project_id=project_id,
+            action="delete",
+            slide_index=2,
+        ))
+        assert result["slide_count"] == 2
+
+        # 두 번째 삭제 (1번째 슬라이드)
         result = json.loads(mcp_tools["modify_design_spec"](
             project_id=project_id,
             action="delete",
             slide_index=1,
-        ))
-        assert result["slide_count"] == 2
-
-        # 두 번째 삭제 (인덱스 0)
-        result = json.loads(mcp_tools["modify_design_spec"](
-            project_id=project_id,
-            action="delete",
-            slide_index=0,
         ))
         assert result["slide_count"] == 1
 
@@ -897,7 +949,7 @@ class TestGenerateSlidesDesignSpec:
         )))
 
         for i, r in enumerate(result["results"]):
-            assert r["slide_index"] == i
+            assert r["slide_index"] == i + 1  # 1-based
             assert r["status"] == "success"
             assert r["slide_file"] == f"slide_{i + 1:02d}.json"
 
@@ -987,7 +1039,7 @@ class TestGenerateSlidesDesignSpec:
         # 실패한 슬라이드 확인
         failed = [r for r in result["results"] if r["status"] == "error"]
         assert len(failed) == 1
-        assert failed[0]["slide_index"] == 2
+        assert failed[0]["slide_index"] == 3  # 1-based
         assert "LLM 호출 실패" in failed[0]["error"]
 
         # 성공한 슬라이드 확인
@@ -1092,36 +1144,36 @@ class TestGenerateSlidesDesignSpec:
         design_service = mcp_tools["_design_service"]
         design_service.generate_single_slide.reset_mock()
 
-        # 특정 인덱스만 재생성
+        # 특정 인덱스만 재생성 (1-based)
         result = json.loads(self._run(mcp_tools["generate_slides_design_spec"](
             outline_json=SAMPLE_BATCH_OUTLINE_JSON,
             total_slides=5,
             project_id=project_id,
-            slide_indices="1,3",
+            slide_indices="2,4",
         )))
 
         assert result["success_count"] == 2
         assert result["error_count"] == 0
         assert len(result["results"]) == 2
         indices = [r["slide_index"] for r in result["results"]]
-        assert indices == [1, 3]
+        assert indices == [2, 4]  # 1-based
 
-    def test_batch_slide_indices_with_index_zero(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
-        """slide_indices에 인덱스 0 포함 시 design_summary가 없으면 LLM으로 사전 생성 후 전체 병렬."""
+    def test_batch_slide_indices_with_index_one(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        """slide_indices에 인덱스 1 포함 시 design_summary가 없으면 LLM으로 사전 생성 후 전체 병렬."""
         project_id = self._setup_project(tmp_path, monkeypatch)
 
         result = json.loads(self._run(mcp_tools["generate_slides_design_spec"](
             outline_json=SAMPLE_BATCH_OUTLINE_JSON,
             total_slides=5,
             project_id=project_id,
-            slide_indices="0,2,4",
+            slide_indices="1,3,5",
         )))
 
         assert result["success_count"] == 3
         assert result["error_count"] == 0
         assert len(result["results"]) == 3
         indices = [r["slide_index"] for r in result["results"]]
-        assert indices == [0, 2, 4]
+        assert indices == [1, 3, 5]  # 1-based
 
         # design_summary.json이 생성되었는지 확인
         summary_path = tmp_path / project_id / "design_spec" / "design_summary.json"
@@ -1145,12 +1197,12 @@ class TestGenerateSlidesDesignSpec:
         design_service = mcp_tools["_design_service"]
         design_service.generate_design_summary.reset_mock()
 
-        # 인덱스 0 없이 재생성
+        # 인덱스 1 없이 재생성 (1-based)
         result = json.loads(self._run(mcp_tools["generate_slides_design_spec"](
             outline_json=SAMPLE_BATCH_OUTLINE_JSON,
             total_slides=5,
             project_id=project_id,
-            slide_indices="2,3",
+            slide_indices="3,4",
         )))
 
         assert result["success_count"] == 2
@@ -1178,13 +1230,13 @@ class TestGenerateSlidesDesignSpec:
             outline_json=SAMPLE_BATCH_OUTLINE_JSON,
             total_slides=5,
             project_id=project_id,
-            slide_indices="2",
+            slide_indices="3",
         )))
 
         assert result["success_count"] == 1
         assert result["error_count"] == 0
         assert len(result["results"]) == 1
-        assert result["results"][0]["slide_index"] == 2
+        assert result["results"][0]["slide_index"] == 3  # 1-based
         assert result["results"][0]["slide_file"] == "slide_03.json"
 
     def test_batch_slide_indices_invalid_raises(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
@@ -1196,7 +1248,7 @@ class TestGenerateSlidesDesignSpec:
                 outline_json=SAMPLE_BATCH_OUTLINE_JSON,
                 total_slides=5,
                 project_id=project_id,
-                slide_indices="0,10",
+                slide_indices="0,10",  # 0 is invalid (1-based), 10 exceeds range
             ))
 
     def test_batch_enforces_background_color_from_design_summary(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
@@ -1505,7 +1557,7 @@ class TestBugFixInsertWorkflow:
         result = json.loads(mcp_tools["modify_design_spec"](
             project_id=project_id,
             action="add",
-            slide_index=1,
+            slide_index=2,
             title="새 슬라이드",
             content_summary="내용",
         ))
@@ -1523,7 +1575,7 @@ class TestBugFixInsertWorkflow:
         result = json.loads(mcp_tools["modify_design_spec"](
             project_id=project_id,
             action="delete",
-            slide_index=1,
+            slide_index=2,
         ))
         assert result["slide_count"] == 2
 
@@ -1552,21 +1604,21 @@ class TestBugFixInsertWorkflow:
         project_id, project_dir = self._setup_generated_project(mcp_tools, tmp_path, monkeypatch, 3)
         project_service = mcp_tools["_project_service"]
 
-        # 첫 번째 add: 인덱스 1에 삽입
+        # 첫 번째 add: 2번째 위치에 삽입 (1-based)
         result1 = json.loads(mcp_tools["modify_design_spec"](
             project_id=project_id,
             action="add",
-            slide_index=1,
+            slide_index=2,
             title="새 1",
             content_summary="내용 1",
         ))
         assert result1["slide_count"] == 4
 
-        # 두 번째 add: 인덱스 2에 삽입
+        # 두 번째 add: 3번째 위치에 삽입 (1-based)
         result2 = json.loads(mcp_tools["modify_design_spec"](
             project_id=project_id,
             action="add",
-            slide_index=2,
+            slide_index=3,
             title="새 2",
             content_summary="내용 2",
         ))
@@ -1643,16 +1695,16 @@ class TestMoveSlide:
         return project_id, project_dir
 
     def test_move_forward(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
-        """슬라이드를 앞으로 이동 (index 0 → 2)."""
+        """슬라이드를 앞으로 이동 (1 → 3, 1-based)."""
         project_id, project_dir = self._setup_project(mcp_tools, tmp_path, monkeypatch, 5)
         project_service = mcp_tools["_project_service"]
 
         result = json.loads(mcp_tools["move_slide"](
-            project_id=project_id, from_index=0, to_index=2,
+            project_id=project_id, from_index=1, to_index=3,
         ))
         assert result["slide_count"] == 5
-        assert result["from_index"] == 0
-        assert result["to_index"] == 2
+        assert result["from_index"] == 1
+        assert result["to_index"] == 3
 
         # outline 순서 확인: [1,2,3,4,5] → [2,3,1,4,5]
         outline = json.loads(project_service.load_outline(project_dir))
@@ -1663,12 +1715,12 @@ class TestMoveSlide:
         assert outline["slides"][4]["title"] == "슬라이드 5"
 
     def test_move_backward(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
-        """슬라이드를 뒤로 이동 (index 3 → 1)."""
+        """슬라이드를 뒤로 이동 (4 → 2, 1-based)."""
         project_id, project_dir = self._setup_project(mcp_tools, tmp_path, monkeypatch, 5)
         project_service = mcp_tools["_project_service"]
 
         result = json.loads(mcp_tools["move_slide"](
-            project_id=project_id, from_index=3, to_index=1,
+            project_id=project_id, from_index=4, to_index=2,
         ))
         assert result["slide_count"] == 5
 
@@ -1685,7 +1737,7 @@ class TestMoveSlide:
         project_id, _ = self._setup_project(mcp_tools, tmp_path, monkeypatch, 3)
 
         result = json.loads(mcp_tools["move_slide"](
-            project_id=project_id, from_index=1, to_index=1,
+            project_id=project_id, from_index=2, to_index=2,
         ))
         assert "No move needed" in result["message"]
 
@@ -1694,21 +1746,21 @@ class TestMoveSlide:
         project_id, _ = self._setup_project(mcp_tools, tmp_path, monkeypatch, 3)
 
         with pytest.raises(ValueError, match="Invalid from_index"):
-            mcp_tools["move_slide"](project_id=project_id, from_index=10, to_index=0)
+            mcp_tools["move_slide"](project_id=project_id, from_index=10, to_index=1)
 
     def test_move_invalid_to_index(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
         """to_index가 범위 밖이면 에러."""
         project_id, _ = self._setup_project(mcp_tools, tmp_path, monkeypatch, 3)
 
         with pytest.raises(ValueError, match="Invalid to_index"):
-            mcp_tools["move_slide"](project_id=project_id, from_index=0, to_index=10)
+            mcp_tools["move_slide"](project_id=project_id, from_index=1, to_index=10)
 
     def test_move_syncs_all_stores(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
         """outline, script, design_spec, HTML이 모두 동기화된다."""
         project_id, project_dir = self._setup_project(mcp_tools, tmp_path, monkeypatch, 3)
         project_service = mcp_tools["_project_service"]
 
-        mcp_tools["move_slide"](project_id=project_id, from_index=2, to_index=0)
+        mcp_tools["move_slide"](project_id=project_id, from_index=3, to_index=1)
 
         # outline: [1,2,3] → [3,1,2]
         outline = json.loads(project_service.load_outline(project_dir))
@@ -1739,7 +1791,7 @@ class TestMoveSlide:
         project_id, project_dir = self._setup_project(mcp_tools, tmp_path, monkeypatch, 5)
         project_service = mcp_tools["_project_service"]
 
-        mcp_tools["move_slide"](project_id=project_id, from_index=4, to_index=0)
+        mcp_tools["move_slide"](project_id=project_id, from_index=5, to_index=1)
 
         assert project_service.get_design_spec_slide_count(project_dir) == 5
         outline = json.loads(project_service.load_outline(project_dir))

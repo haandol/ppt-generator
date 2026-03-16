@@ -108,6 +108,8 @@ class DesignSpec:
 - 기존 shape 속성(border_color, fill_color 등) 조합으로 시각적 계층 구조 강화
 - 장식용 라인(수평: height≤10px, 수직: width≤10px)과 카드 배치 시 동일 top_px/height_px, 라인 right edge = 카드 left edge
 - `design_summary_user.prompt.md`에서 프레젠테이션 목적/톤(기술 교육 vs 의사결정 제안, 경영진 vs 엔지니어)을 파악하여 디자인 방향 조정
+- `design_summary.json`에 `color_theme` 필드를 저장하여, `modify_design_spec` 호출 시 프로젝트의 테마를 자동으로 참조
+- title/closing 슬라이드의 배경 이미지 선택도 `design_summary.json`의 `color_theme`을 기준으로 dark/light 폴더에서 선택 (`bg_image_utils`)
 
 **렌더러/validator 안전망:**
 
@@ -116,7 +118,7 @@ class DesignSpec:
 
 #### Design Spec → HTML 변환
 
-- `SlidesService.generate_from_design_spec()` — LLM 호출 없는 결정론적 변환 (오케스트레이션)
+- `SlidesService.generate_from_design_spec(color_theme=...)` — LLM 호출 없는 결정론적 변환 (오케스트레이션). `color_theme`은 title/closing 슬라이드의 배경 이미지 선택에 사용
 - HTML 렌더링 로직은 `tools/slides/html_renderer.py`에 분리:
   - `spec_to_html_section()` — PptxSlideSpec → `<section>` HTML 변환
   - `shape_to_html()` — shapes → `<div>` (배경색, 테두리, border-radius)
@@ -126,7 +128,7 @@ class DesignSpec:
 
 #### Design Spec → PPTX 변환
 
-- `ExportService.export_from_design_spec()` — SlideBuilder 직접 사용
+- `ExportService.export_from_design_spec(color_theme=...)` — SlideBuilder 직접 사용. `color_theme`은 title/closing 슬라이드의 배경 이미지 선택에 사용
 - DOM 추출/LLM 변환/HTML 파싱 전혀 불필요
 - `DesignSpec.slides` 순회 → `SlideBuilder.build_slide_from_spec()` 직접 호출
 - run/paragraph 포매팅 공통 로직은 `tools/pptx/text_formatter.py`에 분리 (textbox/shape 간 중복 제거)
@@ -143,7 +145,7 @@ class DesignSpec:
 #### 프로젝트 영속화
 
 - `~/.ppt-generator/<UUID>/design_spec/slide_NN.json` — 슬라이드별 개별 파일 저장 ([ADR-0014](./0014-file-based-communication-and-per-slide-crud.md))
-- `~/.ppt-generator/<UUID>/design_spec/design_summary.json` — 첫 슬라이드에서 추출한 디자인 테마 요약 (슬라이드별 생성 시 테마 일관성 유지용)
+- `~/.ppt-generator/<UUID>/design_spec/design_summary.json` — 디자인 테마 요약 (슬라이드별 생성 시 테마 일관성 유지용). `color_theme` 필드(`"dark"` / `"light"`)를 포함하여, 생성 프로젝트에서는 호출자가 지정한 값을, 임포트 프로젝트에서는 배경색 휘도 분석으로 자동 판별한 값을 저장한다. `color_theme`은 LLM 디자인 스펙 생성, title/closing 배경 이미지 선택, HTML/PPTX 내보내기에서 공통으로 참조된다.
 - 디자인 스펙 파일 CRUD는 `DesignSpecStore` (`tools/project/design_spec_store.py`)에 전담:
   - `save_design_spec`, `load_design_spec`, 슬라이드별 CRUD, 디자인 요약 관리
 - `ProjectService`는 `DesignSpecStore`에 위임 (composition)

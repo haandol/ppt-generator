@@ -39,21 +39,22 @@ MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 �
 - `action`: "add" (삽입), "update" (교체), "delete" (삭제)
 - **add**: 인라인 파라미터(`title`, `content_summary`, `component_hint`, `slide_type`, `speaker_notes`)를 받아 단일 호출로 모든 작업을 수행한다. 내부적으로 outline/script 파일 shift → outline 삽입 → HTML shift → 디자인 스펙 LLM 생성 → 디자인 스펙 삽입 → HTML 렌더링을 자동 처리한다. 호출자가 사전에 `save_outline_slide`을 호출할 필요가 없다.
 - **update**: 인라인 파라미터(`title`, `content_summary`)를 전달하면 outline을 자동 업데이트한다. 또는 사전에 `save_outline_slide`로 수정 후 호출할 수 있다.
+- **color_theme 자동 참조**: `design_summary.json`에 `color_theme`이 저장되어 있으면 해당 값을 LLM 디자인 스펙 생성과 배경 이미지 선택에 사용한다. 이를 통해 임포트된 프로젝트의 라이트/다크 테마가 슬라이드 추가/수정 시 자동으로 유지된다.
 - **delete**: 디자인 스펙, HTML, outline/script를 함께 삭제한다.
 
 | action | slide_index | 사전 조건 | 동작 |
 |--------|-------------|----------|------|
-| add | -1 (끝) 또는 삽입 위치 | 없음 (인라인 파라미터 필수: `title`, `content_summary`) | outline/script shift → outline 삽입 → HTML shift → LLM 디자인 스펙 생성 → 디자인 스펙 삽입 + `num_slides` 동기화 |
-| update | 대상 인덱스 | 없음 (인라인 `title`/`content_summary` 제공 시 자동 업데이트, 또는 `save_outline_slide`로 사전 수정) | outline 읽기 → 디자인 스펙 재생성 후 교체 + `num_slides` 동기화 |
-| delete | 대상 인덱스 | 없음 | 디자인 스펙 제거 + outline/script 해당 슬라이드 삭제 + HTML 삭제 + `num_slides` 동기화 |
+| add | -1 (끝) 또는 삽입 위치 | 없음 (인라인 파라미터 필수: `title`, `content_summary`) | **outline sync** → outline/script shift → outline 삽입 → HTML shift → LLM 디자인 스펙 생성 → 디자인 스펙 삽입 + `num_slides` 동기화 |
+| update | 대상 인덱스 | 없음 (인라인 `title`/`content_summary` 제공 시 자동 업데이트, 또는 `save_outline_slide`로 사전 수정) | **outline sync** → outline 읽기 → 디자인 스펙 재생성 후 교체 + `num_slides` 동기화 |
+| delete | 대상 인덱스 | 없음 | **outline sync** → 디자인 스펙 제거 + outline/script 해당 슬라이드 삭제 + HTML 삭제 + `num_slides` 동기화 |
 
 #### move_slide
 
 슬라이드 위치를 변경하는 **별도 도구**. LLM 호출 없이 순수 파일 재정렬만 수행한다.
 
-- `from_index`: 현재 슬라이드 위치 (0-based)
-- `to_index`: 이동할 위치 (0-based)
-- 모든 관련 파일(outline/script, design_spec, slide HTML)을 원자적으로 재정렬한다.
+- `from_index`: 현재 슬라이드 위치 (1-based)
+- `to_index`: 이동할 위치 (1-based)
+- 실행 전 **outline sync**로 outline 수를 design_spec에 맞춘 뒤, 모든 관련 파일(outline/script, design_spec, slide HTML)을 원자적으로 재정렬한다.
 - `modify_design_spec`과 분리된 독립 도구로 등록하여 LLM 클라이언트의 혼동을 방지한다.
 - 호출 후 `export_html`로 HTML을 새로 내보내야 한다.
 
@@ -69,6 +70,8 @@ MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 �
 > **save_outline_slide의 script 동기화**: outline 파일 저장 시 script 디렉토리에 동일 인덱스 파일이 존재하면 새 내용으로 동기화한다.
 
 > **읽기 우선순위**: script가 존재하면 우선 읽고, 없으면 outline에서 읽는다. 둘 다 없으면 에러를 발생시킨다.
+
+> **outline sync (`sync_outline_to_design_spec_count`)**: `modify_design_spec`(add/update/delete) 및 `move_slide` 실행 전에 outline 파일 수를 design_spec 파일 수에 맞춘다. outline이 design_spec보다 적으면 부족한 슬롯을 빈 placeholder(`title: "", content_summary: ""`)로 채워서 양쪽 수를 일치시킨다. 이를 통해 imported 프로젝트처럼 outline이 없거나 불완전한 상태에서도 인덱스 기반 CRUD가 안전하게 동작한다.
 
 > **num_slides 동기화**: `modify_design_spec` 완료 시 `project.json`의 `num_slides`를 실제 디자인 스펙 파일 수와 자동 동기화한다.
 

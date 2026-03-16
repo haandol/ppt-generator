@@ -36,6 +36,7 @@ class ExportService:
         output_dir: Path | None = None,
         *,
         skip_autofit: bool = False,
+        color_theme: str = "dark",
     ) -> ExportPptxResponse:
         """DesignSpec → PPTX 직접 변환.
 
@@ -60,7 +61,7 @@ class ExportService:
                 self._builder.set_slide_background(slide, spec.background_color)
 
             if spec.slide_type in ("title", "closing"):
-                bg_bytes = bg_image_utils.get_bg_image_bytes(spec.background_color)
+                bg_bytes = bg_image_utils.get_bg_image_bytes(color_theme)
                 if bg_bytes:
                     self._builder.set_slide_background_image(slide, bg_bytes)
 

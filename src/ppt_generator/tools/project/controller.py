@@ -135,7 +135,7 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
 
         Args:
             project_id: Target project ID (required)
-            slide_index: Target slide index (0-based)
+            slide_index: Target slide position (1-based). E.g., 1 for the first slide.
             title: Slide title
             content_summary: Detailed slide content description for the LLM
             component_hint: Layout hint ("bullets", "step_cards", "comparison_table", "arch_diagram", etc.)
@@ -146,6 +146,7 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
             JSON string containing project_id, slide_index, outline_path
         """
         _, project_dir = project_service.resolve_project_dir(project_id)
+        idx = slide_index - 1  # 1-based → 0-based
         slide_data = json.dumps({
             "title": title,
             "content_summary": content_summary,
@@ -153,13 +154,13 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
             "slide_type": slide_type,
             "speaker_notes": speaker_notes,
         }, ensure_ascii=False)
-        project_service.save_outline_slide(project_dir, slide_index, slide_data)
+        project_service.save_outline_slide(project_dir, idx, slide_data)
         outline_dir = project_dir / "outline"
         return json.dumps(
             {
                 "project_id": project_id,
                 "slide_index": slide_index,
-                "outline_path": str(outline_dir / f"slide_{slide_index + 1:02d}.json"),
+                "outline_path": str(outline_dir / f"slide_{slide_index:02d}.json"),
             },
             ensure_ascii=False,
         )

@@ -68,6 +68,18 @@ class ProjectService:
     def load_script_slide(self, project_dir: Path, index: int) -> str:
         return self._jsonl_store.load_script_slide(project_dir, index)
 
+    def get_outline_slide_count(self, project_dir: Path) -> int:
+        return self._jsonl_store.get_outline_slide_count(project_dir)
+
+    def sync_outline_to_design_spec_count(self, project_dir: Path) -> bool:
+        """outline 수를 design_spec 수에 맞춰 placeholder로 채운다."""
+        design_spec_count = self.get_design_spec_slide_count(project_dir)
+        if design_spec_count == 0:
+            return False
+        return self._jsonl_store.sync_outline_to_design_spec_count(
+            project_dir, design_spec_count,
+        )
+
     def load_script_or_outline(self, project_dir: Path) -> str:
         return self._jsonl_store.load_script_or_outline(project_dir)
 

@@ -36,8 +36,10 @@ def create_server() -> FastMCP:
             "title, content_summary, component_hint, etc. "
             "All file shifts (outline/script/design_spec/HTML) are handled automatically.\n"
             "- **Updating slides**: Call modify_design_spec(action=\"update\") with "
-            "title/content_summary to update, or call save_outline_slide first.\n"
+            "title/content_summary to update, or call save_outline_slide first. "
+            "For imported projects, title and content_summary are **required** (no outline available).\n"
             "- **Moving slides**: Call move_slide(project_id, from_index, to_index). "
+            "All slide indices are 1-based (first slide = 1). "
             "This is a pure file reorder — no LLM call. "
             "After move_slide, call export_html to refresh.\n"
         ),

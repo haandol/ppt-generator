@@ -29,6 +29,7 @@ class SlidesService:
         *,
         slide_image_srcs: list[list[str]] | None = None,
         skip_autofit: bool = False,
+        color_theme: str = "dark",
     ) -> SlidesResponse:
         """DesignSpec(PptxSlideSpec 리스트)을 슬라이드별 HTML + iframe 컨테이너로 변환한다.
 
@@ -37,6 +38,7 @@ class SlidesService:
 
         Args:
             slide_image_srcs: 슬라이드별 이미지 상대경로 리스트. None이면 플레이스홀더.
+            color_theme: 배경 이미지 선택에 사용할 테마 ("dark" 또는 "light")
         """
         if not design_spec.slides:
             raise ValueError("디자인 스펙에 슬라이드가 없습니다.")
@@ -48,7 +50,7 @@ class SlidesService:
             spec = validate_slide_spec(raw_spec, autofit=not skip_autofit)
             bg_b64: str | None = None
             if spec.slide_type in ("title", "closing"):
-                bg_b64 = bg_image_utils.get_bg_image_base64(spec.background_color)
+                bg_b64 = bg_image_utils.get_bg_image_base64(color_theme)
             img_srcs = slide_image_srcs[idx] if slide_image_srcs and idx < len(slide_image_srcs) else None
             slide_html = self._spec_to_html_document(
                 idx, spec, bg_image_base64=bg_b64, image_srcs=img_srcs,
@@ -77,6 +79,7 @@ class SlidesService:
         *,
         image_srcs: list[str] | None = None,
         skip_autofit: bool = False,
+        color_theme: str = "dark",
     ) -> str:
         """단일 PptxSlideSpec을 완전한 HTML 문서로 변환한다 (외부 호출용).
 
@@ -86,7 +89,7 @@ class SlidesService:
         validated = validate_slide_spec(spec, autofit=not skip_autofit)
         bg_b64: str | None = None
         if validated.slide_type in ("title", "closing"):
-            bg_b64 = bg_image_utils.get_bg_image_base64(validated.background_color)
+            bg_b64 = bg_image_utils.get_bg_image_base64(color_theme)
         return SlidesService._spec_to_html_document(
             slide_index, validated,
             bg_image_base64=bg_b64,
