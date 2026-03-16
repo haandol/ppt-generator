@@ -47,6 +47,23 @@ MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 �
 | update | 대상 인덱스 | 없음 (인라인 `title`/`content_summary` 제공 시 자동 업데이트, 또는 `save_outline_slide`로 사전 수정) | outline 읽기 → 디자인 스펙 재생성 후 교체 + `num_slides` 동기화 |
 | delete | 대상 인덱스 | 없음 | 디자인 스펙 제거 + outline/script 해당 슬라이드 삭제 + HTML 삭제 + `num_slides` 동기화 |
 
+#### move_slide
+
+슬라이드 위치를 변경하는 **별도 도구**. LLM 호출 없이 순수 파일 재정렬만 수행한다.
+
+- `from_index`: 현재 슬라이드 위치 (0-based)
+- `to_index`: 이동할 위치 (0-based)
+- 모든 관련 파일(outline/script, design_spec, slide HTML)을 원자적으로 재정렬한다.
+- `modify_design_spec`과 분리된 독립 도구로 등록하여 LLM 클라이언트의 혼동을 방지한다.
+- 호출 후 `export_html`로 HTML을 새로 내보내야 한다.
+
+| 파라미터 | 설명 |
+|----------|------|
+| from_index | 이동할 슬라이드의 현재 인덱스 |
+| to_index | 이동 목표 인덱스 |
+
+> **설계 근거**: 슬라이드 이동은 기존에 `delete` + `add` 조합으로만 가능했으나, `add`가 LLM 디자인 스펙 재생성을 수반하여 불필요한 비용과 시간이 발생했다. 이동은 콘텐츠 변경 없이 순서만 바꾸는 연산이므로 파일 rename만으로 충분하다.
+
 > **save_outline_slide**: 기존 슬라이드를 덮어쓰는 용도로만 사용한다. 삽입은 `modify_design_spec(action="add")`가 내부적으로 처리한다.
 
 > **save_outline_slide의 script 동기화**: outline 파일 저장 시 script 디렉토리에 동일 인덱스 파일이 존재하면 새 내용으로 동기화한다.
@@ -71,6 +88,7 @@ generate_outline → generate_script
     → for i in 0..N-1:
         generate_slide_design_spec(slide[i], slide_index=i, total_slides=N)
         (선택) modify_design_spec(action="update", slide_index=i)
+    → (선택) move_slide(project_id, from_index, to_index)
     → export_html(project_id=...) → export_pptx(project_id=...)
 ```
 
@@ -79,7 +97,7 @@ generate_outline → generate_script
 디자인 스펙 파일 I/O를 전담하는 저장소 클래스. 주요 기능:
 
 - 전체 디자인 스펙 저장/로드
-- 개별 슬라이드 CRUD (save/load/create/delete/insert)
+- 개별 슬라이드 CRUD (save/load/create/delete/insert/move)
 - 슬라이드 수 조회
 - 디자인 요약 저장/로드
 
@@ -101,6 +119,7 @@ generate_outline → generate_script
 2. `export_html(project_id=...)` 만으로 HTML 슬라이드가 생성된다
 3. `export_pptx(project_id=...)` 만으로 PPTX가 생성된다
 4. `modify_design_spec`으로 개별 슬라이드 add/update/delete가 동작한다
+4-1. `move_slide`로 슬라이드 순서 변경이 LLM 호출 없이 동작한다
 5. `design_spec_json` 직접 전달 경로도 동작한다 (인라인 파라미터 하위 호환)
 6. 디자인 스펙 저장 시 슬라이드별 개별 파일이 생성된다
 7. 개별 파일에서 전체 DesignSpec을 복원할 수 있다
