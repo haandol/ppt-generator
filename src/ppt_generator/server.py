@@ -29,9 +29,14 @@ def create_server() -> FastMCP:
             "- Use import_pptx to import an external PPTX file for editing.\n"
             "- Check the project's `source` field: "
             "\"imported\" projects have no outline/script. "
-            "For imported projects, call save_outline_slide first to write the outline "
-            "for the target slide, then use modify_design_spec to add/update slides. "
+            "For imported projects, use modify_design_spec directly to add/update slides "
+            "(pass title, content_summary, etc. inline). "
             "Or use generate_slides_design_spec with explicit outline_json.\n"
+            "- **Adding slides**: Call modify_design_spec(action=\"add\") with "
+            "title, content_summary, component_hint, etc. "
+            "All file shifts (outline/script/design_spec/HTML) are handled automatically.\n"
+            "- **Updating slides**: Call modify_design_spec(action=\"update\") with "
+            "title/content_summary to update, or call save_outline_slide first.\n"
         ),
     )
     container = DIContainer()

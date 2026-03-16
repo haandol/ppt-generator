@@ -118,22 +118,24 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         slide_type: str = "content",
         speaker_notes: str = "",
     ) -> str:
-        """Saves a single slide outline to the project.
+        """Saves (overwrites) a single slide outline to the project.
 
         Creates or overwrites the outline file for a specific slide index.
-        Use this before calling modify_design_spec (add/update) to provide
-        the slide content that the LLM will use for design spec generation.
+        Use this before calling modify_design_spec(action="update") to provide
+        the updated slide content that the LLM will use for design spec generation.
 
-        **Workflow for imported projects:**
-        1. Call save_outline_slide to write the outline for the target slide.
-        2. Call modify_design_spec(action="add" or "update", slide_index=...) to generate the design.
+        **For adding new slides**: Use modify_design_spec(action="add") directly —
+        it accepts outline parameters (title, content_summary, etc.) and handles
+        all file shifts automatically. No need to call this tool first.
 
-        **Workflow for generated projects:**
-        Can also be used instead of manually editing outline JSONL files.
+        **For updating existing slides**:
+        1. Call save_outline_slide to overwrite the outline at slide_index.
+        2. Call modify_design_spec(action="update", slide_index=...) to regenerate the design.
+        (Or pass title/content_summary directly to modify_design_spec update.)
 
         Args:
             project_id: Target project ID (required)
-            slide_index: Target slide index (0-based). For add, use the insertion position.
+            slide_index: Target slide index (0-based)
             title: Slide title
             content_summary: Detailed slide content description for the LLM
             component_hint: Layout hint ("bullets", "step_cards", "comparison_table", "arch_diagram", etc.)

@@ -187,6 +187,11 @@ def register_design_tools(
         project_id: str,
         action: str,
         slide_index: int = -1,
+        title: str = "",
+        content_summary: str = "",
+        component_hint: str = "bullets",
+        slide_type: str = "content",
+        speaker_notes: str = "",
         color_theme: str = "dark",
     ) -> str:
         """Adds, updates, or deletes individual slides in the design spec.
@@ -194,16 +199,27 @@ def register_design_tools(
         Performs slide-level CRUD on an existing project's design spec.
         For add/update, maintains consistent style based on the first slide's design.
 
-        **Precondition (add/update):**
-        Before calling this tool, the outline file for the target slide must exist.
-        - For generated projects: modify the outline/script JSONL file first.
-        - For imported projects: call `save_outline_slide` first to create the outline file for the target slide.
-        This tool reads the outline at the specified slide_index to generate the design spec.
+        **add: All file shifts are handled automatically.**
+        Pass the new slide's outline (title, content_summary, etc.) directly.
+        This tool shifts all files (outline/script/design_spec/HTML) at slide_index+1 onward by +1,
+        saves the new outline, generates the design spec via LLM, and saves everything.
+        No need to call save_outline_slide beforehand.
+
+        **update: Pass the updated outline directly, or call save_outline_slide beforehand.**
+        If title/content_summary are provided, the outline is updated automatically.
+        Otherwise, reads the existing outline at slide_index.
+
+        **delete: No precondition needed.**
 
         Args:
             project_id: Target project ID (required)
             action: Action to perform ("add" | "update" | "delete")
             slide_index: Insertion position for add (-1 = end), target index for update/delete
+            title: Slide title (required for add, optional for update)
+            content_summary: Slide content description for LLM (required for add, optional for update)
+            component_hint: Layout hint (default: "bullets")
+            slide_type: Slide type - "title", "content", "closing", "agenda" (default: "content")
+            speaker_notes: Optional speaker notes
             color_theme: Color theme ("dark" or "light", default: "dark")
 
         Returns:
@@ -228,22 +244,31 @@ def register_design_tools(
         token_usage: dict[str, int] = {}
 
         if action == "add":
-            insert_idx = slide_index if 0 <= slide_index < slide_count else slide_count
-            # Read slide at target index from outline/script
+            if not title or not content_summary:
+                raise ValueError("title and content_summary are required for add action")
+            insert_idx = slide_index if 0 <= slide_index <= slide_count else slide_count
+            # Step 1: Shift all files (outline/script, design_spec, HTML) at insert_idx onward by +1
+            outline_json = json.dumps({
+                "title": title, "content_summary": content_summary,
+                "component_hint": component_hint, "slide_type": slide_type,
+                "speaker_notes": speaker_notes,
+            }, ensure_ascii=False)
+            project_service.insert_outline_slide(project_dir, insert_idx, outline_json)
+            project_service.shift_slide_htmls(project_dir, insert_idx)
+            # Step 2: Read the newly inserted outline and generate design spec
             outline_raw = project_service.load_script_or_outline_slide(project_dir, insert_idx)
             outline = parse_outline_json(outline_raw)
             slide_outline = outline.slides[0]
             complexity = estimate_slide_complexity(slide_outline)
             effort = complexity_to_thinking_effort(complexity)
-            slide_type = slide_outline.slide_type or "content"
-            svc = design_service_factory(effort, slide_type)
+            svc = design_service_factory(effort, slide_outline.slide_type or "content")
             new_spec = svc.generate_single_slide(
                 slide_outline, design_summary, color_theme=color_theme,
             )
             token_usage = svc.last_token_usage
+            # Step 3: Insert design spec (shifts existing design_spec files)
             project_service.insert_design_spec_slide(project_dir, insert_idx, new_spec)
-            # Shift existing HTML files before saving new one
-            project_service.shift_slide_htmls(project_dir, insert_idx)
+            # Step 4: Render and save HTML
             if slides_service is not None:
                 html = slides_service.render_single_slide_html(insert_idx, new_spec)
                 html_path = project_service.save_single_slide_html(
@@ -254,21 +279,25 @@ def register_design_tools(
         elif action == "update":
             if slide_index < 0 or slide_index >= slide_count:
                 raise ValueError(f"Invalid slide_index: {slide_index} (total {slide_count} slides)")
-            # 기존 슬라이드의 images 보존을 위해 먼저 로드
+            # If outline content is provided, update it first
+            if title and content_summary:
+                outline_json = json.dumps({
+                    "title": title, "content_summary": content_summary,
+                    "component_hint": component_hint, "slide_type": slide_type,
+                    "speaker_notes": speaker_notes,
+                }, ensure_ascii=False)
+                project_service.save_outline_slide(project_dir, slide_index, outline_json)
             existing_spec = project_service.load_design_spec_slide(project_dir, slide_index)
-            # Read slide at target index from outline/script
             outline_raw = project_service.load_script_or_outline_slide(project_dir, slide_index)
             outline = parse_outline_json(outline_raw)
             slide_outline = outline.slides[0]
             complexity = estimate_slide_complexity(slide_outline)
             effort = complexity_to_thinking_effort(complexity)
-            slide_type = slide_outline.slide_type or "content"
-            svc = design_service_factory(effort, slide_type)
+            svc = design_service_factory(effort, slide_outline.slide_type or "content")
             new_spec = svc.generate_single_slide(
                 slide_outline, design_summary, color_theme=color_theme,
             )
             token_usage = svc.last_token_usage
-            # LLM 출력에는 images가 없으므로 기존 spec의 images를 복원
             if existing_spec.images:
                 new_spec = replace(new_spec, images=existing_spec.images)
             project_service.save_design_spec_slide(project_dir, slide_index, new_spec)
@@ -283,12 +312,11 @@ def register_design_tools(
             if slide_index < 0 or slide_index >= slide_count:
                 raise ValueError(f"Invalid slide_index: {slide_index} (total {slide_count} slides)")
             project_service.delete_design_spec_slide(project_dir, slide_index)
-            # Sync HTML slides
             project_service.delete_slide_html(project_dir, slide_index)
-            # Sync outline/script JSONL
             project_service.delete_outline_slide(project_dir, slide_index)
 
         project_service.update_step(project_dir, "design_spec_modified")
+        project_service.sync_num_slides(project_dir)
         new_count = project_service.get_design_spec_slide_count(project_dir)
 
         result: dict = {

@@ -170,16 +170,33 @@ class JsonlStore:
     # --- 개별 슬라이드 CRUD ---
 
     def save_outline_slide(self, project_dir: Path, index: int, slide_json: str) -> None:
-        """개별 슬라이드 아웃라인을 저장한다. 파일이 없으면 새로 생성한다."""
-        directory = project_dir / OUTLINE_DIR
-        directory.mkdir(parents=True, exist_ok=True)
+        """개별 슬라이드 아웃라인을 저장한다. 파일이 없으면 새로 생성한다.
+
+        outline/ 디렉토리에 저장하고, script/ 디렉토리에 해당 인덱스 파일이 존재하면
+        동일한 내용으로 덮어써서 source of truth를 동기화한다.
+        """
         data = json.loads(slide_json)
         data["slide_index"] = index
+        serialized = json.dumps(data, ensure_ascii=False, indent=2)
         fname = self._slide_filename(index)
-        (directory / fname).write_text(
-            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8",
-        )
-        logger.info("슬라이드 아웃라인 저장: index=%d, path=%s", index, directory / fname)
+
+        # outline/ 저장
+        outline_dir = project_dir / OUTLINE_DIR
+        outline_dir.mkdir(parents=True, exist_ok=True)
+        (outline_dir / fname).write_text(serialized, encoding="utf-8")
+        logger.info("슬라이드 아웃라인 저장: index=%d, path=%s", index, outline_dir / fname)
+
+        # script/ 디렉토리에 해당 인덱스 파일이 존재하면 동기화
+        script_dir = project_dir / SCRIPT_DIR
+        script_target = script_dir / fname
+        if script_target.exists():
+            existing = json.loads(script_target.read_text(encoding="utf-8"))
+            existing.update({k: v for k, v in data.items() if k != "slide_index"})
+            existing["slide_index"] = index
+            script_target.write_text(
+                json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8",
+            )
+            logger.info("슬라이드 아웃라인 → script 동기화: index=%d, path=%s", index, script_target)
 
     def update_outline_slide(self, project_dir: Path, index: int, slide_json: str) -> None:
         """아웃라인/스크립트에서 특정 슬라이드를 교체한다."""
@@ -227,7 +244,15 @@ class JsonlStore:
             inserted |= self._insert_slide_in_dir(project_dir, dir_name, index, slide_json)
             inserted |= self._insert_slide_in_jsonl(project_dir, jsonl_name, index, slide_json)
         if not inserted:
-            logger.warning("outline/script 파일이 없어 동기화를 건너뜁니다: %s", project_dir)
+            # outline/script이 전혀 없는 프로젝트(imported 등)에서도 outline 파일을 생성
+            outline_dir = project_dir / OUTLINE_DIR
+            outline_dir.mkdir(exist_ok=True)
+            data = json.loads(slide_json)
+            data["slide_index"] = index
+            (outline_dir / self._slide_filename(index)).write_text(
+                json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8",
+            )
+            logger.info("outline/script 파일이 없어 outline 디렉토리에 새 파일 생성: index=%d", index)
 
     def _insert_slide_in_dir(self, project_dir: Path, dir_name: str, index: int, slide_json: str) -> bool:
         directory = project_dir / dir_name

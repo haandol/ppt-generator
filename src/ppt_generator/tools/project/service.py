@@ -213,6 +213,16 @@ class ProjectService:
             metadata.steps_completed[step_name] = datetime.now(timezone.utc).isoformat()
             self.save_metadata(project_dir, metadata)
 
+    def sync_num_slides(self, project_dir: Path) -> None:
+        """project.json의 num_slides를 실제 디자인 스펙 파일 수와 동기화한다."""
+        with self._metadata_lock:
+            actual_count = self.get_design_spec_slide_count(project_dir)
+            metadata = self.load_metadata(project_dir)
+            if metadata.num_slides != actual_count:
+                metadata.num_slides = actual_count
+                self.save_metadata(project_dir, metadata)
+                logger.info("num_slides 동기화: %d → %d", metadata.num_slides, actual_count)
+
     def load_metadata(self, project_dir: Path) -> ProjectMetadata:
         path = project_dir / "project.json"
         if not path.exists():

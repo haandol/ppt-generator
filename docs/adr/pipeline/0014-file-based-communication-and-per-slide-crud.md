@@ -37,16 +37,23 @@ MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 �
 #### modify_design_spec
 
 - `action`: "add" (삽입), "update" (교체), "delete" (삭제)
-- **파일 기반 아웃라인 참조**: add/update 시 호출자가 먼저 outline/script 파일을 수정한 뒤, `modify_design_spec`은 파일에서 해당 `slide_index`의 아웃라인을 읽어 디자인 스펙을 생성한다.
-- **delete 시 동기화**: delete action에서만 outline/script의 해당 슬라이드를 함께 삭제한다.
+- **add**: 인라인 파라미터(`title`, `content_summary`, `component_hint`, `slide_type`, `speaker_notes`)를 받아 단일 호출로 모든 작업을 수행한다. 내부적으로 outline/script 파일 shift → outline 삽입 → HTML shift → 디자인 스펙 LLM 생성 → 디자인 스펙 삽입 → HTML 렌더링을 자동 처리한다. 호출자가 사전에 `save_outline_slide`을 호출할 필요가 없다.
+- **update**: 인라인 파라미터(`title`, `content_summary`)를 전달하면 outline을 자동 업데이트한다. 또는 사전에 `save_outline_slide`로 수정 후 호출할 수 있다.
+- **delete**: 디자인 스펙, HTML, outline/script를 함께 삭제한다.
 
 | action | slide_index | 사전 조건 | 동작 |
 |--------|-------------|----------|------|
-| add | -1 (끝) 또는 삽입 위치 | outline/script에 새 슬라이드를 미리 삽입 | 파일에서 해당 인덱스 읽기 → 디자인 스펙 생성 후 삽입 |
-| update | 대상 인덱스 | outline/script의 해당 슬라이드를 미리 수정 | 파일에서 해당 인덱스 읽기 → 디자인 스펙 재생성 후 교체 |
-| delete | 대상 인덱스 | 없음 | 디자인 스펙 제거 + outline/script 해당 슬라이드 삭제 |
+| add | -1 (끝) 또는 삽입 위치 | 없음 (인라인 파라미터 필수: `title`, `content_summary`) | outline/script shift → outline 삽입 → HTML shift → LLM 디자인 스펙 생성 → 디자인 스펙 삽입 + `num_slides` 동기화 |
+| update | 대상 인덱스 | 없음 (인라인 `title`/`content_summary` 제공 시 자동 업데이트, 또는 `save_outline_slide`로 사전 수정) | outline 읽기 → 디자인 스펙 재생성 후 교체 + `num_slides` 동기화 |
+| delete | 대상 인덱스 | 없음 | 디자인 스펙 제거 + outline/script 해당 슬라이드 삭제 + HTML 삭제 + `num_slides` 동기화 |
+
+> **save_outline_slide**: 기존 슬라이드를 덮어쓰는 용도로만 사용한다. 삽입은 `modify_design_spec(action="add")`가 내부적으로 처리한다.
+
+> **save_outline_slide의 script 동기화**: outline 파일 저장 시 script 디렉토리에 동일 인덱스 파일이 존재하면 새 내용으로 동기화한다.
 
 > **읽기 우선순위**: script가 존재하면 우선 읽고, 없으면 outline에서 읽는다. 둘 다 없으면 에러를 발생시킨다.
+
+> **num_slides 동기화**: `modify_design_spec` 완료 시 `project.json`의 `num_slides`를 실제 디자인 스펙 파일 수와 자동 동기화한다.
 
 ### Technical Details
 
