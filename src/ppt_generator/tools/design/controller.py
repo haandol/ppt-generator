@@ -183,6 +183,53 @@ def register_design_tools(
         return json.dumps(resp, ensure_ascii=False)
 
     @mcp.tool()
+    def move_slide(
+        project_id: str,
+        from_index: int,
+        to_index: int,
+    ) -> str:
+        """Moves a slide from one position to another. No LLM call — pure file reordering.
+
+        Reorders all related files (outline/script, design_spec, slide HTML) atomically.
+        After this call, you must call `export_html(project_id=<project_id>)` to refresh HTML.
+
+        Args:
+            project_id: Target project ID (required)
+            from_index: Current slide position (0-based)
+            to_index: Desired slide position (0-based)
+
+        Returns:
+            JSON string containing project_id, slide_count, from_index, to_index
+        """
+        _, project_dir = project_service.resolve_project_dir(project_id)
+        slide_count = project_service.get_design_spec_slide_count(project_dir)
+
+        if from_index < 0 or from_index >= slide_count:
+            raise ValueError(f"Invalid from_index: {from_index} (total {slide_count} slides)")
+        if to_index < 0 or to_index >= slide_count:
+            raise ValueError(f"Invalid to_index: {to_index} (total {slide_count} slides)")
+        if from_index == to_index:
+            return json.dumps({
+                "project_id": project_id,
+                "slide_count": slide_count,
+                "from_index": from_index,
+                "to_index": to_index,
+                "message": "No move needed (same position)",
+            }, ensure_ascii=False)
+
+        project_service.move_outline_slide(project_dir, from_index, to_index)
+        project_service.move_design_spec_slide(project_dir, from_index, to_index)
+        project_service.move_slide_html(project_dir, from_index, to_index)
+        project_service.update_step(project_dir, "design_spec_modified")
+
+        return json.dumps({
+            "project_id": project_id,
+            "slide_count": slide_count,
+            "from_index": from_index,
+            "to_index": to_index,
+        }, ensure_ascii=False)
+
+    @mcp.tool()
     def modify_design_spec(
         project_id: str,
         action: str,

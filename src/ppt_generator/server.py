@@ -37,6 +37,9 @@ def create_server() -> FastMCP:
             "All file shifts (outline/script/design_spec/HTML) are handled automatically.\n"
             "- **Updating slides**: Call modify_design_spec(action=\"update\") with "
             "title/content_summary to update, or call save_outline_slide first.\n"
+            "- **Moving slides**: Call move_slide(project_id, from_index, to_index). "
+            "This is a pure file reorder — no LLM call. "
+            "After move_slide, call export_html to refresh.\n"
         ),
     )
     container = DIContainer()

@@ -101,6 +101,25 @@ class HtmlStore:
         logger.info("단일 슬라이드 HTML 저장: %s", path)
         return path
 
+    def move_slide_html(self, project_dir: Path, from_index: int, to_index: int) -> None:
+        """슬라이드 HTML 파일을 from_index → to_index로 이동하고 재번호한다."""
+        slides_dir = project_dir / SLIDES_DIR
+        if not slides_dir.exists():
+            return
+        files = sorted(slides_dir.glob("slide_*.html"))
+        count = len(files)
+        if from_index < 0 or from_index >= count or to_index < 0 or to_index >= count:
+            return
+        if from_index == to_index:
+            return
+        # 내용 읽기
+        contents = [f.read_text(encoding="utf-8") for f in files]
+        item = contents.pop(from_index)
+        contents.insert(to_index, item)
+        # 전체 재작성
+        for i, content in enumerate(contents):
+            (slides_dir / self._slide_html_filename(i)).write_text(content, encoding="utf-8")
+
     def delete_slide_html(self, project_dir: Path, index: int) -> None:
         """슬라이드 HTML 파일을 삭제하고 남은 파일을 재번호한다."""
         slides_dir = project_dir / SLIDES_DIR

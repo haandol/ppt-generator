@@ -104,6 +104,25 @@ class DesignSpecStore:
             slide_spec_to_json(slide), encoding="utf-8"
         )
 
+    def move_design_spec_slide(self, project_dir: Path, from_index: int, to_index: int) -> None:
+        """슬라이드를 from_index → to_index로 이동하고 파일을 재번호한다."""
+        spec_dir = self._design_spec_dir(project_dir)
+        files = sorted(spec_dir.glob("slide_*.json"))
+        count = len(files)
+        if from_index < 0 or from_index >= count:
+            raise IndexError(f"유효하지 않은 from_index: {from_index} (전체 {count}장)")
+        if to_index < 0 or to_index >= count:
+            raise IndexError(f"유효하지 않은 to_index: {to_index} (전체 {count}장)")
+        if from_index == to_index:
+            return
+        # 내용 읽기
+        contents = [f.read_text(encoding="utf-8") for f in files]
+        item = contents.pop(from_index)
+        contents.insert(to_index, item)
+        # 전체 재작성
+        for i, content in enumerate(contents):
+            (spec_dir / self._slide_filename(i)).write_text(content, encoding="utf-8")
+
     def create_design_spec_slide(self, project_dir: Path, index: int, slide: PptxSlideSpec) -> None:
         """개별 슬라이드를 해당 인덱스 파일에 저장한다 (파일 유무 무관)."""
         spec_dir = self._design_spec_dir(project_dir)

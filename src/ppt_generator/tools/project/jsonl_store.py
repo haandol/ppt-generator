@@ -322,6 +322,61 @@ class JsonlStore:
         logger.info("슬라이드 삭제 동기화 (JSONL): index=%d, path=%s", index, path)
         return True
 
+    # --- 슬라이드 이동 ---
+
+    def move_outline_slide(self, project_dir: Path, from_index: int, to_index: int) -> None:
+        """아웃라인/스크립트에서 슬라이드를 from_index → to_index로 이동한다."""
+        moved = False
+        for dir_name, jsonl_name in ((SCRIPT_DIR, "script.jsonl"), (OUTLINE_DIR, "outline.jsonl")):
+            moved |= self._move_slide_in_dir(project_dir, dir_name, from_index, to_index)
+            moved |= self._move_slide_in_jsonl(project_dir, jsonl_name, from_index, to_index)
+        if not moved:
+            logger.warning("outline/script 파일이 없어 이동을 건너뜁니다: %s", project_dir)
+
+    def _move_slide_in_dir(self, project_dir: Path, dir_name: str, from_idx: int, to_idx: int) -> bool:
+        directory = project_dir / dir_name
+        files = self._sorted_slide_files(directory)
+        if not files:
+            return False
+        count = len(files)
+        if from_idx < 0 or from_idx >= count:
+            raise IndexError(f"유효하지 않은 from_index: {from_idx} (전체 {count}장)")
+        if to_idx < 0 or to_idx >= count:
+            raise IndexError(f"유효하지 않은 to_index: {to_idx} (전체 {count}장)")
+        if from_idx == to_idx:
+            return True
+        # 내용 읽기
+        contents = [f.read_text(encoding="utf-8") for f in files]
+        item = contents.pop(from_idx)
+        contents.insert(to_idx, item)
+        # 전체 재작성 + slide_index 갱신
+        for i, content in enumerate(contents):
+            data = json.loads(content)
+            data["slide_index"] = i
+            (directory / self._slide_filename(i)).write_text(
+                json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8",
+            )
+        logger.info("슬라이드 이동 동기화: %d → %d, dir=%s", from_idx, to_idx, directory)
+        return True
+
+    def _move_slide_in_jsonl(self, project_dir: Path, jsonl_name: str, from_idx: int, to_idx: int) -> bool:
+        path = project_dir / jsonl_name
+        if not path.exists():
+            return False
+        lines = self._load_jsonl_lines(path)
+        count = len(lines)
+        if from_idx < 0 or from_idx >= count:
+            raise IndexError(f"유효하지 않은 from_index: {from_idx} (전체 {count}장)")
+        if to_idx < 0 or to_idx >= count:
+            raise IndexError(f"유효하지 않은 to_index: {to_idx} (전체 {count}장)")
+        if from_idx == to_idx:
+            return True
+        item = lines.pop(from_idx)
+        lines.insert(to_idx, item)
+        self._save_jsonl_lines(path, lines)
+        logger.info("슬라이드 이동 동기화 (JSONL): %d → %d, path=%s", from_idx, to_idx, path)
+        return True
+
     # --- 내부 유틸 ---
 
     def _renumber_dir(self, directory: Path) -> None:

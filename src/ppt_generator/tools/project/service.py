@@ -83,6 +83,9 @@ class ProjectService:
     def delete_outline_slide(self, project_dir: Path, index: int) -> None:
         self._jsonl_store.delete_outline_slide(project_dir, index)
 
+    def move_outline_slide(self, project_dir: Path, from_index: int, to_index: int) -> None:
+        self._jsonl_store.move_outline_slide(project_dir, from_index, to_index)
+
     def save_outline_slide(self, project_dir: Path, index: int, slide_json: str) -> None:
         self._ensure_dir(project_dir)
         self._jsonl_store.save_outline_slide(project_dir, index, slide_json)
@@ -127,6 +130,9 @@ class ProjectService:
     def shift_slide_htmls(self, project_dir: Path, insert_index: int) -> None:
         self._html_store.shift_slide_htmls(project_dir, insert_index)
 
+    def move_slide_html(self, project_dir: Path, from_index: int, to_index: int) -> None:
+        self._html_store.move_slide_html(project_dir, from_index, to_index)
+
     # --- 디자인 스펙 (DesignSpecStore 위임) ---
 
     def save_design_spec(self, project_dir: Path, design_spec: DesignSpec) -> None:
@@ -170,6 +176,9 @@ class ProjectService:
 
     def insert_design_spec_slide(self, project_dir: Path, index: int, slide: PptxSlideSpec) -> None:
         self.design_spec_store.insert_design_spec_slide(project_dir, index, slide)
+
+    def move_design_spec_slide(self, project_dir: Path, from_index: int, to_index: int) -> None:
+        self.design_spec_store.move_design_spec_slide(project_dir, from_index, to_index)
 
     def create_design_spec_slide(self, project_dir: Path, index: int, slide: PptxSlideSpec) -> None:
         self.design_spec_store.create_design_spec_slide(project_dir, index, slide)
