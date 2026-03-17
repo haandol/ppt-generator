@@ -114,6 +114,7 @@ class DesignSpec:
 **렌더러/validator 안전망:**
 
 - `html_renderer.py`의 `_line_shape_to_html()`에서 선 길이가 짧으면 화살표 머리(markerWidth/markerHeight)를 `line_length * 0.6`으로 자동 축소
+- **대각선 방향 컨벤션**: line shape의 `height_px`가 음수이면 좌하→우상(↗) 대각선을 의미. HTML 렌더러는 SVG 좌표를 반전하고, PPTX export는 `a:xfrm flipV="1"`을 설정하며, PPTX import는 `flipV XOR flipH`일 때 `height_px`를 음수로 변환. validator는 line shape의 음수 height 부호를 clip 후 복원
 - validator의 검증·보정 규칙 상세는 [ADR-0023](./0023-design-spec-validator.md) 참조
 
 #### Design Spec → HTML 변환

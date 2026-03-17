@@ -53,18 +53,26 @@ def _line_shape_to_html(shape: PptxShape) -> str:
     h = shape.height_px
 
     _SNAP_THRESHOLD = 12
-    if w > 0 and 0 < h <= _SNAP_THRESHOLD:
+    abs_h_snap = abs(h)
+    if w > 0 and 0 < abs_h_snap <= _SNAP_THRESHOLD:
         h = 0
-    elif h > 0 and 0 < w <= _SNAP_THRESHOLD:
+    elif abs_h_snap > 0 and 0 < w <= _SNAP_THRESHOLD:
         w = 0
 
     pad = max(stroke_width * 2, 8)
+    abs_h = abs(h) if h != 0 else 1
     svg_w = w + pad * 2
-    svg_h = max(h, 1) + pad * 2
+    svg_h = abs_h + pad * 2
 
-    x1, y1 = pad, pad
-    x2 = w + pad
-    y2 = h + pad
+    if h >= 0:
+        x1, y1 = pad, pad
+        x2 = w + pad
+        y2 = h + pad
+    else:
+        # Negative height: line goes from bottom-left to top-right (↗)
+        x1, y1 = pad, abs_h + pad
+        x2 = w + pad
+        y2 = pad
 
     dash_attr = ""
     if shape.dash_style == "dash":
@@ -75,7 +83,7 @@ def _line_shape_to_html(shape: PptxShape) -> str:
     defs_parts: list[str] = []
     line_attrs = ""
 
-    line_length = max(w, h, 1)
+    line_length = max(w, abs(h), 1)
     aw = min(_ARROW_SIZE, line_length * 0.6)
     ah = min(_ARROW_HALF, aw * _ARROW_HALF / _ARROW_SIZE)
     ah2 = ah / 2
@@ -102,9 +110,10 @@ def _line_shape_to_html(shape: PptxShape) -> str:
     if defs_parts:
         defs_html = f'<defs>{"".join(defs_parts)}</defs>'
 
+    container_top = shape.top_px + h - pad if h < 0 else shape.top_px - pad
     container_style = (
         f"position:absolute;"
-        f"left:{shape.left_px - pad}px;top:{shape.top_px - pad}px;"
+        f"left:{shape.left_px - pad}px;top:{container_top}px;"
         f"width:{svg_w}px;height:{svg_h}px;"
         f"overflow:visible;pointer-events:none;"
     )

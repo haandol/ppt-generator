@@ -331,3 +331,54 @@ class TestConnectorArrow:
         cxn_tag = qn("p:cxnSp")
         connectors = [c for c in slide.shapes._spTree if c.tag == cxn_tag]
         assert len(connectors) == 1
+
+    def test_negative_height_connector_flipV(self, service, tmp_path):
+        """음수 height → connector에 flipV="1"이 설정되어야 한다."""
+        spec = DesignSpec(slides=[
+            PptxSlideSpec(
+                background_color="#232F3E",
+                shapes=[
+                    PptxShape(
+                        left_px=100, top_px=100, width_px=200, height_px=-150,
+                        shape_type="line",
+                        border_color="#FFC000",
+                        border_width_pt=2,
+                        end_arrow=True,
+                    ),
+                ],
+            ),
+        ])
+        response = service.export_from_design_spec(spec, output_dir=tmp_path)
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        cxn_tag = qn("p:cxnSp")
+        connector = next(c for c in slide.shapes._spTree if c.tag == cxn_tag)
+        xfrm = connector.find(f".//{qn('a:xfrm')}")
+        assert xfrm is not None
+        assert xfrm.get("flipV") == "1", "음수 height이면 flipV=1이어야 한다"
+
+    def test_positive_height_no_flipV(self, service, tmp_path):
+        """양수 height → connector에 flipV가 없어야 한다."""
+        spec = DesignSpec(slides=[
+            PptxSlideSpec(
+                background_color="#232F3E",
+                shapes=[
+                    PptxShape(
+                        left_px=100, top_px=100, width_px=200, height_px=150,
+                        shape_type="line",
+                        border_color="#FFC000",
+                        border_width_pt=2,
+                        end_arrow=True,
+                    ),
+                ],
+            ),
+        ])
+        response = service.export_from_design_spec(spec, output_dir=tmp_path)
+
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        cxn_tag = qn("p:cxnSp")
+        connector = next(c for c in slide.shapes._spTree if c.tag == cxn_tag)
+        xfrm = connector.find(f".//{qn('a:xfrm')}")
+        assert xfrm is None or xfrm.get("flipV") is None, "양수 height이면 flipV 없어야 한다"

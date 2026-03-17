@@ -165,19 +165,30 @@ def add_connector_from_spec(slide, shape_spec: PptxShape) -> None:
     """Line shape를 python-pptx Connector(직선)로 생성하고 화살표 머리를 설정."""
     w = shape_spec.width_px
     h = shape_spec.height_px
-    if w > 0 and 0 < h <= _SNAP_THRESHOLD:
+    abs_h = abs(h)
+    if w > 0 and 0 < abs_h <= _SNAP_THRESHOLD:
         h = 0  # 수평선 보정
-    elif h > 0 and 0 < w <= _SNAP_THRESHOLD:
+    elif abs_h > 0 and 0 < w <= _SNAP_THRESHOLD:
         w = 0  # 수직선 보정
+
+    need_flip = h < 0
+    abs_h = abs(h)
 
     start_x = Inches(shape_spec.left_px * EXPORT_PX_TO_INCHES_X)
     start_y = Inches(shape_spec.top_px * EXPORT_PX_TO_INCHES_Y)
     end_x = Inches((shape_spec.left_px + w) * EXPORT_PX_TO_INCHES_X)
-    end_y = Inches((shape_spec.top_px + h) * EXPORT_PX_TO_INCHES_Y)
+    end_y = Inches((shape_spec.top_px + abs_h) * EXPORT_PX_TO_INCHES_Y)
 
     connector = slide.shapes.add_connector(
         MSO_CONNECTOR_TYPE.STRAIGHT, start_x, start_y, end_x, end_y,
     )
+
+    # 음수 height → flipV 설정 (좌하→우상 대각선)
+    if need_flip:
+        spPr = connector._element.find(qn("p:spPr"))
+        xfrm = spPr.find(qn("a:xfrm"))
+        if xfrm is not None:
+            xfrm.set("flipV", "1")
 
     if shape_spec.border_color:
         rgb = parse_color(shape_spec.border_color)

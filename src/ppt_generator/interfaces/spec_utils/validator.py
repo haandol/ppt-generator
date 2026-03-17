@@ -185,7 +185,7 @@ def _is_decorative_shape(s: PptxShape) -> bool:
     """텍스트 없는 얇은 shape(수평/수직 꾸밈 라인 등)을 장식 요소로 판별."""
     if s.text or s.paragraphs:
         return False
-    return s.height_px <= 10 or s.width_px <= 10
+    return abs(s.height_px) <= 10 or s.width_px <= 10
 
 
 def _validate_shapes(
@@ -202,11 +202,14 @@ def _validate_shapes(
     validated: list[PptxShape] = []
     for s in shapes:
         is_decorative = _is_decorative_shape(s)
+        # line shape는 음수 height(대각선 방향)를 가질 수 있으므로 abs로 clip 후 부호 복원
+        h_sign = -1 if (s.shape_type == "line" and s.height_px < 0) else 1
         left, top, width, height = _clip_rect(
-            s.left_px, s.top_px, s.width_px, s.height_px,
+            s.left_px, s.top_px, s.width_px, abs(s.height_px) if h_sign < 0 else s.height_px,
             canvas_w, canvas_h, margin,
             is_decorative=is_decorative,
         )
+        height = height * h_sign
         clamped_text_size = _clamp_font(s.text_size_pt, font_min, font_max)
 
         new_shape_paragraphs: list[PptxParagraph] = []

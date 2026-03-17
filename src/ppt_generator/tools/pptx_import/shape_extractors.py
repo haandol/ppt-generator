@@ -272,6 +272,12 @@ class ShapeExtractorMixin(CompoundExtractorMixin):
         border_color, border_width = self._extract_line_style(shape)
 
         spPr = el.find(qn("p:spPr"))
+
+        # flipH/flipV: 대각선 방향 결정
+        xfrm = spPr.find(qn("a:xfrm")) if spPr is not None else None
+        flip_h = xfrm is not None and xfrm.get("flipH") == "1"
+        flip_v = xfrm is not None and xfrm.get("flipV") == "1"
+
         ln = spPr.find(qn("a:ln")) if spPr is not None else None
         end_arrow = False
         start_arrow = False
@@ -290,11 +296,16 @@ class ShapeExtractorMixin(CompoundExtractorMixin):
                 if dash_val in ("dash", "dot"):
                     dash_style = dash_val
 
+        height_px = self._emu_to_px_y(height_emu)
+        # flipV XOR flipH → 선 방향 반전 (좌하→우상 ↗)
+        if flip_v != flip_h:
+            height_px = -height_px
+
         return PptxShape(
             left_px=self._emu_to_px_x(left_emu),
             top_px=self._emu_to_px_y(top_emu),
             width_px=self._emu_to_px_x(width_emu),
-            height_px=self._emu_to_px_y(height_emu),
+            height_px=height_px,
             shape_type="line",
             border_color=border_color,
             border_width_pt=border_width,

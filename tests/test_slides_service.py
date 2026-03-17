@@ -263,6 +263,37 @@ class TestLineShapeHtml:
         assert float(x_vals[1]) > float(x_vals[0]), "x2 > x1"
         assert float(y_vals[1]) > float(y_vals[0]), "y2 > y1"
 
+    def test_negative_height_diagonal(self):
+        """음수 height → 좌하→우상(↗) 대각선: y1 > y2이어야 한다."""
+        import re
+        html = shape_to_html(self._make_line(width_px=100, height_px=-100))
+        y_vals = re.findall(r'y[12]="([^"]+)"', html)
+        assert len(y_vals) == 2
+        assert float(y_vals[0]) > float(y_vals[1]), "↗ 대각선이므로 y1 > y2"
+
+    def test_negative_height_snap(self):
+        """음수 height(-10)도 snap threshold 내이면 수평선으로 보정되어야 한다."""
+        import re
+        html = shape_to_html(self._make_line(width_px=200, height_px=-10))
+        y_vals = re.findall(r'y[12]="([^"]+)"', html)
+        assert len(y_vals) == 2
+        assert y_vals[0] == y_vals[1], "수평선이므로 y1 == y2"
+
+    def test_negative_height_arrow_marker_size(self):
+        """음수 height 대각선에서도 화살표 머리 크기가 정상 계산되어야 한다."""
+        import re
+        shape = PptxShape(
+            left_px=100, top_px=300, width_px=200, height_px=-200,
+            shape_type="line",
+            border_color="#FFC000",
+            border_width_pt=2,
+            end_arrow=True,
+        )
+        html = shape_to_html(shape)
+        marker_widths = re.findall(r'markerWidth="([^"]+)"', html)
+        assert len(marker_widths) >= 1
+        assert float(marker_widths[0]) == 14, "긴 대각선에서 화살표 머리가 기본 크기여야 한다"
+
 
 class TestClipPathShapes:
     """clip-path 기반 도형 HTML 렌더링 테스트."""
