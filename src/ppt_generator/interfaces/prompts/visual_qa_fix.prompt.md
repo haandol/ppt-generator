@@ -26,6 +26,10 @@ or text content as needed. Output the complete corrected slide spec JSON.
 - `inconsistent_spacing`: Equalize gaps between peer elements. Calculate the average gap and apply it uniformly. Balance left/right margins of content areas symmetrically where appropriate.
 - `arrow_disconnected`: Recalculate arrow coordinates to snap to connected blocks' edges. Horizontal: left_px = source.left + source.width, width_px = target.left - left_px. Vertical: top_px = source.top + source.height, height_px = target.top - top_px. Maintain 28px minimum gap rule.
 - `zero_gap`: Add spacing (8-16px) between components that are stuck together. Adjust by moving the lower/right element down/right, or reduce the upper/left element's size if space is constrained. Ensure the added gap does not push elements outside the canvas bounds (1280x720).
+- `small_font`: Increase font_size_pt to at least 14pt for body/card body text. If the text no longer fits after increasing font size, increase the container size or reduce text content. Never leave body text below 14pt.
+- `insufficient_padding`: Increase padding_*_px to at least 12px for card-type shapes (recommended: 16px left/right, 12px top/bottom). Adjust element sizes or positions to accommodate the added padding within the canvas bounds.
+- `content_too_sparse`: Reduce the body textbox/shape height_px to match actual content, set vertical_alignment to "middle" to center content vertically, or reposition elements closer to the vertical center of the body area. Do not add new content — only adjust layout to reduce excessive whitespace.
+- `content_too_dense`: Increase font sizes back to recommended minimums (body >= 16pt, card body >= 14pt), restore padding to recommended values (16px LR, 12px TB), and if still too crowded, move excess content to speaker_notes. Reduce the number of visible elements if more than 7 are competing for attention.
 </fix_strategies>
 
 <constraints>

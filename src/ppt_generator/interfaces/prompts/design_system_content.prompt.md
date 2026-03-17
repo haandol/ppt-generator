@@ -147,6 +147,35 @@ Therefore, when placing decorative lines or label textboxes above/below a shape:
 - Maintain **at least 16px spacing** so the label textbox's bottom (top_px + height_px + 16px visual padding) does not exceed the shape below's top_px.
 </padding_guide>
 
+<spacing_and_density_balance>
+■ Minimum spacing rules (mandatory):
+  Maintain adequate spacing between elements to ensure visual clarity and readability.
+  - **Text-to-box boundary**: Card/shape inner text must have at least 12px padding from each edge. Never set all padding to 0 for shapes containing text.
+  - **Box-to-box gap**: Adjacent independent shapes/textboxes must have at least 16px gap. Below 16px, elements appear cramped and difficult to distinguish.
+  - **Text-to-text gap**: When multiple text blocks are stacked vertically (not inside the same textbox), maintain at least 12px gap between the bottom of one and the top of the next.
+  - **Title-to-body**: Already enforced at minimum 28px (constraint from slide_type_content). Always respect this.
+
+■ Content density balance (avoiding too sparse or too dense):
+  Slide content should be neither too packed nor too spread out.
+
+  **Too dense (avoid)**:
+  - More than 7 distinct text blocks or shapes competing for attention on one slide.
+  - Body font size squeezed below 16pt to fit excessive content.
+  - Padding reduced below recommended minimums to save space.
+  - Fix: Move excess content to speaker_notes, split into multiple slides, or simplify.
+
+  **Too sparse (avoid)**:
+  - Content occupies less than 30% of the available body area (148~656 vertical range), leaving large empty margins on top and bottom.
+  - Only 1-2 short text lines placed in the center with no visual elements, leaving over 70% whitespace.
+  - Fix: Use vertical_alignment "middle" to center content, adjust body height_px to match actual content, or add supporting visual elements (icons, dividers, shapes) to create balance.
+
+  **Balanced target**:
+  - Content fills 40~75% of the available body area.
+  - Consistent spacing between elements (not cramped, not overly spread).
+  - Font sizes within recommended ranges for their hierarchy level.
+  - Adequate padding on all shapes containing text.
+</spacing_and_density_balance>
+
 <slide_type_agenda>
 Agenda slide (slide_type: "content", component_hint: "agenda") design rules:
 
@@ -371,6 +400,11 @@ Body slide (slide_type: "content") design rules:
 - Secondary text: font_size_pt 12~16
 - Code: font_family: "monospace", font_size_pt 14~16
 - Recommended line_spacing_pt: body text 24~28pt, bullet lists 26~32pt, card interior 20~24pt
+
+■ Minimum font size for readability:
+  - **Body text and card body must be at least 14pt.** Below 14pt, text becomes difficult to read at normal viewing distance.
+  - Secondary/auxiliary text (footnotes, source labels) may go down to 12pt, but never below 10pt.
+  - If content does not fit at the minimum font size, reduce the text amount or simplify — do NOT shrink font below the minimums.
 </typography_rules>
 
 <text_size_estimation>

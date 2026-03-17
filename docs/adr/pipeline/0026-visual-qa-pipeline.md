@@ -31,6 +31,10 @@ Playwright + Claude Vision 기반의 Visual QA 파이프라인을 opt-in MCP too
 | `inconsistent_font_size` | 같은 레벨 peer 요소 간 폰트 크기 불일치 |
 | `inconsistent_spacing` | peer 요소 간 간격 불일치 |
 | `arrow_disconnected` | 화살표 시작/끝점이 연결 대상 블록 edge에 닿지 않음 (gap 또는 penetration) |
+| `small_font` | 본문/카드 텍스트가 14pt 미만으로 가독성 저하 |
+| `insufficient_padding` | shape/textbox 내 텍스트와 경계 사이 여백 부족 (padding < 8px) |
+| `content_too_sparse` | 슬라이드 콘텐츠가 본문 영역의 30% 미만만 차지하여 과도한 여백 |
+| `content_too_dense` | 요소가 과밀하거나 폰트/패딩이 권장 최소값 이하로 축소됨 |
 
 ## Changes
 
