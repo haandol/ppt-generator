@@ -152,6 +152,7 @@ class PptxShape:
     start_arrow: bool = False  # arrowhead at start point (left/top)
     dash_style: str | None = None  # "solid", "dash", "dot" (line shape only)
     svg_path: str | None = None  # SVG path data for custom freeform shapes (shape_type="custom")
+    autofit_mode: str = "expand_height"  # "expand_height" (default) | "shrink_text" (keep height, shrink font)
 
 
 @dataclass(frozen=True)

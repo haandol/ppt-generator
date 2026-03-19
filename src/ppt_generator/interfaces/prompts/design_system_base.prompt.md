@@ -60,7 +60,8 @@ and output PptxSlideSpec JSON that can be directly rendered with python-pptx.
       "vertical_alignment": "top"|"middle"|"bottom",
       "end_arrow": bool,
       "start_arrow": bool,
-      "dash_style": "solid"|"dash"|"dot"|null
+      "dash_style": "solid"|"dash"|"dot"|null,
+      "autofit_mode": "expand_height"|"shrink_text"
     }
   ]
 }
@@ -97,4 +98,7 @@ Common rules:
 
 <output_rules>
 - Include the input's speaker_notes in speaker_notes as-is, and also add supplementary explanations omitted from the slide body.
+- autofit_mode controls how text overflow is handled in shapes:
+  - "expand_height" (default): Expands height to fit text, then shrinks font if still insufficient.
+  - "shrink_text": Keeps height fixed, shrinks font to fit. Use this when shapes must have matching heights (e.g., side-by-side cards or comparison layouts).
 </output_rules>

@@ -250,18 +250,32 @@ def _validate_shapes(
                 required_h = max(required_h, para_h)
 
             if required_h > 0 and height < required_h:
-                height = min(required_h, max_bottom - top)
-
-            if required_h > 0 and height < required_h:
-                scale = calculate_autofit_font_scale(
-                    required_h, height, font_min, shape_max_font,
-                )
-                if new_shape_paragraphs:
-                    new_shape_paragraphs = _apply_font_scale(
-                        new_shape_paragraphs, scale, font_min,
+                if s.autofit_mode == "shrink_text":
+                    # shrink_text: height를 유지하고 폰트만 축소 (textbox와 동일)
+                    effective_max_font = max(shape_max_font, clamped_text_size or font_min)
+                    scale = calculate_autofit_font_scale(
+                        required_h, height, font_min, effective_max_font,
                     )
-                if clamped_text_size and scale < 1.0:
-                    clamped_text_size = max(font_min, int(clamped_text_size * scale))
+                    if new_shape_paragraphs:
+                        new_shape_paragraphs = _apply_font_scale(
+                            new_shape_paragraphs, scale, font_min,
+                        )
+                    if clamped_text_size and scale < 1.0:
+                        clamped_text_size = max(font_min, int(clamped_text_size * scale))
+                else:
+                    # expand_height (기본값): height를 확장한 후, 여전히 부족하면 폰트 축소
+                    height = min(required_h, max_bottom - top)
+
+                    if required_h > 0 and height < required_h:
+                        scale = calculate_autofit_font_scale(
+                            required_h, height, font_min, shape_max_font,
+                        )
+                        if new_shape_paragraphs:
+                            new_shape_paragraphs = _apply_font_scale(
+                                new_shape_paragraphs, scale, font_min,
+                            )
+                        if clamped_text_size and scale < 1.0:
+                            clamped_text_size = max(font_min, int(clamped_text_size * scale))
 
         validated.append(replace(
             s,

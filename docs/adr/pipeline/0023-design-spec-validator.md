@@ -57,7 +57,16 @@ paragraphs의 모든 run에 텍스트가 없는 textbox를 삭제한다.
 폰트 메트릭 기반으로 실제 줄바꿈 후 필요 높이를 계산한다 ([ADR-0017](./0017-font-metric-text-overflow-prevention.md)).
 
 - **textbox**: height 부족 시 폰트를 비례 축소 (최소 10pt)
-- **shape**: 먼저 height 확장 시도 → 캔버스 한계 초과 시 폰트 축소. padding을 차감하여 실제 텍스트 영역 기준으로 계산
+- **shape**: `autofit_mode` 필드에 따라 동작이 결정됨. padding을 차감하여 실제 텍스트 영역 기준으로 계산
+
+**shape autofit_mode:**
+
+| 모드 | 동작 | 용도 |
+|---|---|---|
+| `"expand_height"` (기본값) | 먼저 height 확장 시도 → 캔버스 한계 초과 시 폰트 축소 | 일반적인 shape (텍스트 양에 맞게 크기 자동 조절) |
+| `"shrink_text"` | height를 유지하고 폰트만 축소 (textbox와 동일) | 나란히 배치된 카드 등 height를 고정해야 하는 레이아웃 |
+
+`"expand_height"`가 기본값이므로 기존 동작과 하위 호환된다. `"shrink_text"` 모드는 design_spec JSON에서 동일한 `height_px`를 지정한 shape들이 내용량에 관계없이 동일한 높이로 렌더링되어야 할 때 사용한다.
 
 **autofit 비활성화 (`autofit=False`):**
 

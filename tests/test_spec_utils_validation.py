@@ -74,6 +74,39 @@ class TestTextboxHeightExpansion:
         )
         assert result.shapes[0].height_px >= min(required_h, _CANVAS_H - _MARGIN - 64)
 
+    def test_shrink_text_mode_preserves_height(self) -> None:
+        """autofit_mode="shrink_text" → height 유지, 폰트 축소."""
+        long_text = "가나다라마바사아자차" * 3
+        shape = PptxShape(
+            left_px=64, top_px=64, width_px=300, height_px=40,
+            shape_type="rounded_rectangle", fill_color="#2a2a4e",
+            text=long_text, text_size_pt=16,
+            padding_left_px=16, padding_right_px=16,
+            padding_top_px=12, padding_bottom_px=12,
+            autofit_mode="shrink_text",
+        )
+        result = validate_slide_spec(_slide(shapes=[shape]))
+        assert result.shapes[0].height_px == 40
+        assert result.shapes[0].text_size_pt is not None
+        assert result.shapes[0].text_size_pt < 16
+
+    def test_shrink_text_mode_side_by_side_same_height(self) -> None:
+        """autofit_mode="shrink_text" → 나란히 배치된 shape 높이 일관성."""
+        shape_left = PptxShape(
+            left_px=64, top_px=200, width_px=560, height_px=184,
+            shape_type="rounded_rectangle", fill_color="#2a2a4e",
+            text="가나다라마바사" * 10, text_size_pt=14,
+            autofit_mode="shrink_text",
+        )
+        shape_right = PptxShape(
+            left_px=656, top_px=200, width_px=560, height_px=184,
+            shape_type="rounded_rectangle", fill_color="#2a2a4e",
+            text="가나다라" * 3, text_size_pt=14,
+            autofit_mode="shrink_text",
+        )
+        result = validate_slide_spec(_slide(shapes=[shape_left, shape_right]))
+        assert result.shapes[0].height_px == result.shapes[1].height_px == 184
+
 
 # ---------------------------------------------------------------------------
 # 폰트 축소

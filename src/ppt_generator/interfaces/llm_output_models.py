@@ -81,6 +81,7 @@ class ShapeOutput(BaseModel):
     start_arrow: bool = False
     dash_style: Literal["solid", "dash", "dot"] | None = None
     svg_path: str | None = None
+    autofit_mode: Literal["expand_height", "shrink_text"] = "expand_height"
 
 
 # --- Visual QA models ---
@@ -197,6 +198,7 @@ class SlideSpecOutput(BaseModel):
                 start_arrow=s.start_arrow,
                 dash_style=s.dash_style,
                 svg_path=s.svg_path,
+                autofit_mode=s.autofit_mode,
             )
             for s in self.shapes
         ]
