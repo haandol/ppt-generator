@@ -112,6 +112,7 @@ class PptxTextBox:
     padding_right_px: float | None = None
     padding_top_px: float | None = None
     padding_bottom_px: float | None = None
+    z_index: int | None = None  # rendering order (lower = behind, higher = front)
 
 
 @dataclass(frozen=True)
@@ -153,6 +154,7 @@ class PptxShape:
     dash_style: str | None = None  # "solid", "dash", "dot" (line shape only)
     svg_path: str | None = None  # SVG path data for custom freeform shapes (shape_type="custom")
     autofit_mode: str = "expand_height"  # "expand_height" (default) | "shrink_text" (keep height, shrink font)
+    z_index: int | None = None  # rendering order (lower = behind, higher = front)
 
 
 @dataclass(frozen=True)
@@ -165,6 +167,7 @@ class PptxImage:
     height_px: float
     image_bytes: bytes = b""
     src: str = ""  # 이미지 파일 상대경로 (e.g. "images/slide_01_img_01.png")
+    z_index: int | None = None  # rendering order (lower = behind, higher = front)
 
 
 @dataclass(frozen=True)

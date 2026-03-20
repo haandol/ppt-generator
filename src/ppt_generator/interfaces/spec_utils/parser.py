@@ -51,6 +51,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
             padding_right_px=tb.get("padding_right_px"),
             padding_top_px=tb.get("padding_top_px"),
             padding_bottom_px=tb.get("padding_bottom_px"),
+            z_index=tb.get("z_index"),
         ))
 
     shapes: list[PptxShape] = []
@@ -98,6 +99,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
             dash_style=s.get("dash_style"),
             svg_path=s.get("svg_path"),
             autofit_mode=s.get("autofit_mode", "expand_height"),
+            z_index=s.get("z_index"),
         ))
 
     images: list[PptxImage] = [
@@ -107,6 +109,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
             width_px=img.get("width_px", 0),
             height_px=img.get("height_px", 0),
             src=img.get("src", ""),
+            z_index=img.get("z_index"),
         )
         for img in data.get("images", [])
     ]

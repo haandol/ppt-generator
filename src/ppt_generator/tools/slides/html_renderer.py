@@ -144,15 +144,38 @@ def spec_to_html_section(
         f'background-color:{bg};{bg_image_css}overflow:hidden;">'
     )
 
-    for shape in spec.shapes:
-        parts.append(shape_to_html(shape))
+    # z_index가 있는 요소와 없는 요소를 구분하여 렌더링
+    has_z_index = any(
+        getattr(e, "z_index", None) is not None
+        for lst in (spec.shapes, spec.images, spec.textboxes)
+        for e in lst
+    )
 
-    for i, image in enumerate(spec.images):
-        src = srcs[i] if i < len(srcs) else None
-        parts.append(image_to_html(image, image_src=src))
-
-    for tb in spec.textboxes:
-        parts.append(textbox_to_html(tb))
+    if has_z_index:
+        # z_index 순으로 모든 요소를 통합 렌더링
+        render_items: list[tuple[int, str]] = []
+        for shape in spec.shapes:
+            z = shape.z_index if shape.z_index is not None else 0
+            render_items.append((z, shape_to_html(shape)))
+        for i, image in enumerate(spec.images):
+            src = srcs[i] if i < len(srcs) else None
+            z = image.z_index if image.z_index is not None else 0
+            render_items.append((z, image_to_html(image, image_src=src)))
+        for tb in spec.textboxes:
+            z = tb.z_index if tb.z_index is not None else 0
+            render_items.append((z, textbox_to_html(tb)))
+        render_items.sort(key=lambda x: x[0])
+        for _, html in render_items:
+            parts.append(html)
+    else:
+        # z_index 미설정: 기존 순서 (shapes → images → textboxes)
+        for shape in spec.shapes:
+            parts.append(shape_to_html(shape))
+        for i, image in enumerate(spec.images):
+            src = srcs[i] if i < len(srcs) else None
+            parts.append(image_to_html(image, image_src=src))
+        for tb in spec.textboxes:
+            parts.append(textbox_to_html(tb))
 
     parts.append("</div></section>")
     return "\n".join(parts)

@@ -273,44 +273,69 @@ class ShapeExtractorMixin(CompoundExtractorMixin):
 
         spPr = el.find(qn("p:spPr"))
 
-        # flipH/flipV: 대각선 방향 결정
         xfrm = spPr.find(qn("a:xfrm")) if spPr is not None else None
         flip_h = xfrm is not None and xfrm.get("flipH") == "1"
         flip_v = xfrm is not None and xfrm.get("flipV") == "1"
 
         ln = spPr.find(qn("a:ln")) if spPr is not None else None
-        end_arrow = False
-        start_arrow = False
+        tail_arrow = False
+        head_arrow = False
         dash_style: str | None = None
 
         if ln is not None:
             tail_end = ln.find(qn("a:tailEnd"))
             if tail_end is not None and tail_end.get("type", "none") != "none":
-                end_arrow = True
+                tail_arrow = True
             head_end = ln.find(qn("a:headEnd"))
             if head_end is not None and head_end.get("type", "none") != "none":
-                start_arrow = True
+                head_arrow = True
             prst_dash = ln.find(qn("a:prstDash"))
             if prst_dash is not None:
                 dash_val = prst_dash.get("val", "")
                 if dash_val in ("dash", "dot"):
                     dash_style = dash_val
 
+        width_px = self._emu_to_px_x(width_emu)
         height_px = self._emu_to_px_y(height_emu)
-        # flipV XOR flipH → 선 방향 반전 (좌하→우상 ↗)
-        if flip_v != flip_h:
-            height_px = -height_px
+
+        # PPTX 커넥터의 실제 시작/끝 좌표 계산:
+        # 기본: start=(left,top), end=(left+w,top+h)
+        # flipH=1 → x좌표 반전: start.x=left+w, end.x=left
+        # flipV=1 → y좌표 반전: start.y=top+h, end.y=top
+        # headEnd 마커는 start에, tailEnd 마커는 end에 위치
+        #
+        # 디자인 스펙 모델은 항상 (left,top)→(left+w,top±h) 방향으로 그리므로
+        # flip이 start/end를 뒤바꾸면 화살표도 swap 해야 함
+        _SNAP = 12  # 수직/수평 판별 임계값 (px)
+        is_horizontal = height_px == 0 or (width_px > 0 and abs(height_px) <= _SNAP)
+        is_vertical = width_px == 0 or (abs(height_px) > 0 and width_px <= _SNAP)
+
+        if is_vertical and not is_horizontal:
+            # 수직선: flipH는 시각적 효과 없음, flipV만 방향 반전
+            if flip_v:
+                tail_arrow, head_arrow = head_arrow, tail_arrow
+        elif is_horizontal and not is_vertical:
+            # 수평선: flipV는 시각적 효과 없음, flipH만 방향 반전
+            if flip_h:
+                tail_arrow, head_arrow = head_arrow, tail_arrow
+        else:
+            # 대각선: flipH XOR flipV → 선 방향 반전 (↘ ↔ ↗)
+            if flip_v != flip_h:
+                height_px = -height_px
+            # flipH가 활성이면 화살표 swap (↘→↙ 또는 ↗→↖)
+            if flip_h:
+                tail_arrow, head_arrow = head_arrow, tail_arrow
 
         return PptxShape(
             left_px=self._emu_to_px_x(left_emu),
             top_px=self._emu_to_px_y(top_emu),
-            width_px=self._emu_to_px_x(width_emu),
+            width_px=width_px,
             height_px=height_px,
             shape_type="line",
             border_color=border_color,
             border_width_pt=border_width,
-            end_arrow=end_arrow,
-            start_arrow=start_arrow,
+            end_arrow=tail_arrow,
+            start_arrow=head_arrow,
             dash_style=dash_style,
         )
 

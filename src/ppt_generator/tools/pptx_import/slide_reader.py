@@ -13,6 +13,7 @@ SlideBuilder의 역변환: python-pptx 오브젝트 → PptxSlideSpec 데이터�
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from pptx.oxml.ns import qn
@@ -113,7 +114,9 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
         images: list[PptxImage] = []
         warnings: list[str] = []
 
+        z_counter = 0
         for shape in slide.shapes:
+            prev_counts = (len(textboxes), len(shapes), len(images))
             try:
                 self._extract_shape(
                     shape, textboxes, shapes, images, warnings,
@@ -126,6 +129,15 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
                     getattr(shape, "shape_type", "?"),
                     exc_info=True,
                 )
+            # 새로 추가된 요소에 z_index 할당
+            for lst, prev_len in (
+                (textboxes, prev_counts[0]),
+                (shapes, prev_counts[1]),
+                (images, prev_counts[2]),
+            ):
+                for idx in range(prev_len, len(lst)):
+                    lst[idx] = replace(lst[idx], z_index=z_counter)
+                    z_counter += 1
 
         speaker_notes = self._extract_speaker_notes(slide)
         slide_type = self._infer_slide_type(

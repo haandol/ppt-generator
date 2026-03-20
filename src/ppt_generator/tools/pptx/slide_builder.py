@@ -145,12 +145,34 @@ class SlideBuilder:
 
     def build_slide_from_spec(self, slide, spec: PptxSlideSpec) -> None:
         """PptxSlideSpec을 python-pptx 슬라이드 요소로 배치."""
-        for shape in spec.shapes:
-            self._add_shape_from_spec(slide, shape)
-        for image in spec.images:
-            self._add_image_from_spec(slide, image)
-        for tb in spec.textboxes:
-            self._add_textbox_from_spec(slide, tb)
+        has_z_index = any(
+            getattr(e, "z_index", None) is not None
+            for lst in (spec.shapes, spec.images, spec.textboxes)
+            for e in lst
+        )
+        if has_z_index:
+            items: list[tuple[int, str, object]] = []
+            for s in spec.shapes:
+                items.append((s.z_index or 0, "shape", s))
+            for img in spec.images:
+                items.append((img.z_index or 0, "image", img))
+            for tb in spec.textboxes:
+                items.append((tb.z_index or 0, "textbox", tb))
+            items.sort(key=lambda x: x[0])
+            for _, kind, obj in items:
+                if kind == "shape":
+                    self._add_shape_from_spec(slide, obj)
+                elif kind == "image":
+                    self._add_image_from_spec(slide, obj)
+                else:
+                    self._add_textbox_from_spec(slide, obj)
+        else:
+            for shape in spec.shapes:
+                self._add_shape_from_spec(slide, shape)
+            for image in spec.images:
+                self._add_image_from_spec(slide, image)
+            for tb in spec.textboxes:
+                self._add_textbox_from_spec(slide, tb)
 
     def _add_image_from_spec(self, slide, image_spec: PptxImage) -> None:
         """PptxImage spec으로 이미지를 슬라이드에 삽입."""

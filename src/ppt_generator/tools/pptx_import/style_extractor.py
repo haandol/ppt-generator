@@ -51,6 +51,9 @@ class StyleExtractorMixin:
         try:
             spPr = shape._element.find(qn("p:spPr"))
             if spPr is not None:
+                # noFill이 명시적으로 있으면 fill 없음 (p:style 폴백 안 함)
+                if spPr.find(qn("a:noFill")) is not None:
+                    return None
                 solid = spPr.find(qn("a:solidFill"))
                 if solid is not None:
                     srgb = solid.find(qn("a:srgbClr"))
@@ -95,6 +98,9 @@ class StyleExtractorMixin:
                 if spPr is not None:
                     ln = spPr.find(qn("a:ln"))
                     if ln is not None:
+                        # noFill이 명시적이면 border 없음 (p:style 폴백 안 함)
+                        if ln.find(qn("a:noFill")) is not None:
+                            return None, None
                         solid = ln.find(qn("a:solidFill"))
                         if solid is not None:
                             srgb = solid.find(qn("a:srgbClr"))
