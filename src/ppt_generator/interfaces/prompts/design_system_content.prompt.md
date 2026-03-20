@@ -81,6 +81,16 @@ Use these table values directly for evenly distributing blocks to prevent calcul
   - For bidirectional arrows, set both start_arrow: true and end_arrow: true.
   - Only omit (false) both end_arrow/start_arrow for plain connection lines without arrows.
 
+■ Container/wrapper interior utilization (mandatory)
+  When placing child elements (blocks, cards, diagram nodes) inside a container/wrapper shape:
+  - Child elements must utilize **at least 80% of the container's inner width** (after padding).
+  - Do NOT cluster child elements in a narrow sub-region of the container, leaving large empty margins on the sides.
+  - Distribute child elements evenly within the container's inner area using the container's own left_px, width_px, and padding values.
+  - Formula: child_area_left = container.left_px + container.padding_left_px
+             child_area_width = container.width_px - container.padding_left_px - container.padding_right_px
+             Then apply the N-column even distribution formula within child_area_width, starting from child_area_left.
+  - Same principle applies vertically: child elements should span the container's available inner height, not cluster at the top.
+
 ■ Arrow endpoint snapping (mandatory)
   Arrow endpoints must precisely touch the edge of the connected block — no gap, no penetration.
   - Start point (left_px, top_px) must lie exactly on the source block's edge.

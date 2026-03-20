@@ -90,6 +90,30 @@ class TestTextboxHeightExpansion:
         assert result.shapes[0].text_size_pt is not None
         assert result.shapes[0].text_size_pt < 16
 
+    def test_shrink_text_mode_scales_line_spacing(self) -> None:
+        """autofit_mode="shrink_text" → line_spacing_pt도 함께 축소."""
+        long_paras = [
+            PptxParagraph(runs=[PptxTextRun(text="카드 제목 텍스트", font_size_pt=14, bold=True)]),
+            PptxParagraph(runs=[PptxTextRun(text="부제목 설명 텍스트 길게 작성", font_size_pt=12, italic=True)]),
+            PptxParagraph(runs=[PptxTextRun(text="첫 번째 항목 설명을 아주 길게 작성하여 줄바꿈 발생시킴", font_size_pt=14)], bullet_level=0),
+            PptxParagraph(runs=[PptxTextRun(text="두 번째 항목 설명을 아주 길게 작성하여 줄바꿈 발생시킴", font_size_pt=14)], bullet_level=0),
+            PptxParagraph(runs=[PptxTextRun(text="세 번째 항목 설명을 아주 길게 작성하여 줄바꿈 발생시킴", font_size_pt=14)], bullet_level=0),
+            PptxParagraph(runs=[PptxTextRun(text="네 번째 항목 설명을 아주 길게 작성하여 줄바꿈 발생시킴", font_size_pt=14)], bullet_level=0),
+        ]
+        shape = PptxShape(
+            left_px=64, top_px=148, width_px=272, height_px=200,
+            shape_type="rounded_rectangle", fill_color="#243447",
+            paragraphs=long_paras, line_spacing_pt=18.0,
+            padding_left_px=14, padding_right_px=14,
+            padding_top_px=12, padding_bottom_px=12,
+            autofit_mode="shrink_text",
+        )
+        result = validate_slide_spec(_slide(shapes=[shape]))
+        validated = result.shapes[0]
+        assert validated.height_px == 200
+        assert validated.line_spacing_pt is not None
+        assert validated.line_spacing_pt < 18.0, "line_spacing_pt should be scaled proportionally"
+
     def test_shrink_text_mode_side_by_side_same_height(self) -> None:
         """autofit_mode="shrink_text" → 나란히 배치된 shape 높이 일관성."""
         shape_left = PptxShape(
