@@ -82,6 +82,17 @@ class StyleExtractorMixin:
     def _extract_line_style(self, shape) -> tuple[str | None, float | None]:
         border_color: str | None = None
         border_width: float | None = None
+        # XML에서 a:ln/a:noFill을 먼저 확인 (python-pptx API가 XML을 변형하기 전에)
+        # python-pptx의 shape.line.color 접근 시 <a:noFill/>이 <a:solidFill/>로
+        # 변형되므로, API 접근 전에 noFill 여부를 확인해야 함
+        try:
+            spPr = shape._element.find(qn("p:spPr"))
+            if spPr is not None:
+                ln = spPr.find(qn("a:ln"))
+                if ln is not None and ln.find(qn("a:noFill")) is not None:
+                    return None, None
+        except Exception:
+            pass
         # python-pptx API로 시도
         try:
             line = shape.line
@@ -98,9 +109,6 @@ class StyleExtractorMixin:
                 if spPr is not None:
                     ln = spPr.find(qn("a:ln"))
                     if ln is not None:
-                        # noFill이 명시적이면 border 없음 (p:style 폴백 안 함)
-                        if ln.find(qn("a:noFill")) is not None:
-                            return None, None
                         solid = ln.find(qn("a:solidFill"))
                         if solid is not None:
                             srgb = solid.find(qn("a:srgbClr"))
