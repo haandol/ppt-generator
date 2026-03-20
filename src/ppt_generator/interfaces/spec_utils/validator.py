@@ -100,6 +100,16 @@ def _apply_font_scale(
     return result
 
 
+def _scale_line_spacing(
+    line_spacing_pt: float | None,
+    scale: float,
+) -> float | None:
+    """line_spacing_pt를 scale에 맞게 축소한다."""
+    if line_spacing_pt is None or scale >= 1.0:
+        return line_spacing_pt
+    return round(line_spacing_pt * scale, 1)
+
+
 # ---------------------------------------------------------------------------
 # 텍스트박스 검증
 # ---------------------------------------------------------------------------
@@ -147,6 +157,7 @@ def _validate_textboxes(
         pad_t = tb.padding_top_px or 0.0
         pad_b = tb.padding_bottom_px or 0.0
 
+        new_line_spacing = tb.line_spacing_pt
         if autofit:
             required_h = calculate_required_height(
                 new_paragraphs, width, tb.line_spacing_pt,
@@ -159,6 +170,7 @@ def _validate_textboxes(
                     required_h, height, font_min, max_font_in_tb,
                 )
                 new_paragraphs = _apply_font_scale(new_paragraphs, scale, font_min)
+                new_line_spacing = _scale_line_spacing(tb.line_spacing_pt, scale)
 
         validated.append(PptxTextBox(
             left_px=left,
@@ -166,12 +178,13 @@ def _validate_textboxes(
             width_px=width,
             height_px=height,
             paragraphs=new_paragraphs,
-            line_spacing_pt=tb.line_spacing_pt,
+            line_spacing_pt=new_line_spacing,
             vertical_alignment=tb.vertical_alignment,
             padding_left_px=tb.padding_left_px,
             padding_right_px=tb.padding_right_px,
             padding_top_px=tb.padding_top_px,
             padding_bottom_px=tb.padding_bottom_px,
+            z_index=tb.z_index,
         ))
     return validated
 
@@ -230,6 +243,7 @@ def _validate_shapes(
         pad_t = s.padding_top_px if s.padding_top_px is not None else TEXT_MEASURE_DEFAULT_SHAPE_PADDING_TB_PX
         pad_b = s.padding_bottom_px if s.padding_bottom_px is not None else TEXT_MEASURE_DEFAULT_SHAPE_PADDING_TB_PX
 
+        new_line_spacing = s.line_spacing_pt
         if autofit:
             required_h = 0.0
 
@@ -251,7 +265,7 @@ def _validate_shapes(
 
             if required_h > 0 and height < required_h:
                 if s.autofit_mode == "shrink_text":
-                    # shrink_text: height를 유지하고 폰트만 축소 (textbox와 동일)
+                    # shrink_text: height를 유지하고 폰트+줄간격 축소
                     effective_max_font = max(shape_max_font, clamped_text_size or font_min)
                     scale = calculate_autofit_font_scale(
                         required_h, height, font_min, effective_max_font,
@@ -262,8 +276,9 @@ def _validate_shapes(
                         )
                     if clamped_text_size and scale < 1.0:
                         clamped_text_size = max(font_min, int(clamped_text_size * scale))
+                    new_line_spacing = _scale_line_spacing(s.line_spacing_pt, scale)
                 else:
-                    # expand_height (기본값): height를 확장한 후, 여전히 부족하면 폰트 축소
+                    # expand_height (기본값): height를 확장한 후, 여전히 부족하면 폰트+줄간격 축소
                     height = min(required_h, max_bottom - top)
 
                     if required_h > 0 and height < required_h:
@@ -276,6 +291,7 @@ def _validate_shapes(
                             )
                         if clamped_text_size and scale < 1.0:
                             clamped_text_size = max(font_min, int(clamped_text_size * scale))
+                        new_line_spacing = _scale_line_spacing(s.line_spacing_pt, scale)
 
         validated.append(replace(
             s,
@@ -285,6 +301,7 @@ def _validate_shapes(
             height_px=height,
             text_size_pt=clamped_text_size,
             paragraphs=new_shape_paragraphs,
+            line_spacing_pt=new_line_spacing,
         ))
     return validated
 
