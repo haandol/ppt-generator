@@ -102,7 +102,7 @@ wheels = [
 
 [[package]]
 name = "anthropic"
-version = "0.84.0"
+version = "0.86.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -114,9 +114,9 @@ dependencies = [
     { name = "sniffio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/04/ea/0869d6df9ef83dcf393aeefc12dd81677d091c6ffc86f783e51cf44062f2/anthropic-0.84.0.tar.gz", hash = "sha256:72f5f90e5aebe62dca316cb013629cfa24996b0f5a4593b8c3d712bc03c43c37", size = 539457, upload-time = "2026-02-25T05:22:38.54Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/37/7a/8b390dc47945d3169875d342847431e5f7d5fa716b2e37494d57cfc1db10/anthropic-0.86.0.tar.gz", hash = "sha256:60023a7e879aa4fbb1fed99d487fe407b2ebf6569603e5047cfe304cebdaa0e5", size = 583820, upload-time = "2026-03-18T18:43:08.017Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/64/ca/218fa25002a332c0aa149ba18ffc0543175998b1f65de63f6d106689a345/anthropic-0.84.0-py3-none-any.whl", hash = "sha256:861c4c50f91ca45f942e091d83b60530ad6d4f98733bfe648065364da05d29e7", size = 455156, upload-time = "2026-02-25T05:22:40.468Z" },
+    { url = "https://files.pythonhosted.org/packages/63/5f/67db29c6e5d16c8c9c4652d3efb934d89cb750cad201539141781d8eae14/anthropic-0.86.0-py3-none-any.whl", hash = "sha256:9d2bbd339446acce98858c5627d33056efe01f70435b22b63546fe7edae0cd57", size = 469400, upload-time = "2026-03-18T18:43:06.526Z" },
 ]
 
 [[package]]
@@ -133,11 +133,11 @@ wheels = [
 
 [[package]]
 name = "attrs"
-version = "25.4.0"
+version = "26.1.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/6b/5c/685e6633917e101e5dcb62b9dd76946cbb57c26e133bae9e0cd36033c0a9/attrs-25.4.0.tar.gz", hash = "sha256:16d5969b87f0859ef33a48b35d55ac1be6e42ae49d5e853b597db70c35c57e11", size = 934251, upload-time = "2025-10-06T13:54:44.725Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9a/8e/82a0fe20a541c03148528be8cac2408564a6c9a0cc7e9171802bc1d26985/attrs-26.1.0.tar.gz", hash = "sha256:d03ceb89cb322a8fd706d4fb91940737b6642aa36998fe130a9bc96c985eff32", size = 952055, upload-time = "2026-03-19T14:22:25.026Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3a/2a/7cc015f5b9f5db42b7d48157e23356022889fc354a2813c15934b7cb5c0e/attrs-25.4.0-py3-none-any.whl", hash = "sha256:adcf7e2a1fb3b36ac48d97835bb6d8ade15b8dcce26aba8bf1d14847b57a3373", size = 67615, upload-time = "2025-10-06T13:54:43.17Z" },
+    { url = "https://files.pythonhosted.org/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl", hash = "sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309", size = 67548, upload-time = "2026-03-19T14:22:23.645Z" },
 ]
 
 [[package]]
@@ -167,30 +167,29 @@ wheels = [
 
 [[package]]
 name = "boto3"
-version = "1.42.68"
+version = "1.42.74"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "botocore" },
     { name = "jmespath" },
     { name = "s3transfer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/06/ae/60c642aa5413e560b671da825329f510b29a77274ed0f580bde77562294d/boto3-1.42.68.tar.gz", hash = "sha256:3f349f967ab38c23425626d130962bcb363e75f042734fe856ea8c5a00eef03c", size = 112761, upload-time = "2026-03-13T19:32:17.137Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fb/f6/dc6e993479dbb597d68223fbf61cb026511737696b15bd7d2a33e9b2c24f/boto3-1.42.68-py3-none-any.whl", hash = "sha256:dbff353eb7dc93cbddd7926ed24793e0174c04adbe88860dfa639568442e4962", size = 140556, upload-time = "2026-03-13T19:32:14.951Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/16/a264b4da2af99f4a12609b93fea941cce5ec41da14b33ed3fef77a910f0c/boto3-1.42.74-py3-none-any.whl", hash = "sha256:4bf89c044d618fe4435af854ab820f09dd43569c0df15d7beb0398f50b9aa970", size = 140557, upload-time = "2026-03-23T19:34:07.084Z" },
 ]
 
 [[package]]
 name = "botocore"
-version = "1.42.68"
+version = "1.42.74"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jmespath" },
     { name = "python-dateutil" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3f/22/87502d5fbbfa8189406a617b30b1e2a3dc0ab2669f7268e91b385c1c1c7a/botocore-1.42.68.tar.gz", hash = "sha256:3951c69e12ac871dda245f48dac5c7dd88ea1bfdd74a8879ec356cf2874b806a", size = 14994514, upload-time = "2026-03-13T19:32:03.577Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9d/c7/cab8a14f0b69944bd0dd1fd58559163455b347eeda00bf836e93ce2684e4/botocore-1.42.74.tar.gz", hash = "sha256:9cf5cdffc6c90ed87b0fe184676806182588be0d0df9b363e9fe3e2923ac8e80", size = 15014379, upload-time = "2026-03-23T19:33:57.692Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3c/2a/1428f6594799780fe6ee845d8e6aeffafe026cd16a70c878684e2dcbbfc8/botocore-1.42.68-py3-none-any.whl", hash = "sha256:9df7da26374601f890e2f115bfa573d65bf15b25fe136bb3aac809f6145f52ab", size = 14668816, upload-time = "2026-03-13T19:31:58.572Z" },
+    { url = "https://files.pythonhosted.org/packages/d3/65/75852e04de5423c9b0c5b88241d0bdea33e6c6f454c88b71377d230216f2/botocore-1.42.74-py3-none-any.whl", hash = "sha256:3a76a8af08b5de82e51a0ae132394e226e15dbf21c8146ac3f7c1f881517a7a7", size = 14688218, upload-time = "2026-03-23T19:33:52.677Z" },
 ]
 
 [[package]]
@@ -1052,7 +1051,7 @@ wheels = [
 
 [[package]]
 name = "ppt-generator"
-version = "0.3.14"
+version = "0.3.15"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
@@ -1571,32 +1570,32 @@ wheels = [
 
 [[package]]
 name = "sse-starlette"
-version = "3.3.2"
+version = "3.3.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "starlette" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5a/9f/c3695c2d2d4ef70072c3a06992850498b01c6bc9be531950813716b426fa/sse_starlette-3.3.2.tar.gz", hash = "sha256:678fca55a1945c734d8472a6cad186a55ab02840b4f6786f5ee8770970579dcd", size = 32326, upload-time = "2026-02-28T11:24:34.36Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/14/2f/9223c24f568bb7a0c03d751e609844dce0968f13b39a3f73fbb3a96cd27a/sse_starlette-3.3.3.tar.gz", hash = "sha256:72a95d7575fd5129bd0ae15275ac6432bb35ac542fdebb82889c24bb9f3f4049", size = 32420, upload-time = "2026-03-17T20:05:55.529Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/61/28/8cb142d3fe80c4a2d8af54ca0b003f47ce0ba920974e7990fa6e016402d1/sse_starlette-3.3.2-py3-none-any.whl", hash = "sha256:5c3ea3dad425c601236726af2f27689b74494643f57017cafcb6f8c9acfbb862", size = 14270, upload-time = "2026-02-28T11:24:32.984Z" },
+    { url = "https://files.pythonhosted.org/packages/78/e2/b8cff57a67dddf9a464d7e943218e031617fb3ddc133aeeb0602ff5f6c85/sse_starlette-3.3.3-py3-none-any.whl", hash = "sha256:c5abb5082a1cc1c6294d89c5290c46b5f67808cfdb612b7ec27e8ba061c22e8d", size = 14329, upload-time = "2026-03-17T20:05:54.35Z" },
 ]
 
 [[package]]
 name = "starlette"
-version = "0.52.1"
+version = "1.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c4/68/79977123bb7be889ad680d79a40f339082c1978b5cfcf62c2d8d196873ac/starlette-0.52.1.tar.gz", hash = "sha256:834edd1b0a23167694292e94f597773bc3f89f362be6effee198165a35d62933", size = 2653702, upload-time = "2026-01-18T13:34:11.062Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/81/69/17425771797c36cded50b7fe44e850315d039f28b15901ab44839e70b593/starlette-1.0.0.tar.gz", hash = "sha256:6a4beaf1f81bb472fd19ea9b918b50dc3a77a6f2e190a12954b25e6ed5eea149", size = 2655289, upload-time = "2026-03-22T18:29:46.779Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/81/0d/13d1d239a25cbfb19e740db83143e95c772a1fe10202dda4b76792b114dd/starlette-0.52.1-py3-none-any.whl", hash = "sha256:0029d43eb3d273bc4f83a08720b4912ea4b071087a3b48db01b7c839f7954d74", size = 74272, upload-time = "2026-01-18T13:34:09.188Z" },
+    { url = "https://files.pythonhosted.org/packages/0b/c9/584bc9651441b4ba60cc4d557d8a547b5aff901af35bda3a4ee30c819b82/starlette-1.0.0-py3-none-any.whl", hash = "sha256:d3ec55e0bb321692d275455ddfd3df75fff145d009685eb40dc91fc66b03d38b", size = 72651, upload-time = "2026-03-22T18:29:45.111Z" },
 ]
 
 [[package]]
 name = "strands-agents"
-version = "1.30.0"
+version = "1.32.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -1612,14 +1611,14 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "watchdog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/11/82/6c193a8ea19ed91a368a4cf7d20c87457793e1286dac5811a5c2a60a5cc2/strands_agents-1.30.0.tar.gz", hash = "sha256:358db9d78304fc1fe324763be545243e3f9cb030ed0f6f51d0c91d37caff7746", size = 773031, upload-time = "2026-03-11T18:38:32.257Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d4/b9/c18d13bbf85c23eb66d9f61bced0c1f5a3ac18916331eabde049f6c4dd33/strands_agents-1.32.0.tar.gz", hash = "sha256:2e399bc5ea98d91dbcdf79913115aa579a6bb3251dfe6c15be114821cad893a4", size = 776171, upload-time = "2026-03-20T14:07:41.75Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6e/94/ecc2df8100fdf745d41d10ac2de4c9cb0325384d0e28b4bb90c82a6ec63b/strands_agents-1.30.0-py3-none-any.whl", hash = "sha256:457ba7b063df61d00f122c913b6b85ba6431d17741b9e34484a7e16fb7e00430", size = 386493, upload-time = "2026-03-11T18:38:30.503Z" },
+    { url = "https://files.pythonhosted.org/packages/6b/a9/7e00371130dec1ae16df3fd0f7450aa2b92859b625818c793d178b2f1835/strands_agents-1.32.0-py3-none-any.whl", hash = "sha256:60c0eaae32ee1fc366ecebb10bca07681015104c111472a7378f71bbcdedbba4", size = 387030, upload-time = "2026-03-20T14:07:39.754Z" },
 ]
 
 [[package]]
 name = "strands-agents-tools"
-version = "0.2.22"
+version = "0.2.23"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -1640,9 +1639,9 @@ dependencies = [
     { name = "tzdata", marker = "sys_platform == 'win32'" },
     { name = "watchdog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c1/4e/c8c355cd7ca6d28f98231fd66fe5d4627c9ecd9ea79db21980ec429247e9/strands_agents_tools-0.2.22.tar.gz", hash = "sha256:99d202b329f12df8568f104d5301452526640fd0e4db164c0be23e0b22e3d350", size = 474105, upload-time = "2026-03-04T21:19:38.858Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a8/0b/95529cd0bbb0f3186adcae0476f506d3f098b95b552621195f190dcda14b/strands_agents_tools-0.2.23.tar.gz", hash = "sha256:40d0c30859f0cf00c62f5efacdb917ae541c7fe9affceee5adb63ba49657f887", size = 474100, upload-time = "2026-03-19T14:29:29.917Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a4/45/900277b3e0180017eaf1490eef3ed1c459c833a0d86746d777d67fb919ab/strands_agents_tools-0.2.22-py3-none-any.whl", hash = "sha256:4d0743b90bed9acd840d2dee943ea2de8a644d4e139686912b6239a0bd410963", size = 312781, upload-time = "2026-03-04T21:19:37.348Z" },
+    { url = "https://files.pythonhosted.org/packages/ab/3c/b5d8586448878e755590bfc59824abc2b137b21b8a8183008e13c8316b13/strands_agents_tools-0.2.23-py3-none-any.whl", hash = "sha256:d98b602002eb978850a32d597f94262dd3a95c6871ab2007fbb0ad165799d8df", size = 312782, upload-time = "2026-03-19T14:29:27.768Z" },
 ]
 
 [[package]]
