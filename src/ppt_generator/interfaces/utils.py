@@ -55,19 +55,17 @@ def parse_outline_json(outline_json: str) -> OutlineResponse:
 
 
 def estimate_slide_complexity(slide: SlideOutline) -> int:
-    """Estimates the design spec generation complexity of a slide."""
+    """Estimates the design spec generation complexity of a slide (1-5 scale)."""
     if slide.slide_type in ("title", "closing"):
         return 1
-    base = COMPONENT_HINT_COMPLEXITY.get(slide.component_hint, 2)
-    content_bonus = min(len(slide.content_summary) // 200, 3)
-    return base + content_bonus
+    return COMPONENT_HINT_COMPLEXITY.get(slide.component_hint, 2)
 
 
 def complexity_to_thinking_effort(complexity: int) -> str:
-    """Converts a complexity score to a thinking effort level."""
-    if complexity >= 9:
+    """Converts a complexity score (1-5) to a thinking effort level."""
+    if complexity >= 5:
         return "high"
-    elif complexity >= 4:
+    elif complexity >= 3:
         return "medium"
     else:
         return "low"
