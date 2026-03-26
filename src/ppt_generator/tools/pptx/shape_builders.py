@@ -63,10 +63,10 @@ _SHAPE_TYPE_MAP = {
     "flowchart_terminator": MSO_SHAPE.FLOWCHART_TERMINATOR,
 }
 
-# 선/화살표 전용 dash_style 매핑
+# 선/화살표 전용 dash_style 매핑 (OOXML prstDash 유효값 사용)
 _DASH_STYLE_MAP = {
     "dash": "dash",
-    "dot": "dot",
+    "dot": "sysDot",
 }
 
 # 수평/수직 스냅 임계값 (px): 이 값 이하면 의도하지 않은 오차로 판단
@@ -174,10 +174,15 @@ def add_connector_from_spec(slide, shape_spec: PptxShape) -> None:
     need_flip = h < 0
     abs_h = abs(h)
 
-    start_x = Inches(shape_spec.left_px * EXPORT_PX_TO_INCHES_X)
-    start_y = Inches(shape_spec.top_px * EXPORT_PX_TO_INCHES_Y)
-    end_x = Inches((shape_spec.left_px + w) * EXPORT_PX_TO_INCHES_X)
-    end_y = Inches((shape_spec.top_px + abs_h) * EXPORT_PX_TO_INCHES_Y)
+    # 바운딩 박스 좌표 계산: add_connector는 내부에서 xfrm으로 변환하므로
+    # 음수 height인 경우 top을 끝점(더 위)으로 맞추고 flipV로 방향 보정
+    box_left = shape_spec.left_px
+    box_top = shape_spec.top_px + h if need_flip else shape_spec.top_px
+
+    start_x = Inches(box_left * EXPORT_PX_TO_INCHES_X)
+    start_y = Inches(box_top * EXPORT_PX_TO_INCHES_Y)
+    end_x = Inches((box_left + w) * EXPORT_PX_TO_INCHES_X)
+    end_y = Inches((box_top + abs_h) * EXPORT_PX_TO_INCHES_Y)
 
     connector = slide.shapes.add_connector(
         MSO_CONNECTOR_TYPE.STRAIGHT, start_x, start_y, end_x, end_y,
@@ -197,27 +202,28 @@ def add_connector_from_spec(slide, shape_spec: PptxShape) -> None:
     if shape_spec.border_width_pt:
         connector.line.width = Pt(shape_spec.border_width_pt)
 
-    # 화살표 머리 설정
+    # OOXML a:ln 자식 순서: solidFill → prstDash → round/bevel/miter → headEnd → tailEnd
     spPr = connector._element.find(qn("p:spPr"))
     ln = spPr.find(qn("a:ln"))
     if ln is None:
         ln = SubElement(spPr, qn("a:ln"))
 
-    if shape_spec.end_arrow:
-        tail = SubElement(ln, qn("a:tailEnd"))
-        tail.set("type", "triangle")
-        tail.set("w", "med")
-        tail.set("len", "med")
+    # 대시 스타일 (headEnd/tailEnd보다 먼저 삽입해야 함)
+    dash_key = (shape_spec.dash_style or "").lower()
+    prstDash = _DASH_STYLE_MAP.get(dash_key)
+    if prstDash:
+        dash_el = SubElement(ln, qn("a:prstDash"))
+        dash_el.set("val", prstDash)
 
+    # 화살표 머리 설정
     if shape_spec.start_arrow:
         head = SubElement(ln, qn("a:headEnd"))
         head.set("type", "triangle")
         head.set("w", "med")
         head.set("len", "med")
 
-    # 대시 스타일
-    dash_key = (shape_spec.dash_style or "").lower()
-    prstDash = _DASH_STYLE_MAP.get(dash_key)
-    if prstDash:
-        dash_el = SubElement(ln, qn("a:prstDash"))
-        dash_el.set("val", prstDash)
+    if shape_spec.end_arrow:
+        tail = SubElement(ln, qn("a:tailEnd"))
+        tail.set("type", "triangle")
+        tail.set("w", "med")
+        tail.set("len", "med")
