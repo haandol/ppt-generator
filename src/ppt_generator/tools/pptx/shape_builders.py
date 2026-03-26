@@ -72,6 +72,9 @@ _DASH_STYLE_MAP = {
 # 수평/수직 스냅 임계값 (px): 이 값 이하면 의도하지 않은 오차로 판단
 _SNAP_THRESHOLD = 12
 
+# rounded_rectangle 기본 라운딩 (corner_radius_px가 null일 때, HTML 렌더러와 동일)
+_ROUNDED_RECT_DEFAULT_RADIUS_PX = 8.0
+
 
 def add_auto_shape_from_spec(slide, shape_spec: PptxShape) -> None:
     """일반 도형(AutoShape) + 텍스트를 슬라이드에 추가."""
@@ -85,6 +88,23 @@ def add_auto_shape_from_spec(slide, shape_spec: PptxShape) -> None:
     shape = slide.shapes.add_shape(
         mso_shape, Inches(left), Inches(top), Inches(width), Inches(height),
     )
+
+    # rounded_rectangle의 corner_radius 적용 (OOXML adj = radius / shorter_side * 100000)
+    # null이면 HTML 렌더러와 동일한 기본값 8px 사용
+    if shape_spec.shape_type == "rounded_rectangle":
+        radius = shape_spec.corner_radius_px or _ROUNDED_RECT_DEFAULT_RADIUS_PX
+        shorter_side = min(shape_spec.width_px, shape_spec.height_px)
+        if shorter_side > 0:
+            adj_val = int(radius / shorter_side * 100000)
+            spPr = shape._element.find(qn("p:spPr"))
+            prstGeom = spPr.find(qn("a:prstGeom"))
+            if prstGeom is not None:
+                avLst = prstGeom.find(qn("a:avLst"))
+                if avLst is None:
+                    avLst = SubElement(prstGeom, qn("a:avLst"))
+                gd = SubElement(avLst, qn("a:gd"))
+                gd.set("name", "adj")
+                gd.set("fmla", f"val {adj_val}")
 
     if shape_spec.fill_color:
         rgb = parse_color(shape_spec.fill_color)
