@@ -220,6 +220,7 @@ Body slide (slide_type: "content") design rules:
     · Title: left=64, top=72, width=1152, height=48
     · Left: left=64, top=148, width=552, height=adjust to content
     · Right: left=664, top=148, width=552, height=adjust to content
+    · **Both sides must have the same top_px AND the same bottom edge (top_px + height_px).**
 
   vs_comparison: Title + two side cards (shape) + center VS label
     · Left: left=64, width=508 / VS: left=596, width=88 / Right: left=708, width=508
@@ -242,8 +243,23 @@ Body slide (slide_type: "content") design rules:
   info_cards: Title + 3-4 information cards (shapes) horizontally arranged
   feature_list: Title + icon/bullet + feature description text
   process_flow: Title + left description textbox + right flow diagram (shapes+lines)
+    · **Left and right regions must share the same top_px AND bottom edge.**
   quote_code: Left quote/description textbox + right code shape
+    · **Left and right regions must share the same top_px AND bottom edge.**
   concept_list: Left concept description text + right diagram (shapes)
+    · **Left and right regions must share the same top_px AND bottom edge.**
+
+■ Left-right split layout Y-axis alignment rules (mandatory):
+  When a slide has two content regions side by side (e.g., two_column, concept_list, process_flow, or any custom left/right split):
+  - **Top alignment**: Both the left and right content regions must start at the **same top_px**.
+  - **Bottom alignment**: Both regions must end at the **same bottom_px** (top_px + height_px).
+    · If the left side has multiple stacked cards (e.g., 4 cards), the right side graph/diagram box's bottom must match the bottom of the left side's lowest card.
+    · Formula: right_region.height_px = left_lowest_card.top_px + left_lowest_card.height_px - right_region.top_px
+  - **Internal element alignment**: When the right region contains a chart/graph with axes:
+    · The chart's X-axis line top_px must align with or be above the right region's bottom boundary.
+    · Labels, legends, and annotations below the X-axis must fit within the right region's bounding box.
+    · Axis labels (e.g., "자율성 →"), legend items, and data point labels must be positioned relative to the X-axis, not estimated independently.
+  - This rule applies to ALL split layouts, regardless of component_hint. Whenever left and right content regions coexist, their vertical extent must be visually aligned.
 
 ■ Bottom auxiliary element layout rules:
   When placing auxiliary elements at the bottom of a slide such as info badges, insight banners, or context boxes:
@@ -480,12 +496,20 @@ Hard constraints (rendering will fail if violated):
     horizontal separation (non-overlapping x ranges). Refer to "Bottom auxiliary element layout rules" in <slide_type_content>.
     Reason: The bottom area has limited space, and overlapping elements hide content, causing critical information to be lost.
 
+11. Left-right split vertical alignment: When a slide uses a left-right split layout (two_column, concept_list, process_flow, or any layout with distinct left and right content regions):
+    - Both regions must share the **same top_px** (start of body content, typically 148px).
+    - Both regions must share the **same bottom edge** (top_px + height_px must be equal for both sides).
+    - If the left side consists of multiple vertically stacked elements (e.g., 4 cards), compute the bottom as: last_card.top_px + last_card.height_px. The right region's height_px must be adjusted so its bottom matches this value exactly.
+    - **Chart/graph internal elements**: When the right region contains axes, all elements (axis lines, data points, labels, legends) must be positioned relative to the region's boundaries, not independently estimated. The X-axis line must sit at or above the region's bottom edge. Legend and axis labels must not extend beyond the region's bounding box.
+    Reason: Misaligned top or bottom edges between left and right regions create an unbalanced, unprofessional appearance. This is one of the most common layout defects in split layouts.
+
 **Pre-output overlap verification (mandatory)**:
 Before outputting the final JSON, verify every pair of vertically adjacent elements:
   1. For each element, compute bottom = top_px + height_px
   2. For the element below it, check: its top_px >= previous bottom + 16 (minimum gap)
   3. For container-child patterns, verify all children fit within the container bounds
-  4. If any violation is found, recalculate the offending element's top_px before output
+  4. **For left-right split layouts**: verify left_bottom == right_bottom (both regions end at the same Y coordinate). If they differ, adjust the shorter region's height_px so both bottoms match.
+  5. If any violation is found, recalculate the offending element's top_px before output
 This verification is critical because coordinate arithmetic errors (even off-by-1) cause visible overlap in the rendered slide.
 </constraints>
 
