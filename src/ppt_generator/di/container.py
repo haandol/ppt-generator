@@ -100,19 +100,19 @@ class DIContainer:
 
     def _create_visual_qa_analysis_agent(self) -> Agent:
         if self._provider == "anthropic":
-            model = create_anthropic_visual_qa_model(thinking_effort="medium")
+            model = create_anthropic_visual_qa_model(thinking_effort="low")
             system_prompt: str | list[dict] = VISUAL_QA_ANALYSIS_SYSTEM_PROMPT
         else:
-            model = create_bedrock_visual_qa_model(thinking_effort="medium")
+            model = create_bedrock_visual_qa_model(thinking_effort="low")
             system_prompt = _with_cache_point(VISUAL_QA_ANALYSIS_SYSTEM_PROMPT)
         return Agent(model=model, system_prompt=system_prompt, callback_handler=None, tools=[])
 
     def _create_visual_qa_fix_agent(self) -> Agent:
         if self._provider == "anthropic":
-            model = create_anthropic_visual_qa_model(thinking_effort="high")
+            model = create_anthropic_visual_qa_model(thinking_effort="low")
             system_prompt: str | list[dict] = VISUAL_QA_FIX_SYSTEM_PROMPT
         else:
-            model = create_bedrock_visual_qa_model(thinking_effort="high")
+            model = create_bedrock_visual_qa_model(thinking_effort="low")
             system_prompt = _with_cache_point(VISUAL_QA_FIX_SYSTEM_PROMPT)
         return Agent(model=model, system_prompt=system_prompt, callback_handler=None, tools=[])
 

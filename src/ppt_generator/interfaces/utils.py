@@ -63,9 +63,7 @@ def estimate_slide_complexity(slide: SlideOutline) -> int:
 
 def complexity_to_thinking_effort(complexity: int) -> str:
     """Converts a complexity score (1-5) to a thinking effort level."""
-    if complexity >= 5:
-        return "high"
-    elif complexity >= 3:
+    if complexity >= 4:
         return "medium"
     else:
         return "low"
