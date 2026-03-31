@@ -6,13 +6,13 @@
 
 > Claude Sonnet 4.6 + Bedrock 기준, 슬라이드 수와 복잡도에 비례하여 시간·비용이 증가합니다.
 
-**6장 슬라이드 실측 (Design + Visual QA)**
+**5장 슬라이드 실측 (Outline → Script → Design, Visual QA 미포함)**
 
 | 단계 | Input | Output | Cache Write | Cache Read | 비용 (USD) |
 | --- | --- | --- | --- | --- | --- |
-| Design (summary + slides) | 10K | 78K | 46K | 26K | $1.37 |
-| Visual QA (2 iterations) | 69K | 38K | 19K | 7K | $0.84 |
-| **합계** | **79K** | **116K** | **65K** | **33K** | **~$2.2** |
+| Outline + Script | 4K | 3K | - | - | $0.12 |
+| Design (summary + slides) | 4K | 70K | 31K | 29K | $1.17 |
+| **합계** | **8K** | **73K** | **31K** | **29K** | **~$1.3** |
 
 Visual QA는 자동으로 실행되지 않으며, 사용자가 명시적으로 요청해야 합니다. 비용을 절감하려면 `max_iterations=1`로 설정하거나 문제가 있는 슬라이드만 별도로 Visual QA를 요청하세요.
 
