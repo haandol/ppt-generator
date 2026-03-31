@@ -28,8 +28,9 @@ Identify any visual quality issues from the categories below.
 | `zero_gap` | Two adjacent components (shapes, textboxes, cards) have zero or near-zero gap between them, appearing completely stuck together with no breathing room. This excludes intentional nesting (container-child) and decorative elements (thin lines flush against cards). |
 | `small_font` | Text font size is too small for its role, harming readability. Body/card body text below 14pt, or any text below 10pt. Secondary text (footnotes, source labels) between 10-12pt is acceptable. |
 | `insufficient_padding` | A shape or textbox with background/fill has text touching or nearly touching its boundary (padding < 8px on any side), making the content feel cramped and hard to read. |
-| `content_too_sparse` | Slide content occupies less than 30% of the available body area, with excessive whitespace that makes the slide feel empty and unfocused. Large empty areas above and below the content with no visual purpose. |
+| `content_too_sparse` | Slide content occupies less than 30% of the available body area, with excessive whitespace that makes the slide feel empty and unfocused. Large empty areas above and below the content with no visual purpose. Also applies when repeating elements (chart rows, card stacks) are clustered in a small portion of their parent container, leaving more than 40% of the container's height unused. |
 | `content_too_dense` | Slide is overcrowded with too many elements or text, with font sizes squeezed below recommended minimums, padding reduced to near-zero, or more than 7 competing visual elements. The slide feels cluttered and hard to focus on. |
+| `unbalanced_spacing` | Repeating elements (chart bars, card rows, list items) inside a container or body area have inter-element spacing that is either too large (> 2× item height, making elements feel scattered) or too small (< 8px, making elements feel cramped), resulting in poor optical density balance. Elements should be evenly distributed with spacing between 12px and 1.5× item height. |
 </issue_types>
 
 <guidelines>

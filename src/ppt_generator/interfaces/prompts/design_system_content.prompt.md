@@ -519,6 +519,15 @@ Vertical placement strategy based on content amount:
 - **Adjust body height to match content.** Do not always fix height_px at 540 — calculate the height appropriate for the actual text amount (max 540px = 688 - 148). Note: Well-designed presentations have an average body height around 300px; fixing at 540px creates excessive empty space.
 - If the body textbox's actual content is less than 65% of height_px, set vertical_alignment to "middle". This prevents content from clustering at the top and creates a visually balanced layout.
 - Card layouts (step_cards, info_cards, etc.) should be positioned around the canvas vertical center.
+
+■ Content area utilization with optical density balance (mandatory):
+  When placing repeating elements (chart rows, card stacks, list items, etc.) inside a container or the body area:
+  - **Utilize at least 60% of the parent area's available height.** Do not cluster elements in the top portion leaving large empty space below.
+  - **Maintain consistent inter-element spacing** that preserves visual cohesion. Elements should feel grouped, not scattered.
+  - Recommended approach: Calculate total content height (N items × item_height + (N-1) × gap), then center the content block vertically within the parent area. Adjust gap so total content height is 60~85% of available height.
+  - **Avoid excessive spacing**: If the gap between adjacent items exceeds 2× the item height, the layout feels disconnected and sparse. Keep gap ≤ 1.5× item height.
+  - **Avoid insufficient spacing**: If the gap is less than 8px, items feel cramped. Keep gap ≥ 12px for readability.
+  - Formula for balanced gap: gap = (available_height - N × item_height) / (N + 1), then clamp to [12px, 1.5 × item_height].
 </content_vertical_balance>
 
 <page_design_rules>

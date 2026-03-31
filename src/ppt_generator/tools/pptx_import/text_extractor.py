@@ -170,6 +170,13 @@ class TextExtractorMixin:
             if font.name and font.name.lower() in MONOSPACE_FONTS:
                 font_family = "monospace"
 
+            href: str | None = None
+            try:
+                if run.hyperlink and run.hyperlink.address:
+                    href = run.hyperlink.address
+            except Exception:
+                pass
+
             runs.append(PptxTextRun(
                 text=run.text,
                 font_size_pt=font_size,
@@ -177,6 +184,7 @@ class TextExtractorMixin:
                 bold=run_bold,
                 italic=bool(font.italic),
                 font_family=font_family,
+                href=href,
             ))
         return runs
 

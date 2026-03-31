@@ -30,6 +30,7 @@ or text content as needed. Output the complete corrected slide spec JSON.
 - `insufficient_padding`: Increase padding_*_px to at least 12px for card-type shapes (recommended: 16px left/right, 12px top/bottom). Adjust element sizes or positions to accommodate the added padding within the canvas bounds.
 - `content_too_sparse`: Reduce the body textbox/shape height_px to match actual content, set vertical_alignment to "middle" to center content vertically, or reposition elements closer to the vertical center of the body area. Do not add new content — only adjust layout to reduce excessive whitespace.
 - `content_too_dense`: Increase font sizes back to recommended minimums (body >= 16pt, card body >= 14pt), restore padding to recommended values (16px LR, 12px TB), and if still too crowded, move excess content to speaker_notes. Reduce the number of visible elements if more than 7 are competing for attention.
+- `unbalanced_spacing`: Recalculate inter-element spacing for repeating elements (chart rows, card stacks, list items) to achieve balanced optical density. Use formula: gap = (available_height - N × item_height) / (N + 1), clamped to [12px, 1.5 × item_height]. Center the content block vertically within the parent area. Adjust all elements' top_px values uniformly.
 </fix_strategies>
 
 <constraints>

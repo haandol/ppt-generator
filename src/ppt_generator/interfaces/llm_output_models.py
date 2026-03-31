@@ -28,6 +28,7 @@ class TextRunOutput(BaseModel):
     bold: bool = False
     italic: bool = False
     font_family: Literal["monospace"] | None = None
+    href: str | None = None
 
 
 class ParagraphOutput(BaseModel):
@@ -138,6 +139,7 @@ class SlideSpecOutput(BaseModel):
                                 bold=r.bold,
                                 italic=r.italic,
                                 font_family=r.font_family,
+                                href=r.href,
                             )
                             for r in p.runs
                         ],
@@ -180,6 +182,7 @@ class SlideSpecOutput(BaseModel):
                                 bold=r.bold,
                                 italic=r.italic,
                                 font_family=r.font_family,
+                                href=r.href,
                             )
                             for r in p.runs
                         ],

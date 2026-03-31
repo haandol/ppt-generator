@@ -31,7 +31,7 @@ and output PptxSlideSpec JSON that can be directly rendered with python-pptx.
       "paragraphs": [
         {
           "runs": [
-            {"text": "...", "font_size_pt": number|null, "color": "#RRGGBB"|null, "bold": bool, "italic": bool, "font_family": "monospace"|null}
+            {"text": "...", "font_size_pt": number|null, "color": "#RRGGBB"|null, "bold": bool, "italic": bool, "font_family": "monospace"|null, "href": "https://..."|null}
           ],
           "bullet_level": -1|0|1,
           "alignment": "left"|"center"|"right"|null

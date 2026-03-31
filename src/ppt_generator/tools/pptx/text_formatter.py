@@ -68,6 +68,8 @@ def format_run(run_obj, run_spec: PptxTextRun) -> None:
         rgb = parse_color(run_spec.color)
         if rgb:
             run_obj.font.color.rgb = rgb
+    if run_spec.href:
+        run_obj.hyperlink.address = run_spec.href
 
 
 def apply_bullet(paragraph, level: int) -> None:

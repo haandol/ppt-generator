@@ -29,8 +29,13 @@ def run_to_html(run: PptxTextRun) -> str:
 
     text = escape_html(run.text)
     if styles:
-        return f'<span style="{";".join(styles)}">{text}</span>'
-    return text
+        inner = f'<span style="{";".join(styles)}">{text}</span>'
+    else:
+        inner = text
+    if run.href:
+        href = escape_html(run.href)
+        return f'<a href="{href}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline">{inner}</a>'
+    return inner
 
 
 def paragraph_to_html(para: PptxParagraph) -> str:

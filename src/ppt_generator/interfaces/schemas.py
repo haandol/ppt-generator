@@ -86,6 +86,7 @@ class PptxTextRun:
     bold: bool = False
     italic: bool = False
     font_family: str | None = None
+    href: str | None = None
 
 
 @dataclass(frozen=True)
