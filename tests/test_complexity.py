@@ -1,4 +1,4 @@
-"""슬라이드 복잡도 추정 + thinking effort 변환 단위 테스트.  """
+"""슬라이드 복잡도 추정 + thinking effort 변환 단위 테스트."""
 
 import pytest
 
