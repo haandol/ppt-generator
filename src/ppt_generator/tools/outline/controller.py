@@ -26,6 +26,9 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
         audience_type: str = DEFAULT_AUDIENCE_TYPE,
         presentation_minutes: int = DEFAULT_PRESENTATION_MINUTES,
         num_slides: int = 0,
+        presenter_name: str = "",
+        presenter_title: str = "",
+        presenter_org: str = "",
         project_id: str = "",
     ) -> str:
         """Generates a slide outline JSON based on the given topic.
@@ -35,10 +38,11 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
         The outline determines only the structure; design is decided in the subsequent HTML slide generation step.
 
         **IMPORTANT — Required checks before calling:**
-        Before calling this tool, you must ask the user to confirm the following three items:
+        Before calling this tool, you must ask the user to confirm the following items:
         1. **Presentation purpose** (purpose): What is the purpose of the presentation (e.g., "internal tech sharing", "customer proposal", "conference talk")
         2. **Presentation time** (presentation_minutes): How many minutes the presentation will be
         3. **Audience type** (audience_type): Who the audience is (general/technical/executive)
+        4. **Presenter info** (presenter_name, presenter_title, presenter_org): Name, job title, and organization of the presenter. presenter_org can be empty if not applicable.
         If the user has not explicitly provided these, never use default values — always ask.
 
         **IMPORTANT: After generating the outline, you must show the result to the user and get confirmation.**
@@ -52,6 +56,9 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
             audience_type: Audience type — "general", "technical", "executive". Must confirm with the user before setting.
             presentation_minutes: Presentation duration in minutes. 3~60 min. Must confirm with the user before setting.
             num_slides: Recommended number of slides (0 = auto-calculate based on presentation time: 1 slide per 1~2 min). Actual count may differ to ensure one topic per slide.
+            presenter_name: Presenter's name (e.g., "DongGyun Lee"). Must confirm with the user before setting.
+            presenter_title: Presenter's job title (e.g., "Solutions Architect"). Must confirm with the user before setting.
+            presenter_org: Presenter's organization (e.g., "Amazon Web Services"). Can be empty if not applicable. Must confirm with the user before setting.
             project_id: Project ID (auto-generated if not specified)
 
         Returns:
@@ -70,6 +77,9 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
             audience_type=audience_type,
             presentation_minutes=presentation_minutes,
             purpose=purpose,
+            presenter_name=presenter_name,
+            presenter_title=presenter_title,
+            presenter_org=presenter_org,
         )
         response = outline_service.generate(request)
         actual_num_slides = len(response.slides)
@@ -85,6 +95,9 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
                 audience_type=audience_type,
                 presentation_minutes=presentation_minutes,
                 purpose=purpose,
+                presenter_name=presenter_name,
+                presenter_title=presenter_title,
+                presenter_org=presenter_org,
             ),
         )
         project_service.save_outline(project_dir, result)

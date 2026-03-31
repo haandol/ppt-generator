@@ -9,10 +9,14 @@ Title slide (slide_type: "title") design rules:
   · Main title: left=64, top=260, width=1152, height=80 (1 line) or 160 (2 lines), font_size_pt 40~44, bold, vertical_alignment "middle". If the title is long enough to wrap to 2 lines, set height=160 and adjust the divider and subtitle top positions downward accordingly.
   · Divider: shape (rectangle), left=64, top=350 (1 line) or 430 (2 lines), width=80, height=4, fill_color accent color (#FF9900), vertical_alignment "top"
   · Subtitle: left=64, top=370 (1 line) or 450 (2 lines), width=1152, height=100, font_size_pt 14~18, vertical_alignment "top"
+  · Presenter info (mandatory): Always placed at bottom-left. A single textbox with 3 lines — name, job title, organization — each on a separate paragraph line.
+    - Position: left=64, top=560, width=400, height=96
+    - Font: font_size_pt 18, color "#D5DBDB", not bold, vertical_alignment "bottom"
+    - Extract presenter name/title/org from content_summary or speaker_notes. If not explicitly provided, use generic placeholders (e.g., "발표자 이름", "직책", "소속").
 </slide_type_title>
 
 <examples>
-  <layout_example id="title-1" hint="title — Presentation title slide (main title + divider + subtitle)">
+  <layout_example id="title-1" hint="title — Presentation title slide (main title + divider + subtitle + presenter info)">
   {
     "background_color": null,
     "speaker_notes": "Presentation introduction...",
@@ -30,6 +34,15 @@ Title slide (slide_type: "title") design rules:
         "paragraphs": [
           {"runs": [{"text": "Subtitle or presentation description", "font_size_pt": 16, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"},
           {"runs": [{"text": "Audience: Engineers  |  Internal Tech Sharing", "font_size_pt": 14, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
+        ]
+      },
+      {
+        "left_px": 64, "top_px": 560, "width_px": 400, "height_px": 96,
+        "vertical_alignment": "bottom",
+        "paragraphs": [
+          {"runs": [{"text": "홍길동", "font_size_pt": 18, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"},
+          {"runs": [{"text": "시니어 엔지니어", "font_size_pt": 18, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"},
+          {"runs": [{"text": "클라우드 아키텍처팀", "font_size_pt": 18, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
         ]
       }
     ],
@@ -62,4 +75,5 @@ Hard constraints (rendering will fail if violated):
 7. vertical_alignment required: Always specify vertical_alignment for all textboxes and shapes (null not allowed).
 8. Title position: Main title must be placed at left=64, top=260, width=1152. Height is 80 for 1 line, 160 for 2 lines.
 9. Main title font size: The main title text font_size_pt must be in the 40~44 range. Below 40pt is not allowed.
+10. Presenter info required: Title slides must always include a presenter info textbox at bottom-left (left=64, top=560, width=400, height=96) with 3 lines (name, job title, organization) at font_size_pt 18.
 </constraints>

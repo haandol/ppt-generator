@@ -52,6 +52,7 @@ class OutlineService:
                 logger.warning("Outline JSON parsing failed (attempt %d/%d): %s", attempt, MAX_RETRIES, e)
                 continue
             slides = self._build_slides(data)
+            slides = self._inject_presenter_info(slides, request)
             return OutlineResponse(slides=slides)
 
         raise last_error  # type: ignore[misc]
@@ -63,6 +64,35 @@ class OutlineService:
             raise ValueError("JSON does not contain a 'slides' array.")
 
         return data
+
+    @staticmethod
+    def _inject_presenter_info(
+        slides: list[SlideOutline], request: OutlineRequest,
+    ) -> list[SlideOutline]:
+        """title 슬라이드의 content_summary에 발표자 정보를 주입한다."""
+        if not request.presenter_name:
+            return slides
+        parts = [f"발표자: {request.presenter_name}"]
+        if request.presenter_title:
+            parts.append(request.presenter_title)
+        if request.presenter_org:
+            parts.append(request.presenter_org)
+        presenter_line = " / ".join(parts)
+        result: list[SlideOutline] = []
+        for slide in slides:
+            if slide.slide_type == "title":
+                new_summary = f"{slide.content_summary}. {presenter_line}"
+                result.append(SlideOutline(
+                    title=slide.title,
+                    content_summary=new_summary,
+                    component_hint=slide.component_hint,
+                    speaker_notes=slide.speaker_notes,
+                    slide_type=slide.slide_type,
+                    slide_index=slide.slide_index,
+                ))
+            else:
+                result.append(slide)
+        return result
 
     def _build_slides(self, data: dict) -> list[SlideOutline]:
         slides: list[SlideOutline] = []

@@ -222,6 +222,9 @@ class ProjectService:
             "audience_type": metadata.audience_type,
             "presentation_minutes": metadata.presentation_minutes,
             "source": metadata.source,
+            "presenter_name": metadata.presenter_name,
+            "presenter_title": metadata.presenter_title,
+            "presenter_org": metadata.presenter_org,
         }
         (project_dir / "project.json").write_text(
             json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -258,6 +261,9 @@ class ProjectService:
             audience_type=data.get("audience_type", "general"),
             presentation_minutes=data.get("presentation_minutes", 15),
             source=data.get("source", "generated"),
+            presenter_name=data.get("presenter_name", ""),
+            presenter_title=data.get("presenter_title", ""),
+            presenter_org=data.get("presenter_org", ""),
         )
 
     # --- 프로젝트 목록 ---

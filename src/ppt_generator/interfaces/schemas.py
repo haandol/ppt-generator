@@ -33,6 +33,9 @@ class OutlineRequest:
     audience_type: str = "general"
     presentation_minutes: int = 15
     purpose: str = ""
+    presenter_name: str = ""
+    presenter_title: str = ""
+    presenter_org: str = ""
 
 
 @dataclass(frozen=True)
@@ -71,6 +74,9 @@ class ProjectMetadata:
     presentation_minutes: int = 15
     purpose: str = ""
     source: str = "generated"  # "generated" | "imported"
+    presenter_name: str = ""
+    presenter_title: str = ""
+    presenter_org: str = ""
 
 
 # --- PPTX element schemas (for LLM conversion) ---
