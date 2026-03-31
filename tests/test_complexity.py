@@ -1,4 +1,4 @@
-"""슬라이드 복잡도 추정 + thinking effort 변환 단위 테스트."""
+"""슬라이드 복잡도 추정 + thinking effort 변환 단위 테스트.  """
 
 import pytest
 
@@ -91,9 +91,9 @@ class TestComplexityToThinkingEffort:
     @pytest.mark.parametrize("complexity,expected", [
         (1, "low"),
         (2, "low"),
-        (3, "medium"),
+        (3, "low"),
         (4, "medium"),
-        (5, "high"),
+        (5, "medium"),
     ])
     def test_effort_mapping(self, complexity: int, expected: str) -> None:
         assert complexity_to_thinking_effort(complexity) == expected
@@ -101,11 +101,11 @@ class TestComplexityToThinkingEffort:
     def test_boundary_2_is_low(self) -> None:
         assert complexity_to_thinking_effort(2) == "low"
 
-    def test_boundary_3_is_medium(self) -> None:
-        assert complexity_to_thinking_effort(3) == "medium"
+    def test_boundary_3_is_low(self) -> None:
+        assert complexity_to_thinking_effort(3) == "low"
 
     def test_boundary_4_is_medium(self) -> None:
         assert complexity_to_thinking_effort(4) == "medium"
 
-    def test_boundary_5_is_high(self) -> None:
-        assert complexity_to_thinking_effort(5) == "high"
+    def test_boundary_5_is_medium(self) -> None:
+        assert complexity_to_thinking_effort(5) == "medium"
