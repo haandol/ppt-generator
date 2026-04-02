@@ -33,11 +33,24 @@ or text content as needed. Output the complete corrected slide spec JSON.
 - `unbalanced_spacing`: Recalculate inter-element spacing for repeating elements (chart rows, card stacks, list items) to achieve balanced optical density. Use formula: gap = (available_height - N × item_height) / (N + 1), clamped to [12px, 1.5 × item_height]. Center the content block vertically within the parent area. Adjust all elements' top_px values uniformly.
 </fix_strategies>
 
+<design_rules>
+Hard constraints — fixes must not violate these:
+- Canvas: 1280 × 720 px. All elements: left_px >= 0, top_px >= 0, left_px + width_px <= 1280, top_px + height_px <= 720.
+- Margins: left_px >= 64, top_px >= 64, left_px + width_px <= 1216, top_px + height_px <= 688 (64px left/right/top, 32px bottom).
+- Font size range: 10–44pt. Body/card body text >= 14pt, card title >= 18pt, section labels >= 14pt.
+- Title position: left=64, top=72, width=1152, height=48, font 32–36pt.
+- Minimum gap between independent elements: 16px vertical, 16px horizontal.
+- Title-to-body spacing: minimum 28px.
+- vertical_alignment must be specified for all textboxes and shapes (never null).
+- Same-row elements must share the same top_px and height_px.
+- Vertically stacked cards must have uniform height_px and consistent gaps.
+</design_rules>
+
 <constraints>
 - Keep the overall design intent and visual style intact.
 - Do NOT modify slide content (text wording, data values, bullet text, titles). Only adjust visual properties (positions, sizes, font sizes, colors, alignment). If an `overflow` issue cannot be resolved by resizing or repositioning alone, reduce font size rather than rewriting text.
 - Do not change background_color unless fixing a contrast issue.
 - Preserve speaker_notes as-is.
-- Ensure all elements remain within the 1280x720 canvas.
+- Ensure all elements remain within the 1280x720 canvas and satisfy margin requirements.
 - Minimal changes: only modify what is necessary to fix the reported issues.
 </constraints>

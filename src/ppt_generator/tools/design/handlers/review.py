@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from ppt_generator.interfaces.constants import BEDROCK_DESIGN_MODEL_ID
@@ -85,6 +86,15 @@ def handle_review(
             )
             regen_usage = svc_regen.last_token_usage
             slide_usage = merge_token_usage(review_usage, regen_usage)
+
+            # Restore images and slide_type from original spec (LLM cannot generate these)
+            restore = {}
+            if spec.images:
+                restore["images"] = spec.images
+            if spec.slide_type != "content":
+                restore["slide_type"] = spec.slide_type
+            if restore:
+                new_spec = replace(new_spec, **restore)
 
             project_service.save_design_spec_slide(project_dir, idx, new_spec)
             if deps.slides_service is not None:
