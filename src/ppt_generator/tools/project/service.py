@@ -10,40 +10,14 @@ from pathlib import Path
 from threading import Lock
 
 from ppt_generator.interfaces.constants import PPT_GENERATOR_HOME
-from dataclasses import replace
 
 from ppt_generator.interfaces.schemas import DesignSpec, PptxImage, PptxSlideSpec, ProjectMetadata
 from ppt_generator.tools.project.design_spec_store import DesignSpecStore
 from ppt_generator.tools.project.html_store import HtmlStore
+from ppt_generator.tools.project.image_store import ImageStore
 from ppt_generator.tools.project.jsonl_store import JsonlStore
 
 logger = logging.getLogger(__name__)
-
-_IMAGE_URL_TIMEOUT = 30  # seconds
-
-
-def _download_image(url: str) -> bytes:
-    """외부 URL에서 이미지를 다운로드한다."""
-    import httpx
-
-    resp = httpx.get(url, timeout=_IMAGE_URL_TIMEOUT, follow_redirects=True)
-    resp.raise_for_status()
-    return resp.content
-
-
-def _is_url(path: str) -> bool:
-    return path.startswith("http://") or path.startswith("https://")
-
-
-def _guess_ext_from_url(url: str) -> str:
-    """URL에서 이미지 확장자를 추측한다. 기본값 .png."""
-    from urllib.parse import urlparse
-
-    path = urlparse(url).path.lower()
-    for ext in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp"):
-        if path.endswith(ext):
-            return ext
-    return ".png"
 
 # server.py의 main()에서 설정됨
 _log_dir: str | None = None
@@ -61,6 +35,7 @@ class ProjectService:
         self.design_spec_store = design_spec_store or DesignSpecStore()
         self._jsonl_store = JsonlStore()
         self._html_store = HtmlStore()
+        self._image_store = ImageStore(html_store=self._html_store)
         self._metadata_lock = Lock()
 
     def resolve_project_dir(self, project_id: str = "") -> tuple[str, Path]:
@@ -157,77 +132,10 @@ class ProjectService:
         return self._html_store.get_slide_image_srcs(project_dir, slide_index, image_count)
 
     def sync_image_paths(self, project_dir: Path, design_spec: DesignSpec) -> DesignSpec:
-        """image_path가 있지만 src가 없는 이미지를 slides/images/에 복사하고 src를 설정한다.
-
-        로컬 파일과 외부 URL 모두 지원한다. 변경된 슬라이드는 디자인 스펙 파일에도 반영한다.
-        """
-        updated_slides: list[PptxSlideSpec] = []
-        changed = False
-        for idx, slide in enumerate(design_spec.slides):
-            new_images: list[PptxImage] = []
-            slide_changed = False
-            for img_i, img in enumerate(slide.images):
-                if img.image_path and not img.src:
-                    resolved = self._sync_single_image(
-                        project_dir, idx, img_i, img,
-                    )
-                    if resolved is not img:
-                        slide_changed = True
-                    new_images.append(resolved)
-                else:
-                    new_images.append(img)
-            if slide_changed:
-                updated_slide = replace(slide, images=new_images)
-                updated_slides.append(updated_slide)
-                self.save_design_spec_slide(project_dir, idx, updated_slide)
-                changed = True
-            else:
-                updated_slides.append(slide)
-        if changed:
-            return DesignSpec(slides=updated_slides)
-        return design_spec
-
-    def _sync_single_image(
-        self,
-        project_dir: Path,
-        slide_idx: int,
-        img_idx: int,
-        img: PptxImage,
-    ) -> PptxImage:
-        """단일 이미지의 image_path를 slides/images/에 동기화한다."""
-        images_dir = project_dir / self.IMAGES_DIR
-        images_dir.mkdir(parents=True, exist_ok=True)
-        fname = self._html_store._image_filename(slide_idx, img_idx)
-
-        if _is_url(img.image_path):
-            # URL에서 확장자 추출
-            ext = _guess_ext_from_url(img.image_path)
-            if ext != ".png":
-                fname = fname.rsplit(".", 1)[0] + ext
-            dest = images_dir / fname
-            if not dest.exists():
-                try:
-                    data = _download_image(img.image_path)
-                    dest.write_bytes(data)
-                    logger.info("이미지 다운로드: %s → %s", img.image_path, dest)
-                except Exception:
-                    logger.warning("이미지 다운로드 실패: %s", img.image_path, exc_info=True)
-                    return img
-            return replace(img, src=f"images/{fname}")
-
-        # 로컬 파일
-        abs_path = Path(img.image_path)
-        if not abs_path.exists():
-            logger.warning("image_path 파일 없음: %s", abs_path)
-            return img
-        ext = abs_path.suffix.lower()
-        if ext and ext != ".png":
-            fname = fname.rsplit(".", 1)[0] + ext
-        dest = images_dir / fname
-        if not dest.exists():
-            shutil.copy2(str(abs_path), str(dest))
-            logger.info("이미지 복사: %s → %s", abs_path, dest)
-        return replace(img, src=f"images/{fname}")
+        """image_path가 있지만 src가 없는 이미지를 slides/images/에 복사하고 src를 설정한다."""
+        return self._image_store.sync_image_paths(
+            project_dir, design_spec, save_slide_fn=self.save_design_spec_slide,
+        )
 
     def save_single_slide_html(
         self, project_dir: Path, slide_index: int, slide_html: str,
@@ -254,44 +162,10 @@ class ProjectService:
         return self.design_spec_store.load_design_spec(project_dir)
 
     def load_design_spec_with_images(self, project_dir: Path) -> DesignSpec:
-        """design spec을 로드한 후, 각 이미지의 src 또는 image_path로부터 image_bytes를 복원한다."""
-        spec = self.load_design_spec(project_dir)
-        slides_dir = project_dir / self.SLIDES_DIR
-        updated_slides: list[PptxSlideSpec] = []
-        for slide in spec.slides:
-            new_images: list[PptxImage] = []
-            for img in slide.images:
-                resolved = self._resolve_image_bytes(img, slides_dir)
-                new_images.append(resolved)
-            if new_images != list(slide.images):
-                updated_slides.append(replace(slide, images=new_images))
-            else:
-                updated_slides.append(slide)
-        return DesignSpec(slides=updated_slides)
-
-    @staticmethod
-    def _resolve_image_bytes(img: PptxImage, slides_dir: Path) -> PptxImage:
-        """이미지 바이트를 src 또는 image_path로부터 복원한다."""
-        # 1) src 상대경로가 있으면 slides/ 아래에서 로드
-        if img.src:
-            img_path = slides_dir / img.src
-            if img_path.exists():
-                return replace(img, image_bytes=img_path.read_bytes())
-            logger.warning("이미지 파일 없음 (src): %s", img_path)
-        # 2) image_path가 있으면 로컬 파일 또는 URL에서 로드
-        if img.image_path:
-            if _is_url(img.image_path):
-                try:
-                    data = _download_image(img.image_path)
-                    return replace(img, image_bytes=data)
-                except Exception:
-                    logger.warning("이미지 다운로드 실패: %s", img.image_path, exc_info=True)
-            else:
-                abs_path = Path(img.image_path)
-                if abs_path.exists():
-                    return replace(img, image_bytes=abs_path.read_bytes())
-                logger.warning("이미지 파일 없음 (image_path): %s", abs_path)
-        return img
+        """design spec을 로드한 후, 각 이미지의 src/image_path로부터 image_bytes를 복원한다."""
+        return self._image_store.load_design_spec_with_images(
+            project_dir, load_spec_fn=self.load_design_spec,
+        )
 
     def save_design_spec_slide(self, project_dir: Path, index: int, slide: PptxSlideSpec) -> None:
         self.design_spec_store.save_design_spec_slide(project_dir, index, slide)
