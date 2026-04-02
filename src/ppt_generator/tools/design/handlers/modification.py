@@ -52,8 +52,10 @@ def handle_move(
 
     project_service.sync_outline_to_design_spec_count(project_dir)
     project_service.move_outline_slide(project_dir, from_idx, to_idx)
+    project_service.move_slide_images(project_dir, from_idx, to_idx, slide_count)
     project_service.move_design_spec_slide(project_dir, from_idx, to_idx)
     project_service.move_slide_html(project_dir, from_idx, to_idx)
+    project_service.renumber_design_spec_image_srcs(project_dir)
     project_service.update_step(project_dir, "design_spec_modified")
 
     return json.dumps({
@@ -186,6 +188,7 @@ def _add_slide(deps, *, project_dir, slide_count, slide_index, title, content_su
         "speaker_notes": speaker_notes,
     }, ensure_ascii=False)
     project_service.insert_outline_slide(project_dir, insert_idx, outline_json)
+    project_service.shift_slide_images(project_dir, insert_idx, slide_count)
     project_service.shift_slide_htmls(project_dir, insert_idx)
 
     outline = parse_outline_json(outline_json)
@@ -196,6 +199,7 @@ def _add_slide(deps, *, project_dir, slide_count, slide_index, title, content_su
     )
 
     project_service.insert_design_spec_slide(project_dir, insert_idx, new_spec)
+    project_service.renumber_design_spec_image_srcs(project_dir)
 
     slide_html_path: str | None = None
     if deps.slides_service is not None:
@@ -264,6 +268,8 @@ def _delete_slide(deps, *, project_dir, slide_count, slide_index):
     idx = slide_index - 1
 
     project_service.sync_outline_to_design_spec_count(project_dir)
+    project_service.delete_slide_images(project_dir, idx, slide_count)
     project_service.delete_design_spec_slide(project_dir, idx)
     project_service.delete_slide_html(project_dir, idx)
     project_service.delete_outline_slide(project_dir, idx)
+    project_service.renumber_design_spec_image_srcs(project_dir)

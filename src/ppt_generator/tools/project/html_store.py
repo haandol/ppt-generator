@@ -144,3 +144,92 @@ class HtmlStore:
             new_name = slides_dir / self._slide_html_filename(i + 1)
             if old_name.exists():
                 old_name.rename(new_name)
+
+    # --- 이미지 파일 재번호/시프트/이동 ---
+
+    def _collect_slide_images(
+        self, images_dir: Path, slide_index: int,
+    ) -> list[tuple[str, bytes]]:
+        """특정 슬라이드의 이미지 파일들을 (파일명, 바이트) 리스트로 수집한다."""
+        prefix = f"slide_{slide_index + 1:02d}_img_"
+        result: list[tuple[str, bytes]] = []
+        if not images_dir.exists():
+            return result
+        for f in sorted(images_dir.glob(f"{prefix}*")):
+            result.append((f.name, f.read_bytes()))
+        return result
+
+    def _write_slide_images(
+        self, images_dir: Path, slide_index: int, image_data: list[tuple[str, bytes]],
+    ) -> None:
+        """수집한 이미지 데이터를 새 슬라이드 인덱스로 재작성한다."""
+        for img_idx, (_old_name, data) in enumerate(image_data):
+            fname = self._image_filename(slide_index, img_idx)
+            (images_dir / fname).write_bytes(data)
+
+    def delete_slide_images(
+        self, project_dir: Path, index: int, slide_count: int,
+    ) -> None:
+        """슬라이드 이미지 파일을 삭제하고 남은 파일을 재번호한다."""
+        images_dir = project_dir / PROJECT_IMAGES_DIR
+        if not images_dir.exists():
+            return
+
+        # 1) 삭제 대상 슬라이드의 이미지 삭제
+        for f in sorted(images_dir.glob(f"slide_{index + 1:02d}_img_*")):
+            f.unlink()
+
+        # 2) 삭제 위치 이후 슬라이드들의 이미지를 수집
+        collected: list[tuple[int, list[tuple[str, bytes]]]] = []
+        for i in range(index + 1, slide_count):
+            imgs = self._collect_slide_images(images_dir, i)
+            if imgs:
+                collected.append((i, imgs))
+                for f in sorted(images_dir.glob(f"slide_{i + 1:02d}_img_*")):
+                    f.unlink()
+
+        # 3) 한 칸 앞으로 재작성
+        for old_idx, imgs in collected:
+            self._write_slide_images(images_dir, old_idx - 1, imgs)
+
+    def shift_slide_images(
+        self, project_dir: Path, insert_index: int, slide_count: int,
+    ) -> None:
+        """삽입 위치 이후의 슬라이드 이미지 파일을 한 칸씩 뒤로 밀어낸다."""
+        images_dir = project_dir / PROJECT_IMAGES_DIR
+        if not images_dir.exists():
+            return
+
+        # 뒤에서부터 한 칸씩 뒤로 밀기
+        for i in range(slide_count - 1, insert_index - 1, -1):
+            imgs = self._collect_slide_images(images_dir, i)
+            if imgs:
+                for f in sorted(images_dir.glob(f"slide_{i + 1:02d}_img_*")):
+                    f.unlink()
+                self._write_slide_images(images_dir, i + 1, imgs)
+
+    def move_slide_images(
+        self, project_dir: Path, from_index: int, to_index: int, slide_count: int,
+    ) -> None:
+        """슬라이드 이미지를 from_index → to_index로 이동하고 재번호한다."""
+        images_dir = project_dir / PROJECT_IMAGES_DIR
+        if not images_dir.exists():
+            return
+        if from_index == to_index:
+            return
+
+        # 모든 슬라이드의 이미지를 수집
+        all_images: list[list[tuple[str, bytes]]] = []
+        for i in range(slide_count):
+            all_images.append(self._collect_slide_images(images_dir, i))
+
+        # 리스트에서 이동
+        item = all_images.pop(from_index)
+        all_images.insert(to_index, item)
+
+        # 기존 이미지 파일 전부 삭제 후 재작성
+        for f in sorted(images_dir.glob("slide_*_img_*")):
+            f.unlink()
+        for i, imgs in enumerate(all_images):
+            if imgs:
+                self._write_slide_images(images_dir, i, imgs)

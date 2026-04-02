@@ -149,6 +149,43 @@ class ProjectService:
     def move_slide_html(self, project_dir: Path, from_index: int, to_index: int) -> None:
         self._html_store.move_slide_html(project_dir, from_index, to_index)
 
+    def delete_slide_images(self, project_dir: Path, index: int, slide_count: int) -> None:
+        self._html_store.delete_slide_images(project_dir, index, slide_count)
+
+    def shift_slide_images(self, project_dir: Path, insert_index: int, slide_count: int) -> None:
+        self._html_store.shift_slide_images(project_dir, insert_index, slide_count)
+
+    def move_slide_images(
+        self, project_dir: Path, from_index: int, to_index: int, slide_count: int,
+    ) -> None:
+        self._html_store.move_slide_images(project_dir, from_index, to_index, slide_count)
+
+    def renumber_design_spec_image_srcs(self, project_dir: Path) -> None:
+        """모든 슬라이드의 design spec images[].src를 현재 슬라이드 인덱스에 맞게 재번호한다."""
+        from dataclasses import replace as _replace
+
+        spec = self.load_design_spec(project_dir)
+        changed = False
+        for idx, slide in enumerate(spec.slides):
+            new_images: list[PptxImage] = []
+            slide_changed = False
+            for img_i, img in enumerate(slide.images):
+                if not img.src:
+                    new_images.append(img)
+                    continue
+                expected_src = f"images/{self._html_store._image_filename(idx, img_i)}"
+                if img.src != expected_src:
+                    new_images.append(_replace(img, src=expected_src))
+                    slide_changed = True
+                else:
+                    new_images.append(img)
+            if slide_changed:
+                updated_slide = _replace(slide, images=new_images)
+                self.save_design_spec_slide(project_dir, idx, updated_slide)
+                changed = True
+        if changed:
+            logger.info("design spec image src 재번호 완료: %s", project_dir)
+
     # --- 디자인 스펙 (DesignSpecStore 위임) ---
 
     def save_design_spec(self, project_dir: Path, design_spec: DesignSpec) -> None:
