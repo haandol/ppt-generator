@@ -6,12 +6,10 @@ import json
 import logging
 from pathlib import Path
 
+from ppt_generator.interfaces.constants import PROJECT_IMAGES_DIR, PROJECT_SLIDES_DIR
 from ppt_generator.interfaces.schemas import PptxImage
 
 logger = logging.getLogger(__name__)
-
-SLIDES_DIR = "slides"
-IMAGES_DIR = "slides/images"
 
 
 class HtmlStore:
@@ -34,7 +32,7 @@ class HtmlStore:
         slide_htmls: list[str],
         container_html: str,
     ) -> None:
-        slides_dir = project_dir / SLIDES_DIR
+        slides_dir = project_dir / PROJECT_SLIDES_DIR
         if slides_dir.exists():
             for f in slides_dir.glob("slide_*.html"):
                 f.unlink()
@@ -60,7 +58,7 @@ class HtmlStore:
         Returns:
             저장된 이미지의 상대경로 리스트 (HTML에서 사용할 경로).
         """
-        images_dir = project_dir / IMAGES_DIR
+        images_dir = project_dir / PROJECT_IMAGES_DIR
         images_dir.mkdir(parents=True, exist_ok=True)
         srcs: list[str] = []
         for i, img in enumerate(images):
@@ -79,7 +77,7 @@ class HtmlStore:
         image_count: int,
     ) -> list[str]:
         """슬라이드의 이미지 파일 상대경로 리스트를 반환한다."""
-        images_dir = project_dir / IMAGES_DIR
+        images_dir = project_dir / PROJECT_IMAGES_DIR
         srcs: list[str] = []
         for i in range(image_count):
             fname = self._image_filename(slide_index, i)
@@ -93,7 +91,7 @@ class HtmlStore:
         self, project_dir: Path, slide_index: int, slide_html: str,
     ) -> Path:
         """단일 슬라이드 HTML을 저장하고 파일 경로를 반환한다."""
-        slides_dir = project_dir / SLIDES_DIR
+        slides_dir = project_dir / PROJECT_SLIDES_DIR
         slides_dir.mkdir(parents=True, exist_ok=True)
         fname = self._slide_html_filename(slide_index)
         path = slides_dir / fname
@@ -103,7 +101,7 @@ class HtmlStore:
 
     def move_slide_html(self, project_dir: Path, from_index: int, to_index: int) -> None:
         """슬라이드 HTML 파일을 from_index → to_index로 이동하고 재번호한다."""
-        slides_dir = project_dir / SLIDES_DIR
+        slides_dir = project_dir / PROJECT_SLIDES_DIR
         if not slides_dir.exists():
             return
         files = sorted(slides_dir.glob("slide_*.html"))
@@ -122,7 +120,7 @@ class HtmlStore:
 
     def delete_slide_html(self, project_dir: Path, index: int) -> None:
         """슬라이드 HTML 파일을 삭제하고 남은 파일을 재번호한다."""
-        slides_dir = project_dir / SLIDES_DIR
+        slides_dir = project_dir / PROJECT_SLIDES_DIR
         if not slides_dir.exists():
             return
         files = sorted(slides_dir.glob("slide_*.html"))
@@ -136,7 +134,7 @@ class HtmlStore:
 
     def shift_slide_htmls(self, project_dir: Path, insert_index: int) -> None:
         """삽입 위치 이후의 슬라이드 HTML 파일을 한 칸씩 뒤로 밀어낸다."""
-        slides_dir = project_dir / SLIDES_DIR
+        slides_dir = project_dir / PROJECT_SLIDES_DIR
         if not slides_dir.exists():
             return
         files = sorted(slides_dir.glob("slide_*.html"))

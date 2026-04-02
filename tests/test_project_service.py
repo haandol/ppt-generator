@@ -121,20 +121,6 @@ class TestSaveAndLoadOutline:
             slide = json.loads(f.read_text(encoding="utf-8"))
             assert slide["slide_index"] == i
 
-    def test_legacy_jsonl_fallback(self, project_service: ProjectService, project_dir: Path) -> None:
-        """outline/ 디렉토리가 없고 outline.jsonl이 있으면 fallback으로 읽는다."""
-        lines = [json.dumps(s, ensure_ascii=False) for s in json.loads(SAMPLE_OUTLINE)["slides"]]
-        (project_dir / "outline.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
-        loaded = project_service.load_outline(project_dir)
-        loaded_slides = json.loads(loaded)["slides"]
-        original_slides = json.loads(SAMPLE_OUTLINE)["slides"]
-        assert loaded_slides[0]["title"] == original_slides[0]["title"]
-
-    def test_legacy_json_fallback(self, project_service: ProjectService, project_dir: Path) -> None:
-        """outline.jsonl도 없고 outline.json이 있으면 fallback으로 읽는다."""
-        (project_dir / "outline.json").write_text(SAMPLE_OUTLINE, encoding="utf-8")
-        loaded = project_service.load_outline(project_dir)
-        assert json.loads(loaded) == json.loads(SAMPLE_OUTLINE)
 
 
 class TestSaveAndLoadScript:
@@ -165,20 +151,6 @@ class TestSaveAndLoadScript:
             slide = json.loads(f.read_text(encoding="utf-8"))
             assert slide["slide_index"] == i
 
-    def test_legacy_jsonl_fallback(self, project_service: ProjectService, project_dir: Path) -> None:
-        """script/ 디렉토리가 없고 script.jsonl이 있으면 fallback으로 읽는다."""
-        lines = [json.dumps(s, ensure_ascii=False) for s in json.loads(SAMPLE_SCRIPT)["slides"]]
-        (project_dir / "script.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
-        loaded = project_service.load_script(project_dir)
-        loaded_slides = json.loads(loaded)["slides"]
-        original_slides = json.loads(SAMPLE_SCRIPT)["slides"]
-        assert loaded_slides[0]["title"] == original_slides[0]["title"]
-
-    def test_legacy_json_fallback(self, project_service: ProjectService, project_dir: Path) -> None:
-        """script.jsonl도 없고 script.json이 있으면 fallback으로 읽는다."""
-        (project_dir / "script.json").write_text(SAMPLE_SCRIPT, encoding="utf-8")
-        loaded = project_service.load_script(project_dir)
-        assert json.loads(loaded) == json.loads(SAMPLE_SCRIPT)
 
 
 class TestLoadOutlineSlide:
@@ -193,10 +165,6 @@ class TestLoadOutlineSlide:
         with pytest.raises(IndexError):
             project_service.load_outline_slide(project_dir, 10)
 
-    def test_legacy_json_fallback(self, project_service: ProjectService, project_dir: Path) -> None:
-        (project_dir / "outline.json").write_text(MULTI_SLIDE_OUTLINE, encoding="utf-8")
-        slide = json.loads(project_service.load_outline_slide(project_dir, 0))
-        assert slide["title"] == "제목 슬라이드"
 
 
 class TestLoadScriptSlide:
@@ -211,10 +179,6 @@ class TestLoadScriptSlide:
         with pytest.raises(IndexError):
             project_service.load_script_slide(project_dir, 10)
 
-    def test_legacy_json_fallback(self, project_service: ProjectService, project_dir: Path) -> None:
-        (project_dir / "script.json").write_text(MULTI_SLIDE_SCRIPT, encoding="utf-8")
-        slide = json.loads(project_service.load_script_slide(project_dir, 0))
-        assert slide["title"] == "제목 슬라이드"
 
 
 SAMPLE_SLIDE_HTMLS = [

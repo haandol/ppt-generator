@@ -838,18 +838,25 @@ class TestGenerateSlidesDesignSpecFromProject:
                 for i in range(num_slides)
             ],
         }
-        (proj_dir / "outline.json").write_text(json.dumps(outline, ensure_ascii=False), encoding="utf-8")
+        outline_dir = proj_dir / "outline"
+        outline_dir.mkdir()
+        for i, slide in enumerate(outline["slides"]):
+            slide["slide_index"] = i
+            (outline_dir / f"slide_{i+1:02d}.json").write_text(
+                json.dumps(slide, ensure_ascii=False, indent=2), encoding="utf-8",
+            )
         return "batch-file-proj"
 
     def _setup_project_with_script(self, tmp_path: Path, monkeypatch, num_slides: int = 5) -> str:
         project_id = self._setup_project_with_outline(tmp_path, monkeypatch, num_slides)
         proj_dir = tmp_path / project_id
-        slides = [
-            {"title": f"스크립트 {i+1}", "content_summary": f"내용 {i+1}", "component_hint": "bullets", "speaker_notes": f"노트 {i+1}"}
-            for i in range(num_slides)
-        ]
-        lines = [json.dumps(s, ensure_ascii=False) for s in slides]
-        (proj_dir / "script.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        script_dir = proj_dir / "script"
+        script_dir.mkdir()
+        for i in range(num_slides):
+            slide = {"title": f"스크립트 {i+1}", "content_summary": f"내용 {i+1}", "component_hint": "bullets", "speaker_notes": f"노트 {i+1}", "slide_index": i}
+            (script_dir / f"slide_{i+1:02d}.json").write_text(
+                json.dumps(slide, ensure_ascii=False, indent=2), encoding="utf-8",
+            )
         return project_id
 
     def test_load_from_outline_file(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:

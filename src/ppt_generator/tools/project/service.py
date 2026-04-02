@@ -28,9 +28,6 @@ _active_handlers: dict[str, RotatingFileHandler] = {}
 class ProjectService:
     """파이프라인 결과물의 파일 I/O를 전담하는 서비스."""
 
-    SLIDES_DIR = "slides"
-    IMAGES_DIR = "slides/images"
-
     def __init__(self, design_spec_store: DesignSpecStore | None = None) -> None:
         self.design_spec_store = design_spec_store or DesignSpecStore()
         self._jsonl_store = JsonlStore()

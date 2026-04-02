@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Callable
-
 from mcp.server.fastmcp import Context, FastMCP
 
+from ppt_generator.interfaces.protocols import DesignServiceFactory, ReviewServiceFactory
 from ppt_generator.tools.design.handlers.deps import DesignDeps
 from ppt_generator.tools.design.handlers.generation import handle_generate
 from ppt_generator.tools.design.handlers.modification import handle_modify, handle_move
 from ppt_generator.tools.design.handlers.review import handle_review
-from ppt_generator.tools.design.service import DesignService
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
 
@@ -18,9 +16,9 @@ from ppt_generator.tools.slides.service import SlidesService
 def register_design_tools(
     mcp: FastMCP,
     project_service: ProjectService,
-    design_service_factory: Callable[[str, str], DesignService],
+    design_service_factory: DesignServiceFactory,
     slides_service: SlidesService | None = None,
-    review_service_factory: Callable | None = None,
+    review_service_factory: ReviewServiceFactory | None = None,
 ) -> None:
     deps = DesignDeps(project_service, design_service_factory, slides_service, review_service_factory)
 

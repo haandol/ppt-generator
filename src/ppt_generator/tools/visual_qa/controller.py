@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Callable
-
 from mcp.server.fastmcp import Context, FastMCP
 
 from ppt_generator.interfaces.constants import (
     BEDROCK_DESIGN_MODEL_ID,
     VISUAL_QA_MAX_ITERATIONS,
 )
+from ppt_generator.interfaces.protocols import VisualQAServiceFactory
 from ppt_generator.interfaces.utils import estimate_cost, format_token_usage
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
@@ -22,7 +21,7 @@ logger = logging.getLogger(__name__)
 def register_visual_qa_tools(
     mcp: FastMCP,
     project_service: ProjectService,
-    visual_qa_service_factory: Callable[[], object],
+    visual_qa_service_factory: VisualQAServiceFactory,
     slides_service: SlidesService,
 ) -> None:
     @mcp.tool()

@@ -8,15 +8,14 @@ from dataclasses import replace
 from pathlib import Path
 from urllib.parse import urlparse
 
+from ppt_generator.interfaces.constants import PROJECT_IMAGES_DIR, PROJECT_SLIDES_DIR
+from ppt_generator.interfaces.protocols import LoadDesignSpecFn, SaveSlideFn
 from ppt_generator.interfaces.schemas import DesignSpec, PptxImage, PptxSlideSpec
 from ppt_generator.tools.project.html_store import HtmlStore
 
 logger = logging.getLogger(__name__)
 
 _IMAGE_URL_TIMEOUT = 30  # seconds
-
-SLIDES_DIR = "slides"
-IMAGES_DIR = "slides/images"
 
 
 def _download_image(url: str) -> bytes:
@@ -51,7 +50,7 @@ class ImageStore:
         self,
         project_dir: Path,
         design_spec: DesignSpec,
-        save_slide_fn,
+        save_slide_fn: SaveSlideFn,
     ) -> DesignSpec:
         """image_path가 있지만 src가 없는 이미지를 slides/images/에 복사하고 src를 설정한다.
 
@@ -89,7 +88,7 @@ class ImageStore:
         img: PptxImage,
     ) -> PptxImage:
         """단일 이미지의 image_path를 slides/images/에 동기화한다."""
-        images_dir = project_dir / IMAGES_DIR
+        images_dir = project_dir / PROJECT_IMAGES_DIR
         images_dir.mkdir(parents=True, exist_ok=True)
         fname = self._html_store._image_filename(slide_idx, img_idx)
 
@@ -147,11 +146,11 @@ class ImageStore:
     def load_design_spec_with_images(
         self,
         project_dir: Path,
-        load_spec_fn,
+        load_spec_fn: LoadDesignSpecFn,
     ) -> DesignSpec:
         """design spec을 로드한 후, 각 이미지의 src/image_path로부터 image_bytes를 복원한다."""
         spec = load_spec_fn(project_dir)
-        slides_dir = project_dir / SLIDES_DIR
+        slides_dir = project_dir / PROJECT_SLIDES_DIR
         updated_slides: list[PptxSlideSpec] = []
         for slide in spec.slides:
             new_images = [self.resolve_image_bytes(img, slides_dir) for img in slide.images]
