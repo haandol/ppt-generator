@@ -110,6 +110,8 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
             width_px=img.get("width_px", 0),
             height_px=img.get("height_px", 0),
             src=img.get("src", ""),
+            image_path=img.get("image_path", ""),
+            corner_radius_px=img.get("corner_radius_px"),
             z_index=img.get("z_index"),
         )
         for img in data.get("images", [])

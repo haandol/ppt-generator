@@ -86,17 +86,22 @@ _IMAGE_ICON_SVG = (
 
 def image_to_html(image: PptxImage, *, image_src: str | None = None) -> str:
     """PptxImage -> position:absolute <div> 변환."""
+    radius_css = ""
+    if image.corner_radius_px:
+        radius_css = f"border-radius:{image.corner_radius_px}px;"
     pos_style = (
         f"position:absolute;"
         f"left:{image.left_px}px;top:{image.top_px}px;"
         f"width:{image.width_px}px;height:{image.height_px}px;"
+        f"{radius_css}"
     )
     if image_src:
         style = pos_style + "overflow:hidden;"
+        img_radius = f"border-radius:{image.corner_radius_px}px;" if image.corner_radius_px else ""
         return (
             f'<div style="{style}">'
             f'<img src="{image_src}" '
-            f'style="width:100%;height:100%;object-fit:contain" alt="image" />'
+            f'style="width:100%;height:100%;object-fit:contain;{img_radius}" alt="image" />'
             "</div>"
         )
     style = (

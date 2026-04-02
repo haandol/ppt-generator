@@ -174,6 +174,8 @@ class PptxImage:
     height_px: float
     image_bytes: bytes = b""
     src: str = ""  # 이미지 파일 상대경로 (e.g. "images/slide_01_img_01.png")
+    image_path: str = ""  # 이미지 절대경로 (외부 파일 참조 시 사용)
+    corner_radius_px: float | None = None  # 둥근 모서리 반경
     z_index: int | None = None  # rendering order (lower = behind, higher = front)
 
 

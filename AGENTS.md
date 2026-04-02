@@ -1,525 +1,97 @@
-# PPT Generator MCP Server Guide
+# PPT Generator — Agent Guide
 
-## Overview
+> AI 에이전트가 프레젠테이션을 자동 생성하는 Python MCP 서버.
+> 이 파일은 **목차** 역할. 상세 내용은 `docs/` 참조.
 
-사용자가 주제를 입력하면 AI가 자동으로 프레젠테이션을 생성하는 Python MCP 서버입니다.
-Claude LLM(Anthropic API 또는 AWS Bedrock)으로 아웃라인/스크립트/디자인 스펙을 생성하고, 디자인 스펙(PptxSlideSpec JSON)에서 HTML 미리보기와 편집 가능한 PPTX를 결정론적으로 변환합니다.
-Claude Desktop, Kiro 등 MCP 호환 클라이언트에서 사용할 수 있습니다.
+## 프로젝트 개요
 
-> ALPS 설계 문서: 피쳐 목록, 기능 명세, 인수 기준 등 구현에 필요한 세부 사항은 [`docs/ppt-generator.alps.md`](docs/ppt-generator.alps.md) (또는 원본 [`docs/ppt-generator.alps.xml`](docs/ppt-generator.alps.xml))를 반드시 확인하세요.
->
-> ALPS 문서에 포함된 내용:
->
-> - **Section 1~3**: 프로젝트 개요, MVP 목표, 데모 시나리오
-> - **Section 4~5**: 아키텍처, 설계 명세
-> - **Section 6**: 요구사항 요약
-> - **Section 7**: 피쳐별 상세 명세 (F1~F6) — 사용자 스토리, 흐름, 기술 설명, 엣지 케이스, 인수 기준
-> - **Section 8~9**: MVP 메트릭, 범위 외 항목
+- **기술 스택**: Python 3.13+ · MCP · AWS Strands SDK · Claude Sonnet 4.6 Extended Thinking
+- **패키지 매니저**: uv · 빌드: hatchling · 진입점: `ppt_generator.server:main`
+- **ALPS 설계 문서**: [`docs/ppt-generator.alps.md`](docs/ppt-generator.alps.md)
 
-## Directory Structure
+## 리포지터리 구조
 
 ```
-ppt-generator/
-├── src/ppt_generator/
-│   ├── server.py                  # MCP 서버 진입점 + 도구 등록
-│   ├── di/
-│   │   ├── container.py           # 의존성 주입 컨테이너
-│   │   └── model_factory.py       # LLM 모델 생성 팩토리 (Bedrock/Anthropic)
-│   ├── tools/
-│   │   ├── outline/               # 슬라이드 아웃라인 생성 도구 (F1)
-│   │   │   ├── controller.py      # MCP 인터페이스
-│   │   │   └── service.py         # LLM 호출 로직 (Anthropic/Bedrock)
-│   │   ├── script/                # 발표 스크립트 생성 도구 (F2)
-│   │   │   ├── controller.py
-│   │   │   └── service.py
-│   │   ├── design/                # 디자인 스펙 생성 도구
-│   │   │   ├── controller.py      # MCP 인터페이스
-│   │   │   ├── service.py         # LLM 기반 디자인 스펙 생성
-│   │   │   └── parallel_runner.py # ThreadPoolExecutor 기반 병렬 생성 러너
-│   │   ├── visual_qa/             # Visual QA 도구 (opt-in, Playwright 필요)
-│   │   │   ├── controller.py      # MCP 인터페이스
-│   │   │   └── service.py         # 스크린샷 캡처 + LLM 분석 + 자동 수정
-│   │   ├── pptx/                  # PPTX 내보내기 도구 (F5)
-│   │   │   ├── controller.py      # MCP 인터페이스
-│   │   │   ├── service.py         # ExportService (디자인 스펙 → PPTX)
-│   │   │   ├── slide_builder.py   # PptxSlideSpec → python-pptx 변환
-│   │   │   └── text_formatter.py  # run/paragraph 포매팅 공통 함수
-│   │   ├── pptx_import/           # PPTX 임포트 도구 (외부 PPTX → 디자인 스펙)
-│   │   │   ├── controller.py      # MCP 인터페이스 (import_pptx 도구)
-│   │   │   ├── service.py         # ImportService (PPTX → DesignSpec 오케스트레이션)
-│   │   │   └── slide_reader.py    # SlideReader (python-pptx → PptxSlideSpec 역변환)
-│   │   ├── project/               # 프로젝트 저장/로드 도구 (F6)
-│   │   │   ├── controller.py
-│   │   │   ├── service.py         # 프로젝트 코어 관리 (파일 I/O, 메타데이터)
-│   │   │   └── design_spec_store.py # 디자인 스펙 파일 CRUD 전담 저장소
-│   │   └── slides/                # HTML 슬라이드 생성 도구 (디자인 스펙 → HTML)
-│   │       ├── controller.py
-│   │       ├── service.py         # 오케스트레이션 (세션 관리, 템플릿 조합)
-│   │       └── html_renderer.py   # PptxSlideSpec → HTML 변환 렌더러
-│   ├── interfaces/
-│   │   ├── constants.py           # 모델 설정, 수치 상수, 프롬프트 re-export
-│   │   ├── schemas.py             # 내부 도메인 모델 (dataclass)
-│   │   ├── llm_output_models.py   # LLM structured_output용 Pydantic 모델
-│   │   ├── spec_utils/             # PptxSlideSpec 파싱/검증/직렬화 공유 유틸리티
-│   │   │   ├── __init__.py        # 하위 모듈 re-export
-│   │   │   ├── parser.py          # JSON → PptxSlideSpec 파싱
-│   │   │   ├── serializer.py      # PptxSlideSpec → JSON 직렬화
-│   │   │   └── validator.py       # 디자인 스펙 검증 (좌표, 중첩, 겹침 등)
-│   │   ├── json_schemas.py        # Bedrock Structured Output용 JSON 스키마 정의
-│   │   ├── text_measurement.py    # 폰트 메트릭 기반 텍스트 크기 추정 (줄바꿈/높이 계산)
-│   │   ├── bg_image_utils.py      # 배경 이미지 유틸리티
-│   │   ├── utils.py               # parse_outline_json, 슬라이드 복잡도 추정, 토큰 로깅/가격 계산 등 공용 유틸리티
-│   │   └── prompts/                      # 프롬프트 템플릿 모듈
-│   │       ├── __init__.py               # .prompt.md 파일 로딩 + 상수 re-export
-│   │       ├── design_system.prompt.md   # 디자인 스펙 시스템 프롬프트
-│   │       ├── design_user.prompt.md     # 디자인 스펙 사용자 프롬프트 (첫 슬라이드용)
-│   │       ├── design_batch_user.prompt.md # 디자인 스펙 배치 사용자 프롬프트 (design_summary 참조)
-│   │       ├── design_summary_user.prompt.md # design_summary 사전 생성 프롬프트
-│   │       ├── outline_system.prompt.md  # 아웃라인 시스템 프롬프트
-│   │       ├── outline_user.prompt.md    # 아웃라인 사용자 프롬프트
-│   │       ├── script_system.prompt.md   # 스크립트 시스템 프롬프트
-│   │       ├── script_user.prompt.md     # 스크립트 사용자 프롬프트
-│   │       ├── visual_qa_analysis.prompt.md  # Visual QA 스크린샷 분석 프롬프트
-│   │       └── visual_qa_fix.prompt.md       # Visual QA 디자인 스펙 수정 프롬프트
-│   └── templates/
-│       ├── slide.html             # 개별 슬라이드 HTML 템플릿 (완전한 HTML 문서)
-│       ├── slides.html            # 레거시 단일 HTML 템플릿 (하위 호환)
-│       ├── slides_container.html  # iframe 컨테이너 템플릿
-│       ├── layout_mapping.py      # layout_index → 슬라이드 레이아웃 매핑 (97종)
-│       └── template_bg_images/    # 배경 이미지 리소스
-├── env/
-│   └── local.env                  # 샘플 환경변수 파일
-├── docs/
-│   ├── adr/                       # Architecture Decision Records
-│   ├── ppt-generator.alps.xml     # ALPS 설계 문서
-│   └── ppt-generator.alps.md      # ALPS 마크다운 내보내기
-├── tests/
-└── pyproject.toml
+src/ppt_generator/
+├── server.py              # MCP 서버 진입점
+├── di/                    # 의존성 주입 (container, model_factory)
+├── interfaces/            # 스키마, 상수, 프롬프트, spec_utils
+├── templates/             # HTML 템플릿, 레이아웃 매핑
+└── tools/
+    ├── outline/           # 아웃라인 생성
+    ├── script/            # 발표 스크립트 생성
+    ├── design/            # 디자인 스펙 생성/수정 (병렬)
+    ├── slides/            # HTML 슬라이드 렌더링
+    ├── visual_qa/         # Visual QA (Playwright + Vision)
+    ├── pptx/              # PPTX 내보내기
+    ├── pptx_import/       # PPTX 임포트
+    └── project/           # 프로젝트 관리
 ```
 
-## Technology Stack
-
-- **Protocol**: Model Context Protocol (MCP)
-- **Language**: Python 3.13+
-- **Package Manager**: uv
-- **Build System**: hatchling
-- **Agent Framework**: AWS Strands SDK (`strands-agents`)
-- **LLM (디자인 스펙 생성)**: Claude Sonnet 4.6 Extended Thinking (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 64K tokens, effort: adaptive — 슬라이드 복잡도 기반 high/medium/low 동적 적용)
-- **LLM (아웃라인)**: Claude Sonnet 4.6 Extended Thinking (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 32K tokens, effort: medium)
-- **LLM (스크립트)**: Claude Sonnet 4.6 (Bedrock: `global.anthropic.claude-sonnet-4-6` / Anthropic: `claude-sonnet-4-6`, 32K tokens, thinking off)
-- **Slide Framework**: 순수 HTML/CSS (인라인 스타일, 슬라이드별 개별 HTML + iframe 컨테이너)
-- **Visual QA** (opt-in): Playwright headless Chromium (스크린샷) + Claude Vision (분석/수정)
-- **PPTX Export**: python-pptx (디자인 스펙 → SlideBuilder 직접 변환)
-- **레이아웃 그리드**: 48열×20행 (24×24px 정사각형 셀) — 콘텐츠 영역 1152×480px, 안전 영역 64~1216×64~656px. 상세 좌표 테이블은 `interfaces/prompts/design_system.prompt.md`의 `<layout_grid>`, `<diagram_grid>` 섹션 참조
-
-## Prerequisites
-
-- Python 3.13+
-- [uv](https://docs.astral.sh/uv/) 패키지 매니저
-- LLM 인증 (아래 중 하나 선택):
-  - **Anthropic API** (권장): `ANTHROPIC_API_KEY` 환경변수 설정
-  - **AWS Bedrock (기본)**: 별도 설정 없이 기본 AWS credential chain 사용 (`~/.aws/credentials`, 환경변수, IAM role 등)
-    - Amazon Bedrock 모델 접근 권한 필요 (Claude Sonnet 4.6)
-    - 리전: `us-east-1` (기본값)
-  - **AWS Bedrock (API key)**: `AWS_BEARER_TOKEN_BEDROCK` 환경변수로 bearer token 설정 시 SigV4 대신 bearer token 인증 사용
-    - 리전: `us-east-1` (기본값)
-
-### 환경변수
-
-| 환경변수                   | 값                      | 설명                                                                                                     |
-| -------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------- |
-| `LLM_PROVIDER`             | `anthropic` / `bedrock` | 명시적 provider 선택 (미설정시 auto-detect)                                                              |
-| `ANTHROPIC_API_KEY`        | API Key 문자열          | Anthropic 직접 API 인증 (auto-detect 트리거)                                                             |
-| `AWS_ACCESS_KEY_ID`        | AWS Access Key          | Bedrock IAM 인증                                                                                         |
-| `AWS_SECRET_ACCESS_KEY`    | AWS Secret Key          | Bedrock IAM 인증                                                                                         |
-| `AWS_REGION`               | AWS 리전                | Bedrock 리전 (기본: us-east-1)                                                                           |
-| `AWS_BEARER_TOKEN_BEDROCK` | Bearer Token 문자열     | Bedrock API key (bearer token) 인증. 설정 시 bearer token 우선, 미설정 시 기본 AWS credential chain 사용 |
-| `BEDROCK_DESIGN_MODEL_ID`  | 모델 ID 문자열          | 디자인 스펙 생성 Bedrock 모델 (기본: `global.anthropic.claude-sonnet-4-6`)                                |
-| `ANTHROPIC_DESIGN_MODEL_ID`| 모델 ID 문자열          | 디자인 스펙 생성 Anthropic 모델 (기본: `claude-sonnet-4-6`)                                              |
-| `BEDROCK_DESIGN_MAX_TOKENS`| 정수 (기본: 64000)      | 디자인 스펙 생성 max tokens                                                                              |
-
-| `BEDROCK_OUTLINE_MODEL_ID` | 모델 ID 문자열          | 아웃라인/스크립트 Bedrock 모델 (기본: `global.anthropic.claude-sonnet-4-6`)                               |
-| `ANTHROPIC_OUTLINE_MODEL_ID`| 모델 ID 문자열         | 아웃라인/스크립트 Anthropic 모델 (기본: `claude-sonnet-4-6`)                                             |
-| `DESIGN_SPEC_PARALLEL`     | 정수 (기본: 8)          | 디자인 스펙 생성 시 슬라이드별 병렬 워커 수. API rate limit에 맞게 조절                                  |
-| `VISUAL_QA_PARALLEL`       | 정수 (기본: 8)          | Visual QA 병렬 워커 수 (스크린샷 캡처 + LLM 분석)                                                       |
-| `VISUAL_QA_MAX_ITERATIONS` | 정수 (기본: 2)          | Visual QA 최대 수정 반복 횟수                                                                            |
-| `PPT_LOG_DIR`              | 디렉토리 경로 문자열    | 세션별 UUID 로그 파일 디렉토리 (권장, 예: `/tmp/ppt-generator`). 10MB 회전, 백업 2개                     |
-| `PPT_LOG_FILE`             | 파일 경로 문자열        | 단일 로그 파일 경로 (레거시, `PPT_LOG_DIR` 우선). 10MB 회전, 백업 2개                                    |
-
-> **Auto-detect 로직**: `LLM_PROVIDER` 미설정 시, `ANTHROPIC_API_KEY`가 있으면 `anthropic`, 없으면 `bedrock`으로 자동 선택됩니다.
-
-## Development Commands
+## 명령어
 
 ```bash
 uv sync                                          # 의존성 설치
-uv run ppt-generator                             # MCP 서버 실행 (stdio 모드)
+uv run ppt-generator                             # MCP 서버 실행 (stdio)
 uv run pytest                                    # 전체 테스트
-uv run pytest tests/test_xxx.py                  # 개별 테스트 파일
-uv run pytest tests/test_xxx.py::test_func -v    # 특정 테스트 함수
+uv run pytest tests/test_xxx.py::test_func -v    # 특정 테스트
 ```
 
-패키지 매니저: uv | 빌드 시스템: hatchling | Python 3.13+ | 진입점: `ppt_generator.server:main`
+## ADR-First 워크플로우 (필수)
 
-## Architecture
+기능 추가/변경이 필요한 작업에서는 **반드시 코드 작성 전에 ADR을 먼저 작성/수정**하고, 사용자의 확인을 받은 뒤에 코드를 구현해야 합니다.
 
-Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
+1. **분석**: 코드베이스를 조사하여 변경 범위와 영향을 파악
+2. **ADR 작성/수정**: Context, Decision, Technical Details, Acceptance Criteria를 정리하여 사용자에게 제시
+3. **사용자 확인**: ADR 내용에 대해 사용자 승인을 받음 (수정 요청 시 ADR을 먼저 반영)
+4. **코드 구현**: 승인된 ADR을 기반으로 코드 작성
+5. **테스트**: 구현 완료 후 테스트 실행
 
-- **Controller** (`controller.py`): MCP 도구 인터페이스. `register_*_tools(mcp, service, project_service)` 함수로 도구를 등록하며, 내부에 `@mcp.tool()` 데코레이터가 적용된 함수를 정의합니다. docstring이 MCP 클라이언트에 도구 설명으로 노출됩니다.
-- **Service** (`service.py`): 비즈니스 로직. Request 데이터클래스를 받아 Response 데이터클래스를 반환합니다.
-- **DIContainer** (`di/container.py`): 프로바이더 자동 감지(Anthropic/Bedrock), Agent, Service 인스턴스를 생성하고 연결합니다. 지연 초기화(lazy init) 패턴을 사용합니다.
-- **ModelFactory** (`di/model_factory.py`): Bedrock/Anthropic 프로바이더별 모델 인스턴스 생성 로직을 담당합니다. DIContainer에서 분리.
+이 순서를 지키지 않으면 사용자가 어떤 변경이 일어날지 사전에 파악할 수 없고, 구현 후 방향 수정 시 작업이 낭비됩니다.
 
-### Key Modules
+### ADR 작성 규칙
 
-| 모듈 | 역할 |
-|------|------|
-| `interfaces/schemas.py` | 내부 도메인 모델 (`@dataclass`) |
-| `interfaces/llm_output_models.py` | LLM structured_output용 Pydantic 모델, `to_dataclass()`로 변환 |
-| `interfaces/constants.py` | 모델 설정, 수치 상수, 프롬프트 re-export |
-| `interfaces/prompts/*.prompt.md` | 프롬프트 템플릿 (`.prompt.md` 파일 → `__init__.py`에서 로딩) |
-| `interfaces/spec_utils/` | PptxSlideSpec 파싱/검증/직렬화 공유 유틸리티 (패키지: parser, serializer, validator) |
-| `interfaces/json_schemas.py` | Bedrock Structured Output용 JSON 스키마 정의 |
-| `interfaces/text_measurement.py` | 폰트 메트릭 기반 텍스트 크기 추정 |
-| `templates/layout_mapping.py` | layout_index → 슬라이드 레이아웃 매핑 (97종) |
-| `tools/design/service.py` | 디자인 스펙 생성 — 복잡도 기반 adaptive effort |
-| `tools/design/parallel_runner.py` | ThreadPoolExecutor 기반 슬라이드 병렬 생성, 토큰 집계 |
-| `tools/visual_qa/service.py` | Visual QA — Playwright 스크린샷 + Claude Vision 분석 + 자동 수정 루프 |
-| `di/model_factory.py` | LLM 모델 생성 팩토리 (Bedrock/Anthropic 프로바이더별) |
-| `tools/pptx/slide_builder.py` | PptxSlideSpec → python-pptx 변환 |
-| `tools/slides/html_renderer.py` | PptxSlideSpec → HTML 변환 |
+- **기존 ADR 우선 업데이트**: 기존 ADR 범위에 포함되면 해당 섹션을 직접 수정. 새 ADR은 기존에 합칠 곳이 없을 때만 작성
+- **파일 위치**: `docs/adr/` 하위 디렉토리 · **네이밍**: `NNNN-<kebab-case-title>.md`
+- ADR 작성 가이드: [`docs/adr/README.md`](docs/adr/README.md)
 
-### Concurrency & Prompt Caching
-
-디자인 스펙 생성은 슬라이드별 독립 LLM 호출이므로 병렬 처리와 프롬프트 캐싱을 적용합니다. ([ADR-0018](docs/adr/pipeline/0018-parallel-design-spec-and-prompt-caching.md))
-
-**병렬 생성** (`tools/design/parallel_runner.py`):
-- `generate_slides_design_spec`에서 `run_parallel_generation()`을 호출하여 `ThreadPoolExecutor`로 슬라이드를 병렬 생성
-- `DESIGN_SPEC_PARALLEL` 환경변수(기본 8)로 최대 동시 워커 수 제어
-- 워커마다 `design_service_factory(effort)`로 독립 Agent 인스턴스 생성 (strands Agent는 stateful이므로 공유 불가)
-- `ProjectService._metadata_lock`으로 `project.json` 동시 쓰기 보호
-- 토큰 사용량을 워커별로 수집하여 합산 (`ParallelResult` 반환)
-
-**복잡도 기반 스케줄링 & Adaptive Thinking Effort:** ([ADR-0019](docs/adr/pipeline/0019-complexity-based-scheduling-and-adaptive-effort.md))
-- `component_hint` + `content_summary` 길이로 결정론적 복잡도 점수(1~13)를 산출 (`estimate_slide_complexity()`)
-- **Longest-job-first 스케줄링**: 복잡한 슬라이드부터 먼저 thread pool에 제출 → 워커 idle time 감소, wall-clock time 단축
-- **Adaptive thinking effort**: 복잡도에 따라 `high`(7~13), `medium`(4~6), `low`(1~3) effort를 동적 적용 → 단순 슬라이드 토큰 절약, 복잡한 슬라이드 품질 유지. `generate_slides_design_spec`과 `modify_design_spec` 모두에 적용
-
-**프롬프트 캐싱:**
-- Bedrock: `BedrockModel(cache_config=CacheConfig(strategy="auto"))` — 시스템 프롬프트에 자동 cache point 주입
-- Anthropic: `CachingAnthropicModel` — `format_request()` 오버라이드로 `cache_control: {"type": "ephemeral"}` 적용
-
-### Token Usage Tracking & Cost Estimation
-
-모든 LLM 호출 도구는 응답에 `token_usage`와 `estimated_cost`(USD)를 포함합니다.
-
-**서비스 레이어:**
-- `OutlineService`, `ScriptService`, `DesignService` 모두 `last_token_usage` 프로퍼티를 제공
-- `log_token_usage()` 헬퍼가 strands `result.metrics.accumulated_usage`에서 토큰 정보를 추출, INFO 로깅 후 dict 반환
-
-**컨트롤러 레이어:**
-- `generate_outline`, `generate_script`: 응답 JSON에 `token_usage` 필드 포함
-- `generate_slides_design_spec`: 모든 슬라이드의 토큰을 합산하여 `token_usage` + `estimated_cost` 포함
-- `modify_design_spec`: add/update 시 `svc.last_token_usage`에서 토큰을 수집하여 `token_usage` + `estimated_cost` 포함 (delete 시에는 LLM 호출이 없으므로 미포함)
-
-**가격 계산 (`estimate_cost()`):**
-- `interfaces/utils.py`의 `_MODEL_PRICING` 딕셔너리에 모델별 가격 정의 (USD / 1M tokens)
-- Bedrock 모델 ID (`global.anthropic.claude-sonnet-4-6` 등)는 `_MODEL_ID_ALIASES`로 정규화
-- `inputTokens`, `outputTokens`, `cacheReadInputTokens`, `cacheWriteInputTokens` 각각 별도 단가 적용
-
-**응답 예시:**
-```json
-{
-  "token_usage": {
-    "inputTokens": 63335,
-    "outputTokens": 57853,
-    "totalTokens": 121188
-  },
-  "estimated_cost": {
-    "input_cost": 0.190005,
-    "output_cost": 0.867795,
-    "total_cost": 1.0578
-  }
-}
-```
-
-### Pipeline Design Philosophy: Progressive Refinement
-
-파이프라인은 **추상에서 구체로의 점진적 구체화(Progressive Refinement)** 원칙으로 설계되었습니다. 각 단계는 이전 단계의 출력을 더 구체적인 형태로 변환하며, 디자인 자유도를 최대한 보존합니다.
-
-```
-텍스트 (가장 추상적)
-  → 아웃라인 (구조화된 JSON — 제목, 내용 요약, 레이아웃 인덱스)
-    → 스크립트 (구체적 — 아웃라인 기반 발표 스크립트)
-      → 디자인 스펙 (PptxSlideSpec JSON — LLM이 정밀한 레이아웃 설계)
-        ├→ HTML 슬라이드 (결정론적 변환, 브라우저 미리보기용)
-        └→ PPTX (SlideBuilder 직접 사용, 편집 가능한 포맷으로 변환)
-```
-
-> **디자인 스펙 기반 파이프라인**: 디자인 스펙(PptxSlideSpec JSON)을 중간 표현으로 사용하여
-> HTML과 PPTX를 각각 결정론적으로 생성합니다. LLM 호출은 디자인 스펙 생성 단계에서만 발생하며,
-> 이후 HTML/PPTX 변환은 모두 결정론적입니다.
-
-**핵심 원칙:**
-
-- **파일 기반 통신**: 모든 도구는 결과를 파일로 저장하고 파일 경로를 반환합니다. `project_id`만으로 도구를 체이닝할 수 있어 인라인 JSON 전달이 불필요하며, MCP 클라이언트의 컨텍스트 윈도우 토큰 사용을 최적화합니다.
-- **슬라이드 단위 세분화**: `modify_design_spec` 도구로 중간 산출물(디자인 스펙)의 개별 슬라이드를 추가/수정/삭제할 수 있어, 전체 재생성 없이 반복적 개선이 가능합니다. 디자인 스펙은 `design_spec/slide_NN.json`, HTML은 `slides/slide_NN.html` 형식으로 슬라이드별 개별 파일에 저장됩니다.
-
-### Processing Pipeline
-
-```
-사용자 입력 (주제 + 슬라이드 수)
-    ↓
-F1: generate_outline       → 슬라이드 아웃라인 JSON 생성 (LLM, title/content_summary/component_hint)
-    ↓
-    ⏸ 사용자 확인           → 아웃라인 구조 검토 및 승인 (수정 시 F1 재호출)
-    ↓
-F2: generate_script        → 아웃라인 기반 슬라이드별 발표 스크립트 생성
-    ↓
-    디자인 스펙 생성:
-      generate_slides_design_spec(project_id=..., total_slides=N)
-        → 전체 생성 (기본) 또는 slide_indices="0,2,4"로 선택적 생성
-        → design_summary가 없으면 LLM으로 사전 생성 (전체 아웃라인 기반)
-        → 모든 슬라이드를 서버 내부 병렬 생성 (DESIGN_SPEC_PARALLEL 워커)
-        → content 슬라이드의 배경색을 design_summary 값으로 강제 보정
-        → 완료 시 slides.html (iframe 컨테이너) 자동 생성
-    ↓
-    ⏸ (선택) modify_design_spec → 개별 슬라이드 추가/수정/삭제 (design_summary.json 파일 기반 스타일 참조)
-    ↓
-    ⏸ (선택) visual_qa(project_id=...)    → Playwright 스크린샷 + Claude Vision 분석 → 자동 수정 (opt-in)
-    ↓
-    ├→ export_html(project_id=...)            → 디자인 스펙 자동 로드 → HTML 변환 (결정론적)
-    │
-    └→ export_pptx(project_id=...)          → 디자인 스펙 자동 로드 → PPTX 생성 (결정론적)
-    ↓
-출력: 편집 가능한 .pptx 파일
-
-* project_id 기반 체이닝 (권장): generate_slides_design_spec → export_html/export_pptx(project_id=...)
-* 모든 도구가 project_id를 자동 생성하여 ~/.ppt-generator/<UUID>/에 결과물을 저장
-* load_* 도구에 project_id를 전달하여 저장된 결과물을 로드, 중간 단계부터 재개 가능
-* **임포트 경로**: import_pptx(file_path) → 디자인 스펙 + HTML 미리보기 자동 생성 → modify_design_spec/export_html/export_pptx/visual_qa 사용 가능
-* generate_slides_design_spec은 전체 아웃라인 기반으로 design_summary.json을 LLM으로 사전 생성하여 모든 슬라이드의 테마 일관성 유지
-* content 슬라이드의 배경색은 design_summary의 background_color로 강제 보정 (title/closing 슬라이드는 null 유지)
-* 디자인 스펙 생성 완료 시 slides.html (iframe 컨테이너)도 자동 생성하여 별도 export_html 호출 없이 미리보기 가능
-```
-
-## Available Tools
-
-| Tool                         | Module           | Description                                                                                        |
-| ---------------------------- | ---------------- | -------------------------------------------------------------------------------------------------- |
-| `generate_outline`           | `tools/outline/` | 주제, 발표 시간, 청중 유형을 기반으로 슬라이드 아웃라인 JSON 생성 (호출 전 사용자에게 presentation_minutes와 audience_type 필수 확인, token_usage 포함) |
-| `generate_script`            | `tools/script/`  | 아웃라인 JSON을 기반으로 슬라이드별 발표 스크립트 생성 (token_usage 포함)                           |
-| `generate_slides_design_spec` | `tools/design/`  | 슬라이드 디자인 스펙 생성 — 서버 내부 병렬 처리, token_usage 합산 + estimated_cost(USD) 포함       |
-| `modify_design_spec`          | `tools/design/`  | 디자인 스펙의 개별 슬라이드 추가/수정/삭제 (CRUD), add/update 시 token_usage + estimated_cost 포함  |
-| `visual_qa`                  | `tools/visual_qa/` | 렌더링된 슬라이드의 시각적 품질 검사 + 자동 수정 (opt-in, Playwright 필요). token_usage + estimated_cost 포함 |
-| `export_html`                | `tools/slides/`  | 디자인 스펙 또는 project_id 기반 HTML 슬라이드 내보내기 (결정론적 변환)                             |
-| `export_pptx`                | `tools/pptx/`    | 디자인 스펙 또는 project_id 기반 편집 가능한 PPTX 내보내기 (결정론적 변환)                         |
-| `import_pptx`                | `tools/pptx_import/` | 외부 PPTX 파일 → 디자인 스펙 변환 (결정론적 파싱, HTML 미리보기 자동 생성)                     |
-| `list_projects`              | `tools/project/` | 기존 프로젝트 목록 조회 (파이프라인 시작 전 호출 권장)                                             |
-| `load_project_status`        | `tools/project/` | 프로젝트 상태 및 메타데이터 로드                                                                   |
-| `load_outline`               | `tools/project/` | 저장된 아웃라인 JSON 로드                                                                          |
-| `load_outline_slide`         | `tools/project/` | 저장된 아웃라인에서 개별 슬라이드 로드 (slide_index 지정)                                          |
-| `load_script`                | `tools/project/` | 저장된 스크립트 JSON 로드                                                                          |
-| `load_script_slide`          | `tools/project/` | 저장된 스크립트에서 개별 슬라이드 로드 (slide_index 지정)                                          |
-| `load_design_spec`           | `tools/project/` | 저장된 디자인 스펙 로드 (design_spec_dir, slide_count, slide_files)                                |
-
-## Key Data Schemas
-
-내부 도메인 모델은 `interfaces/schemas.py`에 `@dataclass`로, LLM 출력 모델은 `interfaces/llm_output_models.py`에 Pydantic `BaseModel`로 정의되어 있습니다.
-
-### 내부 도메인 모델 (`schemas.py`)
-
-| Schema                                          | 용도                                                                           |
-| ----------------------------------------------- | ------------------------------------------------------------------------------ |
-| `OutlineRequest` / `OutlineResponse`            | 아웃라인 생성 입출력 (topic, num_slides → slides)                              |
-| `ScriptRequest` / `ScriptResponse`              | 스크립트 생성 입출력 (outline → slides)                                        |
-| `SlideOutline`                                  | 개별 슬라이드 아웃라인 (title, content_summary, component_hint, speaker_notes, slide_index) |
-| `SlidesResponse`                                | HTML 슬라이드 생성 출력 (session_id, html)                                     |
-| `ExportPptxResponse`                            | PPTX 내보내기 출력 (pptx_path)                                                 |
-| `PptxTextRun` / `PptxParagraph` / `PptxTextBox` | PPTX 텍스트 요소                                                               |
-| `PptxShape` / `PptxSlideSpec`                   | PPTX 도형/슬라이드 스펙 (speaker_notes 포함). PptxShape는 rectangle/rounded_rectangle/ellipse는 `add_shape()`, line은 `add_connector()`로 렌더링. line shape는 `end_arrow`, `start_arrow`, `dash_style` 속성 지원 |
-| `DesignSpec`                                    | 프레젠테이션 전체 디자인 스펙 (PptxSlideSpec 리스트)                           |
-| `ProjectMetadata`                               | 프로젝트 메타데이터 (topic, num_slides, steps_completed)                       |
-
-### LLM 출력 모델 (`llm_output_models.py`)
-
-| Schema                              | 용도                                                                                           |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `SlideSpecOutput`                   | strands `structured_output_model`용 Pydantic 모델. `to_dataclass()`로 `PptxSlideSpec`으로 변환 |
-| `TextRunOutput` / `ParagraphOutput` | LLM 출력용 텍스트 런/단락                                                                      |
-| `TextBoxOutput` / `ShapeOutput`     | LLM 출력용 텍스트박스/도형                                                                     |
-| `VisualQAIssue` / `VisualQAOutput`  | Visual QA 분석 결과 (이슈 타입, 심각도, 수정 제안)                                             |
-
-### 슬라이드 아웃라인/스크립트 저장
-
-아웃라인과 스크립트는 개별 JSON 파일로 저장됩니다. `outline/slide_01.json`, `script/slide_01.json` 형식이며, `slide_index`가 명시적으로 포함됩니다. Legacy fallback으로 JSONL(`outline.jsonl`) → JSON(`outline.json`) 순서로 지원합니다.
-
-```json
-// outline/slide_01.json
-{"slide_index": 0, "title": "슬라이드 제목", "content_summary": "슬라이드에 담길 핵심 내용 요약", "component_hint": "bullets", "speaker_notes": "", "slide_type": "title"}
-```
-
-개별 슬라이드 접근: `load_outline_slide(project_id, slide_index)`, `load_script_slide(project_id, slide_index)`
-
-### component_hint
-
-슬라이드 본문 영역의 시각적 구조를 결정하는 힌트:
-
-| component_hint  | 설명                         |
-| --------------- | ---------------------------- |
-| `bullets`       | 기본 불릿 포인트 (기본값)    |
-| `two_column`    | 2칼럼 레이아웃               |
-| `vs_comparison` | VS 비교 패널 (A vs B)        |
-| `step_cards`    | 단계별 카드                  |
-| `code_block`    | 코드 블록 포함               |
-| `arch_diagram`  | 아키텍처 다이어그램 (흐름도) |
-| `pipeline`      | 파이프라인 흐름              |
-| `quote`         | 인용문 강조                  |
-| `summary_grid`  | 요약 그리드 (2x2)            |
-| `agenda`        | 목차 섹션                    |
-| `info_cards`    | 정보 카드 그리드             |
-| `feature_list`  | 기능/특징 리스트             |
-| `cta`           | Call-to-Action 강조          |
-| `process_flow`  | 프로세스 워크스루            |
-| `quote_code`    | 인용문 + 코드 블록 조합      |
-| `concept_list`  | 개념 설명 리스트             |
-
-## ADR (Architecture Decision Records)
-
-새 기능 추가 또는 기존 기능 변경 시 반드시 `docs/adr/` 에 ADR을 작성하거나 기존 ADR을 업데이트해야 합니다.
-
-- **기존 ADR 우선 업데이트**: 변경 내용이 기존 ADR의 범위에 포함되면 해당 ADR의 관련 논리적 섹션(Decision, Consequences 등)을 직접 수정하여 현재 상태를 반영. 날짜별 변경 이력을 별도로 추가하지 말 것. 새 ADR은 기존에 합칠 곳이 없을 때만 작성
-- **새 기능**: 기존 ADR과 관련 없는 독립적인 설계 결정일 때만 새 ADR 파일을 작성
-- **파일 위치**: `docs/adr/` 하위 디렉토리 (예: `docs/adr/pipeline/`)
-- **네이밍**: `NNNN-<kebab-case-title>.md` 형식 (예: `0018-parallel-design-spec-and-prompt-caching.md`)
-- ADR 작성 가이드는 [`docs/adr/README.md`](docs/adr/README.md) 참조
-
-## Coding Conventions
-
-> 커밋 메시지, 브랜치 전략, PR 규칙 등 기여 관련 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
-
-### 새 도구 추가 패턴
-
-1. `tools/` 하위에 새 디렉토리 생성 (`__init__.py`, `controller.py`, `service.py`)
-2. `service.py`: Request를 받아 Response를 반환하는 클래스 작성
-3. `controller.py`: `register_*_tools(mcp: FastMCP, service: XxxService, project_service: ProjectService)` 함수 작성. 내부에 `@mcp.tool()` 함수 정의
-4. `schemas.py`에 Request/Response 데이터클래스 추가
-5. `di/container.py`에 Service 생성 프로퍼티 추가 (지연 초기화)
-6. `server.py`의 `create_server()`에서 `register_*_tools()` 호출 추가
-
-### 스타일
+## 컨벤션
 
 - 타입 힌트 필수 (`-> None`, `-> str` 등)
-- 상수는 `interfaces/constants.py`에 정의
-- 프롬프트 템플릿은 `interfaces/prompts/` 모듈에 `.prompt.md` 파일로 정의, `__init__.py`에서 로딩 후 `constants.py`에서 re-export
+- 상수는 `interfaces/constants.py`에, 프롬프트는 `interfaces/prompts/*.prompt.md`에 정의
 - MCP 도구 함수에는 한국어 docstring 필수 (클라이언트에 노출됨)
 - 외부 API(Bedrock/Anthropic) 호출 테스트는 반드시 mock 처리
-- Conventional Commits 형식 사용: `<type>(<scope>): <subject>` (상세: [CONTRIBUTING.md](CONTRIBUTING.md))
-- LLM: 디자인 스펙은 Claude Sonnet 4.6 Extended Thinking 사용 (슬라이드 복잡도에 따라 thinking effort를 high/medium/low로 동적 적용), 아웃라인은 Claude Sonnet 4.6 Extended Thinking (effort: medium), 스크립트는 Claude Sonnet 4.6 (thinking off), Visual QA 분석은 Claude Sonnet 4.6 Extended Thinking (effort: medium, vision), Visual QA 수정은 Claude Sonnet 4.6 Extended Thinking (effort: high)
-- Agent 프레임워크: AWS Strands SDK (`strands-agents`)
+- Conventional Commits: `<type>(<scope>): <subject>` (상세: [CONTRIBUTING.md](CONTRIBUTING.md))
 
-## Testing
+## 검증 기준
 
-- 테스트 프레임워크: pytest
-- 테스트 파일: `tests/test_*.py`
-- 외부 API(Bedrock/Anthropic) 호출은 mock 처리
+작업 완료 전 반드시 확인:
 
-```bash
-uv run pytest                    # 전체 테스트
-uv run pytest tests/test_xxx.py  # 개별 테스트
-```
+1. `uv run pytest` 통과
+2. 관련 ADR이 최신 상태
+3. 기존 도구 시그니처 변경 시 MCP 클라이언트 호환성 확인
 
-## MCP Client Configuration
+## 제약 사항
 
-Anthropic API 사용 시:
+- ADR 없이 주요 기능 추가/변경하지 않음 — ADR-First 워크플로우 필수
+- `--no-verify`로 git hook을 우회하지 않음
+- 테스트를 삭제하거나 수정하여 통과시키지 않음 — 코드를 고칠 것
+- LLM API 호출 파라미터 변경 시 Anthropic/Bedrock 양쪽 확인 필수
 
-```json
-{
-  "mcpServers": {
-    "ppt-generator": {
-      "command": "uv",
-      "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"],
-      "env": {
-        "ANTHROPIC_API_KEY": "sk-ant-...",
-        "PPT_LOG_DIR": "/tmp/ppt-generator"
-      }
-    }
-  }
-}
-```
+## Approach with Caution
 
-AWS Bedrock 사용 시 (`~/.aws/credentials` 설정 완료 가정):
-
-```json
-{
-  "mcpServers": {
-    "ppt-generator": {
-      "command": "uv",
-      "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"],
-      "env": {
-        "PPT_LOG_DIR": "/tmp/ppt-generator"
-      }
-    }
-  }
-}
-```
-
-AWS 환경변수를 직접 지정하는 경우:
-
-```json
-{
-  "mcpServers": {
-    "ppt-generator": {
-      "command": "uv",
-      "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"],
-      "env": {
-        "LLM_PROVIDER": "bedrock",
-        "AWS_ACCESS_KEY_ID": "AKIA...",
-        "AWS_SECRET_ACCESS_KEY": "...",
-        "AWS_REGION": "us-east-1"
-      }
-    }
-  }
-}
-```
-
-Bedrock API key (bearer token) 사용 시:
-
-```json
-{
-  "mcpServers": {
-    "ppt-generator": {
-      "command": "uv",
-      "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"],
-      "env": {
-        "LLM_PROVIDER": "bedrock",
-        "AWS_BEARER_TOKEN_BEDROCK": "your-api-key",
-        "AWS_REGION": "us-east-1"
-      }
-    }
-  }
-}
-```
-
-## Edge Cases & Fallback Strategies
-
-- **빈 주제 입력** → 입력 검증 후 `ValueError` 발생
-- **LLM이 유효하지 않은 JSON 반환** → 재시도 또는 에러 반환
-- **알 수 없는 component_hint** → 기본값 "bullets"로 폴백
-
-## Agent-specific Instructions
-
-### Safe to Modify
-
-- `src/ppt_generator/templates/` - 레이아웃 매핑 로직 수정, HTML 템플릿 수정
-- `src/ppt_generator/interfaces/` - 상수, 스키마 수정
-- 새로운 도구 추가 (`tools/` 하위에 새 모듈 생성)
-
-### Approach with Caution
-
-- `server.py` - 도구 등록 로직
-- `di/container.py` - 의존성 주입 설정
+- `server.py` — 도구 등록 로직
+- `di/container.py` — 의존성 주입 설정
 - 기존 도구 시그니처 변경 (MCP 클라이언트 호환성에 영향)
-- LLM API 호출 파라미터 변경 (비용 및 품질에 영향, Anthropic/Bedrock 양쪽 확인 필요)
-- PPTX 변환 로직 (`tools/pptx/service.py`, `slide_builder.py`, `text_formatter.py` - 좌표 변환, 스타일 매핑)
-- HTML 렌더링 로직 (`tools/slides/html_renderer.py` - PptxSlideSpec → HTML 변환)
-- HTML 템플릿 구조 (`templates/slide.html`, `templates/slides_container.html` - 인라인 CSS, placeholder 구조)
+- PPTX 변환 로직 (`tools/pptx/` — 좌표 변환, 스타일 매핑)
+- HTML 렌더링 로직 (`tools/slides/html_renderer.py`)
+
+## 상세 문서
+
+| 문서                  | 경로                                     | 설명                                            |
+| --------------------- | ---------------------------------------- | ----------------------------------------------- |
+| 아키텍처              | [`docs/harness/architecture.md`](docs/harness/architecture.md) | 파이프라인, Controller-Service 패턴, 병렬 처리, 토큰 추적, MCP 도구 목록 |
+| 스키마                | [`docs/harness/schemas.md`](docs/harness/schemas.md)     | 도메인 모델, LLM 출력 모델, component_hint 테이블 |
+| 환경변수 & 설정       | [`docs/harness/environment.md`](docs/harness/environment.md) | 환경변수, 사용 모델, MCP 클라이언트 설정 예시   |
+| ALPS 설계 문서        | [`docs/ppt-generator.alps.md`](docs/ppt-generator.alps.md) | 피쳐 목록, 기능 명세, 인수 기준                 |
+| ADR 인덱스            | [`docs/adr/README.md`](docs/adr/README.md) | 전체 ADR 목록 및 작성 가이드                    |

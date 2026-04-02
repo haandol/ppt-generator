@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from struct import unpack
 
 from lxml.etree import SubElement
 from pptx.enum.shapes import MSO_SHAPE_TYPE
@@ -175,16 +176,33 @@ class SlideBuilder:
                 self._add_textbox_from_spec(slide, tb)
 
     def _add_image_from_spec(self, slide, image_spec: PptxImage) -> None:
-        """PptxImage spec으로 이미지를 슬라이드에 삽입."""
+        """PptxImage spec으로 이미지를 슬라이드에 삽입 (contain 방식, 비율 보존)."""
         if not image_spec.image_bytes:
             return
+        img_w, img_h = _get_image_size(image_spec.image_bytes)
+        box_w = image_spec.width_px * EXPORT_PX_TO_INCHES_X
+        box_h = image_spec.height_px * EXPORT_PX_TO_INCHES_Y
+        if img_w > 0 and img_h > 0:
+            img_ratio = img_w / img_h
+            box_ratio = box_w / box_h
+            if img_ratio > box_ratio:
+                fit_w = box_w
+                fit_h = box_w / img_ratio
+            else:
+                fit_h = box_h
+                fit_w = box_h * img_ratio
+            offset_x = (box_w - fit_w) / 2
+            offset_y = (box_h - fit_h) / 2
+        else:
+            fit_w, fit_h = box_w, box_h
+            offset_x = offset_y = 0
+        left = image_spec.left_px * EXPORT_PX_TO_INCHES_X + offset_x
+        top = image_spec.top_px * EXPORT_PX_TO_INCHES_Y + offset_y
         image_stream = BytesIO(image_spec.image_bytes)
         slide.shapes.add_picture(
             image_stream,
-            Inches(image_spec.left_px * EXPORT_PX_TO_INCHES_X),
-            Inches(image_spec.top_px * EXPORT_PX_TO_INCHES_Y),
-            Inches(image_spec.width_px * EXPORT_PX_TO_INCHES_X),
-            Inches(image_spec.height_px * EXPORT_PX_TO_INCHES_Y),
+            Inches(left), Inches(top),
+            Inches(fit_w), Inches(fit_h),
         )
 
     def _add_textbox_from_spec(self, slide, tb: PptxTextBox) -> None:
@@ -232,4 +250,23 @@ class SlideBuilder:
             add_freeform_from_svg(slide, shape_spec)
         else:
             add_auto_shape_from_spec(slide, shape_spec)
+
+
+def _get_image_size(data: bytes) -> tuple[int, int]:
+    """이미지 바이트에서 (width, height)를 빠르게 추출한다. PNG/JPEG 지원."""
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        w, h = unpack(">II", data[16:24])
+        return int(w), int(h)
+    if data[:2] in (b"\xff\xd8",):
+        i = 2
+        while i < len(data) - 1:
+            if data[i] != 0xFF:
+                break
+            marker = data[i + 1]
+            if marker in (0xC0, 0xC1, 0xC2):
+                h, w = unpack(">HH", data[i + 5 : i + 9])
+                return int(w), int(h)
+            length = unpack(">H", data[i + 2 : i + 4])[0]
+            i += 2 + length
+    return 0, 0
 

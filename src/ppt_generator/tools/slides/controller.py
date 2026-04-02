@@ -37,6 +37,9 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
 
         project_id, project_dir = project_service.resolve_project_dir(project_id)
 
+        # image_path → slides/images/ 동기화
+        design_spec = project_service.sync_image_paths(project_dir, design_spec)
+
         # 기존 이미지 파일이 있으면 경로 조회
         slide_image_srcs: list[list[str]] = []
         for idx, slide in enumerate(design_spec.slides):
