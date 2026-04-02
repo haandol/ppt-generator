@@ -53,6 +53,7 @@ uv run pytest tests/test_xxx.py::test_func -v    # 특정 테스트
 
 - **기존 ADR 우선 업데이트**: 기존 ADR 범위에 포함되면 해당 섹션을 직접 수정. 새 ADR은 기존에 합칠 곳이 없을 때만 작성
 - **파일 위치**: `docs/adr/` 하위 디렉토리 · **네이밍**: `NNNN-<kebab-case-title>.md`
+- **코드 스니펫/파일 경로 금지**: ADR에 구현 코드 스니펫이나 파일 경로를 포함하지 않는다. 코드가 변경될 때마다 ADR을 수정해야 하는 상황을 방지하기 위해, ADR은 "왜(why)"와 "무엇(what)" 수준의 설계 결정만 기록하고 "어떻게(how)"의 구현 디테일은 코드에 맡긴다.
 - ADR 작성 가이드: [`docs/adr/README.md`](docs/adr/README.md)
 
 ## 컨벤션
