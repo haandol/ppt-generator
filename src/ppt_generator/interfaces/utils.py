@@ -58,15 +58,21 @@ def estimate_slide_complexity(slide: SlideOutline) -> int:
     """Estimates the design spec generation complexity of a slide (1-5 scale)."""
     if slide.slide_type in ("title", "closing"):
         return 1
+    if slide.component_hint == "agenda":
+        return 1
     return COMPONENT_HINT_COMPLEXITY.get(slide.component_hint, 2)
 
 
 def complexity_to_thinking_effort(complexity: int) -> str:
-    """Converts a complexity score (1-5) to a thinking effort level."""
-    if complexity >= 4:
+    """Converts a complexity score (1-5) to a thinking effort level.
+
+    5 → medium, 2-4 → low, 1 → none (no adaptive thinking).
+    """
+    if complexity >= 5:
         return "medium"
-    else:
+    if complexity >= 2:
         return "low"
+    return "none"
 
 
 # Claude model pricing (USD / 1M tokens)

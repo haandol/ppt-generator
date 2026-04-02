@@ -90,6 +90,12 @@ def build_anthropic_client_args() -> dict[str, Any]:
 # ---- Bedrock model creators ----
 
 def create_bedrock_design_model(thinking_effort: str) -> BedrockModel:
+    additional_request_fields: dict[str, Any] = {}
+    if thinking_effort and thinking_effort != "none":
+        additional_request_fields = {
+            "thinking": {"type": "adaptive"},
+            "output_config": {"effort": thinking_effort},
+        }
     return BedrockModel(
         model_id=BEDROCK_DESIGN_MODEL_ID,
         region_name=BEDROCK_REGION,
@@ -97,10 +103,7 @@ def create_bedrock_design_model(thinking_effort: str) -> BedrockModel:
         temperature=1.0,
         max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
         cache_config=CacheConfig(strategy="auto"),
-        additional_request_fields={
-            "thinking": {"type": "adaptive"},
-            "output_config": {"effort": thinking_effort},
-        },
+        additional_request_fields=additional_request_fields,
     )
 
 
@@ -134,15 +137,15 @@ def create_bedrock_outline_model(
 # ---- Anthropic model creators ----
 
 def create_anthropic_design_model(thinking_effort: str) -> Any:
+    params: dict[str, Any] = {"temperature": 1.0}
+    if thinking_effort and thinking_effort != "none":
+        params["thinking"] = {"type": "adaptive"}
+        params["output_config"] = {"effort": thinking_effort}
     return CachingAnthropicModel(
         client_args=build_anthropic_client_args(),
         model_id=ANTHROPIC_DESIGN_MODEL_ID,
         max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
-        params={
-            "temperature": 1.0,
-            "thinking": {"type": "adaptive"},
-            "output_config": {"effort": thinking_effort},
-        },
+        params=params,
     )
 
 

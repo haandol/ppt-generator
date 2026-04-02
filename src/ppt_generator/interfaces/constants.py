@@ -112,7 +112,7 @@ COMPONENT_HINT_COMPLEXITY: dict[str, int] = {
     "code_block": 3,
     "two_column": 3,
     "feature_list": 2,
-    "agenda": 2,
+    "agenda": 1,
     "cta": 2,
     "bullets": 1,
     "quote": 1,

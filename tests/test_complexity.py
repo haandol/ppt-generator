@@ -89,14 +89,17 @@ class TestComplexityToThinkingEffort:
     """complexity_to_thinking_effort 단위 테스트 (1-5 scale)."""
 
     @pytest.mark.parametrize("complexity,expected", [
-        (1, "low"),
+        (1, "none"),
         (2, "low"),
         (3, "low"),
-        (4, "medium"),
+        (4, "low"),
         (5, "medium"),
     ])
     def test_effort_mapping(self, complexity: int, expected: str) -> None:
         assert complexity_to_thinking_effort(complexity) == expected
+
+    def test_boundary_1_is_none(self) -> None:
+        assert complexity_to_thinking_effort(1) == "none"
 
     def test_boundary_2_is_low(self) -> None:
         assert complexity_to_thinking_effort(2) == "low"
@@ -104,8 +107,18 @@ class TestComplexityToThinkingEffort:
     def test_boundary_3_is_low(self) -> None:
         assert complexity_to_thinking_effort(3) == "low"
 
-    def test_boundary_4_is_medium(self) -> None:
-        assert complexity_to_thinking_effort(4) == "medium"
+    def test_boundary_4_is_low(self) -> None:
+        assert complexity_to_thinking_effort(4) == "low"
 
     def test_boundary_5_is_medium(self) -> None:
         assert complexity_to_thinking_effort(5) == "medium"
+
+    def test_agenda_complexity_is_1(self) -> None:
+        """agenda 슬라이드는 복잡도 1 → thinking effort "none"."""
+        slide = SlideOutline(
+            title="Agenda", content_summary="발표 순서",
+            component_hint="agenda",
+        )
+        complexity = estimate_slide_complexity(slide)
+        assert complexity == 1
+        assert complexity_to_thinking_effort(complexity) == "none"
