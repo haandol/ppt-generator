@@ -68,6 +68,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
                     bold=r.get("bold", False),
                     italic=r.get("italic", False),
                     font_family=r.get("font_family"),
+                    href=r.get("href"),
                 ))
             shape_paragraphs.append(PptxParagraph(
                 runs=s_runs,
