@@ -15,8 +15,16 @@ from __future__ import annotations
 
 import json
 import logging
-import shutil
 from pathlib import Path
+
+from ppt_generator.tools.project.slide_file_store import (
+    delete_slide_file,
+    insert_slide_file,
+    move_slide_file,
+    renumber_dir,
+    slide_filename,
+    sorted_slide_files,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,20 +37,6 @@ class JsonlStore:
 
     개별 JSON 파일 → JSONL → legacy JSON 순으로 fallback한다.
     """
-
-    # --- 파일명 유틸 ---
-
-    @staticmethod
-    def _slide_filename(index: int) -> str:
-        """0-based 인덱스를 slide_01.json 형식 파일명으로 변환."""
-        return f"slide_{index + 1:02d}.json"
-
-    @staticmethod
-    def _sorted_slide_files(directory: Path) -> list[Path]:
-        """디렉토리 내 slide_*.json 파일을 정렬해서 반환."""
-        if not directory.exists():
-            return []
-        return sorted(directory.glob("slide_*.json"))
 
     # --- 전체 저장/로드 ---
 
@@ -58,14 +52,17 @@ class JsonlStore:
         self._save_slides_to_dir(project_dir / SCRIPT_DIR, slides)
         logger.info("script/ 저장 완료 (%d 슬라이드): %s", len(slides), project_dir)
 
-    def _save_slides_to_dir(self, directory: Path, slides: list[dict]) -> None:
+    @staticmethod
+    def _save_slides_to_dir(directory: Path, slides: list[dict]) -> None:
         """슬라이드 리스트를 개별 JSON 파일로 저장한다. 기존 디렉토리는 덮어쓴다."""
+        import shutil
+
         if directory.exists():
             shutil.rmtree(directory)
         directory.mkdir(parents=True)
         for i, s in enumerate(slides):
             s["slide_index"] = i
-            fname = self._slide_filename(i)
+            fname = slide_filename(i)
             (directory / fname).write_text(
                 json.dumps(s, ensure_ascii=False, indent=2), encoding="utf-8",
             )
@@ -96,9 +93,10 @@ class JsonlStore:
         legacy = project_dir / "script.json"
         return legacy.read_text(encoding="utf-8")
 
-    def _load_slides_from_dir(self, directory: Path) -> list[dict] | None:
+    @staticmethod
+    def _load_slides_from_dir(directory: Path) -> list[dict] | None:
         """개별 JSON 파일에서 슬라이드를 로드한다. 디렉토리가 없으면 None."""
-        files = self._sorted_slide_files(directory)
+        files = sorted_slide_files(directory)
         if not files:
             return None
         return [json.loads(f.read_text(encoding="utf-8")) for f in files]
@@ -117,17 +115,17 @@ class JsonlStore:
             project_dir, SCRIPT_DIR, "script.jsonl", "script.json", index,
         )
 
+    @staticmethod
     def _load_slide_from_dir_or_fallback(
-        self, project_dir: Path, dir_name: str, jsonl_name: str, legacy_name: str, index: int,
+        project_dir: Path, dir_name: str, jsonl_name: str, legacy_name: str, index: int,
     ) -> str:
         # 1) 개별 파일 (파일명 기반 인덱스 접근 — sparse 지원)
         directory = project_dir / dir_name
-        files = self._sorted_slide_files(directory)
+        files = sorted_slide_files(directory)
         if files:
-            target = directory / self._slide_filename(index)
+            target = directory / slide_filename(index)
             if target.exists():
                 return target.read_text(encoding="utf-8")
-            # 디렉토리에 파일이 있지만 해당 인덱스가 없음
             raise IndexError(f"유효하지 않은 slide index: {index} (전체 {len(files)}장)")
         # 2) JSONL fallback
         jsonl = project_dir / jsonl_name
@@ -147,7 +145,7 @@ class JsonlStore:
     def get_outline_slide_count(self, project_dir: Path) -> int:
         """script/outline의 슬라이드 수를 반환한다. 없으면 0."""
         for dir_name in (SCRIPT_DIR, OUTLINE_DIR):
-            files = self._sorted_slide_files(project_dir / dir_name)
+            files = sorted_slide_files(project_dir / dir_name)
             if files:
                 return len(files)
         for jsonl_name in ("script.jsonl", "outline.jsonl"):
@@ -167,24 +165,16 @@ class JsonlStore:
     def sync_outline_to_design_spec_count(
         self, project_dir: Path, design_spec_count: int,
     ) -> bool:
-        """outline 수를 design_spec 수에 맞춰 placeholder로 채운다.
-
-        outline < design_spec이면 부족한 슬롯을 빈 placeholder로 채워서
-        양쪽 수를 일치시킨다. 이미 일치하거나 outline이 더 많으면 아무것도 안 한다.
-
-        Returns:
-            True if outline was padded, False otherwise.
-        """
+        """outline 수를 design_spec 수에 맞춰 placeholder로 채운다."""
         outline_dir = project_dir / OUTLINE_DIR
-        files = self._sorted_slide_files(outline_dir)
+        files = sorted_slide_files(outline_dir)
         current_count = len(files)
 
         if current_count == 0:
-            # outline이 전혀 없으면 전체를 placeholder로 생성
             outline_dir.mkdir(parents=True, exist_ok=True)
             for i in range(design_spec_count):
                 data = {**self._PLACEHOLDER_OUTLINE, "slide_index": i}
-                (outline_dir / self._slide_filename(i)).write_text(
+                (outline_dir / slide_filename(i)).write_text(
                     json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8",
                 )
             logger.info(
@@ -196,10 +186,9 @@ class JsonlStore:
         if current_count >= design_spec_count:
             return False
 
-        # 부족한 슬롯만 끝에 추가
         for i in range(current_count, design_spec_count):
             data = {**self._PLACEHOLDER_OUTLINE, "slide_index": i}
-            (outline_dir / self._slide_filename(i)).write_text(
+            (outline_dir / slide_filename(i)).write_text(
                 json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8",
             )
         logger.info(
@@ -210,23 +199,18 @@ class JsonlStore:
 
     def load_script_or_outline(self, project_dir: Path) -> str:
         """script 우선, 없으면 outline으로 fallback."""
-        # script 개별 파일
-        if self._sorted_slide_files(project_dir / SCRIPT_DIR):
+        if sorted_slide_files(project_dir / SCRIPT_DIR):
             return self.load_script(project_dir)
-        # script JSONL
         if (project_dir / "script.jsonl").exists():
             return self.load_script(project_dir)
-        # script legacy JSON
         if (project_dir / "script.json").exists():
             return self.load_script(project_dir)
         return self.load_outline(project_dir)
 
     def load_script_or_outline_slide(self, project_dir: Path, index: int) -> str:
         """개별 슬라이드를 script 우선, 없으면 outline에서 로드한다."""
-        # script 개별 파일
-        if self._sorted_slide_files(project_dir / SCRIPT_DIR):
+        if sorted_slide_files(project_dir / SCRIPT_DIR):
             return self.load_script_slide(project_dir, index)
-        # script JSONL
         if (project_dir / "script.jsonl").exists():
             return self.load_script_slide(project_dir, index)
         return self.load_outline_slide(project_dir, index)
@@ -234,17 +218,12 @@ class JsonlStore:
     # --- 개별 슬라이드 CRUD ---
 
     def save_outline_slide(self, project_dir: Path, index: int, slide_json: str) -> None:
-        """개별 슬라이드 아웃라인을 저장한다. 파일이 없으면 새로 생성한다.
-
-        outline/ 디렉토리에 저장하고, script/ 디렉토리에 해당 인덱스 파일이 존재하면
-        동일한 내용으로 덮어써서 source of truth를 동기화한다.
-        """
+        """개별 슬라이드 아웃라인을 저장한다."""
         data = json.loads(slide_json)
         data["slide_index"] = index
         serialized = json.dumps(data, ensure_ascii=False, indent=2)
-        fname = self._slide_filename(index)
+        fname = slide_filename(index)
 
-        # outline/ 저장
         outline_dir = project_dir / OUTLINE_DIR
         outline_dir.mkdir(parents=True, exist_ok=True)
         (outline_dir / fname).write_text(serialized, encoding="utf-8")
@@ -273,7 +252,7 @@ class JsonlStore:
 
     def _update_slide_in_dir(self, project_dir: Path, dir_name: str, index: int, slide_json: str) -> bool:
         directory = project_dir / dir_name
-        files = self._sorted_slide_files(directory)
+        files = sorted_slide_files(directory)
         if not files:
             return False
         if index < 0 or index >= len(files):
@@ -308,37 +287,24 @@ class JsonlStore:
             inserted |= self._insert_slide_in_dir(project_dir, dir_name, index, slide_json)
             inserted |= self._insert_slide_in_jsonl(project_dir, jsonl_name, index, slide_json)
         if not inserted:
-            # outline/script이 전혀 없는 프로젝트(imported 등)에서도 outline 파일을 생성
             outline_dir = project_dir / OUTLINE_DIR
             outline_dir.mkdir(exist_ok=True)
             data = json.loads(slide_json)
             data["slide_index"] = index
-            (outline_dir / self._slide_filename(index)).write_text(
+            (outline_dir / slide_filename(index)).write_text(
                 json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8",
             )
             logger.info("outline/script 파일이 없어 outline 디렉토리에 새 파일 생성: index=%d", index)
 
     def _insert_slide_in_dir(self, project_dir: Path, dir_name: str, index: int, slide_json: str) -> bool:
         directory = project_dir / dir_name
-        files = self._sorted_slide_files(directory)
+        files = sorted_slide_files(directory)
         if not files:
             return False
-        count = len(files)
-        if index < 0 or index > count:
-            index = count
-        # 뒤에서부터 한 칸씩 밀기
-        for i in range(count - 1, index - 1, -1):
-            old_name = directory / self._slide_filename(i)
-            new_name = directory / self._slide_filename(i + 1)
-            old_name.rename(new_name)
-        # 새 파일 작성
         data = json.loads(slide_json)
         data["slide_index"] = index
-        (directory / self._slide_filename(index)).write_text(
-            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8",
-        )
-        # slide_index 재번호
-        self._renumber_dir(directory)
+        content = json.dumps(data, ensure_ascii=False, indent=2)
+        insert_slide_file(directory, index, content)
         logger.info("슬라이드 삽입 동기화: index=%d, dir=%s", index, directory)
         return True
 
@@ -364,13 +330,10 @@ class JsonlStore:
 
     def _delete_slide_in_dir(self, project_dir: Path, dir_name: str, index: int) -> bool:
         directory = project_dir / dir_name
-        files = self._sorted_slide_files(directory)
+        files = sorted_slide_files(directory)
         if not files:
             return False
-        if index < 0 or index >= len(files):
-            raise IndexError(f"유효하지 않은 slide index: {index} (전체 {len(files)}장)")
-        files[index].unlink()
-        self._renumber_dir(directory)
+        delete_slide_file(directory, index)
         logger.info("슬라이드 삭제 동기화: index=%d, dir=%s", index, directory)
         return True
 
@@ -399,27 +362,10 @@ class JsonlStore:
 
     def _move_slide_in_dir(self, project_dir: Path, dir_name: str, from_idx: int, to_idx: int) -> bool:
         directory = project_dir / dir_name
-        files = self._sorted_slide_files(directory)
+        files = sorted_slide_files(directory)
         if not files:
             return False
-        count = len(files)
-        if from_idx < 0 or from_idx >= count:
-            raise IndexError(f"유효하지 않은 from_index: {from_idx} (전체 {count}장)")
-        if to_idx < 0 or to_idx >= count:
-            raise IndexError(f"유효하지 않은 to_index: {to_idx} (전체 {count}장)")
-        if from_idx == to_idx:
-            return True
-        # 내용 읽기
-        contents = [f.read_text(encoding="utf-8") for f in files]
-        item = contents.pop(from_idx)
-        contents.insert(to_idx, item)
-        # 전체 재작성 + slide_index 갱신
-        for i, content in enumerate(contents):
-            data = json.loads(content)
-            data["slide_index"] = i
-            (directory / self._slide_filename(i)).write_text(
-                json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8",
-            )
+        move_slide_file(directory, from_idx, to_idx)
         logger.info("슬라이드 이동 동기화: %d → %d, dir=%s", from_idx, to_idx, directory)
         return True
 
@@ -442,24 +388,6 @@ class JsonlStore:
         return True
 
     # --- 내부 유틸 ---
-
-    def _renumber_dir(self, directory: Path) -> None:
-        """디렉토리 내 모든 slide 파일의 slide_index를 파일 순서에 맞게 재번호한다."""
-        files = self._sorted_slide_files(directory)
-        # 1) 임시 이름으로 rename (파일명 충돌 방지)
-        tmp_pairs: list[tuple[Path, int]] = []
-        for i, f in enumerate(files):
-            tmp = directory / f"_tmp_{i}.json"
-            f.rename(tmp)
-            tmp_pairs.append((tmp, i))
-        # 2) 최종 이름으로 rename + slide_index 갱신
-        for tmp, i in tmp_pairs:
-            data = json.loads(tmp.read_text(encoding="utf-8"))
-            data["slide_index"] = i
-            target = directory / self._slide_filename(i)
-            target.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-            if tmp.exists():
-                tmp.unlink()
 
     @staticmethod
     def _load_jsonl_lines(path: Path) -> list[str]:

@@ -90,6 +90,17 @@ Use these table values directly for evenly distributing blocks to prevent calcul
              child_area_width = container.width_px - container.padding_left_px - container.padding_right_px
              Then apply the N-column even distribution formula within child_area_width, starting from child_area_left.
   - Same principle applies vertically: child elements should span the container's available inner height, not cluster at the top.
+  - **Peer children in the same row must have identical height_px and top_px.** Different heights cause misalignment.
+  - **All children must fit entirely within the container bounds.** For each child, verify:
+    child.left_px >= container.left_px + container.padding_left_px
+    child.top_px >= container.top_px + container.padding_top_px (+ title paragraph height if container has a title)
+    child.left_px + child.width_px <= container.left_px + container.width_px - container.padding_right_px
+    child.top_px + child.height_px <= container.top_px + container.height_px - container.padding_bottom_px
+    If any child overflows, reduce child height/width or increase container size.
+  - **Stacking rows inside a container**: When a container has a horizontal row of children AND additional elements below (e.g., info bars), compute positions top-down:
+    row_bottom = row_top + row_height
+    next_element_top >= row_bottom + gap (at least 12px)
+    Verify the last element's bottom does not exceed the container's inner bottom.
 
 ■ Arrow endpoint snapping (mandatory)
   Arrow endpoints must precisely touch the edge of the connected block — no gap, no penetration.
@@ -131,7 +142,7 @@ Always explicitly specify vertical_alignment for both textboxes and shapes. null
   - Title/subtitle textboxes: "middle"
   - Body/bullet textboxes: "middle" recommended if content is less than 65% of box height, "top" if 65% or more
   - **Peer cards/shapes in a row (step_cards, info_cards, summary_grid, etc.): MUST use "top".**
-    Reason: When multiple cards of the same height are arranged in a row but contain different amounts of text, "middle" alignment causes each card's content to start at a different vertical position. This makes numbering labels (01, 02, 03…), titles, and descriptions misaligned across cards. Using "top" ensures all peer cards start content at the same vertical position, maintaining visual consistency.
+    Reason: When multiple cards of the same height are arranged in a row but contain different amounts of text, "middle" alignment causes each card's content to start at a different vertical position. This makes titles and descriptions misaligned across cards. Using "top" ensures all peer cards start content at the same vertical position, maintaining visual consistency.
   - Standalone card/banner/button shapes (single element, not part of a peer row): "middle"
   - Footer/bottom labels: "bottom"
   - Decorative shapes (no text): "top"
@@ -328,7 +339,6 @@ Body slide (slide_type: "content") design rules:
         "vertical_alignment": "top",
         "padding_left_px": 16, "padding_right_px": 16, "padding_top_px": 12, "padding_bottom_px": 12,
         "paragraphs": [
-          {"runs": [{"text": "01", "font_size_pt": 28, "color": "#FFC000", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
           {"runs": [{"text": "First Step", "font_size_pt": 20, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
           {"runs": [{"text": "Step description text goes here.", "font_size_pt": 16, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
         ]
@@ -339,7 +349,6 @@ Body slide (slide_type: "content") design rules:
         "vertical_alignment": "top",
         "padding_left_px": 16, "padding_right_px": 16, "padding_top_px": 12, "padding_bottom_px": 12,
         "paragraphs": [
-          {"runs": [{"text": "02", "font_size_pt": 28, "color": "#FFC000", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
           {"runs": [{"text": "Second Step", "font_size_pt": 20, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
           {"runs": [{"text": "Step description text goes here.", "font_size_pt": 16, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
         ]
@@ -350,7 +359,6 @@ Body slide (slide_type: "content") design rules:
         "vertical_alignment": "top",
         "padding_left_px": 16, "padding_right_px": 16, "padding_top_px": 12, "padding_bottom_px": 12,
         "paragraphs": [
-          {"runs": [{"text": "03", "font_size_pt": 28, "color": "#FFC000", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
           {"runs": [{"text": "Third Step", "font_size_pt": 20, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
           {"runs": [{"text": "Step description text goes here.", "font_size_pt": 16, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
         ]
@@ -487,7 +495,7 @@ Hard constraints (rendering will fail if violated):
    - Example: 3 color bars above cards → all 3 use top_px=493, height_px=10
    - Example: 3 bottom info badges → all 3 use top_px=626, height_px=30
    - Do not calculate each element's top_px individually. **First determine one top_px for the row**, then apply it uniformly to all elements in that row.
-   - **Internal paragraph consistency**: When peer cards/shapes contain paragraphs (e.g., step number + title + description), all peer shapes must use **identical paragraph structure, font sizes, and line spacing**. This ensures number labels (01, 02, 03…), titles, and descriptions are rendered at the same vertical position across all cards.
+   - **Internal paragraph consistency**: When peer cards/shapes contain paragraphs (e.g., title + description), all peer shapes must use **identical paragraph structure, font sizes, and line spacing**. This ensures titles and descriptions are rendered at the same vertical position across all cards.
    - **Separate label elements**: If number labels or icons are placed as separate textboxes/shapes above cards, all labels in the same row must share the exact same top_px, height_px, and font_size_pt.
    Reason: Even a 1px difference in top_px breaks visual alignment, significantly degrading design quality.
 
