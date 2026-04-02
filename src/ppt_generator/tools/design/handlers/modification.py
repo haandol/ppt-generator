@@ -131,6 +131,42 @@ def handle_modify(
     return json.dumps(result, ensure_ascii=False)
 
 
+# --- shared helpers ---
+
+
+def _generate_and_review(deps, *, slide_outline, slide_index, design_summary, color_theme):
+    """슬라이드를 생성하고 리뷰 후 필요시 재생성한다."""
+    complexity = estimate_slide_complexity(slide_outline)
+    effort = complexity_to_thinking_effort(complexity)
+    slide_type = slide_outline.slide_type or "content"
+    svc = deps.design_service_factory(effort, slide_type)
+    spec = svc.generate_single_slide(slide_outline, design_summary, color_theme=color_theme)
+    token_usage = svc.last_token_usage
+
+    if deps.review_service_factory is not None:
+        try:
+            from ppt_generator.tools.design.review_service import apply_review_and_fix
+
+            def _regenerate(feedback: str) -> tuple:
+                svc_regen = deps.design_service_factory(effort, slide_type)
+                new = svc_regen.generate_single_slide(
+                    slide_outline, design_summary, color_theme=color_theme,
+                    review_feedback=feedback,
+                )
+                return new, svc_regen.last_token_usage
+
+            rr = apply_review_and_fix(
+                spec=spec, slide_index=slide_index, gen_usage=token_usage,
+                review_service_factory=deps.review_service_factory,
+                regenerate=_regenerate,
+            )
+            return rr.spec, rr.token_usage
+        except Exception as exc:
+            logger.warning("slide[%d] review failed: %s", slide_index, exc)
+
+    return spec, token_usage
+
+
 # --- action handlers ---
 
 
@@ -154,36 +190,10 @@ def _add_slide(deps, *, project_dir, slide_count, slide_index, title, content_su
 
     outline = parse_outline_json(outline_json)
     slide_outline = outline.slides[0]
-    complexity = estimate_slide_complexity(slide_outline)
-    effort = complexity_to_thinking_effort(complexity)
-    svc = deps.design_service_factory(effort, slide_outline.slide_type or "content")
-    new_spec = svc.generate_single_slide(slide_outline, design_summary, color_theme=color_theme)
-    token_usage = svc.last_token_usage
-
-    # --- Design review step ---
-    if deps.review_service_factory is not None:
-        try:
-            from ppt_generator.tools.design.review_service import (
-                DesignReviewService,
-                merge_token_usage,
-            )
-            review_svc = deps.review_service_factory()
-            review_result = review_svc.review(new_spec, slide_index=slide_index)
-            review_usage = review_svc.last_token_usage
-
-            if review_result.has_high_severity:
-                logger.info("slide[%d] add review: high-severity issues, regenerating", slide_index)
-                feedback = DesignReviewService.format_feedback(review_result)
-                svc_regen = deps.design_service_factory(effort, slide_outline.slide_type or "content")
-                new_spec = svc_regen.generate_single_slide(
-                    slide_outline, design_summary, color_theme=color_theme,
-                    review_feedback=feedback,
-                )
-                token_usage = merge_token_usage(token_usage, review_usage, svc_regen.last_token_usage)
-            else:
-                token_usage = merge_token_usage(token_usage, review_usage)
-        except Exception as exc:
-            logger.warning("slide[%d] add review failed: %s", slide_index, exc)
+    new_spec, token_usage = _generate_and_review(
+        deps, slide_outline=slide_outline, slide_index=slide_index,
+        design_summary=design_summary, color_theme=color_theme,
+    )
 
     project_service.insert_design_spec_slide(project_dir, insert_idx, new_spec)
 
@@ -226,36 +236,10 @@ def _update_slide(deps, *, project_dir, slide_count, slide_index, title, content
     outline_raw = project_service.load_script_or_outline_slide(project_dir, idx)
     outline = parse_outline_json(outline_raw)
     slide_outline = outline.slides[0]
-    complexity = estimate_slide_complexity(slide_outline)
-    effort = complexity_to_thinking_effort(complexity)
-    svc = deps.design_service_factory(effort, slide_outline.slide_type or "content")
-    new_spec = svc.generate_single_slide(slide_outline, design_summary, color_theme=color_theme)
-    token_usage = svc.last_token_usage
-
-    # --- Design review step ---
-    if deps.review_service_factory is not None:
-        try:
-            from ppt_generator.tools.design.review_service import (
-                DesignReviewService,
-                merge_token_usage,
-            )
-            review_svc = deps.review_service_factory()
-            review_result = review_svc.review(new_spec, slide_index=slide_index)
-            review_usage = review_svc.last_token_usage
-
-            if review_result.has_high_severity:
-                logger.info("slide[%d] update review: high-severity issues, regenerating", slide_index)
-                feedback = DesignReviewService.format_feedback(review_result)
-                svc_regen = deps.design_service_factory(effort, slide_outline.slide_type or "content")
-                new_spec = svc_regen.generate_single_slide(
-                    slide_outline, design_summary, color_theme=color_theme,
-                    review_feedback=feedback,
-                )
-                token_usage = merge_token_usage(token_usage, review_usage, svc_regen.last_token_usage)
-            else:
-                token_usage = merge_token_usage(token_usage, review_usage)
-        except Exception as exc:
-            logger.warning("slide[%d] update review failed: %s", slide_index, exc)
+    new_spec, token_usage = _generate_and_review(
+        deps, slide_outline=slide_outline, slide_index=slide_index,
+        design_summary=design_summary, color_theme=color_theme,
+    )
 
     if existing_spec.images:
         new_spec = replace(new_spec, images=existing_spec.images)

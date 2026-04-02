@@ -62,10 +62,7 @@ class TestAgentHangScenario2_CallbackHandlerStdioConflict:
 
         import inspect
 
-        source = inspect.getsource(DIContainer._create_script_agent)
-        assert "callback_handler=None" in source
-
-        source = inspect.getsource(DIContainer._create_outline_agent)
+        source = inspect.getsource(DIContainer._create_agent)
         assert "callback_handler=None" in source
 
 

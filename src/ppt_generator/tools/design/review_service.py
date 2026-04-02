@@ -7,6 +7,8 @@ Adaptive thinking 없는 Sonnet을 사용하여 빠르고 저렴하게 체크리
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
+from typing import Callable
 
 from strands import Agent
 
@@ -72,3 +74,57 @@ def merge_token_usage(*usages: dict[str, int]) -> dict[str, int]:
         for k, v in u.items():
             merged[k] = merged.get(k, 0) + v
     return merged
+
+
+@dataclass
+class ReviewResult:
+    """리뷰 + 선택적 재생성 결과."""
+
+    spec: PptxSlideSpec
+    token_usage: dict[str, int]
+    regenerated: bool = False
+
+
+def apply_review_and_fix(
+    *,
+    spec: PptxSlideSpec,
+    slide_index: int,
+    gen_usage: dict[str, int],
+    review_service_factory: Callable[[], DesignReviewService],
+    regenerate: Callable[[str], tuple[PptxSlideSpec, dict[str, int]]],
+) -> ReviewResult:
+    """리뷰를 실행하고, high severity 시 regenerate 콜백으로 재생성한다.
+
+    Args:
+        spec: 리뷰할 디자인 스펙
+        slide_index: 1-based 슬라이드 인덱스
+        gen_usage: 초기 생성 토큰 사용량
+        review_service_factory: DesignReviewService 팩토리
+        regenerate: feedback 문자열을 받아 (new_spec, regen_usage)를 반환하는 콜백
+
+    Returns:
+        ReviewResult (spec, token_usage, regenerated)
+    """
+    review_svc = review_service_factory()
+    review_output = review_svc.review(spec, slide_index=slide_index)
+    review_usage = review_svc.last_token_usage
+
+    if review_output.has_high_severity:
+        high_count = sum(1 for i in review_output.issues if i.severity == "high")
+        logger.info(
+            "slide[%d] review: %d high-severity issues, regenerating",
+            slide_index, high_count,
+        )
+        feedback = DesignReviewService.format_feedback(review_output)
+        new_spec, regen_usage = regenerate(feedback)
+        combined = merge_token_usage(gen_usage, review_usage, regen_usage)
+        return ReviewResult(spec=new_spec, token_usage=combined, regenerated=True)
+
+    logger.info(
+        "slide[%d] review passed (%d issues, none high)",
+        slide_index, len(review_output.issues),
+    )
+    return ReviewResult(
+        spec=spec,
+        token_usage=merge_token_usage(gen_usage, review_usage),
+    )

@@ -160,23 +160,11 @@ def run_parallel_generation(
             combined_usage = gen_usage
             if review_service_factory is not None:
                 try:
-                    from ppt_generator.tools.design.review_service import (
-                        DesignReviewService,
-                        merge_token_usage,
-                    )
-                    review_svc = review_service_factory()
-                    review_result = review_svc.review(spec, slide_index=idx + 1)
-                    review_usage = review_svc.last_token_usage
+                    from ppt_generator.tools.design.review_service import apply_review_and_fix
 
-                    if review_result.has_high_severity:
-                        high_count = sum(1 for i in review_result.issues if i.severity == "high")
-                        logger.info(
-                            "slide[%d] review: %d high-severity issues, regenerating",
-                            idx, high_count,
-                        )
-                        feedback = DesignReviewService.format_feedback(review_result)
+                    def _regenerate(feedback: str) -> tuple:
                         svc_regen = design_service_factory(effort, slide_type)
-                        spec = svc_regen.generate_single_slide(
+                        new = svc_regen.generate_single_slide(
                             outline.slides[idx],
                             design_summary=design_summary,
                             slide_index=idx + 1,
@@ -188,18 +176,20 @@ def run_parallel_generation(
                         )
                         if (
                             design_summary
-                            and spec.slide_type == "content"
+                            and new.slide_type == "content"
                             and design_summary.get("background_color")
-                            and spec.background_color != design_summary["background_color"]
+                            and new.background_color != design_summary["background_color"]
                         ):
-                            spec = replace(spec, background_color=design_summary["background_color"])
-                        combined_usage = merge_token_usage(gen_usage, review_usage, svc_regen.last_token_usage)
-                    else:
-                        logger.info(
-                            "slide[%d] review passed (%d issues, none high)",
-                            idx, len(review_result.issues),
-                        )
-                        combined_usage = merge_token_usage(gen_usage, review_usage)
+                            return replace(new, background_color=design_summary["background_color"]), svc_regen.last_token_usage
+                        return new, svc_regen.last_token_usage
+
+                    rr = apply_review_and_fix(
+                        spec=spec, slide_index=idx + 1, gen_usage=gen_usage,
+                        review_service_factory=review_service_factory,
+                        regenerate=_regenerate,
+                    )
+                    spec = rr.spec
+                    combined_usage = rr.token_usage
                 except Exception as exc:
                     logger.warning("slide[%d] review failed, using original spec: %s", idx, exc)
 
