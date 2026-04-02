@@ -22,6 +22,7 @@ from ppt_generator.interfaces.constants import (
     BEDROCK_DESIGN_MODEL_ID,
     BEDROCK_OUTLINE_MODEL_ID,
     BEDROCK_REGION,
+    BEDROCK_REVIEW_MAX_TOKENS,
     VISUAL_QA_ANALYSIS_SYSTEM_PROMPT,
     VISUAL_QA_FIX_SYSTEM_PROMPT,
 )
@@ -90,11 +91,14 @@ def build_anthropic_client_args() -> dict[str, Any]:
 # ---- Bedrock model creators ----
 
 def create_bedrock_design_model(thinking_effort: str) -> BedrockModel:
-    additional_request_fields: dict[str, Any] = {}
     if thinking_effort and thinking_effort != "none":
-        additional_request_fields = {
+        additional_request_fields: dict[str, Any] = {
             "thinking": {"type": "adaptive"},
             "output_config": {"effort": thinking_effort},
+        }
+    else:
+        additional_request_fields = {
+            "thinking": {"type": "disabled"},
         }
     return BedrockModel(
         model_id=BEDROCK_DESIGN_MODEL_ID,
@@ -141,6 +145,8 @@ def create_anthropic_design_model(thinking_effort: str) -> Any:
     if thinking_effort and thinking_effort != "none":
         params["thinking"] = {"type": "adaptive"}
         params["output_config"] = {"effort": thinking_effort}
+    else:
+        params["thinking"] = {"type": "disabled"}
     return CachingAnthropicModel(
         client_args=build_anthropic_client_args(),
         model_id=ANTHROPIC_DESIGN_MODEL_ID,
@@ -186,9 +192,31 @@ def create_anthropic_outline_model(
     )
 
 
+# ---- Design review model creators (no adaptive thinking) ----
+
+def create_bedrock_review_model() -> BedrockModel:
+    return BedrockModel(
+        model_id=BEDROCK_DESIGN_MODEL_ID,
+        region_name=BEDROCK_REGION,
+        boto_client_config=build_client_config(),
+        temperature=1.0,
+        max_tokens=BEDROCK_REVIEW_MAX_TOKENS,
+        cache_config=CacheConfig(strategy="auto"),
+    )
+
+
+def create_anthropic_review_model() -> Any:
+    return CachingAnthropicModel(
+        client_args=build_anthropic_client_args(),
+        model_id=ANTHROPIC_DESIGN_MODEL_ID,
+        max_tokens=BEDROCK_REVIEW_MAX_TOKENS,
+        params={"temperature": 1.0},
+    )
+
+
 # ---- Visual QA model creators ----
 
-def create_bedrock_visual_qa_model(thinking_effort: str = "medium") -> BedrockModel:
+def create_bedrock_visual_qa_model(thinking_effort: str = "low") -> BedrockModel:
     return BedrockModel(
         model_id=BEDROCK_DESIGN_MODEL_ID,
         region_name=BEDROCK_REGION,
@@ -203,7 +231,7 @@ def create_bedrock_visual_qa_model(thinking_effort: str = "medium") -> BedrockMo
     )
 
 
-def create_anthropic_visual_qa_model(thinking_effort: str = "medium") -> Any:
+def create_anthropic_visual_qa_model(thinking_effort: str = "low") -> Any:
     return CachingAnthropicModel(
         client_args=build_anthropic_client_args(),
         model_id=ANTHROPIC_DESIGN_MODEL_ID,

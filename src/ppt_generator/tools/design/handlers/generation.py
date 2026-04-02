@@ -77,6 +77,7 @@ async def handle_generate(
         project_dir=project_dir,
         slides_service=slides_service,
         report_progress=sync_report,
+        review_service_factory=deps.review_service_factory,
     )
 
     project_service.update_step(project_dir, "design_spec")

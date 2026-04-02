@@ -439,6 +439,11 @@ Body slide (slide_type: "content") design rules:
   - **Body text and card body must be at least 14pt.** Below 14pt, text becomes difficult to read at normal viewing distance.
   - Secondary/auxiliary text (footnotes, source labels) may go down to 12pt, but never below 10pt.
   - If content does not fit at the minimum font size, reduce the text amount or simplify — do NOT shrink font below the minimums.
+
+■ Font size consistency across regions:
+  - When a slide has left and right content regions, **both regions must use comparable font sizes for equivalent roles**. For example, if the right side uses 15pt for list items, the left side must not use 10pt for similar body text.
+  - **Card titles must be 18~24pt, card body must be 16~20pt** — even when space is tight. Never shrink card text below these ranges to fit more cards. Instead, reduce the number of cards or simplify text.
+  - **Section labels** (category headings placed above content groups) must be at least 14pt and their textbox width_px must be wide enough for the text to fit on a single line. Calculate: width_px >= character_count × font_size_pt × 1.2 (for Korean) or × 0.73 (for Latin). If the label is too long, shorten the text — do not shrink the font or squeeze the width.
 </typography_rules>
 
 <text_size_estimation>
@@ -499,26 +504,45 @@ Hard constraints (rendering will fail if violated):
    - **Separate label elements**: If number labels or icons are placed as separate textboxes/shapes above cards, all labels in the same row must share the exact same top_px, height_px, and font_size_pt.
    Reason: Even a 1px difference in top_px breaks visual alignment, significantly degrading design quality.
 
-10. No bottom auxiliary element overlap: When placing 2+ independent shapes/textboxes at the bottom of the slide (top_px >= 540),
+10. Vertically stacked cards — uniform height and consistent gap:
+    When placing N cards stacked vertically in a column (e.g., left side of two_column), **all cards must have the same height_px** and the **gap between every adjacent pair must be identical**.
+    - First, decide one card_height and one gap value.
+    - Then compute positions sequentially: card_i.top_px = first_card.top_px + i × (card_height + gap).
+    - Verify: card_i.top_px must be >= card_(i-1).top_px + card_(i-1).height_px + gap. If not, recalculate.
+    - Example (3 cards, card_height=100, gap=16, starting at top=148):
+      Card 0: top=148, bottom=248
+      Card 1: top=264, bottom=364
+      Card 2: top=380, bottom=480
+    - **Common mistake**: Setting card heights differently (e.g., 122, 96, 96) or gaps inconsistently (e.g., -10px then 16px). This always causes overlap or visual imbalance.
+    Reason: Inconsistent height or gap between stacked cards creates overlap, misalignment, and an unprofessional appearance.
+
+11. No bottom auxiliary element overlap: When placing 2+ independent shapes/textboxes at the bottom of the slide (top_px >= 540),
     bounding boxes must not overlap vertically. Always apply vertical separation (upper element bottom + 16 <= lower element top) or
     horizontal separation (non-overlapping x ranges). Refer to "Bottom auxiliary element layout rules" in <slide_type_content>.
     Reason: The bottom area has limited space, and overlapping elements hide content, causing critical information to be lost.
 
-11. Left-right split vertical alignment: When a slide uses a left-right split layout (two_column, concept_list, process_flow, or any layout with distinct left and right content regions):
+11. Font size floor enforcement: Card titles must be >= 18pt, card body text must be >= 16pt, section labels must be >= 14pt. Never use 10~13pt for card content or labels — this is the most common font size violation. If content does not fit at these minimums, reduce the number of elements or shorten text. Do NOT shrink fonts below the floor.
+    Reason: Text below 14pt is unreadable at normal viewing distance and creates inconsistency when adjacent regions use larger fonts.
+
+12. Left-right split vertical alignment: When a slide uses a left-right split layout (two_column, concept_list, process_flow, or any layout with distinct left and right content regions):
     - Both regions must share the **same top_px** (start of body content, typically 148px).
     - Both regions must share the **same bottom edge** (top_px + height_px must be equal for both sides).
     - If the left side consists of multiple vertically stacked elements (e.g., 4 cards), compute the bottom as: last_card.top_px + last_card.height_px. The right region's height_px must be adjusted so its bottom matches this value exactly.
     - **Chart/graph internal elements**: When the right region contains axes, all elements (axis lines, data points, labels, legends) must be positioned relative to the region's boundaries, not independently estimated. The X-axis line must sit at or above the region's bottom edge. Legend and axis labels must not extend beyond the region's bounding box.
     Reason: Misaligned top or bottom edges between left and right regions create an unbalanced, unprofessional appearance. This is one of the most common layout defects in split layouts.
 
-**Pre-output overlap verification (mandatory)**:
-Before outputting the final JSON, verify every pair of vertically adjacent elements:
+**Pre-output verification (mandatory)**:
+Before outputting the final JSON, verify:
   1. For each element, compute bottom = top_px + height_px
   2. For the element below it, check: its top_px >= previous bottom + 16 (minimum gap)
   3. For container-child patterns, verify all children fit within the container bounds
   4. **For left-right split layouts**: verify left_bottom == right_bottom (both regions end at the same Y coordinate). If they differ, adjust the shorter region's height_px so both bottoms match.
-  5. If any violation is found, recalculate the offending element's top_px before output
-This verification is critical because coordinate arithmetic errors (even off-by-1) cause visible overlap in the rendered slide.
+  5. **Font size floor check**: Scan all font_size_pt values — card titles must be >= 18pt, card body >= 16pt, section labels >= 14pt. If any violation is found, increase to the minimum.
+  6. **Font size consistency check**: Compare font sizes used for equivalent roles across left and right regions. If one side uses significantly smaller fonts (e.g., 10pt vs 15pt for body text), unify to the larger size.
+  7. **Section label width check**: For each section label textbox, verify width_px is sufficient for the text to fit on one line. If not, widen the textbox or shorten the text.
+  8. **Stacked card consistency check**: For vertically stacked cards in the same column, verify all cards have the same height_px and all gaps between adjacent cards are equal. If card heights differ or gaps are inconsistent, unify them.
+  9. If any violation is found, fix the offending values before output.
+This verification is critical because coordinate arithmetic errors and font size violations cause visible defects in the rendered slide.
 </constraints>
 
 <content_vertical_balance>

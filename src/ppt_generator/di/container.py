@@ -7,14 +7,17 @@ from ppt_generator.di.model_factory import (
     CachingAnthropicModel,
     create_anthropic_design_model,
     create_anthropic_outline_model,
+    create_anthropic_review_model,
     create_anthropic_visual_qa_model,
     create_bedrock_design_model,
     create_bedrock_outline_model,
+    create_bedrock_review_model,
     create_bedrock_visual_qa_model,
 )
 from ppt_generator.interfaces.constants import (
     BEDROCK_OUTLINE_MAX_TOKENS,
     BEDROCK_SCRIPT_MAX_TOKENS,
+    DESIGN_REVIEW_SYSTEM_PROMPT,
     DESIGN_SPEC_SYSTEM_PROMPTS,
     OUTLINE_JSON_SCHEMA,
     OUTLINE_SYSTEM_PROMPT,
@@ -151,6 +154,20 @@ class DIContainer:
         if self._slides_service is None:
             self._slides_service = SlidesService()
         return self._slides_service
+
+    def _create_review_agent(self) -> Agent:
+        if self._provider == "anthropic":
+            model = create_anthropic_review_model()
+            system_prompt: str | list[dict] = DESIGN_REVIEW_SYSTEM_PROMPT
+        else:
+            model = create_bedrock_review_model()
+            system_prompt = _with_cache_point(DESIGN_REVIEW_SYSTEM_PROMPT)
+        return Agent(model=model, system_prompt=system_prompt, callback_handler=None, tools=[])
+
+    def create_review_service(self) -> "DesignReviewService":
+        """DesignReviewService 인스턴스를 생성한다."""
+        from ppt_generator.tools.design.review_service import DesignReviewService
+        return DesignReviewService(agent=self._create_review_agent())
 
     def create_design_service(self, thinking_effort: str, slide_type: str = "content") -> DesignService:
         """새 Agent를 포함한 DesignService 인스턴스를 생성한다."""

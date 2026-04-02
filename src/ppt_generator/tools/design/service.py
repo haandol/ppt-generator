@@ -47,6 +47,7 @@ class DesignService:
         color_theme: str = "dark",
         prev_outline: SlideOutline | None = None,
         next_outline: SlideOutline | None = None,
+        review_feedback: str = "",
     ) -> PptxSlideSpec:
         """Generates the design spec for a single slide.
 
@@ -86,6 +87,9 @@ class DesignService:
                 adjacent_context=adjacent_context,
                 slide_type_instruction=slide_type_instruction,
             )
+
+        if review_feedback:
+            prompt = prompt + "\n\n" + review_feedback
 
         spec = self._generate_with_structured_output(
             prompt, label=f"slide[{slide_index}/{total_slides}]",

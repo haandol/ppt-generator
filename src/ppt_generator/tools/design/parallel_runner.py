@@ -52,6 +52,7 @@ def run_parallel_generation(
     project_dir: "Path",  # noqa: F821
     slides_service: SlidesService | None = None,
     report_progress: Callable[[int, str], None] | None = None,
+    review_service_factory: Callable | None = None,
 ) -> ParallelResult:
     """슬라이드를 병렬로 생성하고 결과를 반환한다.
 
@@ -153,6 +154,55 @@ def run_parallel_generation(
                     idx, spec.background_color, design_summary["background_color"],
                 )
                 spec = replace(spec, background_color=design_summary["background_color"])
+
+            # --- Design review step ---
+            gen_usage = svc.last_token_usage
+            combined_usage = gen_usage
+            if review_service_factory is not None:
+                try:
+                    from ppt_generator.tools.design.review_service import (
+                        DesignReviewService,
+                        merge_token_usage,
+                    )
+                    review_svc = review_service_factory()
+                    review_result = review_svc.review(spec, slide_index=idx + 1)
+                    review_usage = review_svc.last_token_usage
+
+                    if review_result.has_high_severity:
+                        high_count = sum(1 for i in review_result.issues if i.severity == "high")
+                        logger.info(
+                            "slide[%d] review: %d high-severity issues, regenerating",
+                            idx, high_count,
+                        )
+                        feedback = DesignReviewService.format_feedback(review_result)
+                        svc_regen = design_service_factory(effort, slide_type)
+                        spec = svc_regen.generate_single_slide(
+                            outline.slides[idx],
+                            design_summary=design_summary,
+                            slide_index=idx + 1,
+                            total_slides=total_slides,
+                            color_theme=color_theme,
+                            prev_outline=prev_outline,
+                            next_outline=next_outline,
+                            review_feedback=feedback,
+                        )
+                        if (
+                            design_summary
+                            and spec.slide_type == "content"
+                            and design_summary.get("background_color")
+                            and spec.background_color != design_summary["background_color"]
+                        ):
+                            spec = replace(spec, background_color=design_summary["background_color"])
+                        combined_usage = merge_token_usage(gen_usage, review_usage, svc_regen.last_token_usage)
+                    else:
+                        logger.info(
+                            "slide[%d] review passed (%d issues, none high)",
+                            idx, len(review_result.issues),
+                        )
+                        combined_usage = merge_token_usage(gen_usage, review_usage)
+                except Exception as exc:
+                    logger.warning("slide[%d] review failed, using original spec: %s", idx, exc)
+
             project_service.create_design_spec_slide(project_dir, idx, spec)
 
             html_path_str: str | None = None
@@ -168,7 +218,7 @@ def run_parallel_generation(
                 "slide_index": idx,
                 "status": "success",
                 "slide_file": f"slide_{idx + 1:02d}.json",
-                "_token_usage": svc.last_token_usage,
+                "_token_usage": combined_usage,
             }
             if html_path_str:
                 r["slide_html_path"] = html_path_str

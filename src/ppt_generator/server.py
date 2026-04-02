@@ -51,6 +51,7 @@ def create_server() -> FastMCP:
         mcp, container.project_service,
         design_service_factory=container.create_design_service,
         slides_service=container.slides_service,
+        review_service_factory=container.create_review_service,
     )
     register_pptx_tools(mcp, container.export_service, container.project_service)
     register_pptx_import_tools(

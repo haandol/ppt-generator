@@ -19,8 +19,9 @@ def register_design_tools(
     project_service: ProjectService,
     design_service_factory: Callable[[str, str], DesignService],
     slides_service: SlidesService | None = None,
+    review_service_factory: Callable | None = None,
 ) -> None:
-    deps = DesignDeps(project_service, design_service_factory, slides_service)
+    deps = DesignDeps(project_service, design_service_factory, slides_service, review_service_factory)
 
     @mcp.tool()
     async def generate_slides_design_spec(

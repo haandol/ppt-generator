@@ -23,6 +23,7 @@ ANTHROPIC_DESIGN_MODEL_ID = os.environ.get(
     "ANTHROPIC_DESIGN_MODEL_ID", "claude-sonnet-4-6"
 )
 BEDROCK_DESIGN_MAX_TOKENS = int(os.environ.get("BEDROCK_DESIGN_MAX_TOKENS", "64000"))
+BEDROCK_REVIEW_MAX_TOKENS = int(os.environ.get("BEDROCK_REVIEW_MAX_TOKENS", "4096"))
 
 # --- Outline/script generation model ---
 BEDROCK_OUTLINE_MODEL_ID = os.environ.get(
@@ -134,6 +135,7 @@ SLIDE_FOOTER_HEIGHT = 48
 # --- Prompt constants (re-exported from prompts module) ---
 
 from ppt_generator.interfaces.prompts import (  # noqa: E402
+    DESIGN_REVIEW_SYSTEM_PROMPT,
     DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE,
     DESIGN_SPEC_SYSTEM_PROMPT,
     DESIGN_SPEC_SYSTEM_PROMPTS,
@@ -150,7 +152,7 @@ from ppt_generator.interfaces.prompts import (  # noqa: E402
 __all__ = [
     # Design model settings
     "BEDROCK_DESIGN_MODEL_ID", "ANTHROPIC_DESIGN_MODEL_ID",
-    "BEDROCK_DESIGN_MAX_TOKENS",
+    "BEDROCK_DESIGN_MAX_TOKENS", "BEDROCK_REVIEW_MAX_TOKENS",
     # Outline/Script model settings
     "BEDROCK_OUTLINE_MODEL_ID", "ANTHROPIC_OUTLINE_MODEL_ID",
     "BEDROCK_OUTLINE_MAX_TOKENS", "BEDROCK_SCRIPT_MAX_TOKENS",
@@ -181,6 +183,7 @@ __all__ = [
     # JSON schemas
     "OUTLINE_JSON_SCHEMA", "SCRIPT_JSON_SCHEMA",
     # Prompts (re-exported from prompts module)
+    "DESIGN_REVIEW_SYSTEM_PROMPT",
     "DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE",
     "DESIGN_SPEC_SYSTEM_PROMPT", "DESIGN_SPEC_SYSTEM_PROMPTS",
     "DESIGN_SPEC_USER_PROMPT_TEMPLATE",

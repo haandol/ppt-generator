@@ -212,3 +212,25 @@ class SlideSpecOutput(BaseModel):
             images=[],
             speaker_notes=self.speaker_notes,
         )
+
+
+# --- Design Review models ---
+
+
+class DesignReviewIssue(BaseModel):
+    """Design review에서 발견된 개별 이슈."""
+
+    rule_id: Literal[
+        "font_size_floor", "lr_font_consistency", "vstack_overlap",
+        "vstack_height_uniformity", "vstack_gap_uniformity",
+        "lr_bottom_alignment", "same_level_overlap",
+    ]
+    severity: Literal["high", "medium"]
+    description: str
+
+
+class DesignReviewOutput(BaseModel):
+    """Design spec 리뷰 결과."""
+
+    has_high_severity: bool
+    issues: list[DesignReviewIssue] = Field(default_factory=list)
