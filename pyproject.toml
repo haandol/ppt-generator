@@ -18,6 +18,7 @@ ppt-generator = "ppt_generator.server:main"
 [dependency-groups]
 dev = [
     "pytest",
+    "ruff",
 ]
 visual-qa = [
     "playwright",
