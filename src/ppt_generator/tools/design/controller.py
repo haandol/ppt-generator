@@ -9,6 +9,7 @@ from mcp.server.fastmcp import Context, FastMCP
 from ppt_generator.tools.design.handlers.deps import DesignDeps
 from ppt_generator.tools.design.handlers.generation import handle_generate
 from ppt_generator.tools.design.handlers.modification import handle_modify, handle_move
+from ppt_generator.tools.design.handlers.review import handle_review
 from ppt_generator.tools.design.service import DesignService
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
@@ -147,4 +148,36 @@ def register_design_tools(
             title=title, content_summary=content_summary,
             component_hint=component_hint, slide_type=slide_type,
             speaker_notes=speaker_notes, color_theme=color_theme,
+        )
+
+    @mcp.tool()
+    def review_design_spec(
+        project_id: str,
+        slide_indices: str = "",
+        auto_fix: bool = True,
+        color_theme: str = "dark",
+    ) -> str:
+        """Reviews existing design spec slides using LLM without full regeneration.
+
+        Checks each slide against 7 design rules (font size, overlap, alignment, etc.).
+        When auto_fix is True and high-severity issues are found, regenerates only those slides
+        with review feedback — much faster than regenerating all slides.
+
+        Args:
+            project_id: Target project ID (required)
+            slide_indices: Slide indices to review (1-based, comma-separated). E.g., "1,3,5". Empty string = review all.
+            auto_fix: If True, automatically regenerates slides with high-severity issues (default: True)
+            color_theme: Color theme ("dark" or "light", default: "dark")
+
+        Returns:
+            JSON string containing project_id, reviewed_count, per-slide review results with issues
+
+        **IMPORTANT — Required follow-up action:**
+        If any slides were regenerated (auto_fix=True), you must call `export_html(project_id=<project_id>)`
+        to export HTML and share the slides_html_path with the user.
+        """
+        return handle_review(
+            deps,
+            project_id=project_id, slide_indices=slide_indices,
+            auto_fix=auto_fix, color_theme=color_theme,
         )
