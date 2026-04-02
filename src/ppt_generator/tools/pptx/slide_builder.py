@@ -89,7 +89,9 @@ class SlideBuilder:
             else:
                 shape_elements.append(child)
 
-        all_sorted = shape_elements + connector_elements + picture_elements + textbox_elements
+        all_sorted = (
+            shape_elements + connector_elements + picture_elements + textbox_elements
+        )
         for el in all_sorted:
             sp_tree.remove(el)
         for el in all_sorted:
@@ -201,8 +203,10 @@ class SlideBuilder:
         image_stream = BytesIO(image_spec.image_bytes)
         slide.shapes.add_picture(
             image_stream,
-            Inches(left), Inches(top),
-            Inches(fit_w), Inches(fit_h),
+            Inches(left),
+            Inches(top),
+            Inches(fit_w),
+            Inches(fit_h),
         )
 
     def _add_textbox_from_spec(self, slide, tb: PptxTextBox) -> None:
@@ -212,7 +216,9 @@ class SlideBuilder:
         width = tb.width_px * EXPORT_PX_TO_INCHES_X
         height = tb.height_px * EXPORT_PX_TO_INCHES_Y
 
-        txbox = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
+        txbox = slide.shapes.add_textbox(
+            Inches(left), Inches(top), Inches(width), Inches(height)
+        )
         tf = txbox.text_frame
         tf.word_wrap = True
         tf.auto_size = MSO_AUTO_SIZE.NONE
@@ -269,4 +275,3 @@ def _get_image_size(data: bytes) -> tuple[int, int]:
             length = unpack(">H", data[i + 2 : i + 4])[0]
             i += 2 + length
     return 0, 0
-

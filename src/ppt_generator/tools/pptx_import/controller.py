@@ -5,11 +5,18 @@ from dataclasses import replace
 
 from mcp.server.fastmcp import FastMCP
 
-from ppt_generator.interfaces.schemas import DesignSpec, PptxImage, ProjectMetadata, PptxSlideSpec
-from ppt_generator.interfaces.spec_utils.contrast_utils import _hex_to_relative_luminance
+from ppt_generator.interfaces.schemas import (
+    DesignSpec,
+    PptxImage,
+    PptxSlideSpec,
+    ProjectMetadata,
+)
+from ppt_generator.interfaces.spec_utils.contrast_utils import (
+    _hex_to_relative_luminance,
+)
 from ppt_generator.tools.design.service import DesignService
-from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.pptx_import.service import ImportService
+from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
 
 
@@ -70,21 +77,31 @@ def register_pptx_import_tools(
         # 기존 슬라이드에서 design_summary 추출 (테마 일관성 유지용)
         ref_slide = next(
             (s for s in design_spec.slides if s.slide_type == "content"),
-            design_spec.slides[1] if len(design_spec.slides) >= 2 else design_spec.slides[0],
+            design_spec.slides[1]
+            if len(design_spec.slides) >= 2
+            else design_spec.slides[0],
         )
         design_summary = DesignService.extract_design_summary(ref_slide)
         bg_color = design_summary.get("background_color")
-        design_summary["color_theme"] = "light" if bg_color and _hex_to_relative_luminance(bg_color) >= 0.5 else "dark"
+        design_summary["color_theme"] = (
+            "light"
+            if bg_color and _hex_to_relative_luminance(bg_color) >= 0.5
+            else "dark"
+        )
         project_service.save_design_summary(project_dir, design_summary)
 
         # HTML 미리보기 자동 생성
         response = slides_service.generate_from_design_spec(
-            design_spec, slide_image_srcs=slide_image_srcs,
+            design_spec,
+            slide_image_srcs=slide_image_srcs,
             skip_autofit=True,
             color_theme=design_summary["color_theme"],
         )
         project_service.save_slides_html(
-            project_dir, response.session_id, response.slide_htmls, response.container_html,
+            project_dir,
+            response.session_id,
+            response.slide_htmls,
+            response.container_html,
         )
         project_service.update_step(project_dir, "slides")
 

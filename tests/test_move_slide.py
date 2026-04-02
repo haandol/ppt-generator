@@ -27,9 +27,14 @@ def _make_slide_spec(title: str) -> PptxSlideSpec:
         background_color="#1a1a2e",
         textboxes=[
             PptxTextBox(
-                left_px=40, top_px=40, width_px=600, height_px=60,
+                left_px=40,
+                top_px=40,
+                width_px=600,
+                height_px=60,
                 paragraphs=[
-                    PptxParagraph(runs=[PptxTextRun(text=title, font_size_pt=32, bold=True)]),
+                    PptxParagraph(
+                        runs=[PptxTextRun(text=title, font_size_pt=32, bold=True)]
+                    ),
                 ],
             ),
         ],
@@ -48,43 +53,50 @@ def _setup_project(tmp_path: Path, num_slides: int) -> tuple[ProjectService, Pat
     # project.json
     meta = {"topic": "테스트", "num_slides": num_slides, "steps_completed": {}}
     (project_dir / "project.json").write_text(
-        json.dumps(meta, ensure_ascii=False), encoding="utf-8",
+        json.dumps(meta, ensure_ascii=False),
+        encoding="utf-8",
     )
 
     # outline
     outline_data = json.dumps(
-        {"slides": [
-            {
-                "title": f"슬라이드 {i + 1}",
-                "content_summary": f"내용 {i + 1}",
-                "component_hint": "bullets",
-                "speaker_notes": "",
-                "slide_type": "content",
-            }
-            for i in range(num_slides)
-        ]},
+        {
+            "slides": [
+                {
+                    "title": f"슬라이드 {i + 1}",
+                    "content_summary": f"내용 {i + 1}",
+                    "component_hint": "bullets",
+                    "speaker_notes": "",
+                    "slide_type": "content",
+                }
+                for i in range(num_slides)
+            ]
+        },
         ensure_ascii=False,
     )
     project_service.save_outline(project_dir, outline_data)
 
     # script
     script_data = json.dumps(
-        {"slides": [
-            {
-                "title": f"슬라이드 {i + 1}",
-                "content_summary": f"내용 {i + 1}",
-                "component_hint": "bullets",
-                "speaker_notes": f"노트 {i + 1}",
-                "slide_type": "content",
-            }
-            for i in range(num_slides)
-        ]},
+        {
+            "slides": [
+                {
+                    "title": f"슬라이드 {i + 1}",
+                    "content_summary": f"내용 {i + 1}",
+                    "component_hint": "bullets",
+                    "speaker_notes": f"노트 {i + 1}",
+                    "slide_type": "content",
+                }
+                for i in range(num_slides)
+            ]
+        },
         ensure_ascii=False,
     )
     project_service.save_script(project_dir, script_data)
 
     # design_spec
-    spec = DesignSpec(slides=[_make_slide_spec(f"슬라이드 {i + 1}") for i in range(num_slides)])
+    spec = DesignSpec(
+        slides=[_make_slide_spec(f"슬라이드 {i + 1}") for i in range(num_slides)]
+    )
     project_service.save_design_spec(project_dir, spec)
 
     # slides/ HTML
@@ -92,7 +104,8 @@ def _setup_project(tmp_path: Path, num_slides: int) -> tuple[ProjectService, Pat
     slides_dir.mkdir(exist_ok=True)
     for i in range(num_slides):
         (slides_dir / f"slide_{i + 1:02d}.html").write_text(
-            f"<div>slide {i + 1}</div>", encoding="utf-8",
+            f"<div>slide {i + 1}</div>",
+            encoding="utf-8",
         )
 
     return project_service, project_dir
@@ -101,6 +114,7 @@ def _setup_project(tmp_path: Path, num_slides: int) -> tuple[ProjectService, Pat
 # ============================================================
 # 전체 페이지 개수 인지 테스트
 # ============================================================
+
 
 class TestSlideCountDetection:
     """다양한 슬라이드 수에서 전체 개수를 정확히 인지하는지 검증."""
@@ -137,6 +151,7 @@ class TestSlideCountDetection:
 # ============================================================
 # 파일 정렬 순서 테스트 (10개 이상 슬라이드)
 # ============================================================
+
 
 class TestFileSortOrder:
     """10개 이상 슬라이드에서 파일 정렬 순서가 올바른지 검증.
@@ -176,6 +191,7 @@ class TestFileSortOrder:
 # JsonlStore move 테스트
 # ============================================================
 
+
 class TestJsonlStoreMove:
     """JsonlStore._move_slide_in_dir 의 직접 테스트."""
 
@@ -189,7 +205,10 @@ class TestJsonlStoreMove:
         outline = json.loads(store.load_outline(project_dir))
         titles = [s["title"] for s in outline["slides"]]
         # [1..10, 16, 11..15]
-        expected = [f"슬라이드 {i}" for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 16, 11, 12, 13, 14, 15]]
+        expected = [
+            f"슬라이드 {i}"
+            for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 16, 11, 12, 13, 14, 15]
+        ]
         assert titles == expected
         assert len(outline["slides"]) == 16
 
@@ -213,7 +232,10 @@ class TestJsonlStoreMove:
 
         outline = json.loads(store.load_outline(project_dir))
         titles = [s["title"] for s in outline["slides"]]
-        expected = [f"슬라이드 {i}" for i in [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 1]]
+        expected = [
+            f"슬라이드 {i}"
+            for i in [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 1]
+        ]
         assert titles == expected
 
     def test_move_last_to_first(self, tmp_path: Path) -> None:
@@ -225,7 +247,10 @@ class TestJsonlStoreMove:
 
         outline = json.loads(store.load_outline(project_dir))
         titles = [s["title"] for s in outline["slides"]]
-        expected = [f"슬라이드 {i}" for i in [16, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]]
+        expected = [
+            f"슬라이드 {i}"
+            for i in [16, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        ]
         assert titles == expected
 
     def test_move_invalid_from_index_raises(self, tmp_path: Path) -> None:
@@ -258,6 +283,7 @@ class TestJsonlStoreMove:
 # DesignSpecStore move 테스트
 # ============================================================
 
+
 class TestDesignSpecStoreMove:
     """DesignSpecStore.move_design_spec_slide 직접 테스트."""
 
@@ -271,7 +297,10 @@ class TestDesignSpecStoreMove:
         spec = store.load_design_spec(project_dir)
         assert len(spec.slides) == 16
         titles = [s.textboxes[0].paragraphs[0].runs[0].text for s in spec.slides]
-        expected = [f"슬라이드 {i}" for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 16, 11, 12, 13, 14, 15]]
+        expected = [
+            f"슬라이드 {i}"
+            for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 16, 11, 12, 13, 14, 15]
+        ]
         assert titles == expected
 
     def test_move_preserves_file_count(self, tmp_path: Path) -> None:
@@ -300,6 +329,7 @@ class TestDesignSpecStoreMove:
 # HtmlStore move 테스트
 # ============================================================
 
+
 class TestHtmlStoreMove:
     """HtmlStore.move_slide_html 직접 테스트."""
 
@@ -314,7 +344,10 @@ class TestHtmlStoreMove:
         files = sorted(slides_dir.glob("slide_*.html"))
         assert len(files) == 16
         contents = [f.read_text(encoding="utf-8") for f in files]
-        expected = [f"<div>slide {i}</div>" for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 16, 11, 12, 13, 14, 15]]
+        expected = [
+            f"<div>slide {i}</div>"
+            for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 16, 11, 12, 13, 14, 15]
+        ]
         assert contents == expected
 
     def test_move_preserves_file_count(self, tmp_path: Path) -> None:
@@ -342,6 +375,7 @@ class TestHtmlStoreMove:
 # ============================================================
 # ProjectService 통합: move_slide 전체 동기화 테스트
 # ============================================================
+
 
 class TestProjectServiceMoveSlide:
     """ProjectService를 통해 move가 outline, script, design_spec, HTML 전부 동기화되는지 검증."""
@@ -393,7 +427,28 @@ class TestProjectServiceMoveSlide:
         svc.move_slide_html(project_dir, from_index=14, to_index=5)
 
         # [1..5, 15, 6..14, 16..20]
-        expected_order = [1, 2, 3, 4, 5, 15, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20]
+        expected_order = [
+            1,
+            2,
+            3,
+            4,
+            5,
+            15,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            16,
+            17,
+            18,
+            19,
+            20,
+        ]
 
         outline = json.loads(svc.load_outline(project_dir))
         assert len(outline["slides"]) == 20
@@ -456,12 +511,14 @@ class TestProjectServiceMoveSlide:
 # move_slide 도구 레벨 통합 테스트 (controller)
 # ============================================================
 
+
 class TestMoveSlideToolWith16Pages:
     """move_slide MCP 도구를 16페이지 프로젝트에서 테스트."""
 
     @staticmethod
     def _register_tools(project_service: ProjectService) -> dict:
         from unittest.mock import MagicMock
+
         from ppt_generator.tools.design.controller import register_design_tools
 
         mcp = MagicMock()
@@ -471,38 +528,52 @@ class TestMoveSlideToolWith16Pages:
             def decorator(func):
                 tools[func.__name__] = func
                 return func
+
             return decorator
 
         mcp.tool = tool_decorator
         design_service = MagicMock()
-        design_service.generate_single_slide.return_value = _make_slide_spec("새로 생성됨")
+        design_service.generate_single_slide.return_value = _make_slide_spec(
+            "새로 생성됨"
+        )
         design_service.last_token_usage = {}
         design_service.generate_design_summary.return_value = {
-            "background_color": "#1a1a2e", "text_colors": ["#ffffff"],
-            "title_font_pt": 32, "body_font_pt": 18,
-            "card_fills": [], "card_borders": [],
+            "background_color": "#1a1a2e",
+            "text_colors": ["#ffffff"],
+            "title_font_pt": 32,
+            "body_font_pt": 18,
+            "card_fills": [],
+            "card_borders": [],
         }
         design_service_factory = lambda effort, slide_type="content": design_service  # noqa: E731
 
-        register_design_tools(mcp, project_service, design_service_factory=design_service_factory)
+        register_design_tools(
+            mcp, project_service, design_service_factory=design_service_factory
+        )
         tools["_project_service"] = project_service
         return tools
 
     def test_move_slide_16_to_11(self, tmp_path: Path, monkeypatch) -> None:
         """16페이지 프로젝트에서 16 → 11 이동 (1-based)."""
         import ppt_generator.tools.project.service as svc_module
+
         monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
 
         svc, project_dir = _setup_project(tmp_path, 16)
         import shutil
+
         dest = tmp_path / "proj-16"
         if not dest.exists():
             shutil.copytree(project_dir, dest)
 
         tools = self._register_tools(svc)
-        result = json.loads(tools["move_slide"](
-            project_id="proj-16", from_index=16, to_index=11,
-        ))
+        result = json.loads(
+            tools["move_slide"](
+                project_id="proj-16",
+                from_index=16,
+                to_index=11,
+            )
+        )
         assert result["slide_count"] == 16
         assert result["from_index"] == 16
         assert result["to_index"] == 11
@@ -513,7 +584,10 @@ class TestMoveSlideToolWith16Pages:
         outline = json.loads(svc.load_outline(resolved_dir))
         assert len(outline["slides"]) == 16
         titles = [s["title"] for s in outline["slides"]]
-        expected = [f"슬라이드 {i}" for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 16, 11, 12, 13, 14, 15]]
+        expected = [
+            f"슬라이드 {i}"
+            for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 16, 11, 12, 13, 14, 15]
+        ]
         assert titles == expected
 
         # design_spec 순서 확인
@@ -525,13 +599,17 @@ class TestMoveSlideToolWith16Pages:
         html_files = sorted(slides_dir.glob("slide_*.html"))
         assert len(html_files) == 16
 
-    def test_move_slide_invalid_from_index_16_pages(self, tmp_path: Path, monkeypatch) -> None:
+    def test_move_slide_invalid_from_index_16_pages(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
         """16페이지에서 from_index=17 (범위 초과) 시 ValueError."""
         import ppt_generator.tools.project.service as svc_module
+
         monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
 
         svc, project_dir = _setup_project(tmp_path, 16)
         import shutil
+
         dest = tmp_path / "proj-16-err"
         if not dest.exists():
             shutil.copytree(project_dir, dest)
@@ -540,13 +618,17 @@ class TestMoveSlideToolWith16Pages:
         with pytest.raises(ValueError, match="Invalid from_index"):
             tools["move_slide"](project_id="proj-16-err", from_index=17, to_index=1)
 
-    def test_move_slide_invalid_to_index_16_pages(self, tmp_path: Path, monkeypatch) -> None:
+    def test_move_slide_invalid_to_index_16_pages(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
         """16페이지에서 to_index=17 (범위 초과) 시 ValueError."""
         import ppt_generator.tools.project.service as svc_module
+
         monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
 
         svc, project_dir = _setup_project(tmp_path, 16)
         import shutil
+
         dest = tmp_path / "proj-16-err2"
         if not dest.exists():
             shutil.copytree(project_dir, dest)
@@ -558,10 +640,12 @@ class TestMoveSlideToolWith16Pages:
     def test_move_slide_zero_index_raises(self, tmp_path: Path, monkeypatch) -> None:
         """1-based이므로 from_index=0은 에러."""
         import ppt_generator.tools.project.service as svc_module
+
         monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
 
         svc, project_dir = _setup_project(tmp_path, 16)
         import shutil
+
         dest = tmp_path / "proj-16-zero"
         if not dest.exists():
             shutil.copytree(project_dir, dest)
@@ -570,38 +654,52 @@ class TestMoveSlideToolWith16Pages:
         with pytest.raises(ValueError, match="Invalid from_index"):
             tools["move_slide"](project_id="proj-16-zero", from_index=0, to_index=1)
 
-    def test_move_slide_boundary_last_valid_index(self, tmp_path: Path, monkeypatch) -> None:
+    def test_move_slide_boundary_last_valid_index(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
         """16페이지에서 마지막 유효 인덱스(16)가 정상 동작하는지 확인."""
         import ppt_generator.tools.project.service as svc_module
+
         monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
 
         svc, project_dir = _setup_project(tmp_path, 16)
         import shutil
+
         dest = tmp_path / "proj-16-boundary"
         if not dest.exists():
             shutil.copytree(project_dir, dest)
 
         tools = self._register_tools(svc)
-        result = json.loads(tools["move_slide"](
-            project_id="proj-16-boundary", from_index=15, to_index=16,
-        ))
+        result = json.loads(
+            tools["move_slide"](
+                project_id="proj-16-boundary",
+                from_index=15,
+                to_index=16,
+            )
+        )
         assert result["slide_count"] == 16
 
     def test_move_slide_with_25_pages(self, tmp_path: Path, monkeypatch) -> None:
         """25페이지 프로젝트에서 이동이 정상 동작하는지 확인."""
         import ppt_generator.tools.project.service as svc_module
+
         monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
 
         svc, project_dir = _setup_project(tmp_path, 25)
         import shutil
+
         dest = tmp_path / "proj-25"
         if not dest.exists():
             shutil.copytree(project_dir, dest)
 
         tools = self._register_tools(svc)
-        result = json.loads(tools["move_slide"](
-            project_id="proj-25", from_index=25, to_index=1,
-        ))
+        result = json.loads(
+            tools["move_slide"](
+                project_id="proj-25",
+                from_index=25,
+                to_index=1,
+            )
+        )
         assert result["slide_count"] == 25
 
         resolved_dir = tmp_path / "proj-25"
@@ -615,6 +713,7 @@ class TestMoveSlideToolWith16Pages:
 # ============================================================
 # 엣지 케이스
 # ============================================================
+
 
 class TestMoveSlideEdgeCases:
     """move_slide의 엣지 케이스 테스트."""

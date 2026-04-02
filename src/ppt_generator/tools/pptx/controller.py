@@ -2,12 +2,16 @@ import json
 
 from mcp.server.fastmcp import FastMCP
 
-from ppt_generator.interfaces.spec_utils import parse_design_spec_json  # inline parameter용
+from ppt_generator.interfaces.spec_utils import (
+    parse_design_spec_json,
+)  # inline parameter용
 from ppt_generator.tools.pptx.service import ExportService
 from ppt_generator.tools.project.service import ProjectService
 
 
-def register_pptx_tools(mcp: FastMCP, export_service: ExportService, project_service: ProjectService) -> None:
+def register_pptx_tools(
+    mcp: FastMCP, export_service: ExportService, project_service: ProjectService
+) -> None:
     @mcp.tool()
     def export_pptx(design_spec_json: str = "", project_id: str = "") -> str:
         """Exports the design spec as an editable PPTX file.
@@ -32,7 +36,8 @@ def register_pptx_tools(mcp: FastMCP, export_service: ExportService, project_ser
         if design_spec_json:
             design_spec = parse_design_spec_json(design_spec_json)
             response = export_service.export_from_design_spec(
-                design_spec, output_dir=project_dir,
+                design_spec,
+                output_dir=project_dir,
                 color_theme=color_theme,
             )
         else:
@@ -41,7 +46,8 @@ def register_pptx_tools(mcp: FastMCP, export_service: ExportService, project_ser
                 metadata = project_service.load_metadata(project_dir)
                 is_imported = "import" in metadata.steps_completed
                 response = export_service.export_from_design_spec(
-                    design_spec, output_dir=project_dir,
+                    design_spec,
+                    output_dir=project_dir,
                     skip_autofit=is_imported,
                     color_theme=color_theme,
                 )

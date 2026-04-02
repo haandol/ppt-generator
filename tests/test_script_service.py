@@ -3,7 +3,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from ppt_generator.interfaces.schemas import OutlineResponse, ScriptRequest, SlideOutline
+from ppt_generator.interfaces.schemas import (
+    OutlineResponse,
+    ScriptRequest,
+    SlideOutline,
+)
 from ppt_generator.tools.script.service import ScriptService
 
 SAMPLE_SLIDES = [
@@ -24,8 +28,14 @@ SAMPLE_SLIDES = [
 VALID_SCRIPTS_JSON = json.dumps(
     {
         "scripts": [
-            {"slide_index": 0, "speaker_notes": "안녕하세요, 오늘은 클라우드 컴퓨팅 트렌드에 대해 발표하겠습니다."},
-            {"slide_index": 1, "speaker_notes": "첫 번째 트렌드는 멀티클라우드 전략입니다."},
+            {
+                "slide_index": 0,
+                "speaker_notes": "안녕하세요, 오늘은 클라우드 컴퓨팅 트렌드에 대해 발표하겠습니다.",
+            },
+            {
+                "slide_index": 1,
+                "speaker_notes": "첫 번째 트렌드는 멀티클라우드 전략입니다.",
+            },
             {"slide_index": 2, "speaker_notes": "이상으로 발표를 마치겠습니다."},
         ]
     },
@@ -59,7 +69,10 @@ class TestScriptService:
         response = service.generate(request)
 
         assert response.slides[0].title == "클라우드 컴퓨팅 트렌드"
-        assert response.slides[1].content_summary == "AWS, Azure, GCP 비교 및 하이브리드 접근 방식"
+        assert (
+            response.slides[1].content_summary
+            == "AWS, Azure, GCP 비교 및 하이브리드 접근 방식"
+        )
 
     def test_generate_calls_agent_with_outline(self, service, mock_agent):
         outline = OutlineResponse(slides=SAMPLE_SLIDES)
@@ -99,8 +112,14 @@ class TestScriptService:
         request = ScriptRequest(outline=outline)
         response = service.generate(request)
 
-        assert response.slides[0].speaker_notes == "안녕하세요, 오늘은 클라우드 컴퓨팅 트렌드에 대해 발표하겠습니다."
-        assert response.slides[1].speaker_notes == "첫 번째 트렌드는 멀티클라우드 전략입니다."
+        assert (
+            response.slides[0].speaker_notes
+            == "안녕하세요, 오늘은 클라우드 컴퓨팅 트렌드에 대해 발표하겠습니다."
+        )
+        assert (
+            response.slides[1].speaker_notes
+            == "첫 번째 트렌드는 멀티클라우드 전략입니다."
+        )
         assert response.slides[2].speaker_notes == "이상으로 발표를 마치겠습니다."
 
     def test_generate_preserves_component_hint(self, service):

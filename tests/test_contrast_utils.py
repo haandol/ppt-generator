@@ -13,7 +13,6 @@ from ppt_generator.interfaces.spec_utils.contrast_utils import (
     ensure_text_contrast,
 )
 
-
 # ---------------------------------------------------------------------------
 # _hex_to_relative_luminance
 # ---------------------------------------------------------------------------
@@ -58,7 +57,8 @@ class TestContrastRatio:
 
     def test_order_independent(self) -> None:
         assert _contrast_ratio(0.1, 0.9) == pytest.approx(
-            _contrast_ratio(0.9, 0.1), abs=1e-6,
+            _contrast_ratio(0.9, 0.1),
+            abs=1e-6,
         )
 
 

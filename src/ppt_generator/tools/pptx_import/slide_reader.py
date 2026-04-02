@@ -119,7 +119,11 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
             prev_counts = (len(textboxes), len(shapes), len(images))
             try:
                 self._extract_shape(
-                    shape, textboxes, shapes, images, warnings,
+                    shape,
+                    textboxes,
+                    shapes,
+                    images,
+                    warnings,
                 )
             except Exception:
                 logger.warning(
@@ -141,7 +145,10 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
 
         speaker_notes = self._extract_speaker_notes(slide)
         slide_type = self._infer_slide_type(
-            slide_index, total_slides, textboxes, shapes,
+            slide_index,
+            total_slides,
+            textboxes,
+            shapes,
         )
 
         for w in warnings:
@@ -179,7 +186,9 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
                         continue
                     def_rPr = lvl_pPr.find(qn("a:defRPr"))
                     if def_rPr is not None:
-                        level_map[lvl_idx] = extract_props_from_rpr(def_rPr, self._theme_color_map)
+                        level_map[lvl_idx] = extract_props_from_rpr(
+                            def_rPr, self._theme_color_map
+                        )
                 if level_map:
                     self._layout_def_rpr[ph_idx] = level_map
         except Exception:
@@ -200,7 +209,9 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
             pass
 
         try:
-            color = self._try_extract_bg_fill(slide.slide_layout.slide_master.background)
+            color = self._try_extract_bg_fill(
+                slide.slide_layout.slide_master.background
+            )
             if color:
                 return color
         except Exception:

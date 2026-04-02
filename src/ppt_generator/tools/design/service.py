@@ -92,7 +92,8 @@ class DesignService:
             prompt = prompt + "\n\n" + review_feedback
 
         spec = self._generate_with_structured_output(
-            prompt, label=f"slide[{slide_index}/{total_slides}]",
+            prompt,
+            label=f"slide[{slide_index}/{total_slides}]",
         )
         return replace(spec, slide_type=slide_outline.slide_type)
 
@@ -160,9 +161,13 @@ class DesignService:
                     if run.color:
                         text_colors.add(run.color)
                     if run.font_size_pt:
-                        if run.bold and (title_font is None or run.font_size_pt > title_font):
+                        if run.bold and (
+                            title_font is None or run.font_size_pt > title_font
+                        ):
                             title_font = run.font_size_pt
-                        elif not run.bold and (body_font is None or run.font_size_pt > body_font):
+                        elif not run.bold and (
+                            body_font is None or run.font_size_pt > body_font
+                        ):
                             body_font = run.font_size_pt
 
         card_fills: set[str] = set()
@@ -177,9 +182,13 @@ class DesignService:
                     if run.color:
                         text_colors.add(run.color)
                     if run.font_size_pt:
-                        if run.bold and (title_font is None or run.font_size_pt > title_font):
+                        if run.bold and (
+                            title_font is None or run.font_size_pt > title_font
+                        ):
                             title_font = run.font_size_pt
-                        elif not run.bold and (body_font is None or run.font_size_pt > body_font):
+                        elif not run.bold and (
+                            body_font is None or run.font_size_pt > body_font
+                        ):
                             body_font = run.font_size_pt
             if s.text_color:
                 text_colors.add(s.text_color)
@@ -198,7 +207,9 @@ class DesignService:
         """Token usage from the last LLM call. Empty dict before first call."""
         return self._last_token_usage
 
-    def _generate_with_structured_output(self, prompt: str, *, label: str = "design_spec") -> PptxSlideSpec:
+    def _generate_with_structured_output(
+        self, prompt: str, *, label: str = "design_spec"
+    ) -> PptxSlideSpec:
         """Generates and validates slide spec via strands structured_output."""
         try:
             result = self._agent(prompt, structured_output_model=SlideSpecOutput)
@@ -246,10 +257,14 @@ class DesignService:
 
         parts: list[str] = ["<adjacent_slides>"]
         if prev_outline is not None:
-            prev_json = json.dumps(_summarize(prev_outline), ensure_ascii=False, indent=2)
+            prev_json = json.dumps(
+                _summarize(prev_outline), ensure_ascii=False, indent=2
+            )
             parts.append(f"<previous_slide>\n{prev_json}\n</previous_slide>")
         if next_outline is not None:
-            next_json = json.dumps(_summarize(next_outline), ensure_ascii=False, indent=2)
+            next_json = json.dumps(
+                _summarize(next_outline), ensure_ascii=False, indent=2
+            )
             parts.append(f"<next_slide>\n{next_json}\n</next_slide>")
         parts.append("</adjacent_slides>")
         return "\n".join(parts)

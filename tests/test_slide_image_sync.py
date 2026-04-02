@@ -28,14 +28,23 @@ from ppt_generator.tools.project.service import ProjectService
 def _make_slide_spec(title: str, *, image_src: str = "") -> PptxSlideSpec:
     images = []
     if image_src:
-        images = [PptxImage(left_px=100, top_px=100, width_px=500, height_px=300, src=image_src)]
+        images = [
+            PptxImage(
+                left_px=100, top_px=100, width_px=500, height_px=300, src=image_src
+            )
+        ]
     return PptxSlideSpec(
         background_color="#1a1a2e",
         textboxes=[
             PptxTextBox(
-                left_px=40, top_px=40, width_px=600, height_px=60,
+                left_px=40,
+                top_px=40,
+                width_px=600,
+                height_px=60,
                 paragraphs=[
-                    PptxParagraph(runs=[PptxTextRun(text=title, font_size_pt=32, bold=True)]),
+                    PptxParagraph(
+                        runs=[PptxTextRun(text=title, font_size_pt=32, bold=True)]
+                    ),
                 ],
             ),
         ],
@@ -46,7 +55,10 @@ def _make_slide_spec(title: str, *, image_src: str = "") -> PptxSlideSpec:
 
 
 def _setup_project_with_images(
-    tmp_path: Path, num_slides: int, *, slides_with_images: list[int] | None = None,
+    tmp_path: Path,
+    num_slides: int,
+    *,
+    slides_with_images: list[int] | None = None,
 ) -> tuple[ProjectService, Path]:
     """이미지가 있는 슬라이드를 포함하는 프로젝트 생성.
 
@@ -64,21 +76,24 @@ def _setup_project_with_images(
     # project.json
     meta = {"topic": "테스트", "num_slides": num_slides, "steps_completed": {}}
     (project_dir / "project.json").write_text(
-        json.dumps(meta, ensure_ascii=False), encoding="utf-8",
+        json.dumps(meta, ensure_ascii=False),
+        encoding="utf-8",
     )
 
     # outline
     outline_data = json.dumps(
-        {"slides": [
-            {
-                "title": f"슬라이드 {i + 1}",
-                "content_summary": f"내용 {i + 1}",
-                "component_hint": "bullets",
-                "speaker_notes": "",
-                "slide_type": "content",
-            }
-            for i in range(num_slides)
-        ]},
+        {
+            "slides": [
+                {
+                    "title": f"슬라이드 {i + 1}",
+                    "content_summary": f"내용 {i + 1}",
+                    "component_hint": "bullets",
+                    "speaker_notes": "",
+                    "slide_type": "content",
+                }
+                for i in range(num_slides)
+            ]
+        },
         ensure_ascii=False,
     )
     svc.save_outline(project_dir, outline_data)
@@ -107,7 +122,8 @@ def _setup_project_with_images(
     slides_dir.mkdir(exist_ok=True)
     for i in range(num_slides):
         (slides_dir / f"slide_{i + 1:02d}.html").write_text(
-            f"<div>slide {i + 1}</div>", encoding="utf-8",
+            f"<div>slide {i + 1}</div>",
+            encoding="utf-8",
         )
 
     return svc, project_dir
@@ -116,6 +132,7 @@ def _setup_project_with_images(
 # ============================================================
 # HtmlStore 이미지 파일 삭제 테스트
 # ============================================================
+
 
 class TestHtmlStoreDeleteSlideImages:
     """슬라이드 삭제 시 이미지 파일 삭제 + 재번호 테스트."""
@@ -162,7 +179,9 @@ class TestHtmlStoreDeleteSlideImages:
     def test_delete_slide_without_images(self, tmp_path: Path) -> None:
         """이미지 없는 슬라이드 삭제 시에도 나머지 이미지가 올바르게 재번호."""
         svc, project_dir = _setup_project_with_images(
-            tmp_path, 3, slides_with_images=[0, 2],
+            tmp_path,
+            3,
+            slides_with_images=[0, 2],
         )
         images_dir = project_dir / PROJECT_IMAGES_DIR
         store = HtmlStore()
@@ -178,6 +197,7 @@ class TestHtmlStoreDeleteSlideImages:
 # ============================================================
 # HtmlStore 이미지 파일 시프트 테스트
 # ============================================================
+
 
 class TestHtmlStoreShiftSlideImages:
     """슬라이드 추가 시 이미지 파일 시프트 테스트."""
@@ -225,6 +245,7 @@ class TestHtmlStoreShiftSlideImages:
 # HtmlStore 이미지 파일 이동 테스트
 # ============================================================
 
+
 class TestHtmlStoreMoveSlideImages:
     """슬라이드 이동 시 이미지 파일 재배치 테스트."""
 
@@ -267,7 +288,9 @@ class TestHtmlStoreMoveSlideImages:
     def test_move_with_mixed_images(self, tmp_path: Path) -> None:
         """일부 슬라이드만 이미지가 있을 때 이동."""
         svc, project_dir = _setup_project_with_images(
-            tmp_path, 4, slides_with_images=[0, 2],
+            tmp_path,
+            4,
+            slides_with_images=[0, 2],
         )
         images_dir = project_dir / PROJECT_IMAGES_DIR
         store = HtmlStore()
@@ -284,6 +307,7 @@ class TestHtmlStoreMoveSlideImages:
 # ============================================================
 # Design spec src 업데이트 테스트
 # ============================================================
+
 
 class TestDesignSpecImageSrcUpdate:
     """슬라이드 번호 변경 후 design spec images[].src 업데이트 테스트."""
@@ -338,6 +362,7 @@ class TestDesignSpecImageSrcUpdate:
 # 다중 이미지 테스트
 # ============================================================
 
+
 class TestMultipleImagesPerSlide:
     """슬라이드당 여러 이미지가 있을 때의 동기화 테스트."""
 
@@ -348,15 +373,23 @@ class TestMultipleImagesPerSlide:
 
         meta = {"topic": "테스트", "num_slides": 2, "steps_completed": {}}
         (project_dir / "project.json").write_text(
-            json.dumps(meta, ensure_ascii=False), encoding="utf-8",
+            json.dumps(meta, ensure_ascii=False),
+            encoding="utf-8",
         )
 
         outline_data = json.dumps(
-            {"slides": [
-                {"title": f"슬라이드 {i+1}", "content_summary": f"내용 {i+1}",
-                 "component_hint": "bullets", "speaker_notes": "", "slide_type": "content"}
-                for i in range(2)
-            ]},
+            {
+                "slides": [
+                    {
+                        "title": f"슬라이드 {i + 1}",
+                        "content_summary": f"내용 {i + 1}",
+                        "component_hint": "bullets",
+                        "speaker_notes": "",
+                        "slide_type": "content",
+                    }
+                    for i in range(2)
+                ]
+            },
             ensure_ascii=False,
         )
         svc.save_outline(project_dir, outline_data)
@@ -370,21 +403,47 @@ class TestMultipleImagesPerSlide:
         (images_dir / "slide_02_img_01.png").write_bytes(b"S2_IMG1")
 
         slide1 = _make_slide_spec("슬라이드 1")
-        slide1 = replace(slide1, images=[
-            PptxImage(left_px=10, top_px=10, width_px=100, height_px=100, src="images/slide_01_img_01.png"),
-            PptxImage(left_px=200, top_px=10, width_px=100, height_px=100, src="images/slide_01_img_02.png"),
-        ])
+        slide1 = replace(
+            slide1,
+            images=[
+                PptxImage(
+                    left_px=10,
+                    top_px=10,
+                    width_px=100,
+                    height_px=100,
+                    src="images/slide_01_img_01.png",
+                ),
+                PptxImage(
+                    left_px=200,
+                    top_px=10,
+                    width_px=100,
+                    height_px=100,
+                    src="images/slide_01_img_02.png",
+                ),
+            ],
+        )
         slide2 = _make_slide_spec("슬라이드 2")
-        slide2 = replace(slide2, images=[
-            PptxImage(left_px=10, top_px=10, width_px=100, height_px=100, src="images/slide_02_img_01.png"),
-        ])
+        slide2 = replace(
+            slide2,
+            images=[
+                PptxImage(
+                    left_px=10,
+                    top_px=10,
+                    width_px=100,
+                    height_px=100,
+                    src="images/slide_02_img_01.png",
+                ),
+            ],
+        )
 
         svc.save_design_spec(project_dir, DesignSpec(slides=[slide1, slide2]))
 
         slides_dir = project_dir / "slides"
         slides_dir.mkdir(exist_ok=True)
         for i in range(2):
-            (slides_dir / f"slide_{i + 1:02d}.html").write_text(f"<div>slide {i+1}</div>", encoding="utf-8")
+            (slides_dir / f"slide_{i + 1:02d}.html").write_text(
+                f"<div>slide {i + 1}</div>", encoding="utf-8"
+            )
 
         return svc, project_dir
 

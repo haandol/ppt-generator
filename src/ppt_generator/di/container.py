@@ -68,44 +68,70 @@ class DIContainer:
     def _create_agent(self, *, model, prompt_text: str) -> Agent:
         """프로바이더에 따라 system_prompt 포맷을 결정하고 Agent를 생성한다."""
         system_prompt: str | list[dict] = (
-            prompt_text if self._provider == "anthropic"
+            prompt_text
+            if self._provider == "anthropic"
             else _with_cache_point(prompt_text)
         )
-        return Agent(model=model, system_prompt=system_prompt, callback_handler=None, tools=[])
+        return Agent(
+            model=model, system_prompt=system_prompt, callback_handler=None, tools=[]
+        )
 
     def _create_script_agent(self) -> Agent:
         model_kwargs = dict(
             max_tokens=BEDROCK_SCRIPT_MAX_TOKENS,
-            json_schema=SCRIPT_JSON_SCHEMA, json_schema_name="script_output",
+            json_schema=SCRIPT_JSON_SCHEMA,
+            json_schema_name="script_output",
         )
-        model = (create_anthropic_outline_model if self._provider == "anthropic"
-                 else create_bedrock_outline_model)(**model_kwargs)
+        model = (
+            create_anthropic_outline_model
+            if self._provider == "anthropic"
+            else create_bedrock_outline_model
+        )(**model_kwargs)
         return self._create_agent(model=model, prompt_text=SCRIPT_SYSTEM_PROMPT)
 
     def _create_outline_agent(self) -> Agent:
         model_kwargs = dict(
             max_tokens=BEDROCK_OUTLINE_MAX_TOKENS,
-            json_schema=OUTLINE_JSON_SCHEMA, json_schema_name="outline_output",
+            json_schema=OUTLINE_JSON_SCHEMA,
+            json_schema_name="outline_output",
             thinking_effort="medium",
         )
-        model = (create_anthropic_outline_model if self._provider == "anthropic"
-                 else create_bedrock_outline_model)(**model_kwargs)
+        model = (
+            create_anthropic_outline_model
+            if self._provider == "anthropic"
+            else create_bedrock_outline_model
+        )(**model_kwargs)
         return self._create_agent(model=model, prompt_text=OUTLINE_SYSTEM_PROMPT)
 
     def _create_visual_qa_analysis_agent(self) -> Agent:
-        model = (create_anthropic_visual_qa_model if self._provider == "anthropic"
-                 else create_bedrock_visual_qa_model)(thinking_effort="low")
-        return self._create_agent(model=model, prompt_text=VISUAL_QA_ANALYSIS_SYSTEM_PROMPT)
+        model = (
+            create_anthropic_visual_qa_model
+            if self._provider == "anthropic"
+            else create_bedrock_visual_qa_model
+        )(thinking_effort="low")
+        return self._create_agent(
+            model=model, prompt_text=VISUAL_QA_ANALYSIS_SYSTEM_PROMPT
+        )
 
     def _create_visual_qa_fix_agent(self) -> Agent:
-        model = (create_anthropic_visual_qa_model if self._provider == "anthropic"
-                 else create_bedrock_visual_qa_model)(thinking_effort="low")
+        model = (
+            create_anthropic_visual_qa_model
+            if self._provider == "anthropic"
+            else create_bedrock_visual_qa_model
+        )(thinking_effort="low")
         return self._create_agent(model=model, prompt_text=VISUAL_QA_FIX_SYSTEM_PROMPT)
 
-    def _create_design_agent(self, thinking_effort: str, slide_type: str = "content") -> Agent:
-        prompt_text = DESIGN_SPEC_SYSTEM_PROMPTS.get(slide_type, DESIGN_SPEC_SYSTEM_PROMPTS["content"])
-        model = (create_anthropic_design_model if self._provider == "anthropic"
-                 else create_bedrock_design_model)(thinking_effort=thinking_effort)
+    def _create_design_agent(
+        self, thinking_effort: str, slide_type: str = "content"
+    ) -> Agent:
+        prompt_text = DESIGN_SPEC_SYSTEM_PROMPTS.get(
+            slide_type, DESIGN_SPEC_SYSTEM_PROMPTS["content"]
+        )
+        model = (
+            create_anthropic_design_model
+            if self._provider == "anthropic"
+            else create_bedrock_design_model
+        )(thinking_effort=thinking_effort)
         return self._create_agent(model=model, prompt_text=prompt_text)
 
     # ---- Service properties (lazy init) ----
@@ -135,22 +161,33 @@ class DIContainer:
         return self._slides_service
 
     def _create_review_agent(self) -> Agent:
-        model = (create_anthropic_review_model if self._provider == "anthropic"
-                 else create_bedrock_review_model)()
+        model = (
+            create_anthropic_review_model
+            if self._provider == "anthropic"
+            else create_bedrock_review_model
+        )()
         return self._create_agent(model=model, prompt_text=DESIGN_REVIEW_SYSTEM_PROMPT)
 
     def create_review_service(self) -> "DesignReviewService":
         """DesignReviewService 인스턴스를 생성한다."""
         from ppt_generator.tools.design.review_service import DesignReviewService
+
         return DesignReviewService(agent=self._create_review_agent())
 
-    def create_design_service(self, thinking_effort: str, slide_type: str = "content") -> DesignService:
+    def create_design_service(
+        self, thinking_effort: str, slide_type: str = "content"
+    ) -> DesignService:
         """새 Agent를 포함한 DesignService 인스턴스를 생성한다."""
-        return DesignService(agent=self._create_design_agent(thinking_effort=thinking_effort, slide_type=slide_type))
+        return DesignService(
+            agent=self._create_design_agent(
+                thinking_effort=thinking_effort, slide_type=slide_type
+            )
+        )
 
     def create_visual_qa_service(self) -> "VisualQAService":
         """VisualQAService 인스턴스를 생성한다 (Playwright 필요)."""
         from ppt_generator.tools.visual_qa.service import VisualQAService
+
         return VisualQAService(
             analysis_agent_factory=self._create_visual_qa_analysis_agent,
             fix_agent_factory=self._create_visual_qa_fix_agent,

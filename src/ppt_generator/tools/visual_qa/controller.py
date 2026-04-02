@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+
 from mcp.server.fastmcp import Context, FastMCP
 
 from ppt_generator.interfaces.constants import (
@@ -53,14 +54,18 @@ def register_visual_qa_tools(
         slide_count = project_service.get_design_spec_slide_count(project_dir)
 
         if slide_count == 0:
-            raise ValueError("디자인 스펙이 없습니다. 먼저 generate_slides_design_spec을 실행하세요.")
+            raise ValueError(
+                "디자인 스펙이 없습니다. 먼저 generate_slides_design_spec을 실행하세요."
+            )
 
         # Parse indices (1-based → 0-based)
         if slide_indices:
             raw_indices = sorted(set(int(x.strip()) for x in slide_indices.split(",")))
             for idx in raw_indices:
                 if idx < 1 or idx > slide_count:
-                    raise ValueError(f"유효하지 않은 slide_index: {idx} (유효 범위: 1-{slide_count})")
+                    raise ValueError(
+                        f"유효하지 않은 slide_index: {idx} (유효 범위: 1-{slide_count})"
+                    )
             indices = [i - 1 for i in raw_indices]
         else:
             indices = list(range(slide_count))
@@ -85,7 +90,9 @@ def register_visual_qa_tools(
             max_iterations=max_iterations,
             load_spec=project_service.load_design_spec_slide,
             save_spec=project_service.save_design_spec_slide,
-            render_html=lambda idx, spec: SlidesService.render_single_slide_html(idx, spec, color_theme=color_theme),
+            render_html=lambda idx, spec: SlidesService.render_single_slide_html(
+                idx, spec, color_theme=color_theme
+            ),
             save_html=project_service.save_single_slide_html,
             report_progress=_report_progress,
         )
@@ -129,6 +136,8 @@ def register_visual_qa_tools(
             }
         if aggregated_usage:
             resp["token_usage"] = format_token_usage(aggregated_usage)
-            resp["estimated_cost"] = estimate_cost(aggregated_usage, BEDROCK_DESIGN_MODEL_ID)
+            resp["estimated_cost"] = estimate_cost(
+                aggregated_usage, BEDROCK_DESIGN_MODEL_ID
+            )
 
         return json.dumps(resp, ensure_ascii=False)

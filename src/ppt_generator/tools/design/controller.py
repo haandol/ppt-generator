@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import Context, FastMCP
 
-from ppt_generator.interfaces.protocols import DesignServiceFactory, ReviewServiceFactory
+from ppt_generator.interfaces.protocols import (
+    DesignServiceFactory,
+    ReviewServiceFactory,
+)
 from ppt_generator.tools.design.handlers.deps import DesignDeps
 from ppt_generator.tools.design.handlers.generation import handle_generate
 from ppt_generator.tools.design.handlers.modification import handle_modify, handle_move
@@ -20,7 +23,9 @@ def register_design_tools(
     slides_service: SlidesService | None = None,
     review_service_factory: ReviewServiceFactory | None = None,
 ) -> None:
-    deps = DesignDeps(project_service, design_service_factory, slides_service, review_service_factory)
+    deps = DesignDeps(
+        project_service, design_service_factory, slides_service, review_service_factory
+    )
 
     @mcp.tool()
     async def generate_slides_design_spec(
@@ -62,9 +67,12 @@ def register_design_tools(
         to export HTML and share the slides_html_path with the user.
         """
         return await handle_generate(
-            deps, ctx,
-            project_id=project_id, outline_json=outline_json,
-            total_slides=total_slides, color_theme=color_theme,
+            deps,
+            ctx,
+            project_id=project_id,
+            outline_json=outline_json,
+            total_slides=total_slides,
+            color_theme=color_theme,
             slide_indices=slide_indices,
         )
 
@@ -89,7 +97,9 @@ def register_design_tools(
         """
         return handle_move(
             deps,
-            project_id=project_id, from_index=from_index, to_index=to_index,
+            project_id=project_id,
+            from_index=from_index,
+            to_index=to_index,
         )
 
     @mcp.tool()
@@ -142,10 +152,15 @@ def register_design_tools(
         """
         return handle_modify(
             deps,
-            project_id=project_id, action=action, slide_index=slide_index,
-            title=title, content_summary=content_summary,
-            component_hint=component_hint, slide_type=slide_type,
-            speaker_notes=speaker_notes, color_theme=color_theme,
+            project_id=project_id,
+            action=action,
+            slide_index=slide_index,
+            title=title,
+            content_summary=content_summary,
+            component_hint=component_hint,
+            slide_type=slide_type,
+            speaker_notes=speaker_notes,
+            color_theme=color_theme,
         )
 
     @mcp.tool()
@@ -176,6 +191,8 @@ def register_design_tools(
         """
         return handle_review(
             deps,
-            project_id=project_id, slide_indices=slide_indices,
-            auto_fix=auto_fix, color_theme=color_theme,
+            project_id=project_id,
+            slide_indices=slide_indices,
+            auto_fix=auto_fix,
+            color_theme=color_theme,
         )

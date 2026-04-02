@@ -7,13 +7,12 @@ PPTX 임포트에 필요한 OOXML 관련 상수와 유틸리티를 제공한다.
 from __future__ import annotations
 
 import re
+from xml.etree.ElementTree import Element
 
 from pptx.enum.dml import MSO_THEME_COLOR
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import PP_ALIGN
 from pptx.oxml.ns import qn
-from xml.etree.ElementTree import Element
-
 
 # PP_ALIGN → alignment 문자열 매핑
 ALIGN_REVERSE_MAP = {
@@ -63,15 +62,27 @@ ARROW_SHAPE_TYPES = {
 }
 
 # 모노스페이스 폰트 감지용 패턴
-MONOSPACE_FONTS = frozenset({
-    "consolas", "courier", "courier new", "monaco", "menlo",
-    "lucida console", "dejavu sans mono", "source code pro",
-    "fira code", "fira mono", "jetbrains mono", "d2coding",
-})
+MONOSPACE_FONTS = frozenset(
+    {
+        "consolas",
+        "courier",
+        "courier new",
+        "monaco",
+        "menlo",
+        "lucida console",
+        "dejavu sans mono",
+        "source code pro",
+        "fira code",
+        "fira mono",
+        "jetbrains mono",
+        "d2coding",
+    }
+)
 
 # slide_type 추론용 closing 키워드
 CLOSING_KEYWORDS = re.compile(
-    r"(감사|thank|q\s*&\s*a|질문|문의|contact|끝|the\s+end)", re.IGNORECASE,
+    r"(감사|thank|q\s*&\s*a|질문|문의|contact|끝|the\s+end)",
+    re.IGNORECASE,
 )
 
 
@@ -117,7 +128,9 @@ def custgeom_to_svg_path(spPr: Element) -> str | None:
             elif tag == "cubicBezTo":
                 pts = cmd.findall(qn("a:pt"))
                 if len(pts) == 3:
-                    coords = " ".join(f"{p.get('x', '0')} {p.get('y', '0')}" for p in pts)
+                    coords = " ".join(
+                        f"{p.get('x', '0')} {p.get('y', '0')}" for p in pts
+                    )
                     parts.append(f"C {coords}")
             elif tag == "close":
                 parts.append("Z")

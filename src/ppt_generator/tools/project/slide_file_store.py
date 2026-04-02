@@ -40,7 +40,10 @@ def delete_slide_file(directory: Path, index: int, ext: str = ".json") -> None:
 
 
 def insert_slide_file(
-    directory: Path, index: int, content: str, ext: str = ".json",
+    directory: Path,
+    index: int,
+    content: str,
+    ext: str = ".json",
 ) -> None:
     """파일 삽입 (후속 파일 시프트) + 리넘버링."""
     files = sorted_slide_files(directory, ext)
@@ -60,7 +63,10 @@ def insert_slide_file(
 
 
 def move_slide_file(
-    directory: Path, from_idx: int, to_idx: int, ext: str = ".json",
+    directory: Path,
+    from_idx: int,
+    to_idx: int,
+    ext: str = ".json",
 ) -> None:
     """파일 이동 + 리넘버링."""
     files = sorted_slide_files(directory, ext)
@@ -112,7 +118,9 @@ def _renumber_files(directory: Path, ext: str) -> None:
         if ext == ".json":
             data = json.loads(tmp.read_text(encoding="utf-8"))
             data["slide_index"] = i
-            target.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            target.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
             if tmp.exists():
                 tmp.unlink()
         else:
@@ -134,6 +142,8 @@ def _renumber_slide_index(directory: Path, ext: str) -> None:
         data = json.loads(tmp.read_text(encoding="utf-8"))
         data["slide_index"] = i
         target = directory / name_fn(i)
-        target.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        target.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         if tmp.exists():
             tmp.unlink()

@@ -3,14 +3,19 @@ from dataclasses import asdict
 
 from mcp.server.fastmcp import FastMCP
 
-from ppt_generator.interfaces.constants import DEFAULT_AUDIENCE_TYPE, DEFAULT_PRESENTATION_MINUTES
+from ppt_generator.interfaces.constants import (
+    DEFAULT_AUDIENCE_TYPE,
+    DEFAULT_PRESENTATION_MINUTES,
+)
 from ppt_generator.interfaces.schemas import ScriptRequest
 from ppt_generator.interfaces.utils import format_token_usage, parse_outline_json
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.script.service import ScriptService
 
 
-def register_script_tools(mcp: FastMCP, script_service: ScriptService, project_service: ProjectService) -> None:
+def register_script_tools(
+    mcp: FastMCP, script_service: ScriptService, project_service: ProjectService
+) -> None:
     @mcp.tool()
     def generate_script(project_id: str = "", outline_json: str = "") -> str:
         """Generates speaker notes (script) for each slide based on the outline.
@@ -76,5 +81,3 @@ def register_script_tools(mcp: FastMCP, script_service: ScriptService, project_s
         if usage:
             resp["token_usage"] = usage
         return json.dumps(resp, ensure_ascii=False)
-
-

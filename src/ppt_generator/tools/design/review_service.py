@@ -44,7 +44,9 @@ class DesignReviewService:
             f"<design_spec>\n{spec_json}\n</design_spec>"
         )
         result = self._agent(prompt, structured_output_model=DesignReviewOutput)
-        self._last_token_usage = log_token_usage(result, f"design_review[{slide_index}]")
+        self._last_token_usage = log_token_usage(
+            result, f"design_review[{slide_index}]"
+        )
         return result.structured_output
 
     @property
@@ -60,7 +62,9 @@ class DesignReviewService:
             "Fix ALL of them in the regenerated output:",
         ]
         for issue in review_output.issues:
-            lines.append(f"- [{issue.severity.upper()}] {issue.rule_id}: {issue.description}")
+            lines.append(
+                f"- [{issue.severity.upper()}] {issue.rule_id}: {issue.description}"
+            )
         lines.append("</design_review_feedback>")
         return "\n".join(lines)
 
@@ -113,7 +117,8 @@ def apply_review_and_fix(
         high_count = sum(1 for i in review_output.issues if i.severity == "high")
         logger.info(
             "slide[%d] review: %d high-severity issues, regenerating",
-            slide_index, high_count,
+            slide_index,
+            high_count,
         )
         feedback = DesignReviewService.format_feedback(review_output)
         new_spec, regen_usage = regenerate(feedback)
@@ -122,7 +127,8 @@ def apply_review_and_fix(
 
     logger.info(
         "slide[%d] review passed (%d issues, none high)",
-        slide_index, len(review_output.issues),
+        slide_index,
+        len(review_output.issues),
     )
     return ReviewResult(
         spec=spec,

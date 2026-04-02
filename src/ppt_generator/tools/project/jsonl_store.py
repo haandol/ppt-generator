@@ -62,20 +62,25 @@ class JsonlStore:
             s["slide_index"] = i
             fname = slide_filename(i)
             (directory / fname).write_text(
-                json.dumps(s, ensure_ascii=False, indent=2), encoding="utf-8",
+                json.dumps(s, ensure_ascii=False, indent=2),
+                encoding="utf-8",
             )
 
     def load_outline(self, project_dir: Path) -> str:
         slides = self._load_slides_from_dir(project_dir / PROJECT_OUTLINE_DIR)
         if slides is not None:
             return json.dumps({"slides": slides}, ensure_ascii=False)
-        raise FileNotFoundError(f"outline 디렉토리가 없습니다: {project_dir / PROJECT_OUTLINE_DIR}")
+        raise FileNotFoundError(
+            f"outline 디렉토리가 없습니다: {project_dir / PROJECT_OUTLINE_DIR}"
+        )
 
     def load_script(self, project_dir: Path) -> str:
         slides = self._load_slides_from_dir(project_dir / PROJECT_SCRIPT_DIR)
         if slides is not None:
             return json.dumps({"slides": slides}, ensure_ascii=False)
-        raise FileNotFoundError(f"script 디렉토리가 없습니다: {project_dir / PROJECT_SCRIPT_DIR}")
+        raise FileNotFoundError(
+            f"script 디렉토리가 없습니다: {project_dir / PROJECT_SCRIPT_DIR}"
+        )
 
     @staticmethod
     def _load_slides_from_dir(directory: Path) -> list[dict] | None:
@@ -122,7 +127,9 @@ class JsonlStore:
     }
 
     def sync_outline_to_design_spec_count(
-        self, project_dir: Path, design_spec_count: int,
+        self,
+        project_dir: Path,
+        design_spec_count: int,
     ) -> bool:
         """outline 수를 design_spec 수에 맞춰 placeholder로 채운다."""
         outline_dir = project_dir / PROJECT_OUTLINE_DIR
@@ -134,11 +141,13 @@ class JsonlStore:
             for i in range(design_spec_count):
                 data = {**self._PLACEHOLDER_OUTLINE, "slide_index": i}
                 (outline_dir / slide_filename(i)).write_text(
-                    json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8",
+                    json.dumps(data, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
                 )
             logger.info(
                 "outline 전체 placeholder 생성: %d장, dir=%s",
-                design_spec_count, outline_dir,
+                design_spec_count,
+                outline_dir,
             )
             return True
 
@@ -148,11 +157,14 @@ class JsonlStore:
         for i in range(current_count, design_spec_count):
             data = {**self._PLACEHOLDER_OUTLINE, "slide_index": i}
             (outline_dir / slide_filename(i)).write_text(
-                json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8",
+                json.dumps(data, ensure_ascii=False, indent=2),
+                encoding="utf-8",
             )
         logger.info(
             "outline placeholder 패딩: %d → %d장, dir=%s",
-            current_count, design_spec_count, outline_dir,
+            current_count,
+            design_spec_count,
+            outline_dir,
         )
         return True
 
@@ -170,7 +182,9 @@ class JsonlStore:
 
     # --- 개별 슬라이드 CRUD ---
 
-    def save_outline_slide(self, project_dir: Path, index: int, slide_json: str) -> None:
+    def save_outline_slide(
+        self, project_dir: Path, index: int, slide_json: str
+    ) -> None:
         """개별 슬라이드 아웃라인을 저장한다."""
         data = json.loads(slide_json)
         data["slide_index"] = index
@@ -180,7 +194,9 @@ class JsonlStore:
         outline_dir = project_dir / PROJECT_OUTLINE_DIR
         outline_dir.mkdir(parents=True, exist_ok=True)
         (outline_dir / fname).write_text(serialized, encoding="utf-8")
-        logger.info("슬라이드 아웃라인 저장: index=%d, path=%s", index, outline_dir / fname)
+        logger.info(
+            "슬라이드 아웃라인 저장: index=%d, path=%s", index, outline_dir / fname
+        )
 
         # script/ 디렉토리에 해당 인덱스 파일이 존재하면 동기화
         script_dir = project_dir / PROJECT_SCRIPT_DIR
@@ -190,49 +206,76 @@ class JsonlStore:
             existing.update({k: v for k, v in data.items() if k != "slide_index"})
             existing["slide_index"] = index
             script_target.write_text(
-                json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8",
+                json.dumps(existing, ensure_ascii=False, indent=2),
+                encoding="utf-8",
             )
-            logger.info("슬라이드 아웃라인 → script 동기화: index=%d, path=%s", index, script_target)
+            logger.info(
+                "슬라이드 아웃라인 → script 동기화: index=%d, path=%s",
+                index,
+                script_target,
+            )
 
-    def update_outline_slide(self, project_dir: Path, index: int, slide_json: str) -> None:
+    def update_outline_slide(
+        self, project_dir: Path, index: int, slide_json: str
+    ) -> None:
         """아웃라인/스크립트에서 특정 슬라이드를 교체한다."""
         updated = False
         for dir_name in (PROJECT_SCRIPT_DIR, PROJECT_OUTLINE_DIR):
-            updated |= self._update_slide_in_dir(project_dir, dir_name, index, slide_json)
+            updated |= self._update_slide_in_dir(
+                project_dir, dir_name, index, slide_json
+            )
         if not updated:
-            logger.warning("outline/script 파일이 없어 동기화를 건너뜁니다: %s", project_dir)
+            logger.warning(
+                "outline/script 파일이 없어 동기화를 건너뜁니다: %s", project_dir
+            )
 
-    def _update_slide_in_dir(self, project_dir: Path, dir_name: str, index: int, slide_json: str) -> bool:
+    def _update_slide_in_dir(
+        self, project_dir: Path, dir_name: str, index: int, slide_json: str
+    ) -> bool:
         directory = project_dir / dir_name
         files = sorted_slide_files(directory)
         if not files:
             return False
         if index < 0 or index >= len(files):
-            raise IndexError(f"유효하지 않은 slide index: {index} (전체 {len(files)}장)")
+            raise IndexError(
+                f"유효하지 않은 slide index: {index} (전체 {len(files)}장)"
+            )
         existing = json.loads(files[index].read_text(encoding="utf-8"))
         new_data = json.loads(slide_json)
         existing.update({k: v for k, v in new_data.items() if k != "slide_index"})
         existing["slide_index"] = index
-        files[index].write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+        files[index].write_text(
+            json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         logger.info("슬라이드 업데이트 동기화: index=%d, path=%s", index, files[index])
         return True
 
-    def insert_outline_slide(self, project_dir: Path, index: int, slide_json: str) -> None:
+    def insert_outline_slide(
+        self, project_dir: Path, index: int, slide_json: str
+    ) -> None:
         """아웃라인/스크립트에 슬라이드를 삽입한다."""
         inserted = False
         for dir_name in (PROJECT_SCRIPT_DIR, PROJECT_OUTLINE_DIR):
-            inserted |= self._insert_slide_in_dir(project_dir, dir_name, index, slide_json)
+            inserted |= self._insert_slide_in_dir(
+                project_dir, dir_name, index, slide_json
+            )
         if not inserted:
             outline_dir = project_dir / PROJECT_OUTLINE_DIR
             outline_dir.mkdir(exist_ok=True)
             data = json.loads(slide_json)
             data["slide_index"] = index
             (outline_dir / slide_filename(index)).write_text(
-                json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8",
+                json.dumps(data, ensure_ascii=False, indent=2),
+                encoding="utf-8",
             )
-            logger.info("outline/script 파일이 없어 outline 디렉토리에 새 파일 생성: index=%d", index)
+            logger.info(
+                "outline/script 파일이 없어 outline 디렉토리에 새 파일 생성: index=%d",
+                index,
+            )
 
-    def _insert_slide_in_dir(self, project_dir: Path, dir_name: str, index: int, slide_json: str) -> bool:
+    def _insert_slide_in_dir(
+        self, project_dir: Path, dir_name: str, index: int, slide_json: str
+    ) -> bool:
         directory = project_dir / dir_name
         files = sorted_slide_files(directory)
         if not files:
@@ -250,9 +293,13 @@ class JsonlStore:
         for dir_name in (PROJECT_SCRIPT_DIR, PROJECT_OUTLINE_DIR):
             deleted |= self._delete_slide_in_dir(project_dir, dir_name, index)
         if not deleted:
-            logger.warning("outline/script 파일이 없어 동기화를 건너뜁니다: %s", project_dir)
+            logger.warning(
+                "outline/script 파일이 없어 동기화를 건너뜁니다: %s", project_dir
+            )
 
-    def _delete_slide_in_dir(self, project_dir: Path, dir_name: str, index: int) -> bool:
+    def _delete_slide_in_dir(
+        self, project_dir: Path, dir_name: str, index: int
+    ) -> bool:
         directory = project_dir / dir_name
         files = sorted_slide_files(directory)
         if not files:
@@ -263,20 +310,29 @@ class JsonlStore:
 
     # --- 슬라이드 이동 ---
 
-    def move_outline_slide(self, project_dir: Path, from_index: int, to_index: int) -> None:
+    def move_outline_slide(
+        self, project_dir: Path, from_index: int, to_index: int
+    ) -> None:
         """아웃라인/스크립트에서 슬라이드를 from_index → to_index로 이동한다."""
         moved = False
         for dir_name in (PROJECT_SCRIPT_DIR, PROJECT_OUTLINE_DIR):
-            moved |= self._move_slide_in_dir(project_dir, dir_name, from_index, to_index)
+            moved |= self._move_slide_in_dir(
+                project_dir, dir_name, from_index, to_index
+            )
         if not moved:
-            logger.warning("outline/script 파일이 없어 이동을 건너뜁니다: %s", project_dir)
+            logger.warning(
+                "outline/script 파일이 없어 이동을 건너뜁니다: %s", project_dir
+            )
 
-    def _move_slide_in_dir(self, project_dir: Path, dir_name: str, from_idx: int, to_idx: int) -> bool:
+    def _move_slide_in_dir(
+        self, project_dir: Path, dir_name: str, from_idx: int, to_idx: int
+    ) -> bool:
         directory = project_dir / dir_name
         files = sorted_slide_files(directory)
         if not files:
             return False
         move_slide_file(directory, from_idx, to_idx)
-        logger.info("슬라이드 이동 동기화: %d → %d, dir=%s", from_idx, to_idx, directory)
+        logger.info(
+            "슬라이드 이동 동기화: %d → %d, dir=%s", from_idx, to_idx, directory
+        )
         return True
-

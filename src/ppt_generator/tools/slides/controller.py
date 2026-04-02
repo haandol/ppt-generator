@@ -2,12 +2,16 @@ import json
 
 from mcp.server.fastmcp import FastMCP
 
-from ppt_generator.interfaces.spec_utils import parse_design_spec_json  # inline parameter용
+from ppt_generator.interfaces.spec_utils import (
+    parse_design_spec_json,
+)  # inline parameter용
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
 
 
-def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_service: ProjectService) -> None:
+def register_slides_tools(
+    mcp: FastMCP, slides_service: SlidesService, project_service: ProjectService
+) -> None:
     @mcp.tool()
     def export_html(design_spec_json: str = "", project_id: str = "") -> str:
         """Generates per-slide HTML files and an iframe container based on the design spec.
@@ -31,9 +35,7 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
             _, proj_dir = project_service.resolve_project_dir(project_id)
             design_spec = project_service.load_design_spec(proj_dir)
         else:
-            raise ValueError(
-                "Either design_spec_json or project_id must be provided."
-            )
+            raise ValueError("Either design_spec_json or project_id must be provided.")
 
         project_id, project_dir = project_service.resolve_project_dir(project_id)
 
@@ -45,7 +47,9 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
         for idx, slide in enumerate(design_spec.slides):
             if slide.images:
                 srcs = project_service.get_slide_image_srcs(
-                    project_dir, idx, len(slide.images),
+                    project_dir,
+                    idx,
+                    len(slide.images),
                 )
                 slide_image_srcs.append(srcs)
             else:
@@ -60,12 +64,16 @@ def register_slides_tools(mcp: FastMCP, slides_service: SlidesService, project_s
         color_theme = (design_summary or {}).get("color_theme", "dark")
 
         response = slides_service.generate_from_design_spec(
-            design_spec, slide_image_srcs=slide_image_srcs,
+            design_spec,
+            slide_image_srcs=slide_image_srcs,
             skip_autofit=is_imported,
             color_theme=color_theme,
         )
         project_service.save_slides_html(
-            project_dir, response.session_id, response.slide_htmls, response.container_html,
+            project_dir,
+            response.session_id,
+            response.slide_htmls,
+            response.container_html,
         )
         project_service.update_step(project_dir, "slides")
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import uuid
 
+from ppt_generator.interfaces import bg_image_utils
 from ppt_generator.interfaces.constants import (
     SLIDE_TEMPLATE_PATH,
     SLIDES_CONTAINER_TEMPLATE_PATH,
@@ -12,7 +13,6 @@ from ppt_generator.interfaces.schemas import (
     PptxSlideSpec,
     SlidesResponse,
 )
-from ppt_generator.interfaces import bg_image_utils
 from ppt_generator.interfaces.spec_utils import validate_slide_spec
 from ppt_generator.tools.slides.html_renderer import spec_to_html_section
 
@@ -51,9 +51,16 @@ class SlidesService:
             bg_b64: str | None = None
             if spec.slide_type in ("title", "closing"):
                 bg_b64 = bg_image_utils.get_bg_image_base64(color_theme)
-            img_srcs = slide_image_srcs[idx] if slide_image_srcs and idx < len(slide_image_srcs) else None
+            img_srcs = (
+                slide_image_srcs[idx]
+                if slide_image_srcs and idx < len(slide_image_srcs)
+                else None
+            )
             slide_html = self._spec_to_html_document(
-                idx, spec, bg_image_base64=bg_b64, image_srcs=img_srcs,
+                idx,
+                spec,
+                bg_image_base64=bg_b64,
+                image_srcs=img_srcs,
             )
             slide_htmls.append(slide_html)
 
@@ -64,7 +71,8 @@ class SlidesService:
 
         logger.info(
             "Design Spec -> HTML 변환 완료: session_id=%s, 슬라이드 수=%d",
-            session_id, len(design_spec.slides),
+            session_id,
+            len(design_spec.slides),
         )
         return SlidesResponse(
             session_id=session_id,
@@ -91,7 +99,8 @@ class SlidesService:
         if validated.slide_type in ("title", "closing"):
             bg_b64 = bg_image_utils.get_bg_image_base64(color_theme)
         return SlidesService._spec_to_html_document(
-            slide_index, validated,
+            slide_index,
+            validated,
             bg_image_base64=bg_b64,
             image_srcs=image_srcs,
         )
@@ -106,7 +115,8 @@ class SlidesService:
     ) -> str:
         """PptxSlideSpec 하나를 완전한 HTML 문서로 변환."""
         section_html = spec_to_html_section(
-            slide_index, spec,
+            slide_index,
+            spec,
             bg_image_base64=bg_image_base64,
             image_srcs=image_srcs,
         )
@@ -123,7 +133,7 @@ class SlidesService:
                 f'<div class="slide-wrapper">\n'
                 f'    <div class="slide-number">{i + 1} / {slide_count}</div>\n'
                 f'    <iframe src="slides/{filename}"></iframe>\n'
-                f'</div>'
+                f"</div>"
             )
         content = "\n".join(parts)
         template = SLIDES_CONTAINER_TEMPLATE_PATH.read_text(encoding="utf-8")

@@ -103,7 +103,9 @@ class ImageStore:
                     dest.write_bytes(data)
                     logger.info("이미지 다운로드: %s → %s", img.image_path, dest)
                 except Exception:
-                    logger.warning("이미지 다운로드 실패: %s", img.image_path, exc_info=True)
+                    logger.warning(
+                        "이미지 다운로드 실패: %s", img.image_path, exc_info=True
+                    )
                     return img
             return replace(img, src=f"images/{fname}")
 
@@ -135,7 +137,9 @@ class ImageStore:
                     data = _download_image(img.image_path)
                     return replace(img, image_bytes=data)
                 except Exception:
-                    logger.warning("이미지 다운로드 실패: %s", img.image_path, exc_info=True)
+                    logger.warning(
+                        "이미지 다운로드 실패: %s", img.image_path, exc_info=True
+                    )
             else:
                 abs_path = Path(img.image_path)
                 if abs_path.exists():
@@ -153,7 +157,9 @@ class ImageStore:
         slides_dir = project_dir / PROJECT_SLIDES_DIR
         updated_slides: list[PptxSlideSpec] = []
         for slide in spec.slides:
-            new_images = [self.resolve_image_bytes(img, slides_dir) for img in slide.images]
+            new_images = [
+                self.resolve_image_bytes(img, slides_dir) for img in slide.images
+            ]
             if new_images != list(slide.images):
                 updated_slides.append(replace(slide, images=new_images))
             else:

@@ -28,14 +28,14 @@ def create_server() -> FastMCP:
             "- Only run visual_qa when the user agrees. It requires Playwright.\n"
             "- Use import_pptx to import an external PPTX file for editing.\n"
             "- Check the project's `source` field: "
-            "\"imported\" projects have no outline/script. "
+            '"imported" projects have no outline/script. '
             "For imported projects, use modify_design_spec directly to add/update slides "
             "(pass title, content_summary, etc. inline). "
             "Or use generate_slides_design_spec with explicit outline_json.\n"
-            "- **Adding slides**: Call modify_design_spec(action=\"add\") with "
+            '- **Adding slides**: Call modify_design_spec(action="add") with '
             "title, content_summary, component_hint, etc. "
             "All file shifts (outline/script/design_spec/HTML) are handled automatically.\n"
-            "- **Updating slides**: Call modify_design_spec(action=\"update\") with "
+            '- **Updating slides**: Call modify_design_spec(action="update") with '
             "title/content_summary to update, or call save_outline_slide first. "
             "For imported projects, title and content_summary are **required** (no outline available).\n"
             "- **Moving slides**: Call move_slide(project_id, from_index, to_index). "
@@ -48,19 +48,24 @@ def create_server() -> FastMCP:
     register_script_tools(mcp, container.script_service, container.project_service)
     register_outline_tools(mcp, container.outline_service, container.project_service)
     register_design_tools(
-        mcp, container.project_service,
+        mcp,
+        container.project_service,
         design_service_factory=container.create_design_service,
         slides_service=container.slides_service,
         review_service_factory=container.create_review_service,
     )
     register_pptx_tools(mcp, container.export_service, container.project_service)
     register_pptx_import_tools(
-        mcp, container.import_service, container.project_service, container.slides_service,
+        mcp,
+        container.import_service,
+        container.project_service,
+        container.slides_service,
     )
     register_slides_tools(mcp, container.slides_service, container.project_service)
     register_project_tools(mcp, container.project_service)
     register_visual_qa_tools(
-        mcp, container.project_service,
+        mcp,
+        container.project_service,
         visual_qa_service_factory=container.create_visual_qa_service,
         slides_service=container.slides_service,
     )
@@ -83,11 +88,15 @@ def main() -> None:
     # PPT_LOG_DIR → 프로젝트별 동적 핸들러 (ProjectService에서 처리)
     if log_dir:
         import ppt_generator.tools.project.service as ps
+
         ps._log_dir = log_dir
         ps._log_fmt = fmt
     elif log_file:
         fh = RotatingFileHandler(
-            log_file, maxBytes=10 * 1024 * 1024, backupCount=2, encoding="utf-8",
+            log_file,
+            maxBytes=10 * 1024 * 1024,
+            backupCount=2,
+            encoding="utf-8",
         )
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(logging.Formatter(fmt))

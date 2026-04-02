@@ -31,7 +31,11 @@ from ppt_generator.tools.pptx.text_formatter import (
     parse_color,
 )
 
-__all__ = ["add_auto_shape_from_spec", "add_connector_from_spec", "add_freeform_from_svg"]
+__all__ = [
+    "add_auto_shape_from_spec",
+    "add_connector_from_spec",
+    "add_freeform_from_svg",
+]
 
 
 # shape_type 문자열 → MSO_SHAPE 매핑
@@ -86,7 +90,11 @@ def add_auto_shape_from_spec(slide, shape_spec: PptxShape) -> None:
     mso_shape = _SHAPE_TYPE_MAP.get(shape_spec.shape_type, MSO_SHAPE.RECTANGLE)
 
     shape = slide.shapes.add_shape(
-        mso_shape, Inches(left), Inches(top), Inches(width), Inches(height),
+        mso_shape,
+        Inches(left),
+        Inches(top),
+        Inches(width),
+        Inches(height),
     )
 
     # rounded_rectangle의 corner_radius 적용 (OOXML adj = radius / shorter_side * 100000)
@@ -205,7 +213,11 @@ def add_connector_from_spec(slide, shape_spec: PptxShape) -> None:
     end_y = Inches((box_top + abs_h) * EXPORT_PX_TO_INCHES_Y)
 
     connector = slide.shapes.add_connector(
-        MSO_CONNECTOR_TYPE.STRAIGHT, start_x, start_y, end_x, end_y,
+        MSO_CONNECTOR_TYPE.STRAIGHT,
+        start_x,
+        start_y,
+        end_x,
+        end_y,
     )
 
     # 음수 height → flipV 설정 (좌하→우상 대각선)

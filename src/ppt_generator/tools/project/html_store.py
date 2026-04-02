@@ -45,7 +45,9 @@ class HtmlStore:
         (project_dir / "slides_meta.json").write_text(
             json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
         )
-        logger.info("slides/ 저장 완료 (%d 슬라이드): %s", len(slide_htmls), project_dir)
+        logger.info(
+            "slides/ 저장 완료 (%d 슬라이드): %s", len(slide_htmls), project_dir
+        )
 
     def save_slide_images(
         self,
@@ -88,7 +90,10 @@ class HtmlStore:
         return srcs
 
     def save_single_slide_html(
-        self, project_dir: Path, slide_index: int, slide_html: str,
+        self,
+        project_dir: Path,
+        slide_index: int,
+        slide_html: str,
     ) -> Path:
         """단일 슬라이드 HTML을 저장하고 파일 경로를 반환한다."""
         slides_dir = project_dir / PROJECT_SLIDES_DIR
@@ -99,7 +104,9 @@ class HtmlStore:
         logger.info("단일 슬라이드 HTML 저장: %s", path)
         return path
 
-    def move_slide_html(self, project_dir: Path, from_index: int, to_index: int) -> None:
+    def move_slide_html(
+        self, project_dir: Path, from_index: int, to_index: int
+    ) -> None:
         """슬라이드 HTML 파일을 from_index → to_index로 이동하고 재번호한다."""
         slides_dir = project_dir / PROJECT_SLIDES_DIR
         if not slides_dir.exists():
@@ -116,7 +123,9 @@ class HtmlStore:
         contents.insert(to_index, item)
         # 전체 재작성
         for i, content in enumerate(contents):
-            (slides_dir / self._slide_html_filename(i)).write_text(content, encoding="utf-8")
+            (slides_dir / self._slide_html_filename(i)).write_text(
+                content, encoding="utf-8"
+            )
 
     def delete_slide_html(self, project_dir: Path, index: int) -> None:
         """슬라이드 HTML 파일을 삭제하고 남은 파일을 재번호한다."""
@@ -148,7 +157,9 @@ class HtmlStore:
     # --- 이미지 파일 재번호/시프트/이동 ---
 
     def _collect_slide_images(
-        self, images_dir: Path, slide_index: int,
+        self,
+        images_dir: Path,
+        slide_index: int,
     ) -> list[tuple[str, bytes]]:
         """특정 슬라이드의 이미지 파일들을 (파일명, 바이트) 리스트로 수집한다."""
         prefix = f"slide_{slide_index + 1:02d}_img_"
@@ -160,7 +171,10 @@ class HtmlStore:
         return result
 
     def _write_slide_images(
-        self, images_dir: Path, slide_index: int, image_data: list[tuple[str, bytes]],
+        self,
+        images_dir: Path,
+        slide_index: int,
+        image_data: list[tuple[str, bytes]],
     ) -> None:
         """수집한 이미지 데이터를 새 슬라이드 인덱스로 재작성한다."""
         for img_idx, (_old_name, data) in enumerate(image_data):
@@ -168,7 +182,10 @@ class HtmlStore:
             (images_dir / fname).write_bytes(data)
 
     def delete_slide_images(
-        self, project_dir: Path, index: int, slide_count: int,
+        self,
+        project_dir: Path,
+        index: int,
+        slide_count: int,
     ) -> None:
         """슬라이드 이미지 파일을 삭제하고 남은 파일을 재번호한다."""
         images_dir = project_dir / PROJECT_IMAGES_DIR
@@ -193,7 +210,10 @@ class HtmlStore:
             self._write_slide_images(images_dir, old_idx - 1, imgs)
 
     def shift_slide_images(
-        self, project_dir: Path, insert_index: int, slide_count: int,
+        self,
+        project_dir: Path,
+        insert_index: int,
+        slide_count: int,
     ) -> None:
         """삽입 위치 이후의 슬라이드 이미지 파일을 한 칸씩 뒤로 밀어낸다."""
         images_dir = project_dir / PROJECT_IMAGES_DIR
@@ -209,7 +229,11 @@ class HtmlStore:
                 self._write_slide_images(images_dir, i + 1, imgs)
 
     def move_slide_images(
-        self, project_dir: Path, from_index: int, to_index: int, slide_count: int,
+        self,
+        project_dir: Path,
+        from_index: int,
+        to_index: int,
+        slide_count: int,
     ) -> None:
         """슬라이드 이미지를 from_index → to_index로 이동하고 재번호한다."""
         images_dir = project_dir / PROJECT_IMAGES_DIR

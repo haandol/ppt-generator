@@ -58,9 +58,9 @@ class TestAgentHangScenario2_CallbackHandlerStdioConflict:
         """DIContainer가 Agent 생성 시 callback_handler=None을 전달하여
         PrintingCallbackHandler의 stdout 출력을 비활성화한다.
         """
-        from ppt_generator.di.container import DIContainer
-
         import inspect
+
+        from ppt_generator.di.container import DIContainer
 
         source = inspect.getsource(DIContainer._create_agent)
         assert "callback_handler=None" in source
@@ -71,10 +71,10 @@ class TestAgentHangScenario3_BlockingWithoutTimeout:
 
     def test_run_async_blocks_indefinitely(self):
         """strands의 run_async 함수는 future.result()로 블로킹하며 timeout이 없다."""
-        from strands._async import run_async
-
         # run_async가 블로킹 함수임을 확인
         import inspect
+
+        from strands._async import run_async
 
         source = inspect.getsource(run_async)
         assert "future.result()" in source, "run_async가 future.result()로 블로킹한다"
@@ -114,7 +114,9 @@ class TestAgentHangScenario3_BlockingWithoutTimeout:
         if t.is_alive():
             hang_detected.set()
 
-        assert hang_detected.is_set(), "run_async가 블로킹 없이 즉시 반환되었다 (예상 외)"
+        assert hang_detected.is_set(), (
+            "run_async가 블로킹 없이 즉시 반환되었다 (예상 외)"
+        )
 
         # 정리: 스레드 종료 대기
         t.join(timeout=10.0)

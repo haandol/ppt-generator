@@ -46,10 +46,16 @@ class CachingAnthropicModel:
                 system_prompt: Optional[str] = None,
                 tool_choice: ToolChoice | None = None,
             ) -> dict[str, Any]:
-                request = super().format_request(messages, tool_specs, system_prompt, tool_choice)
+                request = super().format_request(
+                    messages, tool_specs, system_prompt, tool_choice
+                )
                 if system_prompt and "system" in request:
                     request["system"] = [
-                        {"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}},
+                        {
+                            "type": "text",
+                            "text": system_prompt,
+                            "cache_control": {"type": "ephemeral"},
+                        },
                     ]
                 return request
 
@@ -57,6 +63,7 @@ class CachingAnthropicModel:
 
 
 # ---- Static helpers ----
+
 
 def build_client_config() -> BotocoreConfig:
     if os.environ.get("AWS_BEARER_TOKEN_BEDROCK"):
@@ -89,6 +96,7 @@ def build_anthropic_client_args() -> dict[str, Any]:
 
 
 # ---- Bedrock model creators ----
+
 
 def create_bedrock_design_model(thinking_effort: str) -> BedrockModel:
     if thinking_effort and thinking_effort != "none":
@@ -134,11 +142,16 @@ def create_bedrock_outline_model(
         max_tokens=max_tokens,
         cache_config=CacheConfig(strategy="auto"),
         additional_args=additional_args,
-        **({"additional_request_fields": additional_request_fields} if additional_request_fields else {}),
+        **(
+            {"additional_request_fields": additional_request_fields}
+            if additional_request_fields
+            else {}
+        ),
     )
 
 
 # ---- Anthropic model creators ----
+
 
 def create_anthropic_design_model(thinking_effort: str) -> Any:
     params: dict[str, Any] = {"temperature": 1.0}
@@ -194,6 +207,7 @@ def create_anthropic_outline_model(
 
 # ---- Design review model creators (no adaptive thinking) ----
 
+
 def create_bedrock_review_model() -> BedrockModel:
     return BedrockModel(
         model_id=BEDROCK_DESIGN_MODEL_ID,
@@ -215,6 +229,7 @@ def create_anthropic_review_model() -> Any:
 
 
 # ---- Visual QA model creators ----
+
 
 def create_bedrock_visual_qa_model(thinking_effort: str = "low") -> BedrockModel:
     return BedrockModel(

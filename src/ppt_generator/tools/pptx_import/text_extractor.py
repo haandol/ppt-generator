@@ -23,8 +23,8 @@ from ppt_generator.tools.pptx_import.ooxml_utils import (
     MONOSPACE_FONTS,
 )
 from ppt_generator.tools.pptx_import.theme_resolver import (
-    DefaultRunProps,
     PH_TYPE_TO_TXSTYLE,
+    DefaultRunProps,
     extract_color_from_rpr,
     extract_props_from_rpr,
 )
@@ -64,11 +64,13 @@ class TextExtractorMixin:
             if not runs:
                 continue
             alignment = self._extract_alignment(para)
-            paragraphs.append(PptxParagraph(
-                runs=runs,
-                bullet_level=bullet_level,
-                alignment=alignment,
-            ))
+            paragraphs.append(
+                PptxParagraph(
+                    runs=runs,
+                    bullet_level=bullet_level,
+                    alignment=alignment,
+                )
+            )
         return paragraphs
 
     def _resolve_inherited_props(
@@ -108,7 +110,11 @@ class TextExtractorMixin:
                     bold = layout_props.bold
 
         # 3) master p:txStyles > titleStyle/bodyStyle/otherStyle > lvlNpPr > defRPr
-        style_name = PH_TYPE_TO_TXSTYLE.get(placeholder_type, "otherStyle") if placeholder_type is not None else "otherStyle"
+        style_name = (
+            PH_TYPE_TO_TXSTYLE.get(placeholder_type, "otherStyle")
+            if placeholder_type is not None
+            else "otherStyle"
+        )
         master_levels = self._master_tx_styles.get(style_name, {})
         master_props = master_levels.get(bullet_level)
         if master_props is not None:
@@ -129,7 +135,10 @@ class TextExtractorMixin:
         bullet_level: int = 0,
     ) -> list[PptxTextRun]:
         inherited = self._resolve_inherited_props(
-            paragraph, placeholder_type, placeholder_idx, bullet_level,
+            paragraph,
+            placeholder_type,
+            placeholder_idx,
+            bullet_level,
         )
 
         runs: list[PptxTextRun] = []
@@ -177,15 +186,17 @@ class TextExtractorMixin:
             except Exception:
                 pass
 
-            runs.append(PptxTextRun(
-                text=run.text,
-                font_size_pt=font_size,
-                color=color,
-                bold=run_bold,
-                italic=bool(font.italic),
-                font_family=font_family,
-                href=href,
-            ))
+            runs.append(
+                PptxTextRun(
+                    text=run.text,
+                    font_size_pt=font_size,
+                    color=color,
+                    bold=run_bold,
+                    italic=bool(font.italic),
+                    font_family=font_family,
+                    href=href,
+                )
+            )
         return runs
 
     @staticmethod

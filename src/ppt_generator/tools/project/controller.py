@@ -85,7 +85,11 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         # Verify file exists (raises exception if not found)
         project_service.load_outline(project_dir)
         outline_dir = project_dir / "outline"
-        outline_path = str(outline_dir) if outline_dir.exists() else str(project_dir / "outline.jsonl")
+        outline_path = (
+            str(outline_dir)
+            if outline_dir.exists()
+            else str(project_dir / "outline.jsonl")
+        )
         return json.dumps({"outline_path": outline_path}, ensure_ascii=False)
 
     @mcp.tool()
@@ -105,7 +109,11 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         # Verify file exists (raises exception if not found)
         project_service.load_script(project_dir)
         script_dir = project_dir / "script"
-        script_path = str(script_dir) if script_dir.exists() else str(project_dir / "script.jsonl")
+        script_path = (
+            str(script_dir)
+            if script_dir.exists()
+            else str(project_dir / "script.jsonl")
+        )
         return json.dumps({"script_path": script_path}, ensure_ascii=False)
 
     @mcp.tool()
@@ -147,13 +155,16 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         """
         _, project_dir = project_service.resolve_project_dir(project_id)
         idx = slide_index - 1  # 1-based → 0-based
-        slide_data = json.dumps({
-            "title": title,
-            "content_summary": content_summary,
-            "component_hint": component_hint,
-            "slide_type": slide_type,
-            "speaker_notes": speaker_notes,
-        }, ensure_ascii=False)
+        slide_data = json.dumps(
+            {
+                "title": title,
+                "content_summary": content_summary,
+                "component_hint": component_hint,
+                "slide_type": slide_type,
+                "speaker_notes": speaker_notes,
+            },
+            ensure_ascii=False,
+        )
         project_service.save_outline_slide(project_dir, idx, slide_data)
         outline_dir = project_dir / "outline"
         return json.dumps(

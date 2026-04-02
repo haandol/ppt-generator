@@ -18,29 +18,63 @@ from ppt_generator.tools.pptx.service import ExportService
 
 
 def _make_design_spec() -> DesignSpec:
-    return DesignSpec(slides=[
-        PptxSlideSpec(
-            background_color="#1a1a2e",
-            textboxes=[
-                PptxTextBox(
-                    left_px=40, top_px=40, width_px=600, height_px=60,
-                    paragraphs=[PptxParagraph(runs=[PptxTextRun(text="제목", font_size_pt=32, bold=True, color="#ffffff")])],
-                ),
-                PptxTextBox(
-                    left_px=40, top_px=120, width_px=600, height_px=400,
-                    paragraphs=[PptxParagraph(runs=[PptxTextRun(text="본문 텍스트", font_size_pt=18, color="#cccccc")])],
-                ),
-            ],
-            shapes=[
-                PptxShape(
-                    left_px=700, top_px=120, width_px=500, height_px=400,
-                    fill_color="#2a2a4e", shape_type="rounded_rectangle",
-                    text="도형 텍스트", text_color="#ffffff",
-                ),
-            ],
-            speaker_notes="발표자 노트",
-        ),
-    ])
+    return DesignSpec(
+        slides=[
+            PptxSlideSpec(
+                background_color="#1a1a2e",
+                textboxes=[
+                    PptxTextBox(
+                        left_px=40,
+                        top_px=40,
+                        width_px=600,
+                        height_px=60,
+                        paragraphs=[
+                            PptxParagraph(
+                                runs=[
+                                    PptxTextRun(
+                                        text="제목",
+                                        font_size_pt=32,
+                                        bold=True,
+                                        color="#ffffff",
+                                    )
+                                ]
+                            )
+                        ],
+                    ),
+                    PptxTextBox(
+                        left_px=40,
+                        top_px=120,
+                        width_px=600,
+                        height_px=400,
+                        paragraphs=[
+                            PptxParagraph(
+                                runs=[
+                                    PptxTextRun(
+                                        text="본문 텍스트",
+                                        font_size_pt=18,
+                                        color="#cccccc",
+                                    )
+                                ]
+                            )
+                        ],
+                    ),
+                ],
+                shapes=[
+                    PptxShape(
+                        left_px=700,
+                        top_px=120,
+                        width_px=500,
+                        height_px=400,
+                        fill_color="#2a2a4e",
+                        shape_type="rounded_rectangle",
+                        text="도형 텍스트",
+                        text_color="#ffffff",
+                    ),
+                ],
+                speaker_notes="발표자 노트",
+            ),
+        ]
+    )
 
 
 @pytest.fixture
@@ -91,16 +125,25 @@ class TestExportFromDesignSpec:
         assert str(fill.fore_color.rgb) == "1A1A2E"
 
     def test_multiple_slides(self, service, tmp_path):
-        spec = DesignSpec(slides=[
-            PptxSlideSpec(
-                background_color="#111111",
-                textboxes=[PptxTextBox(
-                    left_px=40, top_px=40, width_px=600, height_px=60,
-                    paragraphs=[PptxParagraph(runs=[PptxTextRun(text=f"슬라이드 {i}")])],
-                )],
-            )
-            for i in range(3)
-        ])
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    background_color="#111111",
+                    textboxes=[
+                        PptxTextBox(
+                            left_px=40,
+                            top_px=40,
+                            width_px=600,
+                            height_px=60,
+                            paragraphs=[
+                                PptxParagraph(runs=[PptxTextRun(text=f"슬라이드 {i}")])
+                            ],
+                        )
+                    ],
+                )
+                for i in range(3)
+            ]
+        )
         response = service.export_from_design_spec(spec, output_dir=tmp_path)
 
         prs = Presentation(response.pptx_path)
@@ -128,30 +171,49 @@ class TestBackgroundImage:
 
     @staticmethod
     def _make_title_spec() -> DesignSpec:
-        return DesignSpec(slides=[
-            PptxSlideSpec(
-                background_color="#1a1a2e",
-                slide_type="title",
-                textboxes=[
-                    PptxTextBox(
-                        left_px=100, top_px=200, width_px=1080, height_px=80,
-                        paragraphs=[PptxParagraph(runs=[PptxTextRun(
-                            text="Title", font_size_pt=40, bold=True, color="#ffffff",
-                        )])],
-                    ),
-                ],
-                shapes=[
-                    PptxShape(
-                        left_px=100, top_px=400, width_px=200, height_px=4,
-                        fill_color="#4a90d9", shape_type="rectangle",
-                    ),
-                ],
-            ),
-        ])
+        return DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    background_color="#1a1a2e",
+                    slide_type="title",
+                    textboxes=[
+                        PptxTextBox(
+                            left_px=100,
+                            top_px=200,
+                            width_px=1080,
+                            height_px=80,
+                            paragraphs=[
+                                PptxParagraph(
+                                    runs=[
+                                        PptxTextRun(
+                                            text="Title",
+                                            font_size_pt=40,
+                                            bold=True,
+                                            color="#ffffff",
+                                        )
+                                    ]
+                                )
+                            ],
+                        ),
+                    ],
+                    shapes=[
+                        PptxShape(
+                            left_px=100,
+                            top_px=400,
+                            width_px=200,
+                            height_px=4,
+                            fill_color="#4a90d9",
+                            shape_type="rectangle",
+                        ),
+                    ],
+                ),
+            ]
+        )
 
     def test_bg_image_set_as_background_property(self, service, tmp_path):
         """배경 이미지는 shape이 아닌 슬라이드 배경 속성(a:blipFill)으로 설정되어야 한다."""
         from io import BytesIO
+
         from PIL import Image
 
         buf = BytesIO()
@@ -186,10 +248,13 @@ class TestBackgroundImage:
         pic_tag = qn("p:pic")
         sp_tree = slide.shapes._spTree
         bg_pics = [
-            c for c in sp_tree if c.tag == pic_tag
+            c
+            for c in sp_tree
+            if c.tag == pic_tag
             and any(
                 s.left == 0 and s.top == 0 and s.width > 12_000_000
-                for s in slide.shapes if id(s._element) == id(c)
+                for s in slide.shapes
+                if id(s._element) == id(c)
             )
         ]
         assert len(bg_pics) == 0, "배경 이미지가 shape으로 존재하면 안 됨"
@@ -204,22 +269,27 @@ class TestConnectorArrow:
         start_arrow: bool = False,
         dash_style: str | None = None,
     ) -> DesignSpec:
-        return DesignSpec(slides=[
-            PptxSlideSpec(
-                background_color="#232F3E",
-                shapes=[
-                    PptxShape(
-                        left_px=100, top_px=300, width_px=200, height_px=0,
-                        shape_type="line",
-                        border_color="#FFC000",
-                        border_width_pt=2,
-                        end_arrow=end_arrow,
-                        start_arrow=start_arrow,
-                        dash_style=dash_style,
-                    ),
-                ],
-            ),
-        ])
+        return DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    background_color="#232F3E",
+                    shapes=[
+                        PptxShape(
+                            left_px=100,
+                            top_px=300,
+                            width_px=200,
+                            height_px=0,
+                            shape_type="line",
+                            border_color="#FFC000",
+                            border_width_pt=2,
+                            end_arrow=end_arrow,
+                            start_arrow=start_arrow,
+                            dash_style=dash_style,
+                        ),
+                    ],
+                ),
+            ]
+        )
 
     def test_line_rendered_as_connector(self, service, tmp_path):
         """line shape는 p:cxnSp(connector)로 렌더링되어야 한다."""
@@ -310,20 +380,25 @@ class TestConnectorArrow:
 
     def test_vertical_connector(self, service, tmp_path):
         """수직 커넥터(width=0, height>0)도 정상 렌더링되어야 한다."""
-        spec = DesignSpec(slides=[
-            PptxSlideSpec(
-                background_color="#232F3E",
-                shapes=[
-                    PptxShape(
-                        left_px=640, top_px=200, width_px=0, height_px=100,
-                        shape_type="line",
-                        border_color="#FF9900",
-                        border_width_pt=2,
-                        end_arrow=True,
-                    ),
-                ],
-            ),
-        ])
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    background_color="#232F3E",
+                    shapes=[
+                        PptxShape(
+                            left_px=640,
+                            top_px=200,
+                            width_px=0,
+                            height_px=100,
+                            shape_type="line",
+                            border_color="#FF9900",
+                            border_width_pt=2,
+                            end_arrow=True,
+                        ),
+                    ],
+                ),
+            ]
+        )
         response = service.export_from_design_spec(spec, output_dir=tmp_path)
 
         prs = Presentation(response.pptx_path)
@@ -334,20 +409,25 @@ class TestConnectorArrow:
 
     def test_negative_height_connector_flipV(self, service, tmp_path):
         """음수 height → connector에 flipV="1"이 설정되어야 한다."""
-        spec = DesignSpec(slides=[
-            PptxSlideSpec(
-                background_color="#232F3E",
-                shapes=[
-                    PptxShape(
-                        left_px=100, top_px=100, width_px=200, height_px=-150,
-                        shape_type="line",
-                        border_color="#FFC000",
-                        border_width_pt=2,
-                        end_arrow=True,
-                    ),
-                ],
-            ),
-        ])
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    background_color="#232F3E",
+                    shapes=[
+                        PptxShape(
+                            left_px=100,
+                            top_px=100,
+                            width_px=200,
+                            height_px=-150,
+                            shape_type="line",
+                            border_color="#FFC000",
+                            border_width_pt=2,
+                            end_arrow=True,
+                        ),
+                    ],
+                ),
+            ]
+        )
         response = service.export_from_design_spec(spec, output_dir=tmp_path)
 
         prs = Presentation(response.pptx_path)
@@ -360,20 +440,25 @@ class TestConnectorArrow:
 
     def test_positive_height_no_flipV(self, service, tmp_path):
         """양수 height → connector에 flipV가 없어야 한다."""
-        spec = DesignSpec(slides=[
-            PptxSlideSpec(
-                background_color="#232F3E",
-                shapes=[
-                    PptxShape(
-                        left_px=100, top_px=100, width_px=200, height_px=150,
-                        shape_type="line",
-                        border_color="#FFC000",
-                        border_width_pt=2,
-                        end_arrow=True,
-                    ),
-                ],
-            ),
-        ])
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    background_color="#232F3E",
+                    shapes=[
+                        PptxShape(
+                            left_px=100,
+                            top_px=100,
+                            width_px=200,
+                            height_px=150,
+                            shape_type="line",
+                            border_color="#FFC000",
+                            border_width_pt=2,
+                            end_arrow=True,
+                        ),
+                    ],
+                ),
+            ]
+        )
         response = service.export_from_design_spec(spec, output_dir=tmp_path)
 
         prs = Presentation(response.pptx_path)
@@ -381,4 +466,6 @@ class TestConnectorArrow:
         cxn_tag = qn("p:cxnSp")
         connector = next(c for c in slide.shapes._spTree if c.tag == cxn_tag)
         xfrm = connector.find(f".//{qn('a:xfrm')}")
-        assert xfrm is None or xfrm.get("flipV") is None, "양수 height이면 flipV 없어야 한다"
+        assert xfrm is None or xfrm.get("flipV") is None, (
+            "양수 height이면 flipV 없어야 한다"
+        )

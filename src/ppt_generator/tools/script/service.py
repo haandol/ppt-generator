@@ -61,7 +61,9 @@ class ScriptService:
         return json.dumps({"slides": data}, ensure_ascii=False, indent=2)
 
     @staticmethod
-    def _merge_notes(slides: list[SlideOutline], scripts: dict[int, str]) -> list[SlideOutline]:
+    def _merge_notes(
+        slides: list[SlideOutline], scripts: dict[int, str]
+    ) -> list[SlideOutline]:
         merged: list[SlideOutline] = []
         for i, slide in enumerate(slides):
             notes = scripts.get(i, "")

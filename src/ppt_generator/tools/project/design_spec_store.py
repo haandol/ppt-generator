@@ -7,7 +7,10 @@ import logging
 from pathlib import Path
 
 from ppt_generator.interfaces.schemas import DesignSpec, PptxSlideSpec
-from ppt_generator.interfaces.spec_utils import parse_slide_spec_json, slide_spec_to_json
+from ppt_generator.interfaces.spec_utils import (
+    parse_slide_spec_json,
+    slide_spec_to_json,
+)
 from ppt_generator.tools.project.slide_file_store import (
     delete_slide_file,
     insert_slide_file,
@@ -34,17 +37,24 @@ class DesignSpecStore:
         spec_dir = self._design_spec_dir(project_dir)
         if spec_dir.exists():
             import shutil
+
             shutil.rmtree(spec_dir)
         spec_dir.mkdir(parents=True)
         for i, slide in enumerate(design_spec.slides):
             fname = slide_filename(i)
             (spec_dir / fname).write_text(slide_spec_to_json(slide), encoding="utf-8")
-        logger.info("design_spec/ 저장 완료 (%d 슬라이드): %s", len(design_spec.slides), spec_dir)
+        logger.info(
+            "design_spec/ 저장 완료 (%d 슬라이드): %s",
+            len(design_spec.slides),
+            spec_dir,
+        )
 
     def load_design_spec(self, project_dir: Path) -> DesignSpec:
         spec_dir = self._design_spec_dir(project_dir)
         if not spec_dir.exists():
-            raise FileNotFoundError(f"디자인 스펙 디렉토리가 존재하지 않습니다: {spec_dir}")
+            raise FileNotFoundError(
+                f"디자인 스펙 디렉토리가 존재하지 않습니다: {spec_dir}"
+            )
         files = sorted_slide_files(spec_dir)
         if not files:
             raise FileNotFoundError(f"디자인 스펙 슬라이드 파일이 없습니다: {spec_dir}")
@@ -55,7 +65,9 @@ class DesignSpecStore:
 
     # --- 개별 슬라이드 CRUD ---
 
-    def save_design_spec_slide(self, project_dir: Path, index: int, slide: PptxSlideSpec) -> None:
+    def save_design_spec_slide(
+        self, project_dir: Path, index: int, slide: PptxSlideSpec
+    ) -> None:
         """개별 슬라이드를 해당 인덱스 파일에 덮어쓴다."""
         spec_dir = self._design_spec_dir(project_dir)
         fname = slide_filename(index)
@@ -78,19 +90,27 @@ class DesignSpecStore:
         spec_dir = self._design_spec_dir(project_dir)
         delete_slide_file(spec_dir, index)
 
-    def insert_design_spec_slide(self, project_dir: Path, index: int, slide: PptxSlideSpec) -> None:
+    def insert_design_spec_slide(
+        self, project_dir: Path, index: int, slide: PptxSlideSpec
+    ) -> None:
         """슬라이드를 삽입하고 파일을 재번호한다."""
         spec_dir = self._design_spec_dir(project_dir)
         if not spec_dir.exists():
-            raise FileNotFoundError(f"디자인 스펙 디렉토리가 존재하지 않습니다: {spec_dir}")
+            raise FileNotFoundError(
+                f"디자인 스펙 디렉토리가 존재하지 않습니다: {spec_dir}"
+            )
         insert_slide_file(spec_dir, index, slide_spec_to_json(slide))
 
-    def move_design_spec_slide(self, project_dir: Path, from_index: int, to_index: int) -> None:
+    def move_design_spec_slide(
+        self, project_dir: Path, from_index: int, to_index: int
+    ) -> None:
         """슬라이드를 from_index → to_index로 이동하고 파일을 재번호한다."""
         spec_dir = self._design_spec_dir(project_dir)
         move_slide_file(spec_dir, from_index, to_index)
 
-    def create_design_spec_slide(self, project_dir: Path, index: int, slide: PptxSlideSpec) -> None:
+    def create_design_spec_slide(
+        self, project_dir: Path, index: int, slide: PptxSlideSpec
+    ) -> None:
         """개별 슬라이드를 해당 인덱스 파일에 저장한다 (파일 유무 무관)."""
         spec_dir = self._design_spec_dir(project_dir)
         spec_dir.mkdir(parents=True, exist_ok=True)

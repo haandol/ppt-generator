@@ -131,13 +131,15 @@ class ShapeExtractorMixin(CompoundExtractorMixin):
                 placeholder_idx=ph_idx,
             )
             if paragraphs:
-                textboxes.append(PptxTextBox(
-                    left_px=self._emu_to_px_x(shape.left),
-                    top_px=self._emu_to_px_y(shape.top),
-                    width_px=self._emu_to_px_x(shape.width),
-                    height_px=self._emu_to_px_y(shape.height),
-                    paragraphs=paragraphs,
-                ))
+                textboxes.append(
+                    PptxTextBox(
+                        left_px=self._emu_to_px_x(shape.left),
+                        top_px=self._emu_to_px_y(shape.top),
+                        width_px=self._emu_to_px_x(shape.width),
+                        height_px=self._emu_to_px_y(shape.height),
+                        paragraphs=paragraphs,
+                    )
+                )
 
     # ── 텍스트박스 추출 ──
 

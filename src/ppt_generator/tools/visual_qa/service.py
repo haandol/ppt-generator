@@ -71,7 +71,11 @@ class VisualQAService:
         spec_json = slide_spec_to_json(design_spec)
         image_b64 = base64.b64encode(png_path.read_bytes()).decode()
 
-        logger.info("분석 시작: slide_index=%d (thread=%s)", slide_index, threading.current_thread().name)
+        logger.info(
+            "분석 시작: slide_index=%d (thread=%s)",
+            slide_index,
+            threading.current_thread().name,
+        )
         agent = self._analysis_agent_factory()
         prompt = (
             f"다음은 슬라이드 {slide_index + 1}의 스크린샷과 디자인 스펙입니다.\n\n"
@@ -97,7 +101,11 @@ class VisualQAService:
         result = agent(messages, structured_output_model=VisualQAOutput)
         usage = log_token_usage(result, f"visual_qa_analysis[{slide_index}]")
         self._accumulate_tokens(usage)
-        logger.info("분석 완료: slide_index=%d (thread=%s)", slide_index, threading.current_thread().name)
+        logger.info(
+            "분석 완료: slide_index=%d (thread=%s)",
+            slide_index,
+            threading.current_thread().name,
+        )
 
         return result.structured_output
 
@@ -180,8 +188,7 @@ class VisualQAService:
 
         screenshots_dir = project_dir / "screenshots"
         per_slide: dict[int, SlideQAResult] = {
-            idx: SlideQAResult(slide_index=idx, status="pending")
-            for idx in indices
+            idx: SlideQAResult(slide_index=idx, status="pending") for idx in indices
         }
         pending_indices = list(indices)
         ever_fixed: set[int] = set()
@@ -193,13 +200,24 @@ class VisualQAService:
             iterations_used = iteration + 1
 
             # ── Phase 1: 스크린샷 캡처 ──
-            logger.info("iteration %d: 스크린샷 캡처 %d슬라이드", iteration, len(pending_indices))
+            logger.info(
+                "iteration %d: 스크린샷 캡처 %d슬라이드",
+                iteration,
+                len(pending_indices),
+            )
             screenshots = await asyncio.to_thread(
-                self.capture_screenshots, project_dir, pending_indices, iteration,
+                self.capture_screenshots,
+                project_dir,
+                pending_indices,
+                iteration,
             )
 
             # ── Phase 2: LLM 분석 (전체 병렬) ──
-            logger.info("iteration %d: 병렬 분석 시작 %d슬라이드", iteration, len(pending_indices))
+            logger.info(
+                "iteration %d: 병렬 분석 시작 %d슬라이드",
+                iteration,
+                len(pending_indices),
+            )
 
             async def _analyze_one(idx: int) -> tuple[int, VisualQAOutput | None]:
                 png_path = screenshots.get(idx)
@@ -209,7 +227,10 @@ class VisualQAService:
                 spec = load_spec(project_dir, idx)
                 try:
                     analysis = await asyncio.to_thread(
-                        self.analyze_screenshot, png_path, idx, spec,
+                        self.analyze_screenshot,
+                        png_path,
+                        idx,
+                        spec,
                     )
                     return idx, analysis
                 except Exception:
@@ -232,19 +253,28 @@ class VisualQAService:
                 else:
                     issue_types = [i.issue_type for i in analysis.issues]
                     per_slide[idx].issues_found = issue_types
-                    slides_to_fix.append((idx, [i.model_dump() for i in analysis.issues]))
+                    slides_to_fix.append(
+                        (idx, [i.model_dump() for i in analysis.issues])
+                    )
 
             if not slides_to_fix:
                 break
 
             # ── Phase 3: LLM 수정 (이슈 있는 슬라이드만, 병렬) ──
-            logger.info("iteration %d: 병렬 수정 시작 %d슬라이드", iteration, len(slides_to_fix))
+            logger.info(
+                "iteration %d: 병렬 수정 시작 %d슬라이드", iteration, len(slides_to_fix)
+            )
 
-            async def _fix_one(idx: int, issues_dicts: list[dict]) -> tuple[int, PptxSlideSpec | None]:
+            async def _fix_one(
+                idx: int, issues_dicts: list[dict]
+            ) -> tuple[int, PptxSlideSpec | None]:
                 png_path = screenshots[idx]
                 spec = load_spec(project_dir, idx)
                 fixed = await asyncio.to_thread(
-                    self.fix_design_spec, png_path, spec, issues_dicts,
+                    self.fix_design_spec,
+                    png_path,
+                    spec,
+                    issues_dicts,
                 )
                 return idx, fixed
 
@@ -269,7 +299,8 @@ class VisualQAService:
 
             if report_progress is not None:
                 await report_progress(
-                    iteration + 1, max_iterations,
+                    iteration + 1,
+                    max_iterations,
                     f"iteration {iteration + 1}/{max_iterations} 완료 "
                     f"(pass={sum(1 for r in per_slide.values() if r.status == 'pass')}, "
                     f"fixed={sum(1 for r in per_slide.values() if r.status == 'fixed')}, "
@@ -295,7 +326,15 @@ class VisualQAService:
 
     def _accumulate_tokens(self, usage: dict[str, int]) -> None:
         with self._token_lock:
-            self._total_input_tokens = getattr(self, "_total_input_tokens", 0) + usage.get("inputTokens", 0)
-            self._total_output_tokens = getattr(self, "_total_output_tokens", 0) + usage.get("outputTokens", 0)
-            self._total_cache_read_tokens = getattr(self, "_total_cache_read_tokens", 0) + usage.get("cacheReadInputTokens", 0)
-            self._total_cache_write_tokens = getattr(self, "_total_cache_write_tokens", 0) + usage.get("cacheWriteInputTokens", 0)
+            self._total_input_tokens = getattr(
+                self, "_total_input_tokens", 0
+            ) + usage.get("inputTokens", 0)
+            self._total_output_tokens = getattr(
+                self, "_total_output_tokens", 0
+            ) + usage.get("outputTokens", 0)
+            self._total_cache_read_tokens = getattr(
+                self, "_total_cache_read_tokens", 0
+            ) + usage.get("cacheReadInputTokens", 0)
+            self._total_cache_write_tokens = getattr(
+                self, "_total_cache_write_tokens", 0
+            ) + usage.get("cacheWriteInputTokens", 0)

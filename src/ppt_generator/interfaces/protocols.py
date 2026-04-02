@@ -14,7 +14,9 @@ from ppt_generator.interfaces.schemas import DesignSpec, PptxSlideSpec
 class DesignServiceLike(Protocol):
     """DesignService의 공개 인터페이스."""
 
-    def generate_single_slide(self, slide_outline, design_summary=None, **kwargs) -> PptxSlideSpec: ...
+    def generate_single_slide(
+        self, slide_outline, design_summary=None, **kwargs
+    ) -> PptxSlideSpec: ...
 
     @property
     def last_token_usage(self) -> dict[str, int]: ...
@@ -23,7 +25,9 @@ class DesignServiceLike(Protocol):
 class DesignServiceFactory(Protocol):
     """(thinking_effort, slide_type) → DesignService 팩토리."""
 
-    def __call__(self, thinking_effort: str, slide_type: str = "content") -> DesignServiceLike: ...
+    def __call__(
+        self, thinking_effort: str, slide_type: str = "content"
+    ) -> DesignServiceLike: ...
 
 
 class ReviewServiceLike(Protocol):

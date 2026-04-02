@@ -11,11 +11,11 @@ from pathlib import Path
 
 from pptx import Presentation
 
+from ppt_generator.interfaces import bg_image_utils
 from ppt_generator.interfaces.constants import (
     PPTX_SLIDE_HEIGHT_EMU,
     PPTX_SLIDE_WIDTH_EMU,
 )
-from ppt_generator.interfaces import bg_image_utils
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
     ExportPptxResponse,

@@ -35,17 +35,22 @@ def handle_move(
     slide_count = project_service.get_design_spec_slide_count(project_dir)
 
     if from_index < 1 or from_index > slide_count:
-        raise ValueError(f"Invalid from_index: {from_index} (valid range: 1-{slide_count})")
+        raise ValueError(
+            f"Invalid from_index: {from_index} (valid range: 1-{slide_count})"
+        )
     if to_index < 1 or to_index > slide_count:
         raise ValueError(f"Invalid to_index: {to_index} (valid range: 1-{slide_count})")
     if from_index == to_index:
-        return json.dumps({
-            "project_id": project_id,
-            "slide_count": slide_count,
-            "from_index": from_index,
-            "to_index": to_index,
-            "message": "No move needed (same position)",
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "project_id": project_id,
+                "slide_count": slide_count,
+                "from_index": from_index,
+                "to_index": to_index,
+                "message": "No move needed (same position)",
+            },
+            ensure_ascii=False,
+        )
 
     from_idx = from_index - 1
     to_idx = to_index - 1
@@ -58,12 +63,15 @@ def handle_move(
     project_service.renumber_design_spec_image_srcs(project_dir)
     project_service.update_step(project_dir, "design_spec_modified")
 
-    return json.dumps({
-        "project_id": project_id,
-        "slide_count": slide_count,
-        "from_index": from_index,
-        "to_index": to_index,
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "project_id": project_id,
+            "slide_count": slide_count,
+            "from_index": from_index,
+            "to_index": to_index,
+        },
+        ensure_ascii=False,
+    )
 
 
 def handle_modify(
@@ -98,22 +106,39 @@ def handle_modify(
 
     if action == "add":
         slide_html_path, token_usage = _add_slide(
-            deps, project_dir=project_dir, slide_count=slide_count,
-            slide_index=slide_index, title=title, content_summary=content_summary,
-            component_hint=component_hint, slide_type=slide_type,
-            speaker_notes=speaker_notes, color_theme=color_theme,
+            deps,
+            project_dir=project_dir,
+            slide_count=slide_count,
+            slide_index=slide_index,
+            title=title,
+            content_summary=content_summary,
+            component_hint=component_hint,
+            slide_type=slide_type,
+            speaker_notes=speaker_notes,
+            color_theme=color_theme,
             design_summary=design_summary,
         )
     elif action == "update":
         slide_html_path, token_usage = _update_slide(
-            deps, project_dir=project_dir, slide_count=slide_count,
-            slide_index=slide_index, title=title, content_summary=content_summary,
-            component_hint=component_hint, slide_type=slide_type,
-            speaker_notes=speaker_notes, color_theme=color_theme,
+            deps,
+            project_dir=project_dir,
+            slide_count=slide_count,
+            slide_index=slide_index,
+            title=title,
+            content_summary=content_summary,
+            component_hint=component_hint,
+            slide_type=slide_type,
+            speaker_notes=speaker_notes,
+            color_theme=color_theme,
             design_summary=design_summary,
         )
     elif action == "delete":
-        _delete_slide(deps, project_dir=project_dir, slide_count=slide_count, slide_index=slide_index)
+        _delete_slide(
+            deps,
+            project_dir=project_dir,
+            slide_count=slide_count,
+            slide_index=slide_index,
+        )
 
     project_service.update_step(project_dir, "design_spec_modified")
     project_service.sync_num_slides(project_dir)
@@ -136,13 +161,17 @@ def handle_modify(
 # --- shared helpers ---
 
 
-def _generate_and_review(deps, *, slide_outline, slide_index, design_summary, color_theme):
+def _generate_and_review(
+    deps, *, slide_outline, slide_index, design_summary, color_theme
+):
     """슬라이드를 생성하고 리뷰 후 필요시 재생성한다."""
     complexity = estimate_slide_complexity(slide_outline)
     effort = complexity_to_thinking_effort(complexity)
     slide_type = slide_outline.slide_type or "content"
     svc = deps.design_service_factory(effort, slide_type)
-    spec = svc.generate_single_slide(slide_outline, design_summary, color_theme=color_theme)
+    spec = svc.generate_single_slide(
+        slide_outline, design_summary, color_theme=color_theme
+    )
     token_usage = svc.last_token_usage
 
     if deps.review_service_factory is not None:
@@ -152,13 +181,17 @@ def _generate_and_review(deps, *, slide_outline, slide_index, design_summary, co
             def _regenerate(feedback: str) -> tuple:
                 svc_regen = deps.design_service_factory(effort, slide_type)
                 new = svc_regen.generate_single_slide(
-                    slide_outline, design_summary, color_theme=color_theme,
+                    slide_outline,
+                    design_summary,
+                    color_theme=color_theme,
                     review_feedback=feedback,
                 )
                 return new, svc_regen.last_token_usage
 
             rr = apply_review_and_fix(
-                spec=spec, slide_index=slide_index, gen_usage=token_usage,
+                spec=spec,
+                slide_index=slide_index,
+                gen_usage=token_usage,
                 review_service_factory=deps.review_service_factory,
                 regenerate=_regenerate,
             )
@@ -172,21 +205,40 @@ def _generate_and_review(deps, *, slide_outline, slide_index, design_summary, co
 # --- action handlers ---
 
 
-def _add_slide(deps, *, project_dir, slide_count, slide_index, title, content_summary,
-               component_hint, slide_type, speaker_notes, color_theme, design_summary):
+def _add_slide(
+    deps,
+    *,
+    project_dir,
+    slide_count,
+    slide_index,
+    title,
+    content_summary,
+    component_hint,
+    slide_type,
+    speaker_notes,
+    color_theme,
+    design_summary,
+):
     """슬라이드 추가."""
     if not title or not content_summary:
         raise ValueError("title and content_summary are required for add action")
 
     project_service = deps.project_service
-    insert_idx = (slide_index - 1) if 1 <= slide_index <= slide_count + 1 else slide_count
+    insert_idx = (
+        (slide_index - 1) if 1 <= slide_index <= slide_count + 1 else slide_count
+    )
 
     project_service.sync_outline_to_design_spec_count(project_dir)
-    outline_json = json.dumps({
-        "title": title, "content_summary": content_summary,
-        "component_hint": component_hint, "slide_type": slide_type,
-        "speaker_notes": speaker_notes,
-    }, ensure_ascii=False)
+    outline_json = json.dumps(
+        {
+            "title": title,
+            "content_summary": content_summary,
+            "component_hint": component_hint,
+            "slide_type": slide_type,
+            "speaker_notes": speaker_notes,
+        },
+        ensure_ascii=False,
+    )
     project_service.insert_outline_slide(project_dir, insert_idx, outline_json)
     project_service.shift_slide_images(project_dir, insert_idx, slide_count)
     project_service.shift_slide_htmls(project_dir, insert_idx)
@@ -194,8 +246,11 @@ def _add_slide(deps, *, project_dir, slide_count, slide_index, title, content_su
     outline = parse_outline_json(outline_json)
     slide_outline = outline.slides[0]
     new_spec, token_usage = _generate_and_review(
-        deps, slide_outline=slide_outline, slide_index=slide_index,
-        design_summary=design_summary, color_theme=color_theme,
+        deps,
+        slide_outline=slide_outline,
+        slide_index=slide_index,
+        design_summary=design_summary,
+        color_theme=color_theme,
     )
 
     project_service.insert_design_spec_slide(project_dir, insert_idx, new_spec)
@@ -203,18 +258,36 @@ def _add_slide(deps, *, project_dir, slide_count, slide_index, title, content_su
 
     slide_html_path: str | None = None
     if deps.slides_service is not None:
-        html = deps.slides_service.render_single_slide_html(insert_idx, new_spec, color_theme=color_theme)
-        html_path = project_service.save_single_slide_html(project_dir, insert_idx, html)
+        html = deps.slides_service.render_single_slide_html(
+            insert_idx, new_spec, color_theme=color_theme
+        )
+        html_path = project_service.save_single_slide_html(
+            project_dir, insert_idx, html
+        )
         slide_html_path = str(html_path)
 
     return slide_html_path, token_usage
 
 
-def _update_slide(deps, *, project_dir, slide_count, slide_index, title, content_summary,
-                  component_hint, slide_type, speaker_notes, color_theme, design_summary):
+def _update_slide(
+    deps,
+    *,
+    project_dir,
+    slide_count,
+    slide_index,
+    title,
+    content_summary,
+    component_hint,
+    slide_type,
+    speaker_notes,
+    color_theme,
+    design_summary,
+):
     """슬라이드 수정."""
     if slide_index < 1 or slide_index > slide_count:
-        raise ValueError(f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})")
+        raise ValueError(
+            f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})"
+        )
 
     project_service = deps.project_service
     idx = slide_index - 1
@@ -229,11 +302,16 @@ def _update_slide(deps, *, project_dir, slide_count, slide_index, title, content
     project_service.sync_outline_to_design_spec_count(project_dir)
 
     if title and content_summary:
-        outline_json = json.dumps({
-            "title": title, "content_summary": content_summary,
-            "component_hint": component_hint, "slide_type": slide_type,
-            "speaker_notes": speaker_notes,
-        }, ensure_ascii=False)
+        outline_json = json.dumps(
+            {
+                "title": title,
+                "content_summary": content_summary,
+                "component_hint": component_hint,
+                "slide_type": slide_type,
+                "speaker_notes": speaker_notes,
+            },
+            ensure_ascii=False,
+        )
         project_service.save_outline_slide(project_dir, idx, outline_json)
 
     existing_spec = project_service.load_design_spec_slide(project_dir, idx)
@@ -241,8 +319,11 @@ def _update_slide(deps, *, project_dir, slide_count, slide_index, title, content
     outline = parse_outline_json(outline_raw)
     slide_outline = outline.slides[0]
     new_spec, token_usage = _generate_and_review(
-        deps, slide_outline=slide_outline, slide_index=slide_index,
-        design_summary=design_summary, color_theme=color_theme,
+        deps,
+        slide_outline=slide_outline,
+        slide_index=slide_index,
+        design_summary=design_summary,
+        color_theme=color_theme,
     )
 
     if existing_spec.images:
@@ -252,7 +333,9 @@ def _update_slide(deps, *, project_dir, slide_count, slide_index, title, content
 
     slide_html_path: str | None = None
     if deps.slides_service is not None:
-        html = deps.slides_service.render_single_slide_html(idx, new_spec, color_theme=color_theme)
+        html = deps.slides_service.render_single_slide_html(
+            idx, new_spec, color_theme=color_theme
+        )
         html_path = project_service.save_single_slide_html(project_dir, idx, html)
         slide_html_path = str(html_path)
 
@@ -262,7 +345,9 @@ def _update_slide(deps, *, project_dir, slide_count, slide_index, title, content
 def _delete_slide(deps, *, project_dir, slide_count, slide_index):
     """슬라이드 삭제."""
     if slide_index < 1 or slide_index > slide_count:
-        raise ValueError(f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})")
+        raise ValueError(
+            f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})"
+        )
 
     project_service = deps.project_service
     idx = slide_index - 1

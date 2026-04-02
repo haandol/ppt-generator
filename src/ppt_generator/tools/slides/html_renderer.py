@@ -60,11 +60,15 @@ def textbox_to_html(tb: PptxTextBox) -> str:
                 bullet_items.append(html)
             else:
                 if bullet_items:
-                    inner_parts.append(f'<ul style="list-style:disc;padding-left:20px;margin:0">{"".join(bullet_items)}</ul>')
+                    inner_parts.append(
+                        f'<ul style="list-style:disc;padding-left:20px;margin:0">{"".join(bullet_items)}</ul>'
+                    )
                     bullet_items = []
                 inner_parts.append(html)
         if bullet_items:
-            inner_parts.append(f'<ul style="list-style:disc;padding-left:20px;margin:0">{"".join(bullet_items)}</ul>')
+            inner_parts.append(
+                f'<ul style="list-style:disc;padding-left:20px;margin:0">{"".join(bullet_items)}</ul>'
+            )
     else:
         for para in tb.paragraphs:
             inner_parts.append(paragraph_to_html(para))
@@ -97,7 +101,11 @@ def image_to_html(image: PptxImage, *, image_src: str | None = None) -> str:
     )
     if image_src:
         style = pos_style + "overflow:hidden;"
-        img_radius = f"border-radius:{image.corner_radius_px}px;" if image.corner_radius_px else ""
+        img_radius = (
+            f"border-radius:{image.corner_radius_px}px;"
+            if image.corner_radius_px
+            else ""
+        )
         return (
             f'<div style="{style}">'
             f'<img src="{image_src}" '
@@ -105,8 +113,7 @@ def image_to_html(image: PptxImage, *, image_src: str | None = None) -> str:
             "</div>"
         )
     style = (
-        pos_style
-        + "background:rgba(128,128,128,0.15);"
+        pos_style + "background:rgba(128,128,128,0.15);"
         "border:1px dashed rgba(128,128,128,0.4);"
         "display:flex;flex-direction:column;align-items:center;justify-content:center;"
         "box-sizing:border-box;overflow:hidden;"
@@ -130,7 +137,11 @@ def spec_to_html_section(
     bg = spec.background_color or "#1a1a2e"
     notes_attr = ""
     if spec.speaker_notes:
-        escaped_notes = spec.speaker_notes.replace('"', "&quot;").replace("<", "&lt;").replace(">", "&gt;")
+        escaped_notes = (
+            spec.speaker_notes.replace('"', "&quot;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        )
         notes_attr = f' data-speaker-notes="{escaped_notes}"'
 
     bg_image_css = ""

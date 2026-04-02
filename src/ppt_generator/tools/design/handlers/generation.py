@@ -59,7 +59,9 @@ async def handle_generate(
         project_service.save_design_summary(project_dir, summary)
         logger.info("design_summary pre-generation completed")
         if ctx is not None:
-            await ctx.report_progress(0, target_count, "Design theme generation completed")
+            await ctx.report_progress(
+                0, target_count, "Design theme generation completed"
+            )
 
     # --- Step 2: Parallel generation ---
     design_summary = project_service.load_design_summary(project_dir)
@@ -121,7 +123,9 @@ async def handle_generate(
         resp["slides_html_path"] = slides_html_path
     if aggregated_usage:
         resp["token_usage"] = format_token_usage(aggregated_usage)
-        resp["estimated_cost"] = estimate_cost(aggregated_usage, BEDROCK_DESIGN_MODEL_ID)
+        resp["estimated_cost"] = estimate_cost(
+            aggregated_usage, BEDROCK_DESIGN_MODEL_ID
+        )
 
     return json.dumps(resp, ensure_ascii=False)
 
@@ -151,7 +155,9 @@ def _parse_slide_indices(outline, total_slides: int, slide_indices: str) -> list
         raw_indices = sorted(set(int(x.strip()) for x in slide_indices.split(",")))
         for idx in raw_indices:
             if idx < 1 or idx > len(outline.slides):
-                raise ValueError(f"Invalid slide_index: {idx} (valid range: 1-{len(outline.slides)})")
+                raise ValueError(
+                    f"Invalid slide_index: {idx} (valid range: 1-{len(outline.slides)})"
+                )
         return [i - 1 for i in raw_indices]
     return list(range(total_slides))
 

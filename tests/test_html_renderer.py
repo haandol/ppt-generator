@@ -86,7 +86,9 @@ class TestSpecToHtmlSectionWithImages:
             images=[PptxImage(left_px=10, top_px=20, width_px=200, height_px=150)],
         )
         html = spec_to_html_section(
-            0, spec, image_srcs=["images/slide_01_img_01.png"],
+            0,
+            spec,
+            image_srcs=["images/slide_01_img_01.png"],
         )
 
         assert "<img " in html
@@ -105,9 +107,17 @@ class TestSpecToHtmlSectionWithImages:
         from ppt_generator.interfaces.schemas import PptxShape, PptxTextBox
 
         spec = PptxSlideSpec(
-            shapes=[PptxShape(left_px=0, top_px=0, width_px=50, height_px=50, fill_color="#ff0000")],
+            shapes=[
+                PptxShape(
+                    left_px=0, top_px=0, width_px=50, height_px=50, fill_color="#ff0000"
+                )
+            ],
             images=[PptxImage(left_px=100, top_px=100, width_px=200, height_px=200)],
-            textboxes=[PptxTextBox(left_px=0, top_px=0, width_px=100, height_px=30, paragraphs=[])],
+            textboxes=[
+                PptxTextBox(
+                    left_px=0, top_px=0, width_px=100, height_px=30, paragraphs=[]
+                )
+            ],
         )
         html = spec_to_html_section(0, spec)
 
@@ -131,7 +141,9 @@ class TestSpecToHtmlSectionWithImages:
             ],
         )
         html = spec_to_html_section(
-            0, spec, image_srcs=["images/slide_01_img_01.png", ""],
+            0,
+            spec,
+            image_srcs=["images/slide_01_img_01.png", ""],
         )
 
         assert "<img " in html
@@ -148,7 +160,9 @@ class TestSpecToHtmlSectionWithImages:
             ],
         )
         html = spec_to_html_section(
-            0, spec, image_srcs=["images/slide_01_img_01.png"],
+            0,
+            spec,
+            image_srcs=["images/slide_01_img_01.png"],
         )
 
         assert "<img " in html

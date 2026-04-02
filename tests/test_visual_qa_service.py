@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from ppt_generator.interfaces.llm_output_models import (
+    ParagraphOutput,
     SlideSpecOutput,
     TextBoxOutput,
-    ParagraphOutput,
     TextRunOutput,
     VisualQAIssue,
     VisualQAOutput,
@@ -22,7 +22,7 @@ from ppt_generator.interfaces.schemas import (
     PptxTextBox,
     PptxTextRun,
 )
-from ppt_generator.tools.visual_qa.service import VisualQAService, VisualQAResult
+from ppt_generator.tools.visual_qa.service import VisualQAResult, VisualQAService
 
 
 def _make_spec(title: str = "테스트") -> PptxSlideSpec:
@@ -30,9 +30,14 @@ def _make_spec(title: str = "테스트") -> PptxSlideSpec:
         background_color="#1a1a2e",
         textboxes=[
             PptxTextBox(
-                left_px=40, top_px=40, width_px=600, height_px=60,
+                left_px=40,
+                top_px=40,
+                width_px=600,
+                height_px=60,
                 paragraphs=[
-                    PptxParagraph(runs=[PptxTextRun(text=title, font_size_pt=32, bold=True)]),
+                    PptxParagraph(
+                        runs=[PptxTextRun(text=title, font_size_pt=32, bold=True)]
+                    ),
                 ],
             ),
         ],
@@ -42,7 +47,9 @@ def _make_spec(title: str = "테스트") -> PptxSlideSpec:
     )
 
 
-def _make_qa_output(has_issues: bool, issues: list[dict] | None = None) -> VisualQAOutput:
+def _make_qa_output(
+    has_issues: bool, issues: list[dict] | None = None
+) -> VisualQAOutput:
     if issues is None:
         issues = []
     return VisualQAOutput(
@@ -57,9 +64,14 @@ def _make_slide_spec_output() -> SlideSpecOutput:
         background_color="#1a1a2e",
         textboxes=[
             TextBoxOutput(
-                left_px=40, top_px=40, width_px=700, height_px=60,
+                left_px=40,
+                top_px=40,
+                width_px=700,
+                height_px=60,
                 paragraphs=[
-                    ParagraphOutput(runs=[TextRunOutput(text="테스트", font_size_pt=28, bold=True)]),
+                    ParagraphOutput(
+                        runs=[TextRunOutput(text="테스트", font_size_pt=28, bold=True)]
+                    ),
                 ],
             ),
         ],
@@ -76,7 +88,9 @@ class TestVisualQAServiceCapture:
             analysis_agent_factory=MagicMock(),
             fix_agent_factory=MagicMock(),
         )
-        with patch.dict("sys.modules", {"playwright": None, "playwright.sync_api": None}):
+        with patch.dict(
+            "sys.modules", {"playwright": None, "playwright.sync_api": None}
+        ):
             with pytest.raises(RuntimeError, match="Playwright가 설치되지 않았습니다"):
                 svc.capture_screenshots(tmp_path, [0])
 
@@ -91,7 +105,9 @@ class TestVisualQAServiceCapture:
 
         # Mock playwright to avoid needing it installed
         mock_playwright = MagicMock()
-        with patch("ppt_generator.tools.visual_qa.service.sync_playwright", create=True):
+        with patch(
+            "ppt_generator.tools.visual_qa.service.sync_playwright", create=True
+        ):
             # Directly test that missing HTML results in no screenshots
             # We can't fully mock playwright's context manager easily,
             # so let's test the simpler path
@@ -137,7 +153,10 @@ class TestVisualQAServiceAnalyze:
         ]
         mock_result = MagicMock()
         mock_result.structured_output = _make_qa_output(has_issues=True, issues=issues)
-        mock_result.metrics.accumulated_usage = {"inputTokens": 200, "outputTokens": 100}
+        mock_result.metrics.accumulated_usage = {
+            "inputTokens": 200,
+            "outputTokens": 100,
+        }
 
         mock_agent = MagicMock(return_value=mock_result)
 
@@ -161,7 +180,10 @@ class TestVisualQAServiceFix:
 
         mock_result = MagicMock()
         mock_result.structured_output = _make_slide_spec_output()
-        mock_result.metrics.accumulated_usage = {"inputTokens": 300, "outputTokens": 200}
+        mock_result.metrics.accumulated_usage = {
+            "inputTokens": 300,
+            "outputTokens": 200,
+        }
 
         mock_agent = MagicMock(return_value=mock_result)
 
@@ -170,10 +192,18 @@ class TestVisualQAServiceFix:
             fix_agent_factory=lambda: mock_agent,
         )
         result = svc.fix_design_spec(
-            png_path, _make_spec(),
-            issues=[{"issue_type": "text_truncation", "severity": "high",
-                     "element_type": "textbox", "element_index": 0,
-                     "description": "test", "suggested_fix": "test"}],
+            png_path,
+            _make_spec(),
+            issues=[
+                {
+                    "issue_type": "text_truncation",
+                    "severity": "high",
+                    "element_type": "textbox",
+                    "element_index": 0,
+                    "description": "test",
+                    "suggested_fix": "test",
+                }
+            ],
         )
         assert result is not None
         assert isinstance(result, PptxSlideSpec)
@@ -191,13 +221,20 @@ class TestVisualQAServiceFix:
             fix_agent_factory=lambda: mock_agent,
         )
         result = svc.fix_design_spec(
-            png_path, _make_spec(),
-            issues=[{"issue_type": "overlap", "severity": "high",
-                     "element_type": "shape", "element_index": 0,
-                     "description": "test", "suggested_fix": "test"}],
+            png_path,
+            _make_spec(),
+            issues=[
+                {
+                    "issue_type": "overlap",
+                    "severity": "high",
+                    "element_type": "shape",
+                    "element_index": 0,
+                    "description": "test",
+                    "suggested_fix": "test",
+                }
+            ],
         )
         assert result is None
-
 
     def test_fix_preserves_images(self, tmp_path: Path) -> None:
         """수정 시 기존 spec의 images가 보존된다."""
@@ -206,7 +243,10 @@ class TestVisualQAServiceFix:
 
         mock_result = MagicMock()
         mock_result.structured_output = _make_slide_spec_output()
-        mock_result.metrics.accumulated_usage = {"inputTokens": 300, "outputTokens": 200}
+        mock_result.metrics.accumulated_usage = {
+            "inputTokens": 300,
+            "outputTokens": 200,
+        }
 
         mock_agent = MagicMock(return_value=mock_result)
 
@@ -220,23 +260,44 @@ class TestVisualQAServiceFix:
             background_color="#1a1a2e",
             textboxes=[
                 PptxTextBox(
-                    left_px=40, top_px=40, width_px=600, height_px=60,
+                    left_px=40,
+                    top_px=40,
+                    width_px=600,
+                    height_px=60,
                     paragraphs=[
-                        PptxParagraph(runs=[PptxTextRun(text="테스트", font_size_pt=32, bold=True)]),
+                        PptxParagraph(
+                            runs=[
+                                PptxTextRun(text="테스트", font_size_pt=32, bold=True)
+                            ]
+                        ),
                     ],
                 ),
             ],
             shapes=[],
             images=[
-                PptxImage(left_px=0, top_px=0, width_px=1280, height_px=720, src="images/bg.png"),
+                PptxImage(
+                    left_px=0,
+                    top_px=0,
+                    width_px=1280,
+                    height_px=720,
+                    src="images/bg.png",
+                ),
             ],
         )
 
         result = svc.fix_design_spec(
-            png_path, spec_with_images,
-            issues=[{"issue_type": "text_truncation", "severity": "high",
-                     "element_type": "textbox", "element_index": 0,
-                     "description": "test", "suggested_fix": "test"}],
+            png_path,
+            spec_with_images,
+            issues=[
+                {
+                    "issue_type": "text_truncation",
+                    "severity": "high",
+                    "element_type": "textbox",
+                    "element_index": 0,
+                    "description": "test",
+                    "suggested_fix": "test",
+                }
+            ],
         )
         assert result is not None
         assert len(result.images) == 1
@@ -257,7 +318,10 @@ class TestVisualQARunQA:
         no_issues = _make_qa_output(has_issues=False)
         mock_analysis_result = MagicMock()
         mock_analysis_result.structured_output = no_issues
-        mock_analysis_result.metrics.accumulated_usage = {"inputTokens": 100, "outputTokens": 50}
+        mock_analysis_result.metrics.accumulated_usage = {
+            "inputTokens": 100,
+            "outputTokens": 50,
+        }
         mock_analysis_agent = MagicMock(return_value=mock_analysis_result)
 
         # Mock capture_screenshots to create fake PNGs
@@ -279,15 +343,17 @@ class TestVisualQARunQA:
 
         specs = {0: _make_spec("슬라이드 1"), 1: _make_spec("슬라이드 2")}
 
-        result = asyncio.run(svc.run_qa(
-            project_dir=tmp_path,
-            indices=[0, 1],
-            max_iterations=2,
-            load_spec=lambda pd, idx: specs[idx],
-            save_spec=MagicMock(),
-            render_html=MagicMock(return_value="<html>fixed</html>"),
-            save_html=MagicMock(return_value=tmp_path / "slides" / "slide_01.html"),
-        ))
+        result = asyncio.run(
+            svc.run_qa(
+                project_dir=tmp_path,
+                indices=[0, 1],
+                max_iterations=2,
+                load_spec=lambda pd, idx: specs[idx],
+                save_spec=MagicMock(),
+                render_html=MagicMock(return_value="<html>fixed</html>"),
+                save_html=MagicMock(return_value=tmp_path / "slides" / "slide_01.html"),
+            )
+        )
 
         assert result.slides_analyzed == 2
         assert result.slides_with_issues == 0
@@ -320,8 +386,12 @@ class TestVisualQARunQA:
                     result.structured_output = _make_qa_output(True, [issue])
                 else:
                     result.structured_output = _make_qa_output(False)
-                result.metrics.accumulated_usage = {"inputTokens": 100, "outputTokens": 50}
+                result.metrics.accumulated_usage = {
+                    "inputTokens": 100,
+                    "outputTokens": 50,
+                }
                 return result
+
             return agent_call
 
         fix_result = MagicMock()
@@ -350,15 +420,17 @@ class TestVisualQARunQA:
         render_html = MagicMock(return_value="<html>fixed</html>")
         save_html = MagicMock(return_value=tmp_path / "slides" / "slide_01.html")
 
-        result = asyncio.run(svc.run_qa(
-            project_dir=tmp_path,
-            indices=[0],
-            max_iterations=2,
-            load_spec=lambda pd, idx: spec,
-            save_spec=save_spec,
-            render_html=render_html,
-            save_html=save_html,
-        ))
+        result = asyncio.run(
+            svc.run_qa(
+                project_dir=tmp_path,
+                indices=[0],
+                max_iterations=2,
+                load_spec=lambda pd, idx: spec,
+                save_spec=save_spec,
+                render_html=render_html,
+                save_html=save_html,
+            )
+        )
 
         assert result.slides_analyzed == 1
         assert result.slides_with_issues == 1
@@ -394,7 +466,18 @@ class TestVisualQAModels:
         assert output.issues[0].issue_type == "text_truncation"
 
     def test_visual_qa_issue_valid_types(self) -> None:
-        for issue_type in ("text_truncation", "overlap", "overflow", "contrast", "misalignment", "inconsistent_font_size", "inconsistent_spacing", "wrong_vertical_alignment", "arrow_disconnected", "zero_gap"):
+        for issue_type in (
+            "text_truncation",
+            "overlap",
+            "overflow",
+            "contrast",
+            "misalignment",
+            "inconsistent_font_size",
+            "inconsistent_spacing",
+            "wrong_vertical_alignment",
+            "arrow_disconnected",
+            "zero_gap",
+        ):
             issue = VisualQAIssue(
                 issue_type=issue_type,
                 severity="medium",

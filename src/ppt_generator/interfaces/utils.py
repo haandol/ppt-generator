@@ -78,9 +78,24 @@ def complexity_to_thinking_effort(complexity: int) -> str:
 # Claude model pricing (USD / 1M tokens)
 # https://www.anthropic.com/pricing
 _MODEL_PRICING: dict[str, dict[str, float]] = {
-    "claude-sonnet-4-6": {"input": 3.0, "output": 15.0, "cache_read": 0.30, "cache_write": 3.75},
-    "claude-opus-4-6": {"input": 15.0, "output": 75.0, "cache_read": 1.50, "cache_write": 18.75},
-    "claude-haiku-3-5": {"input": 0.80, "output": 4.0, "cache_read": 0.08, "cache_write": 1.0},
+    "claude-sonnet-4-6": {
+        "input": 3.0,
+        "output": 15.0,
+        "cache_read": 0.30,
+        "cache_write": 3.75,
+    },
+    "claude-opus-4-6": {
+        "input": 15.0,
+        "output": 75.0,
+        "cache_read": 1.50,
+        "cache_write": 18.75,
+    },
+    "claude-haiku-3-5": {
+        "input": 0.80,
+        "output": 4.0,
+        "cache_read": 0.08,
+        "cache_write": 1.0,
+    },
 }
 
 # model_id → pricing key mapping (strips Bedrock prefixes etc.)
@@ -148,7 +163,13 @@ def format_token_usage(usage: dict[str, int]) -> dict[str, int]:
     if not usage:
         return {}
     result: dict[str, int] = {}
-    for key in ("inputTokens", "outputTokens", "totalTokens", "cacheReadInputTokens", "cacheWriteInputTokens"):
+    for key in (
+        "inputTokens",
+        "outputTokens",
+        "totalTokens",
+        "cacheReadInputTokens",
+        "cacheWriteInputTokens",
+    ):
         val = usage.get(key, 0)
         if val:
             result[key] = val

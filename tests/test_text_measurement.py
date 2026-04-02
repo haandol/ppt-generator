@@ -14,7 +14,6 @@ from ppt_generator.interfaces.text_measurement import (
     estimate_text_width_px,
 )
 
-
 # ---------------------------------------------------------------------------
 # _is_wide_char
 # ---------------------------------------------------------------------------
@@ -170,9 +169,12 @@ class TestCalculateRequiredHeight:
         ]
         h_no_pad = calculate_required_height(paras, 500)
         h_with_pad = calculate_required_height(
-            paras, 500,
-            padding_top_px=10, padding_bottom_px=10,
-            padding_left_px=50, padding_right_px=50,
+            paras,
+            500,
+            padding_top_px=10,
+            padding_bottom_px=10,
+            padding_left_px=50,
+            padding_right_px=50,
         )
         assert h_with_pad > h_no_pad
 

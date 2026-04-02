@@ -30,24 +30,32 @@ class DefaultRunProps:
 
 # Office 기본 테마 색상 폴백 매핑
 SCHEME_FALLBACK: dict[str, str] = {
-    "bg1": "#FFFFFF", "bg2": "#E7E6E6",
-    "tx1": "#000000", "tx2": "#44546A",
-    "lt1": "#FFFFFF", "lt2": "#E7E6E6",
-    "dk1": "#000000", "dk2": "#44546A",
-    "accent1": "#4472C4", "accent2": "#ED7D31",
-    "accent3": "#A5A5A5", "accent4": "#FFC000",
-    "accent5": "#5B9BD5", "accent6": "#70AD47",
-    "hlink": "#0563C1", "folHlink": "#954F72",
+    "bg1": "#FFFFFF",
+    "bg2": "#E7E6E6",
+    "tx1": "#000000",
+    "tx2": "#44546A",
+    "lt1": "#FFFFFF",
+    "lt2": "#E7E6E6",
+    "dk1": "#000000",
+    "dk2": "#44546A",
+    "accent1": "#4472C4",
+    "accent2": "#ED7D31",
+    "accent3": "#A5A5A5",
+    "accent4": "#FFC000",
+    "accent5": "#5B9BD5",
+    "accent6": "#70AD47",
+    "hlink": "#0563C1",
+    "folHlink": "#954F72",
 }
 
 # placeholder type → master txStyle 매핑
 PH_TYPE_TO_TXSTYLE: dict[int, str] = {
-    1: "titleStyle",   # TITLE
-    3: "titleStyle",   # CENTER_TITLE
+    1: "titleStyle",  # TITLE
+    3: "titleStyle",  # CENTER_TITLE
     15: "titleStyle",  # TITLE (some variants)
-    2: "bodyStyle",    # BODY
-    7: "bodyStyle",    # OBJECT
-    4: "bodyStyle",    # SUBTITLE
+    2: "bodyStyle",  # BODY
+    7: "bodyStyle",  # OBJECT
+    4: "bodyStyle",  # SUBTITLE
 }
 
 
@@ -85,7 +93,9 @@ def resolve_scheme_color(
     return base_hex
 
 
-def extract_color_from_rpr(rpr_el: Element | None, theme_color_map: dict[str, str] | None = None) -> str | None:
+def extract_color_from_rpr(
+    rpr_el: Element | None, theme_color_map: dict[str, str] | None = None
+) -> str | None:
     """a:rPr 또는 a:defRPr XML 요소에서 색상을 추출."""
     if rpr_el is None:
         return None
@@ -103,7 +113,9 @@ def extract_color_from_rpr(rpr_el: Element | None, theme_color_map: dict[str, st
     return None
 
 
-def extract_props_from_rpr(rpr_el: Element | None, theme_color_map: dict[str, str] | None = None) -> DefaultRunProps:
+def extract_props_from_rpr(
+    rpr_el: Element | None, theme_color_map: dict[str, str] | None = None
+) -> DefaultRunProps:
     """a:rPr 또는 a:defRPr XML 요소에서 font_size, color, bold를 추출."""
     if rpr_el is None:
         return DefaultRunProps()
@@ -133,6 +145,7 @@ def extract_theme_color_map(presentation: Presentation) -> dict[str, str]:
             return color_map
 
         from xml.etree.ElementTree import fromstring
+
         theme_xml = fromstring(theme_part.blob)
 
         ns = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main"}
@@ -170,7 +183,9 @@ def extract_theme_color_map(presentation: Presentation) -> dict[str, str]:
     return color_map
 
 
-def extract_master_tx_styles(presentation: Presentation) -> dict[str, dict[int, DefaultRunProps]]:
+def extract_master_tx_styles(
+    presentation: Presentation,
+) -> dict[str, dict[int, DefaultRunProps]]:
     """마스터의 p:txStyles에서 titleStyle/bodyStyle/otherStyle의 레벨별 기본 서식을 추출.
 
     Returns:

@@ -9,9 +9,9 @@ from typing import TYPE_CHECKING
 
 from ppt_generator.interfaces.constants import BEDROCK_DESIGN_MODEL_ID
 from ppt_generator.interfaces.utils import (
+    complexity_to_thinking_effort,
     estimate_cost,
     estimate_slide_complexity,
-    complexity_to_thinking_effort,
     format_token_usage,
     parse_outline_json,
 )
@@ -47,7 +47,9 @@ def handle_review(
         indices = sorted(set(int(x.strip()) for x in slide_indices.split(",")))
         for idx in indices:
             if idx < 1 or idx > slide_count:
-                raise ValueError(f"Invalid slide_index: {idx} (valid range: 1-{slide_count})")
+                raise ValueError(
+                    f"Invalid slide_index: {idx} (valid range: 1-{slide_count})"
+                )
     else:
         indices = list(range(1, slide_count + 1))
 
@@ -69,7 +71,9 @@ def handle_review(
         if auto_fix and review_result.has_high_severity:
             # Load outline for regeneration
             try:
-                outline_json = project_service.load_script_or_outline_slide(project_dir, idx)
+                outline_json = project_service.load_script_or_outline_slide(
+                    project_dir, idx
+                )
                 slide_outline = parse_outline_json(outline_json).slides[0]
             except Exception:
                 outline_json = project_service.load_outline_slide(project_dir, idx)
@@ -79,9 +83,13 @@ def handle_review(
             effort = complexity_to_thinking_effort(complexity)
             feedback = DesignReviewService.format_feedback(review_result)
 
-            svc_regen = deps.design_service_factory(effort, slide_outline.slide_type or "content")
+            svc_regen = deps.design_service_factory(
+                effort, slide_outline.slide_type or "content"
+            )
             new_spec = svc_regen.generate_single_slide(
-                slide_outline, design_summary, color_theme=color_theme,
+                slide_outline,
+                design_summary,
+                color_theme=color_theme,
                 review_feedback=feedback,
             )
             regen_usage = svc_regen.last_token_usage
@@ -99,30 +107,43 @@ def handle_review(
             project_service.save_design_spec_slide(project_dir, idx, new_spec)
             if deps.slides_service is not None:
                 html = deps.slides_service.render_single_slide_html(
-                    idx, new_spec, color_theme=color_theme,
+                    idx,
+                    new_spec,
+                    color_theme=color_theme,
                 )
                 project_service.save_single_slide_html(project_dir, idx, html)
             regenerated = True
-            logger.info("slide[%d] review: high-severity issues found, regenerated", slide_index)
+            logger.info(
+                "slide[%d] review: high-severity issues found, regenerated", slide_index
+            )
         else:
             logger.info(
                 "slide[%d] review: %d issues (%s high)",
-                slide_index, len(review_result.issues),
+                slide_index,
+                len(review_result.issues),
                 "has" if review_result.has_high_severity else "no",
             )
 
-        total_usage = merge_token_usage(total_usage, slide_usage) if total_usage else slide_usage
+        total_usage = (
+            merge_token_usage(total_usage, slide_usage) if total_usage else slide_usage
+        )
 
-        results.append({
-            "slide_index": slide_index,
-            "has_high_severity": review_result.has_high_severity,
-            "issue_count": len(review_result.issues),
-            "issues": [
-                {"severity": i.severity, "rule_id": i.rule_id, "description": i.description}
-                for i in review_result.issues
-            ],
-            "regenerated": regenerated,
-        })
+        results.append(
+            {
+                "slide_index": slide_index,
+                "has_high_severity": review_result.has_high_severity,
+                "issue_count": len(review_result.issues),
+                "issues": [
+                    {
+                        "severity": i.severity,
+                        "rule_id": i.rule_id,
+                        "description": i.description,
+                    }
+                    for i in review_result.issues
+                ],
+                "regenerated": regenerated,
+            }
+        )
 
     resp: dict = {
         "project_id": project_id,

@@ -18,7 +18,9 @@ from ppt_generator.tools.outline.service import OutlineService
 from ppt_generator.tools.project.service import ProjectService
 
 
-def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, project_service: ProjectService) -> None:
+def register_outline_tools(
+    mcp: FastMCP, outline_service: OutlineService, project_service: ProjectService
+) -> None:
     @mcp.tool()
     def generate_outline(
         topic: str,
@@ -66,9 +68,14 @@ def register_outline_tools(mcp: FastMCP, outline_service: OutlineService, projec
         """
         if audience_type not in VALID_AUDIENCE_TYPES:
             audience_type = DEFAULT_AUDIENCE_TYPE
-        presentation_minutes = max(MIN_PRESENTATION_MINUTES, min(MAX_PRESENTATION_MINUTES, presentation_minutes))
+        presentation_minutes = max(
+            MIN_PRESENTATION_MINUTES,
+            min(MAX_PRESENTATION_MINUTES, presentation_minutes),
+        )
         if num_slides <= 0:
-            num_slides = max(MIN_NUM_SLIDES, min(MAX_NUM_SLIDES, presentation_minutes // 2 + 2))
+            num_slides = max(
+                MIN_NUM_SLIDES, min(MAX_NUM_SLIDES, presentation_minutes // 2 + 2)
+            )
         else:
             num_slides = max(MIN_NUM_SLIDES, min(MAX_NUM_SLIDES, num_slides))
         request = OutlineRequest(

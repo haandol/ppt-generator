@@ -23,7 +23,6 @@ from ppt_generator.interfaces.constants import (
 )
 from ppt_generator.interfaces.schemas import PptxParagraph, PptxTextRun
 
-
 _ALIGN_MAP = {
     "center": PP_ALIGN.CENTER,
     "right": PP_ALIGN.RIGHT,
@@ -41,7 +40,9 @@ def parse_color(color_str: str) -> RGBColor | None:
     hex_match = re.match(r"#([0-9a-fA-F]{6})", color_str)
     if hex_match:
         hex_val = hex_match.group(1)
-        return RGBColor(int(hex_val[0:2], 16), int(hex_val[2:4], 16), int(hex_val[4:6], 16))
+        return RGBColor(
+            int(hex_val[0:2], 16), int(hex_val[2:4], 16), int(hex_val[4:6], 16)
+        )
     short_hex = re.match(r"#([0-9a-fA-F]{3})(?:\s|;|$)", color_str)
     if short_hex:
         h = short_hex.group(1)
@@ -49,7 +50,9 @@ def parse_color(color_str: str) -> RGBColor | None:
     # rgb(r, g, b)
     rgb_match = re.match(r"rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", color_str)
     if rgb_match:
-        return RGBColor(int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3)))
+        return RGBColor(
+            int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))
+        )
     return None
 
 

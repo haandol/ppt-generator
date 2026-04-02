@@ -10,8 +10,12 @@ from pathlib import Path
 from threading import Lock
 
 from ppt_generator.interfaces.constants import PPT_GENERATOR_HOME
-
-from ppt_generator.interfaces.schemas import DesignSpec, PptxImage, PptxSlideSpec, ProjectMetadata
+from ppt_generator.interfaces.schemas import (
+    DesignSpec,
+    PptxImage,
+    PptxSlideSpec,
+    ProjectMetadata,
+)
 from ppt_generator.tools.project.design_spec_store import DesignSpecStore
 from ppt_generator.tools.project.html_store import HtmlStore
 from ppt_generator.tools.project.image_store import ImageStore
@@ -75,7 +79,8 @@ class ProjectService:
         if design_spec_count == 0:
             return False
         return self._jsonl_store.sync_outline_to_design_spec_count(
-            project_dir, design_spec_count,
+            project_dir,
+            design_spec_count,
         )
 
     def load_script_or_outline(self, project_dir: Path) -> str:
@@ -84,19 +89,27 @@ class ProjectService:
     def load_script_or_outline_slide(self, project_dir: Path, index: int) -> str:
         return self._jsonl_store.load_script_or_outline_slide(project_dir, index)
 
-    def update_outline_slide(self, project_dir: Path, index: int, slide_json: str) -> None:
+    def update_outline_slide(
+        self, project_dir: Path, index: int, slide_json: str
+    ) -> None:
         self._jsonl_store.update_outline_slide(project_dir, index, slide_json)
 
-    def insert_outline_slide(self, project_dir: Path, index: int, slide_json: str) -> None:
+    def insert_outline_slide(
+        self, project_dir: Path, index: int, slide_json: str
+    ) -> None:
         self._jsonl_store.insert_outline_slide(project_dir, index, slide_json)
 
     def delete_outline_slide(self, project_dir: Path, index: int) -> None:
         self._jsonl_store.delete_outline_slide(project_dir, index)
 
-    def move_outline_slide(self, project_dir: Path, from_index: int, to_index: int) -> None:
+    def move_outline_slide(
+        self, project_dir: Path, from_index: int, to_index: int
+    ) -> None:
         self._jsonl_store.move_outline_slide(project_dir, from_index, to_index)
 
-    def save_outline_slide(self, project_dir: Path, index: int, slide_json: str) -> None:
+    def save_outline_slide(
+        self, project_dir: Path, index: int, slide_json: str
+    ) -> None:
         self._ensure_dir(project_dir)
         self._jsonl_store.save_outline_slide(project_dir, index, slide_json)
 
@@ -110,7 +123,9 @@ class ProjectService:
         container_html: str,
     ) -> None:
         self._ensure_dir(project_dir)
-        self._html_store.save_slides_html(project_dir, session_id, slide_htmls, container_html)
+        self._html_store.save_slides_html(
+            project_dir, session_id, slide_htmls, container_html
+        )
 
     def save_slide_images(
         self,
@@ -126,19 +141,30 @@ class ProjectService:
         slide_index: int,
         image_count: int,
     ) -> list[str]:
-        return self._html_store.get_slide_image_srcs(project_dir, slide_index, image_count)
+        return self._html_store.get_slide_image_srcs(
+            project_dir, slide_index, image_count
+        )
 
-    def sync_image_paths(self, project_dir: Path, design_spec: DesignSpec) -> DesignSpec:
+    def sync_image_paths(
+        self, project_dir: Path, design_spec: DesignSpec
+    ) -> DesignSpec:
         """image_path가 있지만 src가 없는 이미지를 slides/images/에 복사하고 src를 설정한다."""
         return self._image_store.sync_image_paths(
-            project_dir, design_spec, save_slide_fn=self.save_design_spec_slide,
+            project_dir,
+            design_spec,
+            save_slide_fn=self.save_design_spec_slide,
         )
 
     def save_single_slide_html(
-        self, project_dir: Path, slide_index: int, slide_html: str,
+        self,
+        project_dir: Path,
+        slide_index: int,
+        slide_html: str,
     ) -> Path:
         self._ensure_dir(project_dir)
-        return self._html_store.save_single_slide_html(project_dir, slide_index, slide_html)
+        return self._html_store.save_single_slide_html(
+            project_dir, slide_index, slide_html
+        )
 
     def delete_slide_html(self, project_dir: Path, index: int) -> None:
         self._html_store.delete_slide_html(project_dir, index)
@@ -146,19 +172,31 @@ class ProjectService:
     def shift_slide_htmls(self, project_dir: Path, insert_index: int) -> None:
         self._html_store.shift_slide_htmls(project_dir, insert_index)
 
-    def move_slide_html(self, project_dir: Path, from_index: int, to_index: int) -> None:
+    def move_slide_html(
+        self, project_dir: Path, from_index: int, to_index: int
+    ) -> None:
         self._html_store.move_slide_html(project_dir, from_index, to_index)
 
-    def delete_slide_images(self, project_dir: Path, index: int, slide_count: int) -> None:
+    def delete_slide_images(
+        self, project_dir: Path, index: int, slide_count: int
+    ) -> None:
         self._html_store.delete_slide_images(project_dir, index, slide_count)
 
-    def shift_slide_images(self, project_dir: Path, insert_index: int, slide_count: int) -> None:
+    def shift_slide_images(
+        self, project_dir: Path, insert_index: int, slide_count: int
+    ) -> None:
         self._html_store.shift_slide_images(project_dir, insert_index, slide_count)
 
     def move_slide_images(
-        self, project_dir: Path, from_index: int, to_index: int, slide_count: int,
+        self,
+        project_dir: Path,
+        from_index: int,
+        to_index: int,
+        slide_count: int,
     ) -> None:
-        self._html_store.move_slide_images(project_dir, from_index, to_index, slide_count)
+        self._html_store.move_slide_images(
+            project_dir, from_index, to_index, slide_count
+        )
 
     def renumber_design_spec_image_srcs(self, project_dir: Path) -> None:
         """모든 슬라이드의 design spec images[].src를 현재 슬라이드 인덱스에 맞게 재번호한다."""
@@ -198,10 +236,13 @@ class ProjectService:
     def load_design_spec_with_images(self, project_dir: Path) -> DesignSpec:
         """design spec을 로드한 후, 각 이미지의 src/image_path로부터 image_bytes를 복원한다."""
         return self._image_store.load_design_spec_with_images(
-            project_dir, load_spec_fn=self.load_design_spec,
+            project_dir,
+            load_spec_fn=self.load_design_spec,
         )
 
-    def save_design_spec_slide(self, project_dir: Path, index: int, slide: PptxSlideSpec) -> None:
+    def save_design_spec_slide(
+        self, project_dir: Path, index: int, slide: PptxSlideSpec
+    ) -> None:
         self.design_spec_store.save_design_spec_slide(project_dir, index, slide)
 
     def load_design_spec_slide(self, project_dir: Path, index: int) -> PptxSlideSpec:
@@ -210,13 +251,19 @@ class ProjectService:
     def delete_design_spec_slide(self, project_dir: Path, index: int) -> None:
         self.design_spec_store.delete_design_spec_slide(project_dir, index)
 
-    def insert_design_spec_slide(self, project_dir: Path, index: int, slide: PptxSlideSpec) -> None:
+    def insert_design_spec_slide(
+        self, project_dir: Path, index: int, slide: PptxSlideSpec
+    ) -> None:
         self.design_spec_store.insert_design_spec_slide(project_dir, index, slide)
 
-    def move_design_spec_slide(self, project_dir: Path, from_index: int, to_index: int) -> None:
+    def move_design_spec_slide(
+        self, project_dir: Path, from_index: int, to_index: int
+    ) -> None:
         self.design_spec_store.move_design_spec_slide(project_dir, from_index, to_index)
 
-    def create_design_spec_slide(self, project_dir: Path, index: int, slide: PptxSlideSpec) -> None:
+    def create_design_spec_slide(
+        self, project_dir: Path, index: int, slide: PptxSlideSpec
+    ) -> None:
         self.design_spec_store.create_design_spec_slide(project_dir, index, slide)
 
     def save_design_summary(self, project_dir: Path, summary: dict) -> None:
@@ -269,13 +316,17 @@ class ProjectService:
             if metadata.num_slides != actual_count:
                 metadata.num_slides = actual_count
                 self.save_metadata(project_dir, metadata)
-                logger.info("num_slides 동기화: %d → %d", metadata.num_slides, actual_count)
+                logger.info(
+                    "num_slides 동기화: %d → %d", metadata.num_slides, actual_count
+                )
 
     def load_metadata(self, project_dir: Path) -> ProjectMetadata:
         path = project_dir / "project.json"
         if not path.exists():
             if not project_dir.exists():
-                raise FileNotFoundError(f"프로젝트 디렉토리가 존재하지 않습니다: {project_dir}")
+                raise FileNotFoundError(
+                    f"프로젝트 디렉토리가 존재하지 않습니다: {project_dir}"
+                )
             return ProjectMetadata(topic="", num_slides=0, steps_completed={})
         data = json.loads(path.read_text(encoding="utf-8"))
         return ProjectMetadata(
@@ -310,21 +361,25 @@ class ProjectService:
                 data = json.loads(meta_path.read_text(encoding="utf-8"))
                 stat = child.stat()
                 created_ts = getattr(stat, "st_birthtime", stat.st_mtime)
-                created_at = datetime.fromtimestamp(created_ts, tz=timezone.utc).isoformat()
+                created_at = datetime.fromtimestamp(
+                    created_ts, tz=timezone.utc
+                ).isoformat()
             except Exception:
                 logger.warning("프로젝트 메타데이터 로드 실패, 건너뜀: %s", child)
                 continue
 
-            projects.append({
-                "project_id": child.name,
-                "topic": data.get("topic", ""),
-                "num_slides": data.get("num_slides", 0),
-                "steps_completed": data.get("steps_completed", {}),
-                "audience_type": data.get("audience_type", "general"),
-                "presentation_minutes": data.get("presentation_minutes", 15),
-                "source": data.get("source", "generated"),
-                "created_at": created_at,
-            })
+            projects.append(
+                {
+                    "project_id": child.name,
+                    "topic": data.get("topic", ""),
+                    "num_slides": data.get("num_slides", 0),
+                    "steps_completed": data.get("steps_completed", {}),
+                    "audience_type": data.get("audience_type", "general"),
+                    "presentation_minutes": data.get("presentation_minutes", 15),
+                    "source": data.get("source", "generated"),
+                    "created_at": created_at,
+                }
+            )
 
         projects.sort(key=lambda p: p["created_at"], reverse=True)
         return projects
@@ -344,7 +399,9 @@ def _maybe_add_project_log_handler(project_id: str) -> None:
     d.mkdir(parents=True, exist_ok=True)
     fh = RotatingFileHandler(
         str(d / f"{project_id}.log"),
-        maxBytes=10 * 1024 * 1024, backupCount=2, encoding="utf-8",
+        maxBytes=10 * 1024 * 1024,
+        backupCount=2,
+        encoding="utf-8",
     )
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(logging.Formatter(_log_fmt))

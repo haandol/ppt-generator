@@ -119,7 +119,9 @@ class StyleExtractorMixin:
                             else:
                                 scheme = solid.find(qn("a:schemeClr"))
                                 if scheme is not None:
-                                    border_color = resolve_scheme_color(scheme, self._theme_color_map)
+                                    border_color = resolve_scheme_color(
+                                        scheme, self._theme_color_map
+                                    )
                         if border_width is None:
                             w_attr = ln.get("w")
                             if w_attr is not None:
@@ -135,7 +137,9 @@ class StyleExtractorMixin:
                     if ln_ref is not None and ln_ref.get("idx", "0") != "0":
                         scheme = ln_ref.find(qn("a:schemeClr"))
                         if scheme is not None:
-                            border_color = resolve_scheme_color(scheme, self._theme_color_map)
+                            border_color = resolve_scheme_color(
+                                scheme, self._theme_color_map
+                            )
                             if border_width is None:
                                 border_width = 0.5  # 테마 기본 선 굵기
             except Exception:

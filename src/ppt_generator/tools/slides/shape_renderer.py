@@ -13,7 +13,6 @@ from ppt_generator.interfaces.constants import (
 from ppt_generator.interfaces.schemas import PptxShape
 from ppt_generator.tools.slides.text_renderer import escape_html, paragraph_to_html
 
-
 # CSS clip-path polygon 매핑: shape_type → polygon points
 _CLIP_PATH_MAP: dict[str, str] = {
     # Arrows
@@ -108,7 +107,7 @@ def _line_shape_to_html(shape: PptxShape) -> str:
 
     defs_html = ""
     if defs_parts:
-        defs_html = f'<defs>{"".join(defs_parts)}</defs>'
+        defs_html = f"<defs>{''.join(defs_parts)}</defs>"
 
     container_top = shape.top_px + h - pad if h < 0 else shape.top_px - pad
     container_style = (

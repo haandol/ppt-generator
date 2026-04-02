@@ -64,7 +64,9 @@ class TestFormatRequest:
                 "inputSchema": {"json": {"type": "object"}},
             }
         ]
-        result = model.format_request(messages, tool_specs=tool_specs, system_prompt="test")
+        result = model.format_request(
+            messages, tool_specs=tool_specs, system_prompt="test"
+        )
 
         assert len(result["tools"]) == 1
         assert result["tools"][0]["name"] == "test_tool"

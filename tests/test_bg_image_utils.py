@@ -83,6 +83,7 @@ class TestGetBgImageBase64:
         ):
             reset_cache()
             from pathlib import Path
+
             with patch(
                 "ppt_generator.interfaces.bg_image_utils.TEMPLATE_BG_IMAGES_DIR",
                 Path("/nonexistent/path"),

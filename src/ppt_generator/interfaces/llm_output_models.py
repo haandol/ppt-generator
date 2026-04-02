@@ -62,7 +62,9 @@ class ShapeOutput(BaseModel):
     top_px: float
     width_px: float
     height_px: float
-    shape_type: Literal["rectangle", "rounded_rectangle", "ellipse", "line"] = "rectangle"
+    shape_type: Literal["rectangle", "rounded_rectangle", "ellipse", "line"] = (
+        "rectangle"
+    )
     fill_color: str | None = None
     border_color: str | None = None
     border_width_pt: float | None = None
@@ -87,16 +89,25 @@ class ShapeOutput(BaseModel):
 
 # --- Visual QA models ---
 
+
 class VisualQAIssue(BaseModel):
     """Visual QA 분석에서 발견된 개별 이슈."""
 
     issue_type: Literal[
-        "text_truncation", "overlap",
-        "overflow", "contrast", "misalignment",
-        "inconsistent_font_size", "inconsistent_spacing",
-        "wrong_vertical_alignment", "arrow_disconnected",
-        "zero_gap", "small_font", "insufficient_padding",
-        "content_too_sparse", "content_too_dense",
+        "text_truncation",
+        "overlap",
+        "overflow",
+        "contrast",
+        "misalignment",
+        "inconsistent_font_size",
+        "inconsistent_spacing",
+        "wrong_vertical_alignment",
+        "arrow_disconnected",
+        "zero_gap",
+        "small_font",
+        "insufficient_padding",
+        "content_too_sparse",
+        "content_too_dense",
         "unbalanced_spacing",
     ]
     severity: Literal["high", "medium", "low"]
@@ -120,12 +131,18 @@ def _convert_paragraphs(paragraphs: list[ParagraphOutput]) -> list[PptxParagraph
         PptxParagraph(
             runs=[
                 PptxTextRun(
-                    text=r.text, font_size_pt=r.font_size_pt, color=r.color,
-                    bold=r.bold, italic=r.italic, font_family=r.font_family, href=r.href,
+                    text=r.text,
+                    font_size_pt=r.font_size_pt,
+                    color=r.color,
+                    bold=r.bold,
+                    italic=r.italic,
+                    font_family=r.font_family,
+                    href=r.href,
                 )
                 for r in p.runs
             ],
-            bullet_level=p.bullet_level, alignment=p.alignment,
+            bullet_level=p.bullet_level,
+            alignment=p.alignment,
         )
         for p in paragraphs
     ]
@@ -143,39 +160,56 @@ class SlideSpecOutput(BaseModel):
         """Pydantic 모델을 기존 PptxSlideSpec dataclass로 변환."""
         textboxes = [
             PptxTextBox(
-                left_px=tb.left_px, top_px=tb.top_px,
-                width_px=tb.width_px, height_px=tb.height_px,
+                left_px=tb.left_px,
+                top_px=tb.top_px,
+                width_px=tb.width_px,
+                height_px=tb.height_px,
                 paragraphs=_convert_paragraphs(tb.paragraphs),
                 line_spacing_pt=tb.line_spacing_pt,
                 vertical_alignment=tb.vertical_alignment,
-                padding_left_px=tb.padding_left_px, padding_right_px=tb.padding_right_px,
-                padding_top_px=tb.padding_top_px, padding_bottom_px=tb.padding_bottom_px,
+                padding_left_px=tb.padding_left_px,
+                padding_right_px=tb.padding_right_px,
+                padding_top_px=tb.padding_top_px,
+                padding_bottom_px=tb.padding_bottom_px,
             )
             for tb in self.textboxes
         ]
         shapes = [
             PptxShape(
-                left_px=s.left_px, top_px=s.top_px,
-                width_px=s.width_px, height_px=s.height_px,
-                shape_type=s.shape_type, fill_color=s.fill_color,
-                border_color=s.border_color, border_width_pt=s.border_width_pt,
+                left_px=s.left_px,
+                top_px=s.top_px,
+                width_px=s.width_px,
+                height_px=s.height_px,
+                shape_type=s.shape_type,
+                fill_color=s.fill_color,
+                border_color=s.border_color,
+                border_width_pt=s.border_width_pt,
                 corner_radius_px=s.corner_radius_px,
-                text=s.text, text_color=s.text_color,
-                text_size_pt=s.text_size_pt, text_bold=s.text_bold,
+                text=s.text,
+                text_color=s.text_color,
+                text_size_pt=s.text_size_pt,
+                text_bold=s.text_bold,
                 paragraphs=_convert_paragraphs(s.paragraphs),
                 line_spacing_pt=s.line_spacing_pt,
-                padding_left_px=s.padding_left_px, padding_right_px=s.padding_right_px,
-                padding_top_px=s.padding_top_px, padding_bottom_px=s.padding_bottom_px,
+                padding_left_px=s.padding_left_px,
+                padding_right_px=s.padding_right_px,
+                padding_top_px=s.padding_top_px,
+                padding_bottom_px=s.padding_bottom_px,
                 vertical_alignment=s.vertical_alignment,
-                end_arrow=s.end_arrow, start_arrow=s.start_arrow,
-                dash_style=s.dash_style, svg_path=s.svg_path, autofit_mode=s.autofit_mode,
+                end_arrow=s.end_arrow,
+                start_arrow=s.start_arrow,
+                dash_style=s.dash_style,
+                svg_path=s.svg_path,
+                autofit_mode=s.autofit_mode,
             )
             for s in self.shapes
         ]
         return PptxSlideSpec(
             background_color=self.background_color,
-            textboxes=textboxes, shapes=shapes,
-            images=[], speaker_notes=self.speaker_notes,
+            textboxes=textboxes,
+            shapes=shapes,
+            images=[],
+            speaker_notes=self.speaker_notes,
         )
 
 
@@ -186,9 +220,13 @@ class DesignReviewIssue(BaseModel):
     """Design review에서 발견된 개별 이슈."""
 
     rule_id: Literal[
-        "font_size_floor", "lr_font_consistency", "vstack_overlap",
-        "vstack_height_uniformity", "vstack_gap_uniformity",
-        "lr_bottom_alignment", "same_level_overlap",
+        "font_size_floor",
+        "lr_font_consistency",
+        "vstack_overlap",
+        "vstack_height_uniformity",
+        "vstack_gap_uniformity",
+        "lr_bottom_alignment",
+        "same_level_overlap",
     ]
     severity: Literal["high", "medium"]
     description: str

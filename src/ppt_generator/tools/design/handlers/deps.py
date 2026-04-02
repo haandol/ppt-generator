@@ -5,7 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ppt_generator.interfaces.protocols import DesignServiceFactory, ReviewServiceFactory
+from ppt_generator.interfaces.protocols import (
+    DesignServiceFactory,
+    ReviewServiceFactory,
+)
 
 if TYPE_CHECKING:
     from ppt_generator.tools.project.service import ProjectService

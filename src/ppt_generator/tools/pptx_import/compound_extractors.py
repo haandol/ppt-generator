@@ -50,7 +50,12 @@ class CompoundExtractorMixin:
             ext = grp_xfrm.find(qn("a:ext"))
             ch_off = grp_xfrm.find(qn("a:chOff"))
             ch_ext = grp_xfrm.find(qn("a:chExt"))
-            if off is not None and ext is not None and ch_off is not None and ch_ext is not None:
+            if (
+                off is not None
+                and ext is not None
+                and ch_off is not None
+                and ch_ext is not None
+            ):
                 offset_x_emu = int(off.get("x", "0"))
                 offset_y_emu = int(off.get("y", "0"))
                 ext_cx = int(ext.get("cx", "1"))
@@ -83,7 +88,9 @@ class CompoundExtractorMixin:
             off_x_px = self._emu_to_px_x(offset_x_emu)
             off_y_px = self._emu_to_px_y(offset_y_emu)
 
-            def _tx(left: float, top: float, w: float, h: float) -> tuple[float, float, float, float]:
+            def _tx(
+                left: float, top: float, w: float, h: float
+            ) -> tuple[float, float, float, float]:
                 return (
                     round((left - ch_off_x_px) * scale_x + off_x_px, 1),
                     round((top - ch_off_y_px) * scale_y + off_y_px, 1),
@@ -145,16 +152,18 @@ class CompoundExtractorMixin:
                 except Exception:
                     pass
 
-                shapes.append(PptxShape(
-                    left_px=self._emu_to_px_x(table_left + x_offset),
-                    top_px=self._emu_to_px_y(table_top + y_offset),
-                    width_px=self._emu_to_px_x(cell_w),
-                    height_px=self._emu_to_px_y(cell_h),
-                    shape_type="rectangle",
-                    fill_color=fill_color,
-                    border_color="#CCCCCC",
-                    border_width_pt=0.5,
-                    paragraphs=paragraphs,
-                ))
+                shapes.append(
+                    PptxShape(
+                        left_px=self._emu_to_px_x(table_left + x_offset),
+                        top_px=self._emu_to_px_y(table_top + y_offset),
+                        width_px=self._emu_to_px_x(cell_w),
+                        height_px=self._emu_to_px_y(cell_h),
+                        shape_type="rectangle",
+                        fill_color=fill_color,
+                        border_color="#CCCCCC",
+                        border_width_pt=0.5,
+                        paragraphs=paragraphs,
+                    )
+                )
                 x_offset += cell_w
             y_offset += cell_h

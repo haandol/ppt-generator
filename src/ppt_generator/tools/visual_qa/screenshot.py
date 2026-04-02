@@ -60,7 +60,9 @@ def capture_screenshots(
             logger.exception("스크린샷 캡처 실패: slide_index=%d", idx)
             return idx, None
 
-    logger.info("스크린샷 캡처 시작: %d슬라이드 (workers=%d)", len(indices), VISUAL_QA_PARALLEL)
+    logger.info(
+        "스크린샷 캡처 시작: %d슬라이드 (workers=%d)", len(indices), VISUAL_QA_PARALLEL
+    )
     with ThreadPoolExecutor(max_workers=VISUAL_QA_PARALLEL) as pool:
         futures = [pool.submit(_capture_one, idx) for idx in indices]
         for future in futures:

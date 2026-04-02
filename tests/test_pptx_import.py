@@ -18,125 +18,225 @@ from ppt_generator.interfaces.schemas import (
     PptxTextBox,
     PptxTextRun,
 )
-from ppt_generator.interfaces.spec_utils import design_spec_to_json, parse_design_spec_json
-from ppt_generator.tools.project.service import ProjectService
+from ppt_generator.interfaces.spec_utils import (
+    design_spec_to_json,
+    parse_design_spec_json,
+)
 from ppt_generator.tools.pptx.service import ExportService
 from ppt_generator.tools.pptx_import.service import ImportService
 from ppt_generator.tools.pptx_import.slide_reader import SlideReader
-
+from ppt_generator.tools.project.service import ProjectService
 
 # ── 테스트용 DesignSpec 생성 헬퍼 ──
 
 
 def _make_rich_spec() -> DesignSpec:
     """다양한 요소를 포함한 테스트용 DesignSpec."""
-    return DesignSpec(slides=[
-        PptxSlideSpec(
-            background_color="#1A1A2E",
-            textboxes=[
-                PptxTextBox(
-                    left_px=64, top_px=72, width_px=600, height_px=80,
-                    paragraphs=[PptxParagraph(runs=[
-                        PptxTextRun(text="제목 텍스트", font_size_pt=32, bold=True, color="#FFFFFF"),
-                    ])],
-                    vertical_alignment="top",
-                    padding_left_px=0,
-                    padding_right_px=0,
-                    padding_top_px=0,
-                    padding_bottom_px=0,
-                ),
-                PptxTextBox(
-                    left_px=64, top_px=148, width_px=600, height_px=400,
-                    paragraphs=[
-                        PptxParagraph(runs=[
-                            PptxTextRun(text="본문 ", font_size_pt=18, color="#CCCCCC"),
-                            PptxTextRun(text="굵게", font_size_pt=18, bold=True, color="#FF9900"),
-                        ]),
-                        PptxParagraph(
-                            runs=[PptxTextRun(text="불릿 항목 1", font_size_pt=16, color="#CCCCCC")],
-                            bullet_level=0,
-                        ),
-                        PptxParagraph(
-                            runs=[PptxTextRun(text="불릿 하위 항목", font_size_pt=14, color="#999999")],
-                            bullet_level=1,
-                        ),
-                    ],
-                    vertical_alignment="top",
-                    padding_left_px=8,
-                    padding_right_px=8,
-                    padding_top_px=4,
-                    padding_bottom_px=4,
-                ),
-            ],
-            shapes=[
-                PptxShape(
-                    left_px=700, top_px=148, width_px=500, height_px=200,
-                    shape_type="rounded_rectangle",
-                    fill_color="#2A2A4E",
-                    border_color="#4A90D9",
-                    border_width_pt=1.5,
-                    paragraphs=[PptxParagraph(runs=[
-                        PptxTextRun(text="도형 내 텍스트", font_size_pt=16, color="#FFFFFF"),
-                    ])],
-                    vertical_alignment="middle",
-                    padding_left_px=10,
-                    padding_right_px=10,
-                    padding_top_px=5,
-                    padding_bottom_px=5,
-                ),
-                PptxShape(
-                    left_px=700, top_px=400, width_px=500, height_px=150,
-                    shape_type="ellipse",
-                    fill_color="#FF6600",
-                ),
-                PptxShape(
-                    left_px=200, top_px=600, width_px=300, height_px=0,
-                    shape_type="line",
-                    border_color="#FFC000",
-                    border_width_pt=2,
-                    end_arrow=True,
-                ),
-            ],
-            speaker_notes="발표자 노트 내용",
-            slide_type="content",
-        ),
-    ])
+    return DesignSpec(
+        slides=[
+            PptxSlideSpec(
+                background_color="#1A1A2E",
+                textboxes=[
+                    PptxTextBox(
+                        left_px=64,
+                        top_px=72,
+                        width_px=600,
+                        height_px=80,
+                        paragraphs=[
+                            PptxParagraph(
+                                runs=[
+                                    PptxTextRun(
+                                        text="제목 텍스트",
+                                        font_size_pt=32,
+                                        bold=True,
+                                        color="#FFFFFF",
+                                    ),
+                                ]
+                            )
+                        ],
+                        vertical_alignment="top",
+                        padding_left_px=0,
+                        padding_right_px=0,
+                        padding_top_px=0,
+                        padding_bottom_px=0,
+                    ),
+                    PptxTextBox(
+                        left_px=64,
+                        top_px=148,
+                        width_px=600,
+                        height_px=400,
+                        paragraphs=[
+                            PptxParagraph(
+                                runs=[
+                                    PptxTextRun(
+                                        text="본문 ", font_size_pt=18, color="#CCCCCC"
+                                    ),
+                                    PptxTextRun(
+                                        text="굵게",
+                                        font_size_pt=18,
+                                        bold=True,
+                                        color="#FF9900",
+                                    ),
+                                ]
+                            ),
+                            PptxParagraph(
+                                runs=[
+                                    PptxTextRun(
+                                        text="불릿 항목 1",
+                                        font_size_pt=16,
+                                        color="#CCCCCC",
+                                    )
+                                ],
+                                bullet_level=0,
+                            ),
+                            PptxParagraph(
+                                runs=[
+                                    PptxTextRun(
+                                        text="불릿 하위 항목",
+                                        font_size_pt=14,
+                                        color="#999999",
+                                    )
+                                ],
+                                bullet_level=1,
+                            ),
+                        ],
+                        vertical_alignment="top",
+                        padding_left_px=8,
+                        padding_right_px=8,
+                        padding_top_px=4,
+                        padding_bottom_px=4,
+                    ),
+                ],
+                shapes=[
+                    PptxShape(
+                        left_px=700,
+                        top_px=148,
+                        width_px=500,
+                        height_px=200,
+                        shape_type="rounded_rectangle",
+                        fill_color="#2A2A4E",
+                        border_color="#4A90D9",
+                        border_width_pt=1.5,
+                        paragraphs=[
+                            PptxParagraph(
+                                runs=[
+                                    PptxTextRun(
+                                        text="도형 내 텍스트",
+                                        font_size_pt=16,
+                                        color="#FFFFFF",
+                                    ),
+                                ]
+                            )
+                        ],
+                        vertical_alignment="middle",
+                        padding_left_px=10,
+                        padding_right_px=10,
+                        padding_top_px=5,
+                        padding_bottom_px=5,
+                    ),
+                    PptxShape(
+                        left_px=700,
+                        top_px=400,
+                        width_px=500,
+                        height_px=150,
+                        shape_type="ellipse",
+                        fill_color="#FF6600",
+                    ),
+                    PptxShape(
+                        left_px=200,
+                        top_px=600,
+                        width_px=300,
+                        height_px=0,
+                        shape_type="line",
+                        border_color="#FFC000",
+                        border_width_pt=2,
+                        end_arrow=True,
+                    ),
+                ],
+                speaker_notes="발표자 노트 내용",
+                slide_type="content",
+            ),
+        ]
+    )
 
 
 def _make_multi_slide_spec() -> DesignSpec:
     """다중 슬라이드 테스트용."""
-    return DesignSpec(slides=[
-        PptxSlideSpec(
-            background_color="#000000",
-            textboxes=[PptxTextBox(
-                left_px=200, top_px=260, width_px=880, height_px=80,
-                paragraphs=[PptxParagraph(runs=[
-                    PptxTextRun(text="프레젠테이션 제목", font_size_pt=40, bold=True, color="#FFFFFF"),
-                ])],
-            )],
-            slide_type="title",
-        ),
-        PptxSlideSpec(
-            background_color="#1A1A2E",
-            textboxes=[PptxTextBox(
-                left_px=64, top_px=72, width_px=1152, height_px=48,
-                paragraphs=[PptxParagraph(runs=[
-                    PptxTextRun(text="두 번째 슬라이드", font_size_pt=28, color="#FFFFFF"),
-                ])],
-            )],
-            slide_type="content",
-        ),
-        PptxSlideSpec(
-            background_color="#1A1A2E",
-            textboxes=[PptxTextBox(
-                left_px=200, top_px=240, width_px=880, height_px=80,
-                paragraphs=[PptxParagraph(runs=[
-                    PptxTextRun(text="감사합니다", font_size_pt=36, bold=True, color="#FFFFFF"),
-                ])],
-            )],
-            slide_type="closing",
-        ),
-    ])
+    return DesignSpec(
+        slides=[
+            PptxSlideSpec(
+                background_color="#000000",
+                textboxes=[
+                    PptxTextBox(
+                        left_px=200,
+                        top_px=260,
+                        width_px=880,
+                        height_px=80,
+                        paragraphs=[
+                            PptxParagraph(
+                                runs=[
+                                    PptxTextRun(
+                                        text="프레젠테이션 제목",
+                                        font_size_pt=40,
+                                        bold=True,
+                                        color="#FFFFFF",
+                                    ),
+                                ]
+                            )
+                        ],
+                    )
+                ],
+                slide_type="title",
+            ),
+            PptxSlideSpec(
+                background_color="#1A1A2E",
+                textboxes=[
+                    PptxTextBox(
+                        left_px=64,
+                        top_px=72,
+                        width_px=1152,
+                        height_px=48,
+                        paragraphs=[
+                            PptxParagraph(
+                                runs=[
+                                    PptxTextRun(
+                                        text="두 번째 슬라이드",
+                                        font_size_pt=28,
+                                        color="#FFFFFF",
+                                    ),
+                                ]
+                            )
+                        ],
+                    )
+                ],
+                slide_type="content",
+            ),
+            PptxSlideSpec(
+                background_color="#1A1A2E",
+                textboxes=[
+                    PptxTextBox(
+                        left_px=200,
+                        top_px=240,
+                        width_px=880,
+                        height_px=80,
+                        paragraphs=[
+                            PptxParagraph(
+                                runs=[
+                                    PptxTextRun(
+                                        text="감사합니다",
+                                        font_size_pt=36,
+                                        bold=True,
+                                        color="#FFFFFF",
+                                    ),
+                                ]
+                            )
+                        ],
+                    )
+                ],
+                slide_type="closing",
+            ),
+        ]
+    )
 
 
 # ── Fixtures ──
@@ -219,7 +319,9 @@ class TestRoundTrip:
         imported = self._round_trip(export_service, import_service, spec, tmp_path)
 
         # rounded_rectangle의 fill
-        rounded_rect = [s for s in imported.slides[0].shapes if s.shape_type == "rounded_rectangle"]
+        rounded_rect = [
+            s for s in imported.slides[0].shapes if s.shape_type == "rounded_rectangle"
+        ]
         assert len(rounded_rect) >= 1
         assert rounded_rect[0].fill_color == "#2A2A4E"
 
@@ -309,7 +411,7 @@ class TestSlideReader:
     def test_compute_scale_4_3_aspect(self):
         """4:3 비율 (10" × 7.5") → scale_x > 1."""
         prs = Presentation()
-        prs.slide_width = 9_144_000   # 10"
+        prs.slide_width = 9_144_000  # 10"
         prs.slide_height = 6_858_000  # 7.5"
         sx, sy = SlideReader.compute_scale(prs)
         assert sx > 1.0
@@ -317,34 +419,61 @@ class TestSlideReader:
 
     def test_infer_slide_type_title(self):
         """첫 슬라이드 + 큰 폰트 + 적은 요소 → title."""
-        textboxes = [PptxTextBox(
-            left_px=200, top_px=260, width_px=880, height_px=80,
-            paragraphs=[PptxParagraph(runs=[
-                PptxTextRun(text="Title", font_size_pt=40, bold=True),
-            ])],
-        )]
+        textboxes = [
+            PptxTextBox(
+                left_px=200,
+                top_px=260,
+                width_px=880,
+                height_px=80,
+                paragraphs=[
+                    PptxParagraph(
+                        runs=[
+                            PptxTextRun(text="Title", font_size_pt=40, bold=True),
+                        ]
+                    )
+                ],
+            )
+        ]
         result = SlideReader._infer_slide_type(0, 5, textboxes, [])
         assert result == "title"
 
     def test_infer_slide_type_closing(self):
         """마지막 슬라이드 + closing 키워드 → closing."""
-        textboxes = [PptxTextBox(
-            left_px=200, top_px=260, width_px=880, height_px=80,
-            paragraphs=[PptxParagraph(runs=[
-                PptxTextRun(text="감사합니다"),
-            ])],
-        )]
+        textboxes = [
+            PptxTextBox(
+                left_px=200,
+                top_px=260,
+                width_px=880,
+                height_px=80,
+                paragraphs=[
+                    PptxParagraph(
+                        runs=[
+                            PptxTextRun(text="감사합니다"),
+                        ]
+                    )
+                ],
+            )
+        ]
         result = SlideReader._infer_slide_type(4, 5, textboxes, [])
         assert result == "closing"
 
     def test_infer_slide_type_content(self):
         """중간 슬라이드 → content."""
-        textboxes = [PptxTextBox(
-            left_px=64, top_px=72, width_px=1152, height_px=500,
-            paragraphs=[PptxParagraph(runs=[
-                PptxTextRun(text="Some content", font_size_pt=16),
-            ])],
-        )]
+        textboxes = [
+            PptxTextBox(
+                left_px=64,
+                top_px=72,
+                width_px=1152,
+                height_px=500,
+                paragraphs=[
+                    PptxParagraph(
+                        runs=[
+                            PptxTextRun(text="Some content", font_size_pt=16),
+                        ]
+                    )
+                ],
+            )
+        ]
         result = SlideReader._infer_slide_type(2, 5, textboxes, [])
         assert result == "content"
 
@@ -364,7 +493,12 @@ class TestSpecialElements:
 
         rows, cols = 2, 3
         table_shape = slide.shapes.add_table(
-            rows, cols, Inches(1), Inches(1), Inches(6), Inches(2),
+            rows,
+            cols,
+            Inches(1),
+            Inches(1),
+            Inches(6),
+            Inches(2),
         )
         table = table_shape.table
         table.cell(0, 0).text = "A1"
@@ -390,18 +524,35 @@ class TestSpecialElements:
 
     def test_vertical_alignment_middle(self, export_service, import_service, tmp_path):
         """vertical_alignment=middle이 보존되는지 검증."""
-        spec = DesignSpec(slides=[PptxSlideSpec(
-            background_color="#000000",
-            shapes=[PptxShape(
-                left_px=100, top_px=100, width_px=400, height_px=200,
-                shape_type="rectangle",
-                fill_color="#333333",
-                paragraphs=[PptxParagraph(runs=[
-                    PptxTextRun(text="중앙 정렬", font_size_pt=20, color="#FFFFFF"),
-                ])],
-                vertical_alignment="middle",
-            )],
-        )])
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    background_color="#000000",
+                    shapes=[
+                        PptxShape(
+                            left_px=100,
+                            top_px=100,
+                            width_px=400,
+                            height_px=200,
+                            shape_type="rectangle",
+                            fill_color="#333333",
+                            paragraphs=[
+                                PptxParagraph(
+                                    runs=[
+                                        PptxTextRun(
+                                            text="중앙 정렬",
+                                            font_size_pt=20,
+                                            color="#FFFFFF",
+                                        ),
+                                    ]
+                                )
+                            ],
+                            vertical_alignment="middle",
+                        )
+                    ],
+                )
+            ]
+        )
         response = export_service.export_from_design_spec(spec, output_dir=tmp_path)
         imported, _ = import_service.import_from_file(response.pptx_path)
 
@@ -410,15 +561,28 @@ class TestSpecialElements:
 
     def test_paragraph_alignment_center(self, export_service, import_service, tmp_path):
         """paragraph alignment=center가 보존되는지 검증."""
-        spec = DesignSpec(slides=[PptxSlideSpec(
-            textboxes=[PptxTextBox(
-                left_px=100, top_px=100, width_px=400, height_px=100,
-                paragraphs=[PptxParagraph(
-                    runs=[PptxTextRun(text="가운데 정렬", font_size_pt=20)],
-                    alignment="center",
-                )],
-            )],
-        )])
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    textboxes=[
+                        PptxTextBox(
+                            left_px=100,
+                            top_px=100,
+                            width_px=400,
+                            height_px=100,
+                            paragraphs=[
+                                PptxParagraph(
+                                    runs=[
+                                        PptxTextRun(text="가운데 정렬", font_size_pt=20)
+                                    ],
+                                    alignment="center",
+                                )
+                            ],
+                        )
+                    ],
+                )
+            ]
+        )
         response = export_service.export_from_design_spec(spec, output_dir=tmp_path)
         imported, _ = import_service.import_from_file(response.pptx_path)
 
@@ -427,16 +591,25 @@ class TestSpecialElements:
 
     def test_dash_style_preserved(self, export_service, import_service, tmp_path):
         """dash_style이 보존되는지 검증."""
-        spec = DesignSpec(slides=[PptxSlideSpec(
-            shapes=[PptxShape(
-                left_px=100, top_px=300, width_px=400, height_px=0,
-                shape_type="line",
-                border_color="#FF0000",
-                border_width_pt=2,
-                dash_style="dash",
-                end_arrow=True,
-            )],
-        )])
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    shapes=[
+                        PptxShape(
+                            left_px=100,
+                            top_px=300,
+                            width_px=400,
+                            height_px=0,
+                            shape_type="line",
+                            border_color="#FF0000",
+                            border_width_pt=2,
+                            dash_style="dash",
+                            end_arrow=True,
+                        )
+                    ],
+                )
+            ]
+        )
         response = export_service.export_from_design_spec(spec, output_dir=tmp_path)
         imported, _ = import_service.import_from_file(response.pptx_path)
 
@@ -446,14 +619,29 @@ class TestSpecialElements:
 
     def test_italic_preserved(self, export_service, import_service, tmp_path):
         """italic 속성이 보존되는지 검증."""
-        spec = DesignSpec(slides=[PptxSlideSpec(
-            textboxes=[PptxTextBox(
-                left_px=100, top_px=100, width_px=400, height_px=100,
-                paragraphs=[PptxParagraph(runs=[
-                    PptxTextRun(text="이탤릭", font_size_pt=18, italic=True),
-                ])],
-            )],
-        )])
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    textboxes=[
+                        PptxTextBox(
+                            left_px=100,
+                            top_px=100,
+                            width_px=400,
+                            height_px=100,
+                            paragraphs=[
+                                PptxParagraph(
+                                    runs=[
+                                        PptxTextRun(
+                                            text="이탤릭", font_size_pt=18, italic=True
+                                        ),
+                                    ]
+                                )
+                            ],
+                        )
+                    ],
+                )
+            ]
+        )
         response = export_service.export_from_design_spec(spec, output_dir=tmp_path)
         imported, _ = import_service.import_from_file(response.pptx_path)
 
@@ -468,23 +656,48 @@ class TestNewShapeTypes:
     """새로 추가된 도형 타입의 Export → Import 라운드트립 검증."""
 
     _SHAPE_TYPES_WITH_FILL = [
-        "up_arrow", "down_arrow", "left_arrow", "right_arrow", "chevron",
-        "triangle", "diamond", "pentagon", "hexagon", "trapezoid",
-        "parallelogram", "cross", "star_4", "star_5", "heart",
-        "flowchart_process", "flowchart_decision", "flowchart_terminator",
+        "up_arrow",
+        "down_arrow",
+        "left_arrow",
+        "right_arrow",
+        "chevron",
+        "triangle",
+        "diamond",
+        "pentagon",
+        "hexagon",
+        "trapezoid",
+        "parallelogram",
+        "cross",
+        "star_4",
+        "star_5",
+        "heart",
+        "flowchart_process",
+        "flowchart_decision",
+        "flowchart_terminator",
     ]
 
     @pytest.mark.parametrize("shape_type", _SHAPE_TYPES_WITH_FILL)
-    def test_shape_type_round_trip(self, export_service, import_service, tmp_path, shape_type):
+    def test_shape_type_round_trip(
+        self, export_service, import_service, tmp_path, shape_type
+    ):
         """각 도형 타입이 Export → Import 후 shape_type 이 보존되는지 검증."""
-        spec = DesignSpec(slides=[PptxSlideSpec(
-            background_color="#000000",
-            shapes=[PptxShape(
-                left_px=100, top_px=100, width_px=200, height_px=200,
-                shape_type=shape_type,
-                fill_color="#4472C4",
-            )],
-        )])
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    background_color="#000000",
+                    shapes=[
+                        PptxShape(
+                            left_px=100,
+                            top_px=100,
+                            width_px=200,
+                            height_px=200,
+                            shape_type=shape_type,
+                            fill_color="#4472C4",
+                        )
+                    ],
+                )
+            ]
+        )
         response = export_service.export_from_design_spec(spec, output_dir=tmp_path)
         imported, _ = import_service.import_from_file(response.pptx_path)
 
@@ -495,18 +708,27 @@ class TestNewShapeTypes:
 
     def test_arrow_with_text(self, export_service, import_service, tmp_path):
         """화살표 도형 내부에 텍스트가 보존되는지 검증."""
-        spec = DesignSpec(slides=[PptxSlideSpec(
-            background_color="#000000",
-            shapes=[PptxShape(
-                left_px=100, top_px=100, width_px=200, height_px=300,
-                shape_type="up_arrow",
-                fill_color="#FF6600",
-                text="UP",
-                text_color="#FFFFFF",
-                text_size_pt=16,
-                text_bold=True,
-            )],
-        )])
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    background_color="#000000",
+                    shapes=[
+                        PptxShape(
+                            left_px=100,
+                            top_px=100,
+                            width_px=200,
+                            height_px=300,
+                            shape_type="up_arrow",
+                            fill_color="#FF6600",
+                            text="UP",
+                            text_color="#FFFFFF",
+                            text_size_pt=16,
+                            text_bold=True,
+                        )
+                    ],
+                )
+            ]
+        )
         response = export_service.export_from_design_spec(spec, output_dir=tmp_path)
         imported, _ = import_service.import_from_file(response.pptx_path)
 
@@ -524,8 +746,8 @@ class TestPlaceholderFormatInheritance:
 
     def test_placeholder_title_inherits_layout_font_size(self, tmp_path):
         """layout defRPr에 sz=4800 설정 → 임포트 시 48pt로 추출."""
-        from pptx.oxml.ns import qn as _qn
         from lxml.etree import SubElement
+        from pptx.oxml.ns import qn as _qn
 
         prs = Presentation()
         prs.slide_width = 12_192_000
@@ -568,7 +790,9 @@ class TestPlaceholderFormatInheritance:
             for p in tb.paragraphs:
                 for r in p.runs:
                     if "Layout Inherited Title" in r.text:
-                        assert r.font_size_pt == 48, f"Expected 48pt, got {r.font_size_pt}"
+                        assert r.font_size_pt == 48, (
+                            f"Expected 48pt, got {r.font_size_pt}"
+                        )
                         found = True
         assert found, "제목 텍스트를 찾을 수 없습니다"
 
@@ -599,14 +823,16 @@ class TestPlaceholderFormatInheritance:
             for p in tb.paragraphs:
                 for r in p.runs:
                     if "Master Inherited Title" in r.text:
-                        assert r.font_size_pt == 44, f"Expected 44pt, got {r.font_size_pt}"
+                        assert r.font_size_pt == 44, (
+                            f"Expected 44pt, got {r.font_size_pt}"
+                        )
                         found = True
         assert found, "제목 텍스트를 찾을 수 없습니다"
 
     def test_placeholder_color_inherits_from_layout_scheme(self, tmp_path):
         """layout defRPr에 srgbClr 설정 → 임포트 시 해당 색상 추출."""
-        from pptx.oxml.ns import qn as _qn
         from lxml.etree import SubElement
+        from pptx.oxml.ns import qn as _qn
 
         prs = Presentation()
         prs.slide_width = 12_192_000
@@ -682,13 +908,17 @@ class TestPlaceholderFormatInheritance:
             for p in tb.paragraphs:
                 for r in p.runs:
                     if "Direct Size" in r.text:
-                        assert r.font_size_pt == 24, f"Expected 24pt, got {r.font_size_pt}"
+                        assert r.font_size_pt == 24, (
+                            f"Expected 24pt, got {r.font_size_pt}"
+                        )
                         found = True
         assert found, "텍스트를 찾을 수 없습니다"
 
     def test_theme_color_map_extraction(self, tmp_path):
         """테마 색상 맵이 올바르게 추출되는지 검증."""
-        from ppt_generator.tools.pptx_import.slide_reader import _extract_theme_color_map
+        from ppt_generator.tools.pptx_import.slide_reader import (
+            _extract_theme_color_map,
+        )
 
         prs = Presentation()
         color_map = _extract_theme_color_map(prs)
@@ -709,14 +939,25 @@ class TestImageSrcSerialization:
 
     def test_image_src_serialized_in_json(self):
         """PptxImage.src가 JSON 직렬화에 포함되는지 검증."""
-        spec = DesignSpec(slides=[PptxSlideSpec(
-            images=[PptxImage(
-                left_px=100, top_px=200, width_px=300, height_px=400,
-                image_bytes=b"\x89PNG", src="images/slide_01_img_01.png",
-            )],
-        )])
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    images=[
+                        PptxImage(
+                            left_px=100,
+                            top_px=200,
+                            width_px=300,
+                            height_px=400,
+                            image_bytes=b"\x89PNG",
+                            src="images/slide_01_img_01.png",
+                        )
+                    ],
+                )
+            ]
+        )
         json_str = design_spec_to_json(spec)
         import json
+
         data = json.loads(json_str)
         img_data = data["slides"][0]["images"][0]
         assert img_data["src"] == "images/slide_01_img_01.png"
@@ -724,12 +965,21 @@ class TestImageSrcSerialization:
 
     def test_image_src_parsed_from_json(self):
         """JSON에서 PptxImage.src가 역직렬화되는지 검증."""
-        spec = DesignSpec(slides=[PptxSlideSpec(
-            images=[PptxImage(
-                left_px=100, top_px=200, width_px=300, height_px=400,
-                src="images/slide_01_img_01.png",
-            )],
-        )])
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    images=[
+                        PptxImage(
+                            left_px=100,
+                            top_px=200,
+                            width_px=300,
+                            height_px=400,
+                            src="images/slide_01_img_01.png",
+                        )
+                    ],
+                )
+            ]
+        )
         json_str = design_spec_to_json(spec)
         parsed = parse_design_spec_json(json_str)
         assert len(parsed.slides[0].images) == 1
@@ -751,12 +1001,21 @@ class TestImageSrcSerialization:
         (images_dir / "slide_01_img_01.png").write_bytes(png_bytes)
 
         # src가 포함된 design spec 저장
-        spec = DesignSpec(slides=[PptxSlideSpec(
-            images=[PptxImage(
-                left_px=10, top_px=20, width_px=300, height_px=200,
-                src="images/slide_01_img_01.png",
-            )],
-        )])
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    images=[
+                        PptxImage(
+                            left_px=10,
+                            top_px=20,
+                            width_px=300,
+                            height_px=200,
+                            src="images/slide_01_img_01.png",
+                        )
+                    ],
+                )
+            ]
+        )
         project_service.save_design_spec(project_dir, spec)
 
         # image_bytes 복원 검증

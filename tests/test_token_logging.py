@@ -10,8 +10,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from ppt_generator.interfaces.utils import estimate_cost, format_token_usage, log_token_usage
-
+from ppt_generator.interfaces.utils import (
+    estimate_cost,
+    format_token_usage,
+    log_token_usage,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -74,7 +77,9 @@ class TestLogTokenUsage:
         assert "cache_read=3,000" in msg
         assert "cache_write=500" in msg
 
-    def test_includes_cache_tokens_when_zero(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_includes_cache_tokens_when_zero(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         result = _make_agent_result(SAMPLE_USAGE)
         with caplog.at_level(logging.INFO, logger="ppt_generator.interfaces.utils"):
             log_token_usage(result, "test")
@@ -173,7 +178,9 @@ class TestEstimateCost:
 
 
 class TestOutlineServiceTokenLogging:
-    def test_logs_tokens_on_successful_generate(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_logs_tokens_on_successful_generate(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         from ppt_generator.interfaces.schemas import OutlineRequest
         from ppt_generator.tools.outline.service import OutlineService
 
@@ -213,7 +220,9 @@ class TestOutlineServiceTokenLogging:
         service.generate(OutlineRequest(topic="AI", num_slides=1))
         assert service.last_token_usage["inputTokens"] == 5000
 
-    def test_no_token_log_on_plain_string_result(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_no_token_log_on_plain_string_result(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """Agent가 plain string을 반환해도 예외 없이 동작한다 (legacy 호환)."""
         from ppt_generator.interfaces.schemas import OutlineRequest
         from ppt_generator.tools.outline.service import OutlineService
@@ -236,8 +245,14 @@ class TestOutlineServiceTokenLogging:
 
 
 class TestScriptServiceTokenLogging:
-    def test_logs_tokens_on_successful_generate(self, caplog: pytest.LogCaptureFixture) -> None:
-        from ppt_generator.interfaces.schemas import OutlineResponse, ScriptRequest, SlideOutline
+    def test_logs_tokens_on_successful_generate(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        from ppt_generator.interfaces.schemas import (
+            OutlineResponse,
+            ScriptRequest,
+            SlideOutline,
+        )
         from ppt_generator.tools.script.service import ScriptService
 
         valid_json = json.dumps(
@@ -264,7 +279,11 @@ class TestScriptServiceTokenLogging:
         assert "input=5,000" in token_logs[0].message
 
     def test_last_token_usage_populated(self) -> None:
-        from ppt_generator.interfaces.schemas import OutlineResponse, ScriptRequest, SlideOutline
+        from ppt_generator.interfaces.schemas import (
+            OutlineResponse,
+            ScriptRequest,
+            SlideOutline,
+        )
         from ppt_generator.tools.script.service import ScriptService
 
         valid_json = json.dumps(
@@ -277,7 +296,9 @@ class TestScriptServiceTokenLogging:
         service = ScriptService(agent=agent)
 
         assert service.last_token_usage == {}
-        outline = OutlineResponse(slides=[SlideOutline(title="테스트", content_summary="내용")])
+        outline = OutlineResponse(
+            slides=[SlideOutline(title="테스트", content_summary="내용")]
+        )
         service.generate(ScriptRequest(outline=outline))
         assert service.last_token_usage["inputTokens"] == 5000
 
@@ -288,7 +309,9 @@ class TestScriptServiceTokenLogging:
 
 
 class TestDesignServiceTokenLogging:
-    def test_logs_tokens_on_design_summary(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_logs_tokens_on_design_summary(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         from ppt_generator.interfaces.schemas import OutlineResponse, SlideOutline
         from ppt_generator.tools.design.service import DesignService
 
@@ -314,7 +337,9 @@ class TestDesignServiceTokenLogging:
         assert len(token_logs) == 1
         assert "design_summary" in token_logs[0].message
 
-    def test_logs_tokens_on_structured_output(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_logs_tokens_on_structured_output(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         from ppt_generator.interfaces.llm_output_models import SlideSpecOutput
         from ppt_generator.interfaces.schemas import SlideOutline
         from ppt_generator.tools.design.service import DesignService
@@ -379,6 +404,7 @@ class TestDesignControllerTokenAggregation:
     @staticmethod
     def _run(coro):
         import asyncio
+
         return asyncio.run(coro)
 
     def _setup(self, tmp_path, monkeypatch) -> tuple[dict, str]:
@@ -398,7 +424,10 @@ class TestDesignControllerTokenAggregation:
         proj_dir = tmp_path / "token-test-proj"
         proj_dir.mkdir()
         (proj_dir / "project.json").write_text(
-            json.dumps({"topic": "", "num_slides": 0, "steps_completed": {}}, ensure_ascii=False),
+            json.dumps(
+                {"topic": "", "num_slides": 0, "steps_completed": {}},
+                ensure_ascii=False,
+            ),
             encoding="utf-8",
         )
 
@@ -406,18 +435,33 @@ class TestDesignControllerTokenAggregation:
             background_color="#1a1a2e",
             textboxes=[
                 PptxTextBox(
-                    left_px=40, top_px=40, width_px=600, height_px=60,
-                    paragraphs=[PptxParagraph(runs=[PptxTextRun(text="테스트", font_size_pt=32, bold=True)])],
+                    left_px=40,
+                    top_px=40,
+                    width_px=600,
+                    height_px=60,
+                    paragraphs=[
+                        PptxParagraph(
+                            runs=[
+                                PptxTextRun(text="테스트", font_size_pt=32, bold=True)
+                            ]
+                        )
+                    ],
                 ),
             ],
-            shapes=[], images=[], speaker_notes="",
+            shapes=[],
+            images=[],
+            speaker_notes="",
         )
 
         design_service = MagicMock()
         design_service.generate_single_slide.return_value = spec
         design_service.generate_design_summary.return_value = {
-            "background_color": "#1a1a2e", "text_colors": ["#ffffff"],
-            "title_font_pt": 32, "body_font_pt": 18, "card_fills": [], "card_borders": [],
+            "background_color": "#1a1a2e",
+            "text_colors": ["#ffffff"],
+            "title_font_pt": 32,
+            "body_font_pt": 18,
+            "card_fills": [],
+            "card_borders": [],
         }
         design_service.last_token_usage = {
             "inputTokens": 10000,
@@ -432,59 +476,92 @@ class TestDesignControllerTokenAggregation:
             def decorator(func):
                 tools[func.__name__] = func
                 return func
+
             return decorator
 
         mcp.tool = tool_decorator
         project_service = ProjectService()
 
-        register_design_tools(mcp, project_service, design_service_factory=lambda effort, slide_type="content": design_service)
+        register_design_tools(
+            mcp,
+            project_service,
+            design_service_factory=lambda effort, slide_type="content": design_service,
+        )
         return tools, "token-test-proj"
 
     def test_logs_aggregated_tokens(self, tmp_path, monkeypatch, caplog) -> None:
         tools, project_id = self._setup(tmp_path, monkeypatch)
 
         outline_3 = json.dumps(
-            {"slides": [
-                {"title": f"슬라이드 {i+1}", "content_summary": f"내용 {i+1}", "component_hint": "bullets", "speaker_notes": ""}
-                for i in range(3)
-            ]},
+            {
+                "slides": [
+                    {
+                        "title": f"슬라이드 {i + 1}",
+                        "content_summary": f"내용 {i + 1}",
+                        "component_hint": "bullets",
+                        "speaker_notes": "",
+                    }
+                    for i in range(3)
+                ]
+            },
             ensure_ascii=False,
         )
 
-        with caplog.at_level(logging.INFO, logger="ppt_generator.tools.design.parallel_runner"):
-            result = json.loads(self._run(tools["generate_slides_design_spec"](
-                outline_json=outline_3,
-                total_slides=3,
-                project_id=project_id,
-            )))
+        with caplog.at_level(
+            logging.INFO, logger="ppt_generator.tools.design.parallel_runner"
+        ):
+            result = json.loads(
+                self._run(
+                    tools["generate_slides_design_spec"](
+                        outline_json=outline_3,
+                        total_slides=3,
+                        project_id=project_id,
+                    )
+                )
+            )
 
         assert result["success_count"] == 3
 
         # 합산 토큰 로그 검증
-        agg_logs = [r for r in caplog.records if "[tokens] design_spec 합산" in r.message]
+        agg_logs = [
+            r for r in caplog.records if "[tokens] design_spec 합산" in r.message
+        ]
         assert len(agg_logs) == 1
         msg = agg_logs[0].message
         assert "input=30,000" in msg
         assert "output=9,000" in msg
         assert "total=39,000" in msg
 
-    def test_response_includes_token_usage_and_cost(self, tmp_path, monkeypatch) -> None:
+    def test_response_includes_token_usage_and_cost(
+        self, tmp_path, monkeypatch
+    ) -> None:
         """응답 JSON에 token_usage와 estimated_cost가 포함된다."""
         tools, project_id = self._setup(tmp_path, monkeypatch)
 
         outline_3 = json.dumps(
-            {"slides": [
-                {"title": f"슬라이드 {i+1}", "content_summary": f"내용 {i+1}", "component_hint": "bullets", "speaker_notes": ""}
-                for i in range(3)
-            ]},
+            {
+                "slides": [
+                    {
+                        "title": f"슬라이드 {i + 1}",
+                        "content_summary": f"내용 {i + 1}",
+                        "component_hint": "bullets",
+                        "speaker_notes": "",
+                    }
+                    for i in range(3)
+                ]
+            },
             ensure_ascii=False,
         )
 
-        result = json.loads(self._run(tools["generate_slides_design_spec"](
-            outline_json=outline_3,
-            total_slides=3,
-            project_id=project_id,
-        )))
+        result = json.loads(
+            self._run(
+                tools["generate_slides_design_spec"](
+                    outline_json=outline_3,
+                    total_slides=3,
+                    project_id=project_id,
+                )
+            )
+        )
 
         # token_usage 검증
         assert "token_usage" in result
@@ -500,7 +577,9 @@ class TestDesignControllerTokenAggregation:
         assert ec["output_cost"] > 0
         assert ec["total_cost"] > 0
 
-    def test_aggregation_handles_missing_usage(self, tmp_path, monkeypatch, caplog) -> None:
+    def test_aggregation_handles_missing_usage(
+        self, tmp_path, monkeypatch, caplog
+    ) -> None:
         """last_token_usage가 빈 dict인 서비스에서도 합산이 0으로 정상 동작."""
         import ppt_generator.tools.project.service as svc_module
         from ppt_generator.interfaces.schemas import (
@@ -517,24 +596,42 @@ class TestDesignControllerTokenAggregation:
         proj_dir = tmp_path / "no-usage-proj"
         proj_dir.mkdir()
         (proj_dir / "project.json").write_text(
-            json.dumps({"topic": "", "num_slides": 0, "steps_completed": {}}, ensure_ascii=False),
+            json.dumps(
+                {"topic": "", "num_slides": 0, "steps_completed": {}},
+                ensure_ascii=False,
+            ),
             encoding="utf-8",
         )
 
         spec = PptxSlideSpec(
             background_color="#1a1a2e",
-            textboxes=[PptxTextBox(
-                left_px=40, top_px=40, width_px=600, height_px=60,
-                paragraphs=[PptxParagraph(runs=[PptxTextRun(text="t", font_size_pt=32, bold=True)])],
-            )],
-            shapes=[], images=[], speaker_notes="",
+            textboxes=[
+                PptxTextBox(
+                    left_px=40,
+                    top_px=40,
+                    width_px=600,
+                    height_px=60,
+                    paragraphs=[
+                        PptxParagraph(
+                            runs=[PptxTextRun(text="t", font_size_pt=32, bold=True)]
+                        )
+                    ],
+                )
+            ],
+            shapes=[],
+            images=[],
+            speaker_notes="",
         )
 
         design_service = MagicMock()
         design_service.generate_single_slide.return_value = spec
         design_service.generate_design_summary.return_value = {
-            "background_color": "#1a1a2e", "text_colors": ["#ffffff"],
-            "title_font_pt": 32, "body_font_pt": 18, "card_fills": [], "card_borders": [],
+            "background_color": "#1a1a2e",
+            "text_colors": ["#ffffff"],
+            "title_font_pt": 32,
+            "body_font_pt": 18,
+            "card_fills": [],
+            "card_borders": [],
         }
         # last_token_usage가 빈 dict
         design_service.last_token_usage = {}
@@ -546,30 +643,50 @@ class TestDesignControllerTokenAggregation:
             def decorator(func):
                 tools[func.__name__] = func
                 return func
+
             return decorator
 
         mcp.tool = tool_decorator
         project_service = ProjectService()
-        register_design_tools(mcp, project_service, design_service_factory=lambda effort, slide_type="content": design_service)
+        register_design_tools(
+            mcp,
+            project_service,
+            design_service_factory=lambda effort, slide_type="content": design_service,
+        )
 
         outline_2 = json.dumps(
-            {"slides": [
-                {"title": f"S{i+1}", "content_summary": f"C{i+1}", "component_hint": "bullets", "speaker_notes": ""}
-                for i in range(2)
-            ]},
+            {
+                "slides": [
+                    {
+                        "title": f"S{i + 1}",
+                        "content_summary": f"C{i + 1}",
+                        "component_hint": "bullets",
+                        "speaker_notes": "",
+                    }
+                    for i in range(2)
+                ]
+            },
             ensure_ascii=False,
         )
 
-        with caplog.at_level(logging.INFO, logger="ppt_generator.tools.design.parallel_runner"):
-            result = json.loads(self._run(tools["generate_slides_design_spec"](
-                outline_json=outline_2,
-                total_slides=2,
-                project_id="no-usage-proj",
-            )))
+        with caplog.at_level(
+            logging.INFO, logger="ppt_generator.tools.design.parallel_runner"
+        ):
+            result = json.loads(
+                self._run(
+                    tools["generate_slides_design_spec"](
+                        outline_json=outline_2,
+                        total_slides=2,
+                        project_id="no-usage-proj",
+                    )
+                )
+            )
 
         assert result["success_count"] == 2
 
-        agg_logs = [r for r in caplog.records if "[tokens] design_spec 합산" in r.message]
+        agg_logs = [
+            r for r in caplog.records if "[tokens] design_spec 합산" in r.message
+        ]
         assert len(agg_logs) == 1
         assert "input=0" in agg_logs[0].message
         assert "output=0" in agg_logs[0].message
