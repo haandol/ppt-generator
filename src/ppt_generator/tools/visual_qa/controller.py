@@ -38,7 +38,10 @@ def register_visual_qa_tools(
         (word breaks, text truncation, overlap, overflow, contrast, misalignment)
         and automatically fixes the design spec.
 
-        **Requires:** `uv sync --group visual-qa && playwright install chromium`
+        **Requires one of:**
+        - Playwright: `uv sync --group visual-qa && playwright install chromium`
+        - Chrome DevTools MCP: If Playwright is not available, you can use Chrome DevTools MCP's
+          `take_screenshot` tool to capture screenshots manually, then review them with the user.
 
         Args:
             project_id: Target project ID (required)

@@ -13,6 +13,7 @@ Color theme: {color_theme}
 {design_summary}
 </design_summary>
 {adjacent_context}
+{reference_specs}
 <input>
 {outline_json}
 </input>

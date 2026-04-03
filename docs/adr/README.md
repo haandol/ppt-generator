@@ -42,6 +42,8 @@ adr/
 - [0028: 개별 파일 기반 outline/script 저장 및 save_outline_slide 도구](./pipeline/0028-modify-design-spec-inline-outline.md)
 - [0029: 텍스트 런 하이퍼링크 지원](./pipeline/0029-text-run-hyperlink-support.md)
 - [0033: Design Spec Post-Generation LLM Review](./pipeline/0033-design-spec-post-generation-review.md)
+- [0034: 슬라이드 추가 시 기존 디자인 스펙 참조를 통한 일관성 향상](./pipeline/0034-add-slide-design-consistency.md)
+- [0035: Visual QA 브라우저 도구 안내 개선](./pipeline/0035-visual-qa-browser-tool-fallback.md)
 
 ## ADR 작성 가이드
 

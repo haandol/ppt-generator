@@ -26,6 +26,7 @@ from ppt_generator.interfaces.schemas import (
     SlideOutline,
 )
 from ppt_generator.interfaces.spec_utils import validate_slide_spec
+from ppt_generator.interfaces.spec_utils.serializer import slide_spec_to_json
 from ppt_generator.interfaces.utils import log_token_usage
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ class DesignService:
         prev_outline: SlideOutline | None = None,
         next_outline: SlideOutline | None = None,
         review_feedback: str = "",
+        reference_specs: list[PptxSlideSpec] | None = None,
     ) -> PptxSlideSpec:
         """Generates the design spec for a single slide.
 
@@ -66,6 +68,7 @@ class DesignService:
         outline_json = self._outline_to_json(slide_outline)
         adjacent_context = self._adjacent_context_section(prev_outline, next_outline)
         slide_type_instruction = self._slide_type_instruction(slide_outline.slide_type)
+        reference_specs_section = self._reference_specs_section(reference_specs)
 
         if design_summary:
             summary_text = json.dumps(design_summary, ensure_ascii=False, indent=2)
@@ -77,6 +80,7 @@ class DesignService:
                 color_theme=color_theme,
                 adjacent_context=adjacent_context,
                 slide_type_instruction=slide_type_instruction,
+                reference_specs=reference_specs_section,
             )
         else:
             prompt = DESIGN_SPEC_USER_PROMPT_TEMPLATE.format(
@@ -267,6 +271,30 @@ class DesignService:
             )
             parts.append(f"<next_slide>\n{next_json}\n</next_slide>")
         parts.append("</adjacent_slides>")
+        return "\n".join(parts)
+
+    @staticmethod
+    def _reference_specs_section(
+        reference_specs: list[PptxSlideSpec] | None,
+    ) -> str:
+        """Generates a prompt section with reference design spec JSONs.
+
+        Strips speaker_notes and images to save tokens.
+        Returns empty string if reference_specs is None or empty.
+        """
+        if not reference_specs:
+            return ""
+
+        parts: list[str] = [
+            "<reference_specs>",
+            "The following are existing slide design specs for reference. "
+            "Match the coordinate system, font sizes, padding, spacing, "
+            "and color patterns used in these specs.",
+        ]
+        for i, spec in enumerate(reference_specs):
+            spec_json = slide_spec_to_json(replace(spec, speaker_notes="", images=[]))
+            parts.append(f"<spec_{i + 1}>\n{spec_json}\n</spec_{i + 1}>")
+        parts.append("</reference_specs>")
         return "\n".join(parts)
 
     @staticmethod

@@ -25,8 +25,10 @@ def capture_screenshots(
         from playwright.sync_api import sync_playwright
     except ImportError:
         raise RuntimeError(
-            "Playwright가 설치되지 않았습니다. "
-            "설치: uv sync --group visual-qa && playwright install chromium"
+            "Playwright가 설치되지 않았습니다.\n"
+            "설치: uv sync --group visual-qa && playwright install chromium\n\n"
+            "또는 Chrome DevTools MCP의 take_screenshot 도구를 사용하여 "
+            "수동으로 스크린샷을 캡처할 수도 있습니다."
         )
 
     screenshots_dir = project_dir / "screenshots"
