@@ -105,6 +105,7 @@ def handle_review(
                 new_spec = replace(new_spec, **restore)
 
             project_service.save_design_spec_slide(project_dir, idx, new_spec)
+            project_service.renumber_design_spec_image_srcs(project_dir)
             if deps.slides_service is not None:
                 html = deps.slides_service.render_single_slide_html(
                     idx,

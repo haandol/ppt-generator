@@ -330,6 +330,7 @@ def _update_slide(
         new_spec = replace(new_spec, images=existing_spec.images)
 
     project_service.save_design_spec_slide(project_dir, idx, new_spec)
+    project_service.renumber_design_spec_image_srcs(project_dir)
 
     slide_html_path: str | None = None
     if deps.slides_service is not None:

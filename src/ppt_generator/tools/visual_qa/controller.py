@@ -97,6 +97,10 @@ def register_visual_qa_tools(
             report_progress=_report_progress,
         )
 
+        # 이미지 src prefix 교정
+        if result.slides_fixed > 0:
+            project_service.renumber_design_spec_image_srcs(project_dir)
+
         # Rebuild container HTML if any slides were fixed
         if result.slides_fixed > 0:
             new_count = project_service.get_design_spec_slide_count(project_dir)
