@@ -43,6 +43,17 @@ Do NOT suggest improvements, redesigns, or content changes — only flag rule vi
    - Container-child nesting is allowed (small shapes inside a large background shape)
    - Line/arrow shapes may overlap block shapes
    - Severity: "high"
+
+8. **peer_font_consistency** — Peer element font size consistency:
+   - Identify shapes arranged in the same row (same top_px, within 2px tolerance)
+   - For each group of peer shapes, compare paragraphs index by index: paragraph[i].runs[j].font_size_pt must be identical across all peer shapes
+   - Example: 3 cards in a row — card A title is 20pt, card B title is 17pt, card C title is 20pt → violation (card B differs)
+   - Severity: "high" if difference > 4pt, "medium" if difference > 0pt
+
+9. **peer_padding_consistency** — Peer element padding consistency:
+   - For shapes arranged in the same row (same top_px, within 2px tolerance), compare padding_left_px, padding_right_px, padding_top_px, padding_bottom_px
+   - All peer shapes must use identical padding values
+   - Severity: "medium"
 </review_checklist>
 
 <output_instructions>

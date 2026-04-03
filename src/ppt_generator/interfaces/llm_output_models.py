@@ -109,6 +109,7 @@ class VisualQAIssue(BaseModel):
         "content_too_sparse",
         "content_too_dense",
         "unbalanced_spacing",
+        "inconsistent_padding",
     ]
     severity: Literal["high", "medium", "low"]
     element_type: Literal["textbox", "shape"]

@@ -5,6 +5,8 @@ Line, Custom SVG, AutoShape 등 도형 유형별 HTML 렌더링을 담당한다.
 
 from __future__ import annotations
 
+import os
+
 from ppt_generator.interfaces.constants import (
     PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU,
     PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU,
@@ -152,10 +154,51 @@ def _custom_svg_shape_to_html(shape: PptxShape) -> str:
     return svg
 
 
+_IMAGE_EXTENSIONS = frozenset(
+    (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".tiff")
+)
+
+
+def _is_image_path(path: str) -> bool:
+    """svg_path 값이 이미지 파일 경로인지 판별한다."""
+    _, ext = os.path.splitext(path.lower().split("?")[0])
+    return ext in _IMAGE_EXTENSIONS
+
+
+def _image_shape_to_html(shape: PptxShape) -> str:
+    """이미지 경로를 가진 shape -> position:absolute <div><img></div> 변환."""
+    radius_css = ""
+    if shape.corner_radius_px:
+        radius_css = f"border-radius:{shape.corner_radius_px}px;"
+    bg_css = ""
+    if shape.fill_color:
+        bg_css = f"background-color:{shape.fill_color};"
+    border_css = ""
+    if shape.border_color:
+        bw = shape.border_width_pt or 1
+        border_css = f"border:{bw}pt solid {shape.border_color};"
+    style = (
+        f"position:absolute;"
+        f"left:{shape.left_px}px;top:{shape.top_px}px;"
+        f"width:{shape.width_px}px;height:{shape.height_px}px;"
+        f"{bg_css}{border_css}{radius_css}"
+        f"overflow:hidden;padding:0;box-sizing:border-box;"
+    )
+    img_radius = radius_css
+    return (
+        f'<div style="{style}">'
+        f'<img src="{shape.svg_path}" '
+        f'style="width:100%;height:100%;object-fit:cover;{img_radius}" alt="image" />'
+        f"</div>"
+    )
+
+
 def shape_to_html(shape: PptxShape) -> str:
     """PptxShape -> position:absolute <div> 변환."""
     if shape.shape_type == "line":
         return _line_shape_to_html(shape)
+    if shape.svg_path and _is_image_path(shape.svg_path):
+        return _image_shape_to_html(shape)
     if shape.shape_type == "custom" and shape.svg_path:
         return _custom_svg_shape_to_html(shape)
 

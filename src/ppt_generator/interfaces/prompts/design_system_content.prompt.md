@@ -575,7 +575,9 @@ Use these table values directly for evenly distributing blocks to prevent calcul
 6. **Font size consistency check**: Compare font sizes used for equivalent roles across left and right regions. If one side uses significantly smaller fonts (e.g., 10pt vs 15pt for body text), unify to the larger size.
 7. **Section label width check**: For each section label textbox, verify width_px is sufficient for the text to fit on one line. If not, widen the textbox or shorten the text.
 8. **Stacked card consistency check**: For vertically stacked cards in the same column, verify all cards have the same height_px and all gaps between adjacent cards are equal. If card heights differ or gaps are inconsistent, unify them.
-9. If any violation is found, fix the offending values before output.
+9. **Peer element font size consistency check**: For shapes arranged in the same row (same top_px), compare their paragraphs index by index. Each run at the same position (e.g., all card titles = paragraph[0].runs[0], all card subtitles = paragraph[1].runs[0]) must use the **identical font_size_pt**. If any peer shape has a different font_size_pt for the same-position run, unify to the most common value. This is the most frequent visual inconsistency — always verify.
+10. **Peer element padding consistency check**: For shapes arranged in the same row (same top_px), all shapes must use **identical padding_left_px, padding_right_px, padding_top_px, padding_bottom_px**. If any peer shape has different padding values, unify to the largest value among peers.
+11. If any violation is found, fix the offending values before output.
 
 This verification is critical because coordinate arithmetic errors and font size violations cause visible defects in the rendered slide.
 </pre_output_verification>
