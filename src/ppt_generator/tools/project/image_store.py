@@ -130,6 +130,11 @@ class ImageStore:
             img_path = slides_dir / img.src
             if img_path.exists():
                 return replace(img, image_bytes=img_path.read_bytes())
+            # LLM이 src를 'images/' prefix 없이 생성한 경우 fallback
+            if not img.src.startswith("images/"):
+                fallback_path = slides_dir / "images" / img.src
+                if fallback_path.exists():
+                    return replace(img, image_bytes=fallback_path.read_bytes())
             logger.warning("이미지 파일 없음 (src): %s", img_path)
         if img.image_path:
             if _is_url(img.image_path):

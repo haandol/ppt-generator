@@ -82,6 +82,9 @@ async def handle_generate(
         review_service_factory=deps.review_service_factory,
     )
 
+    # LLM이 src를 'images/' prefix 없이 생성할 수 있으므로 교정
+    project_service.renumber_design_spec_image_srcs(project_dir)
+
     project_service.update_step(project_dir, "design_spec")
     slide_count = project_service.get_design_spec_slide_count(project_dir)
 
