@@ -45,7 +45,8 @@ uv run pytest tests/test_xxx.py::test_func -v    # 특정 테스트
 2. **ADR 작성/수정**: Context, Decision, Technical Details, Acceptance Criteria를 정리하여 사용자에게 제시
 3. **사용자 확인**: ADR 내용에 대해 사용자 승인을 받음 (수정 요청 시 ADR을 먼저 반영)
 4. **코드 구현**: 승인된 ADR을 기반으로 코드 작성
-5. **테스트**: 구현 완료 후 테스트 실행
+5. **테스트 작성**: 변경된 기능에 대한 테스트 코드를 반드시 작성 (상세: [테스트 가이드](docs/harness/testing.md))
+6. **테스트 실행**: `uv run pytest` 전체 통과 확인
 
 이 순서를 지키지 않으면 사용자가 어떤 변경이 일어날지 사전에 파악할 수 없고, 구현 후 방향 수정 시 작업이 낭비됩니다.
 
@@ -68,13 +69,26 @@ uv run pytest tests/test_xxx.py::test_func -v    # 특정 테스트
 
 작업 완료 전 반드시 확인:
 
-1. `uv run pytest` 통과
-2. 관련 ADR이 최신 상태
-3. 기존 도구 시그니처 변경 시 MCP 클라이언트 호환성 확인
+1. 변경한 기능에 대응하는 테스트가 존재하는가?
+2. `uv run pytest` 통과
+3. 관련 ADR이 최신 상태
+4. 기존 도구 시그니처 변경 시 MCP 클라이언트 호환성 확인
+
+## 테스트 필수 규칙
+
+기능 추가 또는 수정 시 **반드시 테스트 코드를 함께 작성**한다.
+
+- 새 함수/모듈 → 해당 기능을 검증하는 테스트 추가
+- 기존 함수 동작 변경 → 변경된 동작을 검증하는 테스트 추가 또는 기존 테스트 수정
+- 버그 수정 → 해당 버그를 재현하는 테스트를 먼저 작성하고, 수정 후 통과 확인
+- 테스트 없이 코드만 커밋하지 않는다
+
+상세 가이드: [`docs/harness/testing.md`](docs/harness/testing.md)
 
 ## 제약 사항
 
 - ADR 없이 주요 기능 추가/변경하지 않음 — ADR-First 워크플로우 필수
+- 테스트 없이 기능 추가/수정하지 않음 — 테스트 필수 규칙 준수
 - `--no-verify`로 git hook을 우회하지 않음
 - 테스트를 삭제하거나 수정하여 통과시키지 않음 — 코드를 고칠 것
 - LLM API 호출 파라미터 변경 시 Anthropic/Bedrock 양쪽 확인 필수
@@ -94,5 +108,6 @@ uv run pytest tests/test_xxx.py::test_func -v    # 특정 테스트
 | 아키텍처              | [`docs/harness/architecture.md`](docs/harness/architecture.md) | 파이프라인, Controller-Service 패턴, 병렬 처리, 토큰 추적, MCP 도구 목록 |
 | 스키마                | [`docs/harness/schemas.md`](docs/harness/schemas.md)     | 도메인 모델, LLM 출력 모델, component_hint 테이블 |
 | 환경변수 & 설정       | [`docs/harness/environment.md`](docs/harness/environment.md) | 환경변수, 사용 모델, MCP 클라이언트 설정 예시   |
+| 테스트                | [`docs/harness/testing.md`](docs/harness/testing.md)         | 테스트 작성 규칙, 패턴, 체크리스트              |
 | ALPS 설계 문서        | [`docs/ppt-generator.alps.md`](docs/ppt-generator.alps.md) | 피쳐 목록, 기능 명세, 인수 기준                 |
 | ADR 인덱스            | [`docs/adr/README.md`](docs/adr/README.md) | 전체 ADR 목록 및 작성 가이드                    |

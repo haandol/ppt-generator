@@ -13,35 +13,12 @@ import pytest
 
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
-    PptxParagraph,
     PptxSlideSpec,
-    PptxTextBox,
-    PptxTextRun,
 )
 from ppt_generator.tools.design.controller import register_design_tools
 from ppt_generator.tools.project.service import ProjectService
 
-
-def _make_slide_spec(title: str = "테스트") -> PptxSlideSpec:
-    return PptxSlideSpec(
-        background_color="#1a1a2e",
-        textboxes=[
-            PptxTextBox(
-                left_px=40,
-                top_px=40,
-                width_px=600,
-                height_px=60,
-                paragraphs=[
-                    PptxParagraph(
-                        runs=[PptxTextRun(text=title, font_size_pt=32, bold=True)]
-                    ),
-                ],
-            ),
-        ],
-        shapes=[],
-        images=[],
-        speaker_notes="",
-    )
+from conftest import make_slide_spec as _make_slide_spec
 
 
 def _register_tools(project_service: ProjectService) -> dict:

@@ -16,42 +16,23 @@ from ppt_generator.interfaces.constants import PROJECT_IMAGES_DIR
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
     PptxImage,
-    PptxParagraph,
     PptxSlideSpec,
-    PptxTextBox,
-    PptxTextRun,
 )
 from ppt_generator.tools.project.html_store import HtmlStore
 from ppt_generator.tools.project.service import ProjectService
 
+from conftest import make_slide_spec
+
 
 def _make_slide_spec(title: str, *, image_src: str = "") -> PptxSlideSpec:
-    images = []
+    images = None
     if image_src:
         images = [
             PptxImage(
                 left_px=100, top_px=100, width_px=500, height_px=300, src=image_src
             )
         ]
-    return PptxSlideSpec(
-        background_color="#1a1a2e",
-        textboxes=[
-            PptxTextBox(
-                left_px=40,
-                top_px=40,
-                width_px=600,
-                height_px=60,
-                paragraphs=[
-                    PptxParagraph(
-                        runs=[PptxTextRun(text=title, font_size_pt=32, bold=True)]
-                    ),
-                ],
-            ),
-        ],
-        shapes=[],
-        images=images,
-        speaker_notes="",
-    )
+    return make_slide_spec(title, images=images)
 
 
 def _setup_project_with_images(

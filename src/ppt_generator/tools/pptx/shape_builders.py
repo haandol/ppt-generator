@@ -158,23 +158,31 @@ def add_auto_shape_from_spec(slide, shape_spec: PptxShape) -> None:
         if shape_spec.line_spacing_pt:
             apply_line_spacing(tf, shape_spec.line_spacing_pt, shape_spec.paragraphs)
 
-        if shape_spec.vertical_alignment:
-            apply_vertical_alignment(tf, shape_spec.vertical_alignment)
+        apply_vertical_alignment(tf, shape_spec.vertical_alignment or "top")
 
     elif shape_spec.text:
         tf = shape.text_frame
         tf.word_wrap = True
         tf.auto_size = MSO_AUTO_SIZE.NONE
 
-        tf.margin_left = Emu(45720)
-        tf.margin_right = Emu(45720)
-        tf.margin_top = Emu(22860)
-        tf.margin_bottom = Emu(22860)
+        if shape_spec.padding_left_px is not None:
+            tf.margin_left = Emu(int(shape_spec.padding_left_px * PX_TO_EMU))
+        else:
+            tf.margin_left = Emu(PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU)
+        if shape_spec.padding_right_px is not None:
+            tf.margin_right = Emu(int(shape_spec.padding_right_px * PX_TO_EMU))
+        else:
+            tf.margin_right = Emu(PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU)
+        if shape_spec.padding_top_px is not None:
+            tf.margin_top = Emu(int(shape_spec.padding_top_px * PX_TO_EMU))
+        else:
+            tf.margin_top = Emu(PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU)
+        if shape_spec.padding_bottom_px is not None:
+            tf.margin_bottom = Emu(int(shape_spec.padding_bottom_px * PX_TO_EMU))
+        else:
+            tf.margin_bottom = Emu(PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU)
 
-        txBody = tf._txBody
-        bodyPr = txBody.find(qn("a:bodyPr"))
-        if bodyPr is not None:
-            bodyPr.set("anchor", "ctr")
+        apply_vertical_alignment(tf, shape_spec.vertical_alignment or "top")
 
         p = tf.paragraphs[0]
         run = p.add_run()

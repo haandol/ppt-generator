@@ -6,13 +6,13 @@ import pytest
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
     PptxImage,
-    PptxParagraph,
     PptxSlideSpec,
-    PptxTextBox,
-    PptxTextRun,
     ProjectMetadata,
 )
 from ppt_generator.tools.project.service import ProjectService
+
+from conftest import make_design_spec as _make_design_spec
+from conftest import make_slide_spec as _make_slide_spec
 
 
 @pytest.fixture()
@@ -540,32 +540,6 @@ class TestListProjects:
         result = project_service.list_projects()
         assert result[0]["topic"] == "newer"
         assert result[1]["topic"] == "older"
-
-
-def _make_slide_spec(title: str = "테스트") -> PptxSlideSpec:
-    return PptxSlideSpec(
-        background_color="#1a1a2e",
-        textboxes=[
-            PptxTextBox(
-                left_px=40,
-                top_px=40,
-                width_px=600,
-                height_px=60,
-                paragraphs=[
-                    PptxParagraph(
-                        runs=[PptxTextRun(text=title, font_size_pt=32, bold=True)]
-                    )
-                ],
-            ),
-        ],
-        shapes=[],
-        images=[],
-        speaker_notes="",
-    )
-
-
-def _make_design_spec(n: int = 3) -> DesignSpec:
-    return DesignSpec(slides=[_make_slide_spec(f"슬라이드 {i + 1}") for i in range(n)])
 
 
 class TestSaveAndLoadDesignSpec:

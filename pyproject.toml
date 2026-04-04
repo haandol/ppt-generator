@@ -24,6 +24,10 @@ visual-qa = [
     "playwright",
 ]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--strict-markers", "--strict-config", "-ra"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

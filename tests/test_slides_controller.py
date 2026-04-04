@@ -7,11 +7,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from ppt_generator.interfaces.schemas import (
-    DesignSpec,
-    PptxParagraph,
-    PptxSlideSpec,
-    PptxTextBox,
-    PptxTextRun,
     SlidesResponse,
 )
 from ppt_generator.interfaces.spec_utils import (
@@ -20,28 +15,7 @@ from ppt_generator.interfaces.spec_utils import (
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.controller import register_slides_tools
 
-
-def _make_design_spec() -> DesignSpec:
-    return DesignSpec(
-        slides=[
-            PptxSlideSpec(
-                background_color="#1a1a2e",
-                textboxes=[
-                    PptxTextBox(
-                        left_px=40,
-                        top_px=40,
-                        width_px=600,
-                        height_px=60,
-                        paragraphs=[
-                            PptxParagraph(
-                                runs=[PptxTextRun(text="제목", font_size_pt=32)]
-                            )
-                        ],
-                    ),
-                ],
-            ),
-        ]
-    )
+from conftest import make_design_spec as _make_design_spec
 
 
 @pytest.fixture()
@@ -103,7 +77,7 @@ class TestExportHtmlProjectId:
             ),
             encoding="utf-8",
         )
-        spec = _make_design_spec()
+        spec = _make_design_spec(1)
         project_service.save_design_spec(proj_dir, spec)
 
         result = json.loads(mcp_tools["export_html"](project_id="proj-1"))
@@ -132,7 +106,7 @@ class TestExportHtmlProjectId:
             ),
             encoding="utf-8",
         )
-        spec = _make_design_spec()
+        spec = _make_design_spec(1)
         project_service.save_design_spec(proj_dir, spec)
 
         mcp_tools["export_html"](project_id="proj-3")

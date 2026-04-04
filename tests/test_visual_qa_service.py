@@ -24,27 +24,7 @@ from ppt_generator.interfaces.schemas import (
 )
 from ppt_generator.tools.visual_qa.service import VisualQAResult, VisualQAService
 
-
-def _make_spec(title: str = "테스트") -> PptxSlideSpec:
-    return PptxSlideSpec(
-        background_color="#1a1a2e",
-        textboxes=[
-            PptxTextBox(
-                left_px=40,
-                top_px=40,
-                width_px=600,
-                height_px=60,
-                paragraphs=[
-                    PptxParagraph(
-                        runs=[PptxTextRun(text=title, font_size_pt=32, bold=True)]
-                    ),
-                ],
-            ),
-        ],
-        shapes=[],
-        images=[],
-        speaker_notes="",
-    )
+from conftest import make_slide_spec as _make_spec
 
 
 def _make_qa_output(
