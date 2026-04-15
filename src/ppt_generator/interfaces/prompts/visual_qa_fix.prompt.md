@@ -32,6 +32,7 @@ or text content as needed. Output the complete corrected slide spec JSON.
 - `content_too_sparse`: Reduce the body textbox/shape height_px to match actual content, set vertical_alignment to "middle" to center content vertically, or reposition elements closer to the vertical center of the body area. Do not add new content — only adjust layout to reduce excessive whitespace.
 - `content_too_dense`: Increase font sizes back to recommended minimums (body >= 16pt, card body >= 14pt), restore padding to recommended values (16px LR, 12px TB), and if still too crowded, move excess content to speaker_notes. Reduce the number of visible elements if more than 7 are competing for attention.
 - `unbalanced_spacing`: Recalculate inter-element spacing for repeating elements (chart rows, card stacks, list items) to achieve balanced optical density. Use formula: gap = (available_height - N × item_height) / (N + 1), clamped to [12px, 1.5 × item_height]. Center the content block vertically within the parent area. Adjust all elements' top_px values uniformly.
+- `label_line_overlap`: Move the text label above or below the arrow/line with a minimum 4px gap. For horizontal arrows: set label.top_px = arrow.top_px - label.height_px - 4 (above) or label.top_px = arrow.top_px + 4 (below). For vertical arrows: offset label.left_px so it clears the arrow line. Ensure the label remains within canvas bounds and does not overlap other elements. Set diagram flow label font size to 12~14pt if not already.
 </fix_strategies>
 
 <design_rules>

@@ -16,7 +16,8 @@ Hard constraints (rendering will fail if violated):
    - Container-child nesting allowed: children must be fully contained within the parent bounds.
    - Container-child vertical stacking: compute each child's top_px from the previous child's bottom + gap. Never estimate by eye.
      Example (3 children, gap=8): A top=168 h=50 bottom=218 → B top=226 h=28 bottom=254 → C top=262
-   - Line/arrow shapes may overlap block shapes. Textbox labels must NOT overlap shapes — put labels in the shape's paragraphs.
+   - Line/arrow shapes may overlap block shapes (pass through/behind). **Text labels placed near arrows (step labels, flow descriptions) must NOT visually overlap any line/arrow shape.** Place labels above or below the arrow with a minimum 4px vertical gap from the line's vertical center. If space is tight, offset the label horizontally to a clear area.
+   - Textbox labels must NOT overlap shapes — put labels in the shape's paragraphs.
 
 3. Coordinate bounds: left_px >= 0, top_px >= 0, left_px + width_px <= 1280, top_px + height_px <= 720.
 
@@ -52,6 +53,7 @@ Font size ranges (see constraint 1 for mandatory minimums):
 - Card title: 18~24pt, bold
 - Card body: 16~20pt
 - Secondary text (footnotes, source): 12~16pt
+- Diagram flow label (text near arrows/lines): 12~14pt
 - Code: font_family "monospace", 14~16pt
 - Line spacing: body 24~28pt, bullet lists 26~32pt, card interior 20~24pt
 
