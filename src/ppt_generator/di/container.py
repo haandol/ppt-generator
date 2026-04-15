@@ -73,7 +73,11 @@ class DIContainer:
             else _with_cache_point(prompt_text)
         )
         return Agent(
-            model=model, system_prompt=system_prompt, callback_handler=None, tools=[]
+            model=model,
+            system_prompt=system_prompt,
+            callback_handler=None,
+            tools=[],
+            retry_strategy=None,
         )
 
     def _create_script_agent(self) -> Agent:
