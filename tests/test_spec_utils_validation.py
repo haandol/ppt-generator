@@ -748,8 +748,8 @@ class TestCardFontFloorEnforcement:
         assert font is not None
         assert font >= 14
 
-    def test_slide_title_font_floor_32pt(self) -> None:
-        """슬라이드 제목(top ~72, 첫 textbox, bold) → 32pt floor."""
+    def test_slide_title_font_floor_24pt(self) -> None:
+        """슬라이드 제목(top ~72, 첫 textbox, bold) → 24pt floor."""
         tb = PptxTextBox(
             left_px=64,
             top_px=72,
@@ -770,10 +770,10 @@ class TestCardFontFloorEnforcement:
         result = validate_slide_spec(_slide(textboxes=[tb]))
         font = result.textboxes[0].paragraphs[0].runs[0].font_size_pt
         assert font is not None
-        assert font >= 32
+        assert font >= 24
 
     def test_slide_title_not_applied_to_second_textbox(self) -> None:
-        """두 번째 textbox는 슬라이드 제목이 아니므로 32pt floor 미적용."""
+        """두 번째 textbox는 슬라이드 제목이 아니므로 24pt floor 미적용."""
         title_tb = PptxTextBox(
             left_px=64,
             top_px=72,
@@ -822,7 +822,7 @@ class TestCardFontFloorEnforcement:
         # bold가 아니므로 slide title 아님 → section label 14pt 적용 (< 20자)
         assert font is not None
         assert font >= 14
-        assert font < 32
+        assert font < 24
 
     def test_long_textbox_keeps_10pt_floor(self) -> None:
         """긴 multi-paragraph textbox → 섹션 레이블이 아니므로 10pt floor."""
