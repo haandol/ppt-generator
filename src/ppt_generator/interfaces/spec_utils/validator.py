@@ -123,9 +123,19 @@ def _scale_line_spacing(
     return round(line_spacing_pt * scale, 1)
 
 
+_CARD_MIN_HEIGHT_PX = 52
+
+
 def _is_card_shape(s: PptxShape) -> bool:
-    """fill_color가 있고 line이 아닌 shape → 카드로 판별."""
-    return bool(s.fill_color) and s.shape_type != "line"
+    """fill_color가 있고, line이 아니며, 높이가 충분한 shape → 카드로 판별.
+
+    height < 52px인 작은 shape(footer/banner)은 카드 font floor를 적용하지 않는다.
+    """
+    return (
+        bool(s.fill_color)
+        and s.shape_type != "line"
+        and s.height_px >= _CARD_MIN_HEIGHT_PX
+    )
 
 
 def _is_slide_title(tb: PptxTextBox, is_first: bool) -> bool:

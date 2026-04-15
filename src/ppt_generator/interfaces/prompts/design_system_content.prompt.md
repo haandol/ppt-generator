@@ -122,6 +122,7 @@ Bottom auxiliary elements (top >= 540):
 - Single element: left=64, top=612, width=1152, height=44
 - Two elements: stack vertically (upper bottom + 16 <= lower top) or arrange horizontally
 - If space is limited, reduce main diagram to bottom=540, auxiliary starts at 556
+- Footer text must fit in ONE line: max ~70 characters (Korean) or ~90 characters (Latin). Shorten aggressively — use keywords only.
 </slide_type_content>
 
 <examples>

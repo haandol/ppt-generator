@@ -732,6 +732,32 @@ class TestCardFontFloorEnforcement:
         assert result.shapes[0].text_size_pt is not None
         assert result.shapes[0].text_size_pt >= 16
 
+    def test_small_height_shape_not_treated_as_card(self) -> None:
+        """height < 52px인 fill_color shape → 카드 아님, 10pt floor."""
+        shape = PptxShape(
+            left_px=64,
+            top_px=652,
+            width_px=1152,
+            height_px=36,
+            shape_type="rounded_rectangle",
+            fill_color="#243447",
+            paragraphs=[
+                PptxParagraph(
+                    runs=[
+                        PptxTextRun(text="핵심: ", font_size_pt=14, bold=True),
+                        PptxTextRun(text="긴 설명 텍스트", font_size_pt=12),
+                    ]
+                ),
+            ],
+            autofit_mode="shrink_text",
+        )
+        result = validate_slide_spec(_slide(shapes=[shape]))
+        # 카드가 아니므로 bold run이 18pt로 올라가지 않고, shrink_text로 축소 가능
+        title_font = result.shapes[0].paragraphs[0].runs[0].font_size_pt
+        assert title_font is not None
+        assert title_font < 18  # 카드 title floor 미적용
+        assert title_font >= 10  # global floor는 유지
+
     def test_section_label_font_floor_14pt(self) -> None:
         """섹션 레이블(단일 짧은 paragraph) textbox → 14pt floor."""
         tb = PptxTextBox(
