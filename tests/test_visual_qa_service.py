@@ -1,6 +1,7 @@
 """Visual QA service 테스트: Playwright/LLM mock으로 핵심 로직 검증."""
 
 import asyncio
+import inspect
 import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -467,3 +468,54 @@ class TestVisualQAModels:
                 suggested_fix="test",
             )
             assert issue.issue_type == issue_type
+
+
+class TestVisualQAModelSplit:
+    """Visual QA analysis(Haiku)/fix(Sonnet) 모델 분리 테스트."""
+
+    def test_analysis_agent_uses_haiku_model(self) -> None:
+        """_create_visual_qa_analysis_agent가 Haiku 모델 팩토리를 호출한다."""
+        src = inspect.getsource(
+            __import__(
+                "ppt_generator.di.container", fromlist=["DIContainer"]
+            ).DIContainer._create_visual_qa_analysis_agent
+        )
+        assert (
+            "create_bedrock_visual_qa_analysis_model" in src
+            or "create_anthropic_visual_qa_analysis_model" in src
+        )
+
+    def test_fix_agent_uses_sonnet_model(self) -> None:
+        """_create_visual_qa_fix_agent가 Sonnet(visual_qa_model) 팩토리를 호출한다."""
+        src = inspect.getsource(
+            __import__(
+                "ppt_generator.di.container", fromlist=["DIContainer"]
+            ).DIContainer._create_visual_qa_fix_agent
+        )
+        # fix agent는 Sonnet 기반 visual_qa_model을 사용해야 한다
+        assert (
+            "create_bedrock_visual_qa_model" in src
+            or "create_anthropic_visual_qa_model" in src
+        )
+        # analysis 전용 모델이 아닌지 확인
+        assert "create_bedrock_visual_qa_analysis_model" not in src
+        assert "create_anthropic_visual_qa_analysis_model" not in src
+
+    def test_analysis_model_constants_use_haiku(self) -> None:
+        """분석 모델 상수가 Haiku 모델 ID를 사용한다."""
+        from ppt_generator.interfaces.constants import (
+            ANTHROPIC_VISUAL_QA_ANALYSIS_MODEL_ID,
+            BEDROCK_VISUAL_QA_ANALYSIS_MODEL_ID,
+        )
+
+        assert "haiku" in BEDROCK_VISUAL_QA_ANALYSIS_MODEL_ID
+        assert "haiku" in ANTHROPIC_VISUAL_QA_ANALYSIS_MODEL_ID
+
+    def test_analysis_model_max_tokens_smaller(self) -> None:
+        """분석 모델의 max_tokens가 수정 모델보다 작다."""
+        from ppt_generator.interfaces.constants import (
+            BEDROCK_DESIGN_MAX_TOKENS,
+            BEDROCK_VISUAL_QA_ANALYSIS_MAX_TOKENS,
+        )
+
+        assert BEDROCK_VISUAL_QA_ANALYSIS_MAX_TOKENS < BEDROCK_DESIGN_MAX_TOKENS
