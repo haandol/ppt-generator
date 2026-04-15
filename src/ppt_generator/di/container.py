@@ -8,10 +8,12 @@ from ppt_generator.di.model_factory import (
     create_anthropic_design_model,
     create_anthropic_outline_model,
     create_anthropic_review_model,
+    create_anthropic_visual_qa_analysis_model,
     create_anthropic_visual_qa_model,
     create_bedrock_design_model,
     create_bedrock_outline_model,
     create_bedrock_review_model,
+    create_bedrock_visual_qa_analysis_model,
     create_bedrock_visual_qa_model,
 )
 from ppt_generator.interfaces.constants import (
@@ -38,11 +40,6 @@ from ppt_generator.tools.slides.service import SlidesService
 __all__ = ["CachingAnthropicModel", "DIContainer"]
 
 
-def _with_cache_point(system_prompt: str) -> list[dict]:
-    """System prompt에 Bedrock cachePoint를 추가한 content block 리스트를 반환한다."""
-    return [{"text": system_prompt}, {"cachePoint": {"type": "default"}}]
-
-
 class DIContainer:
     def __init__(self, project_root: Path | None = None) -> None:
         self._project_root = project_root or Path(__file__).resolve().parents[3]
@@ -66,15 +63,10 @@ class DIContainer:
     # ---- Agent creation (provider-aware) ----
 
     def _create_agent(self, *, model, prompt_text: str) -> Agent:
-        """프로바이더에 따라 system_prompt 포맷을 결정하고 Agent를 생성한다."""
-        system_prompt: str | list[dict] = (
-            prompt_text
-            if self._provider == "anthropic"
-            else _with_cache_point(prompt_text)
-        )
+        """Agent를 생성한다. Bedrock 캐싱은 CacheConfig(strategy="auto")가 처리한다."""
         return Agent(
             model=model,
-            system_prompt=system_prompt,
+            system_prompt=prompt_text,
             callback_handler=None,
             tools=[],
             retry_strategy=None,
@@ -109,10 +101,10 @@ class DIContainer:
 
     def _create_visual_qa_analysis_agent(self) -> Agent:
         model = (
-            create_anthropic_visual_qa_model
+            create_anthropic_visual_qa_analysis_model
             if self._provider == "anthropic"
-            else create_bedrock_visual_qa_model
-        )(thinking_effort="low")
+            else create_bedrock_visual_qa_analysis_model
+        )()
         return self._create_agent(
             model=model, prompt_text=VISUAL_QA_ANALYSIS_SYSTEM_PROMPT
         )

@@ -18,11 +18,14 @@ from strands.types.tools import ToolChoice, ToolSpec
 from ppt_generator.interfaces.constants import (
     ANTHROPIC_DESIGN_MODEL_ID,
     ANTHROPIC_OUTLINE_MODEL_ID,
+    ANTHROPIC_VISUAL_QA_ANALYSIS_MODEL_ID,
     BEDROCK_DESIGN_MAX_TOKENS,
     BEDROCK_DESIGN_MODEL_ID,
     BEDROCK_OUTLINE_MODEL_ID,
     BEDROCK_REGION,
     BEDROCK_REVIEW_MAX_TOKENS,
+    BEDROCK_VISUAL_QA_ANALYSIS_MAX_TOKENS,
+    BEDROCK_VISUAL_QA_ANALYSIS_MODEL_ID,
     VISUAL_QA_ANALYSIS_SYSTEM_PROMPT,
     VISUAL_QA_FIX_SYSTEM_PROMPT,
 )
@@ -256,4 +259,29 @@ def create_anthropic_visual_qa_model(thinking_effort: str = "low") -> Any:
             "thinking": {"type": "adaptive"},
             "output_config": {"effort": thinking_effort},
         },
+    )
+
+
+# ---- Visual QA analysis model creators (Haiku — lightweight classification) ----
+
+
+def create_bedrock_visual_qa_analysis_model() -> BedrockModel:
+    """Haiku 기반 Visual QA 분석 모델 (이슈 감지 전용)."""
+    return BedrockModel(
+        model_id=BEDROCK_VISUAL_QA_ANALYSIS_MODEL_ID,
+        region_name=BEDROCK_REGION,
+        boto_client_config=build_client_config(),
+        temperature=1.0,
+        max_tokens=BEDROCK_VISUAL_QA_ANALYSIS_MAX_TOKENS,
+        cache_config=CacheConfig(strategy="auto"),
+    )
+
+
+def create_anthropic_visual_qa_analysis_model() -> Any:
+    """Haiku 기반 Visual QA 분석 모델 (이슈 감지 전용)."""
+    return CachingAnthropicModel(
+        client_args=build_anthropic_client_args(),
+        model_id=ANTHROPIC_VISUAL_QA_ANALYSIS_MODEL_ID,
+        max_tokens=BEDROCK_VISUAL_QA_ANALYSIS_MAX_TOKENS,
+        params={"temperature": 1.0},
     )

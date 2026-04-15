@@ -170,7 +170,6 @@ def _generate_and_review(
     color_theme,
     prev_outline=None,
     next_outline=None,
-    reference_specs=None,
 ):
     """슬라이드를 생성하고 리뷰 후 필요시 재생성한다."""
     complexity = estimate_slide_complexity(slide_outline)
@@ -183,7 +182,6 @@ def _generate_and_review(
         color_theme=color_theme,
         prev_outline=prev_outline,
         next_outline=next_outline,
-        reference_specs=reference_specs,
     )
     token_usage = svc.last_token_usage
 
@@ -200,7 +198,6 @@ def _generate_and_review(
                     review_feedback=feedback,
                     prev_outline=prev_outline,
                     next_outline=next_outline,
-                    reference_specs=reference_specs,
                 )
                 return new, svc_regen.last_token_usage
 
@@ -283,17 +280,6 @@ def _add_slide(
         except Exception:
             pass
 
-    # Load adjacent content-type design specs as reference
-    reference_specs = []
-    for ref_idx in (insert_idx - 1, insert_idx + 1):
-        if 0 <= ref_idx < new_count and ref_idx != insert_idx:
-            try:
-                ref_spec = project_service.load_design_spec_slide(project_dir, ref_idx)
-                if ref_spec.slide_type in ("content", None, ""):
-                    reference_specs.append(ref_spec)
-            except Exception:
-                pass
-
     new_spec, token_usage = _generate_and_review(
         deps,
         slide_outline=slide_outline,
@@ -302,7 +288,6 @@ def _add_slide(
         color_theme=color_theme,
         prev_outline=prev_outline,
         next_outline=next_outline,
-        reference_specs=reference_specs or None,
     )
 
     project_service.insert_design_spec_slide(project_dir, insert_idx, new_spec)

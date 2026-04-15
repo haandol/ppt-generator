@@ -4,7 +4,14 @@ Date: 2026-04-03
 
 ## Status
 
-Proposed
+Superseded (2026-04-15)
+
+> **Superseded reason**: `reference_specs`(인접 슬라이드의 전체 design spec JSON)를 프롬프트에 포함하면
+> LLM이 reference의 좌표/요소를 그대로 재현하려 output tokens가 2-4배(38K-58K) 증가하여
+> 슬라이드 1장 추가에 ~10분이 소요되는 성능 문제를 유발했다.
+> Bulk 경로(`generate_slides_design_spec`)는 `reference_specs` 없이 `design_summary`만으로
+> 충분한 일관성을 유지하고 있으므로 reference_specs를 제거한다.
+> `adjacent_context`(prev/next outline) 전달은 유지된다.
 
 ## Context
 
