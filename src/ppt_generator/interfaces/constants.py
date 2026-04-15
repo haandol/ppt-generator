@@ -13,10 +13,15 @@ DESIGN_SPEC_PARALLEL = int(os.environ.get("DESIGN_SPEC_PARALLEL", "8"))
 VISUAL_QA_PARALLEL = int(os.environ.get("VISUAL_QA_PARALLEL", "8"))
 VISUAL_QA_MAX_ITERATIONS = int(os.environ.get("VISUAL_QA_MAX_ITERATIONS", "2"))
 
+# --- Timeouts (seconds) ---
+DESIGN_SPEC_TIMEOUT = int(os.environ.get("DESIGN_SPEC_TIMEOUT", "300"))
+SCREENSHOT_TIMEOUT = int(os.environ.get("SCREENSHOT_TIMEOUT", "60"))
+VISUAL_QA_PHASE_TIMEOUT = int(os.environ.get("VISUAL_QA_PHASE_TIMEOUT", "600"))
+
 # Visual QA analysis model (Haiku — lightweight classification)
 BEDROCK_VISUAL_QA_ANALYSIS_MODEL_ID = os.environ.get(
     "BEDROCK_VISUAL_QA_ANALYSIS_MODEL_ID",
-    "global.anthropic.claude-haiku-4-5-20251001",
+    "global.anthropic.claude-haiku-4-5-20251001-v1:0",
 )
 ANTHROPIC_VISUAL_QA_ANALYSIS_MODEL_ID = os.environ.get(
     "ANTHROPIC_VISUAL_QA_ANALYSIS_MODEL_ID", "claude-haiku-4-5-20251001"
@@ -280,4 +285,8 @@ __all__ = [
     "BEDROCK_VISUAL_QA_ANALYSIS_MAX_TOKENS",
     # Complexity
     "COMPONENT_HINT_COMPLEXITY",
+    # Timeouts
+    "DESIGN_SPEC_TIMEOUT",
+    "SCREENSHOT_TIMEOUT",
+    "VISUAL_QA_PHASE_TIMEOUT",
 ]

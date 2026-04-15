@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import logging
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from pathlib import Path
 
 from ppt_generator.interfaces.constants import (
+    SCREENSHOT_TIMEOUT,
     VISUAL_QA_PARALLEL,
     VISUAL_QA_VIEWPORT_HEIGHT,
     VISUAL_QA_VIEWPORT_WIDTH,
@@ -66,9 +67,17 @@ def capture_screenshots(
         "스크린샷 캡처 시작: %d슬라이드 (workers=%d)", len(indices), VISUAL_QA_PARALLEL
     )
     with ThreadPoolExecutor(max_workers=VISUAL_QA_PARALLEL) as pool:
-        futures = [pool.submit(_capture_one, idx) for idx in indices]
-        for future in futures:
-            idx, path = future.result()
+        futures = [(idx, pool.submit(_capture_one, idx)) for idx in indices]
+        for idx, future in futures:
+            try:
+                _, path = future.result(timeout=SCREENSHOT_TIMEOUT)
+            except TimeoutError:
+                logger.error(
+                    "스크린샷 캡처 타임아웃: slide_index=%d (%ds 초과)",
+                    idx,
+                    SCREENSHOT_TIMEOUT,
+                )
+                path = None
             if path is not None:
                 results[idx] = path
     logger.info("스크린샷 캡처 완료: %d/%d 성공", len(results), len(indices))

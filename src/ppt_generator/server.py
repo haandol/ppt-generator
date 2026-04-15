@@ -82,6 +82,7 @@ def main() -> None:
     # PPT_LOG_DIR: directory for per-project log files (e.g. /tmp/ppt-generator/)
     # PPT_LOG_FILE: single log file path (legacy, e.g. /tmp/ppt-generator.log)
     import os
+    import signal
     from logging.handlers import RotatingFileHandler
 
     log_dir = os.environ.get("PPT_LOG_DIR")
@@ -103,8 +104,22 @@ def main() -> None:
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(logging.Formatter(fmt))
         logging.getLogger().addHandler(fh)
-    mcp = create_server()
-    mcp.run(transport="stdio")
+
+    def _shutdown_handler(signum: int, _frame: object) -> None:
+        sig_name = signal.Signals(signum).name
+        logger.info("Received %s, shutting down gracefully...", sig_name)
+        raise SystemExit(0)
+
+    signal.signal(signal.SIGTERM, _shutdown_handler)
+    signal.signal(signal.SIGINT, _shutdown_handler)
+
+    try:
+        mcp = create_server()
+        mcp.run(transport="stdio")
+    except SystemExit:
+        logger.info("MCP server shut down.")
+    except Exception:
+        logger.exception("MCP server crashed unexpectedly")
 
 
 if __name__ == "__main__":

@@ -21,6 +21,10 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
+from ppt_generator.interfaces.constants import (
+    SCREENSHOT_TIMEOUT,
+    VISUAL_QA_PHASE_TIMEOUT,
+)
 from ppt_generator.interfaces.llm_output_models import SlideSpecOutput, VisualQAOutput
 from ppt_generator.interfaces.schemas import PptxSlideSpec
 from ppt_generator.interfaces.spec_utils import validate_slide_spec
@@ -166,6 +170,43 @@ class VisualQAService:
             return None
 
     # ------------------------------------------------------------------
+    # Heartbeat helper
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    async def _run_with_heartbeat(
+        coro: asyncio.coroutines,
+        report_progress: Callable[[int, int, str], Awaitable[None]] | None,
+        progress: int,
+        total: int,
+        message: str,
+        interval: float = 15.0,
+    ):
+        """coro 실행 중 interval 간격으로 progress heartbeat를 보낸다."""
+        if report_progress is None:
+            return await coro
+
+        done = asyncio.Event()
+
+        async def _heartbeat() -> None:
+            while not done.is_set():
+                try:
+                    await report_progress(progress, total, message)
+                except Exception:
+                    pass
+                try:
+                    await asyncio.wait_for(done.wait(), timeout=interval)
+                except TimeoutError:
+                    pass
+
+        heartbeat_task = asyncio.create_task(_heartbeat())
+        try:
+            return await coro
+        finally:
+            done.set()
+            await heartbeat_task
+
+    # ------------------------------------------------------------------
     # Orchestration
     # ------------------------------------------------------------------
 
@@ -205,12 +246,27 @@ class VisualQAService:
                 iteration,
                 len(pending_indices),
             )
-            screenshots = await asyncio.to_thread(
-                self.capture_screenshots,
-                project_dir,
-                pending_indices,
-                iteration,
-            )
+            try:
+                screenshots = await self._run_with_heartbeat(
+                    asyncio.wait_for(
+                        asyncio.to_thread(
+                            self.capture_screenshots,
+                            project_dir,
+                            pending_indices,
+                            iteration,
+                        ),
+                        timeout=SCREENSHOT_TIMEOUT * len(pending_indices),
+                    ),
+                    report_progress=report_progress,
+                    progress=iteration,
+                    total=max_iterations,
+                    message=f"iteration {iteration}: 스크린샷 캡처 중...",
+                )
+            except TimeoutError:
+                logger.error("iteration %d: 스크린샷 캡처 phase 타임아웃", iteration)
+                for idx in pending_indices:
+                    per_slide[idx].status = "error"
+                break
 
             # ── Phase 2: LLM 분석 (전체 병렬) ──
             logger.info(
@@ -226,20 +282,37 @@ class VisualQAService:
                     return idx, None
                 spec = load_spec(project_dir, idx)
                 try:
-                    analysis = await asyncio.to_thread(
-                        self.analyze_screenshot,
-                        png_path,
-                        idx,
-                        spec,
+                    analysis = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            self.analyze_screenshot,
+                            png_path,
+                            idx,
+                            spec,
+                        ),
+                        timeout=VISUAL_QA_PHASE_TIMEOUT,
                     )
                     return idx, analysis
+                except TimeoutError:
+                    logger.error(
+                        "분석 타임아웃: slide_index=%d (%ds 초과)",
+                        idx,
+                        VISUAL_QA_PHASE_TIMEOUT,
+                    )
+                    per_slide[idx].status = "error"
+                    return idx, None
                 except Exception:
                     logger.exception("분석 실패: slide_index=%d", idx)
                     per_slide[idx].status = "error"
                     return idx, None
 
-            analysis_results = await asyncio.gather(
-                *[_analyze_one(idx) for idx in pending_indices],
+            analysis_results = await self._run_with_heartbeat(
+                asyncio.gather(
+                    *[_analyze_one(idx) for idx in pending_indices],
+                ),
+                report_progress=report_progress,
+                progress=iteration,
+                total=max_iterations,
+                message=f"iteration {iteration}: LLM 분석 중...",
             )
 
             # 분석 결과 분류
@@ -270,16 +343,33 @@ class VisualQAService:
             ) -> tuple[int, PptxSlideSpec | None]:
                 png_path = screenshots[idx]
                 spec = load_spec(project_dir, idx)
-                fixed = await asyncio.to_thread(
-                    self.fix_design_spec,
-                    png_path,
-                    spec,
-                    issues_dicts,
-                )
+                try:
+                    fixed = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            self.fix_design_spec,
+                            png_path,
+                            spec,
+                            issues_dicts,
+                        ),
+                        timeout=VISUAL_QA_PHASE_TIMEOUT,
+                    )
+                except TimeoutError:
+                    logger.error(
+                        "수정 타임아웃: slide_index=%d (%ds 초과)",
+                        idx,
+                        VISUAL_QA_PHASE_TIMEOUT,
+                    )
+                    fixed = None
                 return idx, fixed
 
-            fix_results = await asyncio.gather(
-                *[_fix_one(idx, issues) for idx, issues in slides_to_fix],
+            fix_results = await self._run_with_heartbeat(
+                asyncio.gather(
+                    *[_fix_one(idx, issues) for idx, issues in slides_to_fix],
+                ),
+                report_progress=report_progress,
+                progress=iteration,
+                total=max_iterations,
+                message=f"iteration {iteration}: LLM 수정 중...",
             )
 
             # ── Phase 4: 수정된 슬라이드 저장 + HTML 재렌더링 ──

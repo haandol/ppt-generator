@@ -8,13 +8,13 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, TimeoutError, as_completed
 from dataclasses import dataclass, field, replace
 from typing import Callable
 
 from strands.types.exceptions import ModelThrottledException
 
-from ppt_generator.interfaces.constants import DESIGN_SPEC_PARALLEL
+from ppt_generator.interfaces.constants import DESIGN_SPEC_PARALLEL, DESIGN_SPEC_TIMEOUT
 from ppt_generator.interfaces.schemas import OutlineResponse
 from ppt_generator.interfaces.utils import (
     complexity_to_thinking_effort,
@@ -314,7 +314,20 @@ def run_parallel_generation(
             executor.submit(_generate_slide, i): i for i in remaining_indices
         }
         for future in as_completed(future_to_idx):
-            _collect_result(future.result())
+            idx = future_to_idx[future]
+            try:
+                _collect_result(future.result(timeout=DESIGN_SPEC_TIMEOUT))
+            except TimeoutError:
+                logger.error(
+                    "slide[%d] 생성 타임아웃 (%ds 초과)", idx, DESIGN_SPEC_TIMEOUT
+                )
+                _collect_result(
+                    {
+                        "slide_index": idx,
+                        "status": "error",
+                        "error": f"timeout after {DESIGN_SPEC_TIMEOUT}s",
+                    }
+                )
 
     logger.info(
         "병렬 처리 완료: 최대 동시실행 스레드=%d, 성공=%d, 실패=%d",

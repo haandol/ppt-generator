@@ -67,19 +67,24 @@ async def handle_generate(
     design_summary = project_service.load_design_summary(project_dir)
     sync_report = _make_progress_reporter(ctx, target_count)
 
-    parallel_result = await asyncio.to_thread(
-        run_parallel_generation,
-        outline=outline,
-        indices=indices,
-        total_slides=total_slides,
-        color_theme=color_theme,
-        design_summary=design_summary,
-        design_service_factory=deps.design_service_factory,
-        project_service=project_service,
-        project_dir=project_dir,
-        slides_service=slides_service,
-        report_progress=sync_report,
-        review_service_factory=deps.review_service_factory,
+    parallel_result = await _run_with_heartbeat(
+        asyncio.to_thread(
+            run_parallel_generation,
+            outline=outline,
+            indices=indices,
+            total_slides=total_slides,
+            color_theme=color_theme,
+            design_summary=design_summary,
+            design_service_factory=deps.design_service_factory,
+            project_service=project_service,
+            project_dir=project_dir,
+            slides_service=slides_service,
+            report_progress=sync_report,
+            review_service_factory=deps.review_service_factory,
+        ),
+        ctx=ctx,
+        target_count=target_count,
+        message="디자인 스펙 생성 중...",
     )
 
     # LLM이 src를 'images/' prefix 없이 생성할 수 있으므로 교정
@@ -190,6 +195,38 @@ def _parse_slide_indices(outline, total_slides: int, slide_indices: str) -> list
     return list(range(total_slides))
 
 
+async def _run_with_heartbeat(
+    coro,
+    ctx,
+    target_count: int,
+    message: str,
+    interval: float = 15.0,
+):
+    """coro 실행 중 interval 간격으로 MCP progress heartbeat를 보낸다."""
+    if ctx is None:
+        return await coro
+
+    done = asyncio.Event()
+
+    async def _heartbeat() -> None:
+        while not done.is_set():
+            try:
+                await ctx.report_progress(0, target_count, message)
+            except Exception:
+                pass
+            try:
+                await asyncio.wait_for(done.wait(), timeout=interval)
+            except TimeoutError:
+                pass
+
+    heartbeat_task = asyncio.create_task(_heartbeat())
+    try:
+        return await coro
+    finally:
+        done.set()
+        await heartbeat_task
+
+
 def _make_progress_reporter(ctx, target_count: int):
     """MCP Context의 async report_progress를 sync 콜백으로 래핑한다."""
     if ctx is None:
@@ -197,9 +234,12 @@ def _make_progress_reporter(ctx, target_count: int):
     loop = asyncio.get_running_loop()
 
     def sync_report(progress: int, message: str) -> None:
-        loop.call_soon_threadsafe(
-            loop.create_task,
-            ctx.report_progress(progress, target_count, message),
-        )
+        try:
+            loop.call_soon_threadsafe(
+                loop.create_task,
+                ctx.report_progress(progress, target_count, message),
+            )
+        except RuntimeError:
+            logger.debug("event loop closed, skipping progress report")
 
     return sync_report
