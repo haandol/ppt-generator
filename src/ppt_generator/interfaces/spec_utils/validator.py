@@ -15,6 +15,7 @@ from ppt_generator.interfaces.constants import (
     PPTX_VALIDATE_FONT_MIN_PT,
     PPTX_VALIDATE_LINE_HEIGHT_FACTOR,
     SECTION_LABEL_FONT_MIN_PT,
+    SLIDE_TITLE_FONT_MIN_PT,
     SLIDES_HEIGHT_PX,
     SLIDES_WIDTH_PX,
     SPEC_VALIDATE_MARGIN_BOTTOM_PX,
@@ -49,6 +50,7 @@ _MARGIN_BOTTOM = SPEC_VALIDATE_MARGIN_BOTTOM_PX
 _CARD_TITLE_MIN = CARD_TITLE_FONT_MIN_PT
 _CARD_BODY_MIN = CARD_BODY_FONT_MIN_PT
 _SECTION_LABEL_MIN = SECTION_LABEL_FONT_MIN_PT
+_SLIDE_TITLE_MIN = SLIDE_TITLE_FONT_MIN_PT
 
 
 # ---------------------------------------------------------------------------
@@ -124,6 +126,18 @@ def _scale_line_spacing(
 def _is_card_shape(s: PptxShape) -> bool:
     """fill_color가 있고 line이 아닌 shape → 카드로 판별."""
     return bool(s.fill_color) and s.shape_type != "line"
+
+
+def _is_slide_title(tb: PptxTextBox, is_first: bool) -> bool:
+    """슬라이드 제목 textbox 판별: 첫 번째 textbox, top ~64~100, 단일 paragraph, bold."""
+    if not is_first:
+        return False
+    if not (64 <= tb.top_px <= 100):
+        return False
+    if len(tb.paragraphs) != 1:
+        return False
+    para = tb.paragraphs[0]
+    return any(run.bold for run in para.runs)
 
 
 def _is_section_label(tb: PptxTextBox) -> bool:
@@ -211,12 +225,21 @@ def _validate_textboxes(
     autofit: bool = True,
 ) -> list[PptxTextBox]:
     validated: list[PptxTextBox] = []
+    found_first_text_tb = False
     for tb in textboxes:
         has_text = any(run.text.strip() for para in tb.paragraphs for run in para.runs)
         if not has_text:
             continue
 
-        tb_font_min = _SECTION_LABEL_MIN if _is_section_label(tb) else font_min
+        is_first = not found_first_text_tb
+        found_first_text_tb = True
+
+        if _is_slide_title(tb, is_first):
+            tb_font_min = _SLIDE_TITLE_MIN
+        elif _is_section_label(tb):
+            tb_font_min = _SECTION_LABEL_MIN
+        else:
+            tb_font_min = font_min
 
         new_paragraphs: list[PptxParagraph] = []
         max_font_in_tb = tb_font_min

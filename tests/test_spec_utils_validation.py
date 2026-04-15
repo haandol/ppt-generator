@@ -748,6 +748,82 @@ class TestCardFontFloorEnforcement:
         assert font is not None
         assert font >= 14
 
+    def test_slide_title_font_floor_32pt(self) -> None:
+        """슬라이드 제목(top ~72, 첫 textbox, bold) → 32pt floor."""
+        tb = PptxTextBox(
+            left_px=64,
+            top_px=72,
+            width_px=1152,
+            height_px=48,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[
+                        PptxTextRun(
+                            text="Control Plane 인증 흐름: AWS Identity → Virtual Key",
+                            font_size_pt=12,
+                            bold=True,
+                        )
+                    ]
+                ),
+            ],
+        )
+        result = validate_slide_spec(_slide(textboxes=[tb]))
+        font = result.textboxes[0].paragraphs[0].runs[0].font_size_pt
+        assert font is not None
+        assert font >= 32
+
+    def test_slide_title_not_applied_to_second_textbox(self) -> None:
+        """두 번째 textbox는 슬라이드 제목이 아니므로 32pt floor 미적용."""
+        title_tb = PptxTextBox(
+            left_px=64,
+            top_px=72,
+            width_px=1152,
+            height_px=48,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="제목", font_size_pt=32, bold=True)]
+                ),
+            ],
+        )
+        # multi-paragraph로 section label 감지도 회피
+        body_tb = PptxTextBox(
+            left_px=64,
+            top_px=148,
+            width_px=1152,
+            height_px=300,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="본문 텍스트 첫 번째 단락", font_size_pt=12)]
+                ),
+                PptxParagraph(
+                    runs=[PptxTextRun(text="본문 텍스트 두 번째 단락", font_size_pt=12)]
+                ),
+            ],
+        )
+        result = validate_slide_spec(_slide(textboxes=[title_tb, body_tb]))
+        body_font = result.textboxes[1].paragraphs[0].runs[0].font_size_pt
+        assert body_font == 12  # 32pt floor 미적용
+
+    def test_non_bold_first_textbox_not_slide_title(self) -> None:
+        """첫 textbox지만 bold가 아니면 슬라이드 제목이 아님."""
+        tb = PptxTextBox(
+            left_px=64,
+            top_px=72,
+            width_px=1152,
+            height_px=48,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="부제목 텍스트", font_size_pt=12)]
+                ),
+            ],
+        )
+        result = validate_slide_spec(_slide(textboxes=[tb]))
+        font = result.textboxes[0].paragraphs[0].runs[0].font_size_pt
+        # bold가 아니므로 slide title 아님 → section label 14pt 적용 (< 20자)
+        assert font is not None
+        assert font >= 14
+        assert font < 32
+
     def test_long_textbox_keeps_10pt_floor(self) -> None:
         """긴 multi-paragraph textbox → 섹션 레이블이 아니므로 10pt floor."""
         tb = PptxTextBox(
