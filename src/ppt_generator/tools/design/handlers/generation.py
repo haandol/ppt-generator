@@ -52,6 +52,8 @@ async def handle_generate(
     # --- Step 1: Pre-generate design_summary ---
     existing_summary = project_service.load_design_summary(project_dir)
     if existing_summary is None:
+        if ctx is not None:
+            await ctx.report_progress(0, target_count, "디자인 테마 생성 중...")
         logger.info("Starting design_summary pre-generation (LLM call)")
         summary_svc = deps.design_service_factory("medium", "content")
         summary = summary_svc.generate_design_summary(outline, color_theme)
@@ -59,9 +61,7 @@ async def handle_generate(
         project_service.save_design_summary(project_dir, summary)
         logger.info("design_summary pre-generation completed")
         if ctx is not None:
-            await ctx.report_progress(
-                0, target_count, "Design theme generation completed"
-            )
+            await ctx.report_progress(0, target_count, "디자인 테마 생성 완료")
 
     # --- Step 2: Parallel generation ---
     design_summary = project_service.load_design_summary(project_dir)
@@ -96,6 +96,8 @@ async def handle_generate(
         path.write_text(container_html, encoding="utf-8")
         slides_html_path = str(path)
         logger.info("slides.html container generated: %s", path)
+        if ctx is not None:
+            await ctx.report_progress(target_count, target_count, "HTML 내보내기 완료")
 
     # --- Token usage & estimated cost ---
     pr = parallel_result

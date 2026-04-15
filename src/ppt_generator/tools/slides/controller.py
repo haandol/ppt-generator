@@ -1,6 +1,8 @@
 import json
+import logging
+import time
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 from ppt_generator.interfaces.spec_utils import (
     parse_design_spec_json,
@@ -8,12 +10,16 @@ from ppt_generator.interfaces.spec_utils import (
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
 
+logger = logging.getLogger(__name__)
+
 
 def register_slides_tools(
     mcp: FastMCP, slides_service: SlidesService, project_service: ProjectService
 ) -> None:
     @mcp.tool()
-    def export_html(design_spec_json: str = "", project_id: str = "") -> str:
+    async def export_html(
+        design_spec_json: str = "", project_id: str = "", ctx: Context | None = None
+    ) -> str:
         """Generates per-slide HTML files and an iframe container based on the design spec.
 
         Operates in two modes:
@@ -63,6 +69,11 @@ def register_slides_tools(
         design_summary = project_service.load_design_summary(project_dir)
         color_theme = (design_summary or {}).get("color_theme", "dark")
 
+        slide_count = len(design_spec.slides)
+        if ctx is not None:
+            await ctx.report_progress(0, 1, "HTML 내보내기 중...")
+        logger.info("HTML export 시작 (slides=%d)", slide_count)
+        t0 = time.monotonic()
         response = slides_service.generate_from_design_spec(
             design_spec,
             slide_image_srcs=slide_image_srcs,
@@ -76,6 +87,10 @@ def register_slides_tools(
             response.container_html,
         )
         project_service.update_step(project_dir, "slides")
+        elapsed = time.monotonic() - t0
+        logger.info("HTML export 완료 (%.1fs, slides=%d)", elapsed, slide_count)
+        if ctx is not None:
+            await ctx.report_progress(1, 1, "HTML 내보내기 완료")
 
         return json.dumps(
             {

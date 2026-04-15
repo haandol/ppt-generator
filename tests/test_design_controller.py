@@ -1630,8 +1630,12 @@ class TestGenerateSlidesDesignSpec:
         result = json.loads(asyncio.run(_run_and_drain()))
 
         assert result["success_count"] == 5
-        # report_progress: design_summary 생성 1회(await) + 슬라이드 5회(call_soon_threadsafe) = 총 6회
-        assert len(progress_calls) == 6
+        # report_progress:
+        #   디자인 테마 생성 중 1회 + 생성 완료 1회 (await)
+        #   + 슬라이드 5회 (call_soon_threadsafe)
+        #   = 총 7회
+        #   (HTML 내보내기 완료는 slide_count > 0 조건에 따라 실제 파일 존재 시에만 보고)
+        assert len(progress_calls) == 7
         # 마지막 호출의 progress 값은 target_count와 같아야 함
         assert progress_calls[-1][0] == 5  # progress
         assert progress_calls[-1][1] == 5  # total

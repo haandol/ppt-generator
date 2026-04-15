@@ -1,5 +1,6 @@
 """slides controller 테스트: design_spec_json 및 project_id 기반 검증."""
 
+import asyncio
 import json
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -80,7 +81,7 @@ class TestExportHtmlProjectId:
         spec = _make_design_spec(1)
         project_service.save_design_spec(proj_dir, spec)
 
-        result = json.loads(mcp_tools["export_html"](project_id="proj-1"))
+        result = json.loads(asyncio.run(mcp_tools["export_html"](project_id="proj-1")))
         assert result["session_id"] == "sess-1"
         assert result["project_id"] == "proj-1"
         assert result["slide_count"] == 1
@@ -109,7 +110,7 @@ class TestExportHtmlProjectId:
         spec = _make_design_spec(1)
         project_service.save_design_spec(proj_dir, spec)
 
-        mcp_tools["export_html"](project_id="proj-3")
+        asyncio.run(mcp_tools["export_html"](project_id="proj-3"))
 
         # slides/ 디렉토리와 개별 슬라이드 HTML 확인
         slides_dir = proj_dir / "slides"
@@ -135,8 +136,8 @@ class TestExportHtmlProjectId:
             encoding="utf-8",
         )
         with pytest.raises(FileNotFoundError):
-            mcp_tools["export_html"](project_id="proj-2")
+            asyncio.run(mcp_tools["export_html"](project_id="proj-2"))
 
     def test_error_when_nothing_provided(self, mcp_tools: dict) -> None:
         with pytest.raises(ValueError, match="Either design_spec_json or project_id"):
-            mcp_tools["export_html"]()
+            asyncio.run(mcp_tools["export_html"]())

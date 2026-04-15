@@ -1,7 +1,9 @@
 import json
+import logging
+import time
 from dataclasses import asdict
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 from ppt_generator.interfaces.constants import (
     DEFAULT_AUDIENCE_TYPE,
@@ -17,12 +19,14 @@ from ppt_generator.interfaces.utils import format_token_usage
 from ppt_generator.tools.outline.service import OutlineService
 from ppt_generator.tools.project.service import ProjectService
 
+logger = logging.getLogger(__name__)
+
 
 def register_outline_tools(
     mcp: FastMCP, outline_service: OutlineService, project_service: ProjectService
 ) -> None:
     @mcp.tool()
-    def generate_outline(
+    async def generate_outline(
         topic: str,
         purpose: str = "",
         audience_type: str = DEFAULT_AUDIENCE_TYPE,
@@ -32,6 +36,7 @@ def register_outline_tools(
         presenter_title: str = "",
         presenter_org: str = "",
         project_id: str = "",
+        ctx: Context | None = None,
     ) -> str:
         """Generates a slide outline JSON based on the given topic.
 
@@ -88,8 +93,16 @@ def register_outline_tools(
             presenter_title=presenter_title,
             presenter_org=presenter_org,
         )
+        if ctx is not None:
+            await ctx.report_progress(0, 1, "아웃라인 생성 중...")
+        logger.info("outline 생성 시작 (topic=%s, num_slides=%d)", topic, num_slides)
+        t0 = time.monotonic()
         response = outline_service.generate(request)
+        elapsed = time.monotonic() - t0
         actual_num_slides = len(response.slides)
+        logger.info("outline 생성 완료 (%.1fs, slides=%d)", elapsed, actual_num_slides)
+        if ctx is not None:
+            await ctx.report_progress(1, 1, "아웃라인 생성 완료")
         result = json.dumps(asdict(response), ensure_ascii=False, indent=2)
 
         project_id, project_dir = project_service.resolve_project_dir(project_id)
