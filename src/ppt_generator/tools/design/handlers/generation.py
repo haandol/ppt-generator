@@ -111,6 +111,22 @@ async def handle_generate(
             "cacheWriteInputTokens": pr.total_cache_write_tokens,
         }
 
+    # --- Collect overflow content from all slides ---
+    all_overflow: list[dict] = []
+    for slide_result in pr.results:
+        if "overflow" in slide_result:
+            all_overflow.extend(slide_result["overflow"])
+    if all_overflow:
+        overflow_path = project_dir / "overflow.json"
+        overflow_path.write_text(
+            json.dumps(all_overflow, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        logger.info(
+            "overflow content saved: %d item(s) → %s",
+            len(all_overflow),
+            overflow_path,
+        )
+
     resp: dict = {
         "design_spec_dir": str(project_dir / "design_spec"),
         "slide_count": slide_count,
@@ -124,6 +140,13 @@ async def handle_generate(
             f"실행하려면 visual_qa(project_id='{project_id}') 를 호출하세요."
         ),
     }
+    if all_overflow:
+        resp["overflow_suggestion"] = (
+            f"{len(all_overflow)}개의 컨텐츠가 슬라이드 공간 부족으로 포함되지 못했습니다. "
+            "아래 overflow 항목을 확인하고, modify_design_spec(action='add')로 "
+            "새 슬라이드를 추가할 수 있습니다."
+        )
+        resp["overflow"] = all_overflow
     if slides_html_path:
         resp["slides_html_path"] = slides_html_path
     if aggregated_usage:

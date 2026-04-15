@@ -149,6 +149,18 @@ def _convert_paragraphs(paragraphs: list[ParagraphOutput]) -> list[PptxParagraph
     ]
 
 
+class OverflowContent(BaseModel):
+    """슬라이드에 담지 못한 초과 컨텐츠. 별도 슬라이드로 삽입을 제안한다."""
+
+    title: str = Field(description="초과 컨텐츠로 만들 슬라이드 제목")
+    content_summary: str = Field(description="초과 컨텐츠 요약 (outline 형식)")
+    component_hint: str = Field(default="bullets", description="권장 component_hint")
+    insert_after: int = Field(
+        description="삽입 권장 위치 (현재 슬라이드의 1-based index)"
+    )
+    reason: str = Field(description="왜 현재 슬라이드에 담지 못했는지 짧은 설명")
+
+
 class SlideSpecOutput(BaseModel):
     """LLM structured_output용 슬라이드 스펙 Pydantic 모델."""
 
@@ -156,6 +168,7 @@ class SlideSpecOutput(BaseModel):
     speaker_notes: str = ""
     textboxes: list[TextBoxOutput] = Field(default_factory=list)
     shapes: list[ShapeOutput] = Field(default_factory=list)
+    overflow: list[OverflowContent] = Field(default_factory=list)
 
     def to_dataclass(self) -> PptxSlideSpec:
         """Pydantic 모델을 기존 PptxSlideSpec dataclass로 변환."""

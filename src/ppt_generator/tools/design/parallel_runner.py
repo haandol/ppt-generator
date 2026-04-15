@@ -172,9 +172,13 @@ def run_parallel_generation(
                     spec, background_color=design_summary["background_color"]
                 )
 
+            # --- Collect overflow content ---
+            overflow_items: list[dict] = svc.last_overflow
+
             # --- Design review step ---
             gen_usage = svc.last_token_usage
             combined_usage = gen_usage
+            review_issues: list[dict] = []
             if review_service_factory is not None:
                 try:
                     from ppt_generator.tools.design.review_service import (
@@ -214,6 +218,7 @@ def run_parallel_generation(
                     )
                     spec = rr.spec
                     combined_usage = rr.token_usage
+                    review_issues = rr.review_issues
                 except Exception as exc:
                     logger.warning(
                         "slide[%d] review failed, using original spec: %s", idx, exc
@@ -242,6 +247,10 @@ def run_parallel_generation(
             }
             if html_path_str:
                 r["slide_html_path"] = html_path_str
+            if review_issues:
+                r["review_issues"] = review_issues
+            if overflow_items:
+                r["overflow"] = overflow_items
             return r
         except ModelThrottledException as exc:
             elapsed = time.monotonic() - t0

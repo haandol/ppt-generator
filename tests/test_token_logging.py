@@ -468,6 +468,7 @@ class TestDesignControllerTokenAggregation:
             "outputTokens": 3000,
             "totalTokens": 13000,
         }
+        design_service.last_overflow = []
 
         mcp = MagicMock()
         tools = {}
@@ -635,6 +636,7 @@ class TestDesignControllerTokenAggregation:
         }
         # last_token_usage가 빈 dict
         design_service.last_token_usage = {}
+        design_service.last_overflow = []
 
         mcp = MagicMock()
         tools = {}

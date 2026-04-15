@@ -7,7 +7,7 @@ Adaptive thinking 없는 Sonnet을 사용하여 빠르고 저렴하게 체크리
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable
 
 from strands import Agent
@@ -82,11 +82,12 @@ def merge_token_usage(*usages: dict[str, int]) -> dict[str, int]:
 
 @dataclass
 class ReviewResult:
-    """리뷰 + 선택적 재생성 결과."""
+    """리뷰 결과. review_issues에 발견된 이슈 목록을 담는다."""
 
     spec: PptxSlideSpec
     token_usage: dict[str, int]
     regenerated: bool = False
+    review_issues: list[dict] = field(default_factory=list)
 
 
 def apply_review_and_fix(
@@ -97,7 +98,11 @@ def apply_review_and_fix(
     review_service_factory: Callable[[], DesignReviewService],
     regenerate: Callable[[str], tuple[PptxSlideSpec, dict[str, int]]],
 ) -> ReviewResult:
-    """리뷰를 실행하고, high severity 시 regenerate 콜백으로 재생성한다.
+    """리뷰를 실행하고 결과를 리포트한다.
+
+    자동 재생성은 수행하지 않는다. high-severity 이슈가 있어도
+    현재 스펙을 그대로 저장하고, 리뷰 결과를 ReviewResult.review_issues에 담아 반환한다.
+    사용자가 리포트를 확인한 뒤 modify_design_spec 등으로 직접 수정을 요청할 수 있다.
 
     Args:
         spec: 리뷰할 디자인 스펙
@@ -105,9 +110,10 @@ def apply_review_and_fix(
         gen_usage: 초기 생성 토큰 사용량
         review_service_factory: DesignReviewService 팩토리
         regenerate: feedback 문자열을 받아 (new_spec, regen_usage)를 반환하는 콜백
+            (현재는 사용되지 않으며, 호환성을 위해 유지)
 
     Returns:
-        ReviewResult (spec, token_usage, regenerated)
+        ReviewResult (spec, token_usage, regenerated=False, review_issues)
     """
     review_svc = review_service_factory()
     review_output = review_svc.review(spec, slide_index=slide_index)
@@ -116,21 +122,27 @@ def apply_review_and_fix(
     if review_output.has_high_severity:
         high_count = sum(1 for i in review_output.issues if i.severity == "high")
         logger.info(
-            "slide[%d] review: %d high-severity issues, regenerating",
+            "slide[%d] review: %d high-severity issues found (report only, no auto-regeneration)",
             slide_index,
             high_count,
         )
-        feedback = DesignReviewService.format_feedback(review_output)
-        new_spec, regen_usage = regenerate(feedback)
-        combined = merge_token_usage(gen_usage, review_usage, regen_usage)
-        return ReviewResult(spec=new_spec, token_usage=combined, regenerated=True)
+    else:
+        logger.info(
+            "slide[%d] review passed (%d issues, none high)",
+            slide_index,
+            len(review_output.issues),
+        )
 
-    logger.info(
-        "slide[%d] review passed (%d issues, none high)",
-        slide_index,
-        len(review_output.issues),
-    )
     return ReviewResult(
         spec=spec,
         token_usage=merge_token_usage(gen_usage, review_usage),
+        regenerated=False,
+        review_issues=[
+            {
+                "rule_id": issue.rule_id,
+                "severity": issue.severity,
+                "description": issue.description,
+            }
+            for issue in review_output.issues
+        ],
     )

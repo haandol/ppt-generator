@@ -514,6 +514,7 @@ class TestMoveSlideToolWith16Pages:
             "새로 생성됨"
         )
         design_service.last_token_usage = {}
+        design_service.last_overflow = []
         design_service.generate_design_summary.return_value = {
             "background_color": "#1a1a2e",
             "text_colors": ["#ffffff"],

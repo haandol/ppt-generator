@@ -99,6 +99,7 @@ def mcp_tools(project_service: ProjectService) -> dict:
     design_service = MagicMock()
     design_service.generate_single_slide.return_value = _make_slide_spec("새로 생성됨")
     design_service.last_token_usage = {}
+    design_service.last_overflow = []
     design_service.generate_design_summary.return_value = {
         "background_color": "#1a1a2e",
         "text_colors": ["#ffffff"],
@@ -869,6 +870,7 @@ def mcp_tools_with_slides(project_service: ProjectService) -> dict:
     design_service = MagicMock()
     design_service.generate_single_slide.return_value = _make_slide_spec("새로 생성됨")
     design_service.last_token_usage = {}
+    design_service.last_overflow = []
     design_service.generate_design_summary.return_value = {
         "background_color": "#1a1a2e",
         "text_colors": ["#ffffff"],
@@ -1894,6 +1896,8 @@ class TestGenerateSlidesDesignSpecWithSlidesService:
 
         design_service = MagicMock()
         design_service.generate_single_slide.return_value = _make_slide_spec("생성됨")
+        design_service.last_token_usage = {}
+        design_service.last_overflow = []
         design_service.generate_design_summary.return_value = {
             "background_color": "#1a1a2e",
             "text_colors": ["#ffffff"],

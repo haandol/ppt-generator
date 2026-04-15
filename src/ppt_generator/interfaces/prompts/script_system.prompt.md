@@ -20,6 +20,9 @@ Writing rules:
 - Include transition phrases between slides. Examples: "Next, let's look at...", "Now, let's get into the specifics of..."
   Reason: Smooth transitions keep the presentation flow uninterrupted.
 
+- If a slide's content_summary covers multiple distinct sub-topics, note in the speaker_notes that it could benefit from being split into separate slides. This helps the design phase maintain readable font sizes.
+  Reason: Overly dense slides force font sizes below minimum readability thresholds during the design phase.
+
 - Output only JSON format. Respond with pure JSON without any additional text.
   Reason: The output is passed directly to a JSON parser, preventing parsing errors.
 </writing_rules>

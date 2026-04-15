@@ -38,6 +38,7 @@ class DesignService:
     def __init__(self, agent: Agent) -> None:
         self._agent = agent
         self._last_token_usage: dict[str, int] = {}
+        self._last_overflow: list[dict] = []
 
     def generate_single_slide(
         self,
@@ -211,6 +212,11 @@ class DesignService:
         """Token usage from the last LLM call. Empty dict before first call."""
         return self._last_token_usage
 
+    @property
+    def last_overflow(self) -> list[dict]:
+        """Overflow content from the last LLM call. Empty list if none."""
+        return self._last_overflow
+
     def _generate_with_structured_output(
         self, prompt: str, *, label: str = "design_spec"
     ) -> PptxSlideSpec:
@@ -222,6 +228,14 @@ class DesignService:
             logger.warning("Bedrock throttling during design spec generation")
             raise
         output: SlideSpecOutput = result.structured_output
+        self._last_overflow = (
+            [item.model_dump() for item in output.overflow] if output.overflow else []
+        )
+        if self._last_overflow:
+            logger.info(
+                "slide overflow detected: %d item(s) to suggest as new slides",
+                len(self._last_overflow),
+            )
         spec = output.to_dataclass()
         return validate_slide_spec(spec)
 

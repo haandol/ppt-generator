@@ -95,11 +95,13 @@ Guidelines for slide count and content density based on presentation time:
 <writing_rules>
 Writing rules:
 
-- Cover only one topic per slide (One Topic Per Slide principle).
-  · Do not combine multiple topics in a single slide. If there are many topics, increase the number of slides.
+- Cover only one topic per slide (One Topic Per Slide — MANDATORY).
+  · Do not combine multiple topics or sub-topics in a single slide. If there are many topics, increase the number of slides.
+  · **Splitting test**: If the content_summary has 2 or more distinct sub-topics (e.g., "A의 장점" AND "B의 동작 방식"), split them into separate slides. Each slide should have exactly ONE clear message.
+  · **Density test**: If the content_summary would require more than 4-5 bullet points or more than 4 diagram blocks to represent visually, the content is too dense for one slide — split it.
   · The user's requested slide count is a minimum guideline. You may increase the slide count to cover topics thoroughly.
-  · Example: Even if the user requests 5 slides, if there are 7 independent topics to cover, create 7 or more slides.
-  Reason: Mixing multiple topics in one slide makes it difficult for the audience to understand the message and disrupts the presentation flow.
+  · Example: "Control Plane 인증 방식의 6단계" → Split into 2 slides: "인증 흐름 개요 (3단계)" + "인증 상세: Presigned GetCallerIdentity"
+  Reason: Mixing multiple topics in one slide forces the design phase to shrink fonts below readable sizes (< 16pt), degrading presentation quality.
 
 - Write content_summary with specific details about the key content to be covered in each slide.
   Reason: Subsequent steps (script, design) will generate specific text based on this content.

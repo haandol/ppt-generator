@@ -1,307 +1,131 @@
 <constraints>
 Hard constraints (rendering will fail if violated):
 
-1. Font size range: All font_size_pt must be within 10~44pt range.
+1. Font size — ABSOLUTE PRIORITY (override all other constraints):
+   - Card title (first bold run in a shape with fill_color): >= 18pt
+   - Card body (non-title runs in a shape with fill_color): >= 16pt
+   - Section label (short textbox, category heading): >= 14pt
+   - Any text element: >= 10pt, max 44pt
+   - Slide title: 32~36pt (use design_summary.title_font_pt if provided)
+   - **If content does not fit at these minimums, keep only essential keywords on the slide and put the excluded content into the overflow array. NEVER shrink fonts below the floor.**
+   - Peer shapes in the same row must use IDENTICAL font_size_pt at each paragraph index.
+   - Left vs right regions: equivalent roles must have font size difference <= 4pt.
 
-2. Coordinate bounds: left_px >= 0, top_px >= 0, left_px + width_px <= 1280, top_px + height_px <= 720.
+2. No same-level overlap (container-child nesting allowed):
+   - Same-level elements must not have overlapping bounding boxes. Gap >= 16px between adjacent elements.
+   - Container-child nesting allowed: children must be fully contained within the parent bounds.
+   - Container-child vertical stacking: compute each child's top_px from the previous child's bottom + gap. Never estimate by eye.
+     Example (3 children, gap=8): A top=168 h=50 bottom=218 → B top=226 h=28 bottom=254 → C top=262
+   - Line/arrow shapes may overlap block shapes. Textbox labels must NOT overlap shapes — put labels in the shape's paragraphs.
 
-3. Sufficient height: height_px must be at least lines (including wrapping) × font_size_pt × 2.0. Always calculate the number of times text wraps within the box width.
+3. Coordinate bounds: left_px >= 0, top_px >= 0, left_px + width_px <= 1280, top_px + height_px <= 720.
 
-4. Content completeness: Include all key content from content_summary in textboxes or shapes.
-   Reason: Missing content mentioned in the outline reduces the presentation's completeness.
+4. Margin enforcement: left_px >= 64, top_px >= 64, right edge <= 1216, bottom edge <= 688. (64px margins left/right/top, 32px bottom)
 
-5. Element separation (no same-level overlap, container-child nesting allowed):
-   - No overlap between same-level elements: Elements with the same role (e.g., card and card, textbox and textbox) must not have overlapping bounding boxes. If overlap exists, adjust the lower element's top_px to at least (upper element's top_px + height_px + 16).
-   - **No overlap between elements with different roles either**: For example, shapes with different roles like "context detail box" and "insight summary banner" must not have overlapping bounding boxes. When placing 2+ independent elements at the bottom, always stack vertically (lower element starts at upper element's bottom + 16 or more) or arrange horizontally (non-overlapping x ranges).
-   - Container-child nesting allowed: A large shape serving as a background/container with smaller shapes or textboxes placed inside it is allowed. In this case, child element bounding boxes must be completely contained within the parent shape's bounding box (child's left >= parent's left, child's top >= parent's top, child's right <= parent's right, child's bottom <= parent's bottom).
-   - **Container-child vertical stacking**: When placing multiple child elements vertically inside a container, calculate coordinates top-down sequentially. Each child's top_px must be >= previous child's (top_px + height_px + gap). Never estimate positions by eye — always compute from the previous element's bottom edge.
-     · Example (3 children stacked vertically inside a container, gap=8):
-       Container: top=148, height=444 → inner area top=148+padding_top, bottom=148+444-padding_bottom
-       Child A: top=168, height=50 → bottom=218
-       Child B: top=218+8=226, height=28 → bottom=254
-       Child C: top=254+8=262, height=112 → bottom=374
-       ✓ All children fit within container and do not overlap each other
-     · Common mistake: Setting child C's top=250 when child B's bottom=254 → 4px overlap causing visual corruption
-   - Diagram connection lines allowed: line shapes (arrows, connectors) may overlap with block shapes.
-   - Container-child pattern example: In arch_diagram, place small rounded_rectangles (blocks) inside a large rounded_rectangle (background panel) and connect with lines (arrows).
-   - **No placing textboxes as labels overlapping shapes**: Shape labels/titles must be included as the first item in the shape's paragraphs. Placing a separate textbox at the same coordinates as a shape will cause text to be hidden. Container shape area labels should also be placed in paragraphs or in a separate non-overlapping area above the container.
-   Reason: Same-level overlap degrades text readability, while container-child nesting is essential for diagrams and structural layouts.
+5. Sufficient height: height_px >= lines (including wrapping) x font_size_pt x 2.0.
 
-6. Margin enforcement (numeric criteria): All content elements must satisfy left_px >= 64, top_px >= 64, left_px + width_px <= 1216, top_px + height_px <= 688. Maintain 64px margins on left/right/top and 32px margin on bottom.
+6. Content completeness — subordinate to constraint 1:
+   Include key content from content_summary. **However, if all content cannot fit at the minimum font sizes, prioritize readability: keep only essential keywords/short phrases on the slide and put excluded content into the overflow array so the user can add it as a separate slide.**
 
-7. vertical_alignment required: Always specify vertical_alignment for all textboxes and shapes (null not allowed).
+7. vertical_alignment required: Always specify for all textboxes and shapes (null not allowed).
+   - Title/subtitle: "middle"
+   - Body/bullet textboxes: "middle" if content < 65% of box height, "top" otherwise
+   - Peer cards in a row: MUST use "top"
+   - Standalone card/banner: "middle"
+   - Footer/bottom labels: "bottom"
 
-8. Title position and font: Title must be placed at left=64, top=72, width=1152, height=48. Title font_size_pt must be 32~36 (use design_summary.title_font_pt if provided). Below 32pt is not allowed.
+8. Title position: left=64, top=72, width=1152, height=48. Font 32~36pt bold.
 
-9. Same-row element coordinate consistency: Elements arranged horizontally (cards, color bars, blocks, bottom info badges, etc.)
-   must use **the same top_px and height_px**.
-   - Example: 3 horizontally arranged cards → all 3 use top_px=521, height_px=69
-   - Example: 3 color bars above cards → all 3 use top_px=493, height_px=10
-   - Example: 3 bottom info badges → all 3 use top_px=626, height_px=30
-   - Do not calculate each element's top_px individually. **First determine one top_px for the row**, then apply it uniformly to all elements in that row.
-   - **Internal paragraph consistency**: When peer cards/shapes contain paragraphs (e.g., title + description), all peer shapes must use **identical paragraph structure, font sizes, and line spacing**. This ensures titles and descriptions are rendered at the same vertical position across all cards.
-   - **Separate label elements**: If number labels or icons are placed as separate textboxes/shapes above cards, all labels in the same row must share the exact same top_px, height_px, and font_size_pt.
-   Reason: Even a 1px difference in top_px breaks visual alignment, significantly degrading design quality.
+9. Same-row consistency: All elements in the same horizontal row must share identical top_px, height_px, paragraph font sizes, and padding values.
 
-10. Vertically stacked cards — uniform height and consistent gap:
-    When placing N cards stacked vertically in a column (e.g., left side of two_column), **all cards must have the same height_px** and the **gap between every adjacent pair must be identical**.
-    - First, decide one card_height and one gap value.
-    - Then compute positions sequentially: card_i.top_px = first_card.top_px + i × (card_height + gap).
-    - Verify: card_i.top_px must be >= card_(i-1).top_px + card_(i-1).height_px + gap. If not, recalculate.
-    - Example (3 cards, card_height=100, gap=16, starting at top=148):
-      Card 0: top=148, bottom=248
-      Card 1: top=264, bottom=364
-      Card 2: top=380, bottom=480
-    - **Common mistake**: Setting card heights differently (e.g., 122, 96, 96) or gaps inconsistently (e.g., -10px then 16px). This always causes overlap or visual imbalance.
-    Reason: Inconsistent height or gap between stacked cards creates overlap, misalignment, and an unprofessional appearance.
+10. Vertical stack uniformity: N cards stacked vertically must all have the same height_px with equal gaps.
+    Formula: card_i.top_px = first.top_px + i x (card_height + gap).
 
-11. No bottom auxiliary element overlap: When placing 2+ independent shapes/textboxes at the bottom of the slide (top_px >= 540),
-    bounding boxes must not overlap vertically. Always apply vertical separation (upper element bottom + 16 <= lower element top) or
-    horizontal separation (non-overlapping x ranges). Refer to "Bottom auxiliary element layout rules" in <slide_type_content>.
-    Reason: The bottom area has limited space, and overlapping elements hide content, causing critical information to be lost.
-
-12. Font size floor enforcement: Card titles must be >= 18pt, card body text must be >= 16pt, section labels must be >= 14pt. Never use 10~13pt for card content or labels — this is the most common font size violation. If content does not fit at these minimums, reduce the number of elements or shorten text. Do NOT shrink fonts below the floor.
-    Reason: Text below 14pt is unreadable at normal viewing distance and creates inconsistency when adjacent regions use larger fonts.
-
-13. Left-right split vertical alignment: When a slide uses a left-right split layout (two_column, concept_list, process_flow, or any layout with distinct left and right content regions):
-    - Both regions must share the **same top_px** (start of body content, typically 148px).
-    - Both regions must share the **same bottom edge** (top_px + height_px must be equal for both sides).
-    - If the left side consists of multiple vertically stacked elements (e.g., 4 cards), compute the bottom as: last_card.top_px + last_card.height_px. The right region's height_px must be adjusted so its bottom matches this value exactly.
-    - **Chart/graph internal elements**: When the right region contains axes, all elements (axis lines, data points, labels, legends) must be positioned relative to the region's boundaries, not independently estimated. The X-axis line must sit at or above the region's bottom edge. Legend and axis labels must not extend beyond the region's bounding box.
-    Reason: Misaligned top or bottom edges between left and right regions create an unbalanced, unprofessional appearance. This is one of the most common layout defects in split layouts.
+11. Left-right bottom alignment: In split layouts (two_column, concept_list, process_flow, etc.), both regions must share the same top_px AND bottom edge. Adjust the shorter side's height_px to match.
 </constraints>
 
 <typography_rules>
-- Slide title: font_size_pt 32~36, bold. **Must use design_summary.title_font_pt if provided.** Below 32pt is not allowed.
-- Subtitle/label: font_size_pt 14~18
-- Body/description: font_size_pt 20~28
-- Card title: font_size_pt 18~24, bold
-- Card body: font_size_pt 16~20
-- Secondary text: font_size_pt 12~16
-- Code: font_family: "monospace", font_size_pt 14~16
-- Recommended line_spacing_pt: body text 24~28pt, bullet lists 26~32pt, card interior 20~24pt
+Font size ranges (see constraint 1 for mandatory minimums):
+- Slide title: 32~36pt, bold
+- Subtitle/label: 14~18pt
+- Body/description: 20~28pt
+- Card title: 18~24pt, bold
+- Card body: 16~20pt
+- Secondary text (footnotes, source): 12~16pt
+- Code: font_family "monospace", 14~16pt
+- Line spacing: body 24~28pt, bullet lists 26~32pt, card interior 20~24pt
 
-■ Minimum font size for readability:
-  - **Body text and card body must be at least 14pt.** Below 14pt, text becomes difficult to read at normal viewing distance.
-  - Secondary/auxiliary text (footnotes, source labels) may go down to 12pt, but never below 10pt.
-  - If content does not fit at the minimum font size, reduce the text amount or simplify — do NOT shrink font below the minimums.
-
-■ Font size consistency across regions:
-  - When a slide has left and right content regions, **both regions must use comparable font sizes for equivalent roles**. For example, if the right side uses 15pt for list items, the left side must not use 10pt for similar body text.
-  - **Card titles must be 18~24pt, card body must be 16~20pt** — even when space is tight. Never shrink card text below these ranges to fit more cards. Instead, reduce the number of cards or simplify text.
-  - **Section labels** (category headings placed above content groups) must be at least 14pt and their textbox width_px must be wide enough for the text to fit on a single line. Calculate: width_px >= character_count × font_size_pt × 1.2 (for Korean) or × 0.73 (for Latin). If the label is too long, shorten the text — do not shrink the font or squeeze the width.
+Section label width: width_px >= char_count x font_size_pt x 1.2 (Korean) or x 0.73 (Latin).
 </typography_rules>
 
 <text_size_estimation>
-Estimate the required height to prevent text overflow from boxes using the following guidelines.
-Reason: Text overflow leads to clipping during rendering, causing critical information to be lost.
-
-- Korean character width ≈ font_size_pt × 1.2px, Latin/number character width ≈ font_size_pt × 0.73px
-- Example: width_px=500, font_size_pt=18, Korean → ~23 chars per line (500 / (18×1.2) = 23)
-- Always subtract shape padding to calculate the actual text area width and height
-  · Actual text width = width_px - padding_left_px - padding_right_px
-  · Actual text height = height_px - padding_top_px - padding_bottom_px
-  · Required height = (lines × font_size_pt × 2.0) + padding_top_px + padding_bottom_px
-- Lines = total text width / actual text area width (round up)
+- Korean char width ~ font_size_pt x 1.2px, Latin/number ~ font_size_pt x 0.73px
+- Actual text width = width_px - padding_left - padding_right
+- Required height = (lines x font_size_pt x 2.0) + padding_top + padding_bottom
+- If estimated height exceeds available space: shorten text and put detail into overflow (constraint 1 priority)
 </text_size_estimation>
 
-<spacing_and_density_balance>
-■ Minimum spacing rules (mandatory):
-  Maintain adequate spacing between elements to ensure visual clarity and readability.
-  - **Text-to-box boundary**: Card/shape inner text must have at least 12px padding from each edge. Never set all padding to 0 for shapes containing text.
-  - **Box-to-box gap**: Adjacent independent shapes/textboxes must have at least 16px gap. Below 16px, elements appear cramped and difficult to distinguish.
-  - **Text-to-text gap**: When multiple text blocks are stacked vertically (not inside the same textbox), maintain at least 12px gap between the bottom of one and the top of the next.
-  - **Title-to-body**: Already enforced at minimum 28px (constraint from slide_type_content). Always respect this.
+<padding_and_spacing>
+Padding (shapes containing text):
+- Minimum: left/right >= 16px, top/bottom >= 14px
+- Recommended for cards: 20~28px horizontal, 16~24px vertical
+- height_px must accommodate text + padding + 16px breathing room
 
-■ Content density balance (avoiding too sparse or too dense):
-  Slide content should be neither too packed nor too spread out.
+Spacing:
+- Box-to-box gap: >= 16px
+- Text-to-text gap (stacked blocks): >= 12px
+- Title-to-body: >= 28px
 
-  **Too dense (avoid)**:
-  - More than 7 distinct text blocks or shapes competing for attention on one slide.
-  - Body font size squeezed below 16pt to fit excessive content.
-  - Padding reduced below recommended minimums to save space.
-  - Fix: Move excess content to speaker_notes, split into multiple slides, or simplify.
-
-  **Too sparse (avoid)**:
-  - Content occupies less than 30% of the available body area (148~688, 540px), leaving large empty margins on top and bottom.
-  - Only 1-2 short text lines placed in the center with no visual elements, leaving over 70% whitespace.
-  - Fix: Use vertical_alignment "middle" to center content, adjust body height_px to match actual content, or add supporting visual elements (icons, dividers, shapes) to create balance.
-
-  **Balanced target**:
-  - Content fills 40~75% of the available body area.
-  - Consistent spacing between elements (not cramped, not overly spread).
-  - Font sizes within recommended ranges for their hierarchy level.
-  - Adequate padding on all shapes containing text.
-</spacing_and_density_balance>
-
-<vertical_alignment_guide>
-Always explicitly specify vertical_alignment for both textboxes and shapes. null is not allowed.
-- "top": Top-aligned, "middle": Vertically centered, "bottom": Bottom-aligned
-- Recommended values by use case:
-  - Title/subtitle textboxes: "middle"
-  - Body/bullet textboxes: "middle" recommended if content is less than 65% of box height, "top" if 65% or more
-  - **Peer cards/shapes in a row (step_cards, info_cards, summary_grid, etc.): MUST use "top".**
-    Reason: When multiple cards of the same height are arranged in a row but contain different amounts of text, "middle" alignment causes each card's content to start at a different vertical position. This makes titles and descriptions misaligned across cards. Using "top" ensures all peer cards start content at the same vertical position, maintaining visual consistency.
-  - Standalone card/banner/button shapes (single element, not part of a peer row): "middle"
-  - Footer/bottom labels: "bottom"
-  - Decorative shapes (no text): "top"
-</vertical_alignment_guide>
-
-<padding_guide>
-Both shapes and textboxes support padding_*_px fields to control the margin between text and boundaries.
-Reason: Without proper padding, text sticks to boundaries, reducing readability.
-
-- Default when unspecified: padding is 0 (no padding)
-- **Minimum padding for any shape containing text**: padding_left_px ≥ 16, padding_right_px ≥ 16, padding_top_px ≥ 14, padding_bottom_px ≥ 14. Never go below these minimums — text touching or nearly touching container edges looks unprofessional.
-- Recommended for card-type shapes and textboxes with background: padding_left_px: 20~28, padding_right_px: 20~28, padding_top_px: 16~24, padding_bottom_px: 16~24
-- Wide banner/header shapes: padding_left_px: 20~28 recommended
-- Standalone textboxes (no background shape behind): padding is usually unnecessary
-- **Height must accommodate padding**: When setting shape height, ensure height_px ≥ total_text_height + padding_top_px + padding_bottom_px + 16px breathing room. If content fills more than 80% of the inner area (height - top padding - bottom padding), increase height_px or reduce font sizes.
-
-**Always consider padding when calculating coordinate placement.**
-The bounding box (left_px/top_px/width_px/height_px) of shapes and textboxes represents the total area including padding.
-The actual visible text area is the inner region after subtracting padding from the bounding box.
-- shape: Inset by the specified padding_*_px (card-type default 16~18px)
-- textbox: Inset by the specified padding_*_px (default 0 if unspecified)
-
-Therefore, when placing decorative lines or label textboxes above/below a shape:
-- The decorative line's bottom must be above the shape's top_px to prevent overlap with the shape's **text start point** (top_px + padding_top).
-- Maintain **at least 16px spacing** so the label textbox's bottom (top_px + height_px + 16px visual padding) does not exceed the shape below's top_px.
-</padding_guide>
+Content density target: 40~75% of body area (148~688). If > 7 elements compete for space, simplify and put excess into overflow.
+</padding_and_spacing>
 
 <shapes_text_usage>
 Two ways to add text to shapes:
-1. Simple text: Use text, text_color, text_size_pt, text_bold fields (single-line text, auto center-aligned)
-2. Structured text: Use paragraphs array (for multi-line, bullets, mixed formatting). In paragraphs runs, use font_family: "monospace" to specify code font
-If both are used, paragraphs takes priority. Actively use paragraphs for card-type shapes.
+1. Simple: text, text_color, text_size_pt, text_bold (single-line, auto center-aligned)
+2. Structured: paragraphs array (multi-line, bullets, mixed formatting). Use font_family "monospace" for code.
+If both are present, paragraphs takes priority. Use paragraphs for card-type shapes.
 </shapes_text_usage>
 
 <slide_type_agenda>
-Agenda slide (slide_type: "content", component_hint: "agenda") design rules:
-
-- The second slide of the presentation. Introduces the main sections/flow of the entire presentation
-- Agenda items should not list every individual slide, but rather abstract related slides into larger topic units (sections), keeping it concise with 3-6 items
-- Layout: **Default is single-column layout.** Only use two-column layout when the number of items exceeds 6 and a single column would waste excessive vertical space.
-  · Single-column (default, 6 items or fewer):
-    - Title: left=64, top=72, width=1152, height=48
-    - Body: Single textbox below the title listing items vertically (left=64, top=148, width=1152, height=adjust to content)
-  · Two-column (7+ items only, as a last resort):
-    - Title: left=64, top=72, width=1152, height=48
-    - Left: left=64, top=148, width=552, height=adjust to content
-    - Right: left=664, top=148, width=552, height=adjust to content
-- Each item should be written concisely as a section title
+Agenda slide (component_hint: "agenda"):
+- Second slide. Lists 3-6 topic sections (not individual slides).
+- Default: single-column (left=64, top=148, width=1152). Two-column only if 7+ items.
 </slide_type_agenda>
 
 <slide_type_content>
-Body slide (slide_type: "content") design rules:
+Body slide (slide_type: "content"):
+- Body area: top 148 ~ bottom 688 (540px max). Adjust height to content — do not always use 540px.
+- Layout by component_hint:
 
-- Main body slide of the presentation. Covers the core content of the topic
-- Canvas safe area: left 64~1216, top 64~688 (64px margin left/right/top, 32px margin bottom)
-- Body area: top 148 ~ bottom 688 (540px max). Grid rows 1-20 cover 148-648. Elements may extend to 688 when needed.
-- Title-to-body spacing: Maintain minimum **28px** (between title bottom and body top)
-- Minimum **16px** spacing between adjacent elements (vertical direction)
-- Body height: Not fixed at 540px — **adjust to content amount** (estimate required height and set height_px)
-- Layout guide by component_hint:
+  bullets: Title + body bullet textbox (bullet_level 0/1)
+    Body: left=64, top=148, width=1152
 
-  bullets: Title textbox on top + body bullet textbox (bullet_level 0/1)
-    · Title: left=64, top=72, width=1152, height=48
-    · Body: left=64, top=148, width=1152, height=adjust to content (max 480)
+  two_column: Title + two textboxes (width ~552px, gap 48px)
+    Left: left=64, top=148, width=552 / Right: left=664, top=148, width=552
 
-  two_column: Title + two side-by-side textboxes (each width ~552px, gap 48px)
-    · Title: left=64, top=72, width=1152, height=48
-    · Left: left=64, top=148, width=552, height=adjust to content
-    · Right: left=664, top=148, width=552, height=adjust to content
-    · **Both sides must have the same top_px AND the same bottom edge (top_px + height_px).**
+  vs_comparison: Left card (left=64, w=508) + VS label (left=596, w=88) + Right card (left=708, w=508)
 
-  vs_comparison: Title + two side cards (shape) + center VS label
-    · Left: left=64, width=508 / VS: left=596, width=88 / Right: left=708, width=508
+  step_cards: 3-4 horizontal cards
+    3 cards: width=352, gap=32 → left: 64, 448, 832
+    4 cards: width=260, gap=24 → left: 64, 348, 632, 916
 
-  step_cards: Title + 3-4 horizontally arranged cards (shape), each with number+title+description
-    · 3 cards: width=352, gap=32px → left: 64, 448, 832
-    · 4 cards: width=260, gap=24px → left: 64, 348, 632, 916
+  summary_grid: 2x2 card grid
+    TL: left=64, top=148, w=552, h=236 / TR: left=664, top=148
+    BL: left=64, top=412 / BR: left=664, top=412
 
-  code_block: Title + code area (shape, dark background, monospace font)
-  arch_diagram: Title + blocks (shapes) connected by arrows (line shapes) forming a diagram
-  pipeline: Title + left-to-right stage blocks (shapes) + arrows
-  quote: Large quotation mark + quote textbox + source
+  arch_diagram: Blocks (shapes) + arrows (lines) forming a diagram
+  pipeline: Left-to-right stage blocks + arrows
+  process_flow: Left description + right flow diagram
+  code_block / quote / info_cards / feature_list / concept_list / quote_code
 
-  summary_grid: Title + 2x2 card (shape) grid
-    · Top-left: left=64, top=148, width=552, height=236
-    · Top-right: left=664, top=148, width=552, height=236
-    · Bottom-left: left=64, top=412, width=552, height=236
-    · Bottom-right: left=664, top=412, width=552, height=236
-
-  info_cards: Title + 3-4 information cards (shapes) horizontally arranged
-  feature_list: Title + icon/bullet + feature description text
-  process_flow: Title + left description textbox + right flow diagram (shapes+lines)
-    · **Left and right regions must share the same top_px AND bottom edge.**
-  quote_code: Left quote/description textbox + right code shape
-    · **Left and right regions must share the same top_px AND bottom edge.**
-  concept_list: Left concept description text + right diagram (shapes)
-    · **Left and right regions must share the same top_px AND bottom edge.**
-
-■ Left-right split layout Y-axis alignment rules (mandatory):
-  When a slide has two content regions side by side (e.g., two_column, concept_list, process_flow, or any custom left/right split):
-  - **Top alignment**: Both the left and right content regions must start at the **same top_px**.
-  - **Bottom alignment**: Both regions must end at the **same bottom_px** (top_px + height_px).
-    · If the left side has multiple stacked cards (e.g., 4 cards), the right side graph/diagram box's bottom must match the bottom of the left side's lowest card.
-    · Formula: right_region.height_px = left_lowest_card.top_px + left_lowest_card.height_px - right_region.top_px
-  - **Internal element alignment**: When the right region contains a chart/graph with axes:
-    · The chart's X-axis line top_px must align with or be above the right region's bottom boundary.
-    · Labels, legends, and annotations below the X-axis must fit within the right region's bounding box.
-    · Axis labels (e.g., "자율성 →"), legend items, and data point labels must be positioned relative to the X-axis, not estimated independently.
-  - This rule applies to ALL split layouts, regardless of component_hint. Whenever left and right content regions coexist, their vertical extent must be visually aligned.
-
-■ Bottom auxiliary element layout rules:
-  When placing auxiliary elements at the bottom of a slide such as info badges, insight banners, or context boxes:
-
-  1. **Single independent element at the bottom** (insight banner or info badge row):
-     - Insight banner: left=64, top=612, width=1152, height=44, full width
-     - Info badge row (2-3): Same top_px=612, height_px=44, arranged horizontally (refer to diagram_grid N-column even distribution)
-
-  2. **Two independent elements at the bottom** (e.g., context box + insight banner):
-     - Place both elements without vertical overlap. **Never overlap them in the same y range.**
-     - Method A (vertical separation): Place context box above, insight banner below
-       · Context box: top=540, height=68 (bottom=608)
-       · Insight banner: top=624, height=32 (bottom=656)
-     - Method B (horizontal separation): Place context box on left, insight banner on right side by side
-       · Context box: left=64, width=500 / Insight banner: left=596, width=620
-     - Method C (merge): Consolidate all content into a single shape using paragraphs
-
-  3. **When space is limited**: Reduce the main diagram area height to make room for the bottom auxiliary area. Main diagram bottom should be at most 540px, bottom auxiliary area starts from 556px.
+Bottom auxiliary elements (top >= 540):
+- Single element: left=64, top=612, width=1152, height=44
+- Two elements: stack vertically (upper bottom + 16 <= lower top) or arrange horizontally
+- If space is limited, reduce main diagram to bottom=540, auxiliary starts at 556
 </slide_type_content>
 
-<content_vertical_balance>
-Vertical placement strategy based on content amount:
-
-- **Adjust body height to match content.** Do not always fix height_px at 540 — calculate the height appropriate for the actual text amount (max 540px = 688 - 148). Note: Well-designed presentations have an average body height around 300px; fixing at 540px creates excessive empty space.
-- If the body textbox's actual content is less than 65% of height_px, set vertical_alignment to "middle". This prevents content from clustering at the top and creates a visually balanced layout.
-- Card layouts (step_cards, info_cards, etc.) should be positioned around the canvas vertical center.
-
-■ Content area utilization with optical density balance (mandatory):
-  When placing repeating elements (chart rows, card stacks, list items, etc.) inside a container or the body area:
-  - **Utilize at least 60% of the parent area's available height.** Do not cluster elements in the top portion leaving large empty space below.
-  - **Maintain consistent inter-element spacing** that preserves visual cohesion. Elements should feel grouped, not scattered.
-  - Recommended approach: Calculate total content height (N items × item_height + (N-1) × gap), then center the content block vertically within the parent area. Adjust gap so total content height is 60~85% of available height.
-  - **Avoid excessive spacing**: If the gap between adjacent items exceeds 2× the item height, the layout feels disconnected and sparse. Keep gap ≤ 1.5× item height.
-  - **Avoid insufficient spacing**: If the gap is less than 8px, items feel cramped. Keep gap ≥ 12px for readability.
-  - Formula for balanced gap: gap = (available_height - N × item_height) / (N + 1), then clamp to [12px, 1.5 × item_height].
-</content_vertical_balance>
-
-<page_design_rules>
-- Always add diagrams or infographics that help understand each topic. Actively compose visual elements such as flowcharts, relationship diagrams, and structure diagrams by combining shapes (rectangle, rounded_rectangle, ellipse, line).
-- Additionally, maximize the inclusion of images or infographics wherever possible on each page.
-- Each page should contain only essential text — avoid excessive text. Focus on key keywords and short sentences.
-- Place supplementary explanations in speaker_notes rather than in the slide body.
-- Intentionally use negative space to emphasize core content. Do not try to fill empty spaces — visual breathing room guides the audience's attention to what matters.
-- Combine existing shape properties (border_color, border_width_pt, fill_color, corner_radius_px) to enhance visual hierarchy. Examples: accent-color borders on key cards, brightness differences between background panels and foreground cards, thin divider lines for section separation.
-- When placing thin decorative lines (horizontal: height≤10px, vertical: width≤10px) beside cards, always match the **same top_px and height_px as the card**. Position so the line's left_px + width_px equals the card's left_px, placing it flush against the card.
-- **Corner radius consistency with decorative lines**: When a vertical decorative line is flush against a card's left edge, set the card's corner_radius_px to 0 or use shape_type "rectangle". A straight line touching a rounded card creates a visual mismatch.
-- Actively use paragraphs in shapes to structure card interior text.
-</page_design_rules>
-
 <examples>
-  <layout_example id="bullets-1" hint="bullets — Title + bullet point list (bullet_level 0/1 hierarchy, full-width textbox)">
+  <layout_example id="bullets-1" hint="bullets">
   {
     "background_color": "#232F3E",
     "speaker_notes": "In this slide...",
@@ -328,7 +152,7 @@ Vertical placement strategy based on content amount:
   }
   </layout_example>
 
-  <layout_example id="step-cards-1" hint="step_cards — 3 horizontally arranged cards (number + title + description, using paragraphs, even gap=32px)">
+  <layout_example id="step-cards-1" hint="step_cards — 3 cards with paragraphs">
   {
     "background_color": "#232F3E",
     "speaker_notes": "",
@@ -376,7 +200,7 @@ Vertical placement strategy based on content amount:
   }
   </layout_example>
 
-  <layout_example id="pipeline-1" hint="pipeline — 4 blocks connected left-to-right with arrows (end_arrow) in a horizontal pipeline diagram">
+  <layout_example id="pipeline-1" hint="pipeline — 4 blocks with arrows">
   {
     "background_color": "#232F3E",
     "speaker_notes": "",
@@ -434,48 +258,10 @@ Vertical placement strategy based on content amount:
   </layout_example>
 </examples>
 
-<layout_grid>
-A 48-column × 20-row grid for coordinate calculation reference.
-Output must be in px values, but first determine the "logical position" using column/row numbers before converting to reduce errors.
-
-■ Horizontal 48-column grid (content area 1152px = 48 × 24px, cell 24×24px square)
-  Formula: left_px = 64 + (col - 1) × 24
-
-  | col |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  | 10  | 11  | 12  | 13  | 14  | 15  | 16  |
-  |-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|
-  | px  |  64 |  88 | 112 | 136 | 160 | 184 | 208 | 232 | 256 | 280 | 304 | 328 | 352 | 376 | 400 | 424 |
-
-  | col | 17  | 18  | 19  | 20  | 21  | 22  | 23  | 24  | 25  | 26  | 27  | 28  | 29  | 30  | 31  | 32  |
-  |-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|
-  | px  | 448 | 472 | 496 | 520 | 544 | 568 | 592 | 616 | 640 | 664 | 688 | 712 | 736 | 760 | 784 | 808 |
-
-  | col | 33  | 34  | 35  | 36  | 37  | 38  | 39  | 40  | 41  | 42  | 43  | 44  | 45  | 46  | 47  | 48  |
-  |-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|
-  | px  | 832 | 856 | 880 | 904 | 928 | 952 | 976 |1000 |1024 |1048 |1072 |1096 |1120 |1144 |1168 |1192 |
-
-  Key span → width conversions: span 48 = 1152px, span 24 = 576px, span 16 = 384px, span 12 = 288px
-
-■ Vertical 20-row grid (grid rows span 148~648, 500px = 20 × 25px; full body area extends to 688)
-  Formula: top_px = 148 + (row - 1) × 25
-
-  | row |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  | 10  |
-  |-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|
-  | px  | 148 | 173 | 198 | 223 | 248 | 273 | 298 | 323 | 348 | 373 |
-
-  | row | 11  | 12  | 13  | 14  | 15  | 16  | 17  | 18  | 19  | 20  |
-  |-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|
-  | px  | 398 | 423 | 448 | 473 | 498 | 523 | 548 | 573 | 598 | 623 |
-</layout_grid>
-
 <diagram_grid>
-Pre-calculated coordinate table for diagrams (arch_diagram, pipeline, process_flow, etc.).
-Use these table values directly for evenly distributing blocks to prevent calculation errors.
+Pre-calculated coordinates for diagrams. Use these values directly to prevent calculation errors.
 
-■ Horizontal N-column even distribution (content area 1152px, gap = 32px)
-  Formula: width = (1152 - (N-1) × 32) / N  (truncate decimals)
-           left[i] = 64 + i × (width + 32)   (i = 0, 1, …, N-1)
-  **All elements in the same row must use the same top_px and height_px.**
-
+Horizontal N-column even distribution (content area 1152px, gap=32px):
   | N | width | left positions                 |
   |---|-------|-------------------------------|
   | 2 |  560  | 64, 656                       |
@@ -483,10 +269,7 @@ Use these table values directly for evenly distributing blocks to prevent calcul
   | 4 |  264  | 64, 360, 656, 952             |
   | 5 |  206  | 64, 302, 540, 778, 1016       |
 
-■ Vertical M-row even distribution (diagram safe area 508px = 148~656, gap = 28px; 656~688 reserved for bottom auxiliary)
-  Formula: height = (508 - (M-1) × 28) / M  (truncate decimals)
-           top[j] = 148 + j × (height + 28)  (j = 0, 1, …, M-1)
-
+Vertical M-row even distribution (safe area 508px = 148~656, gap=28px):
   | M | height | top positions                 |
   |---|--------|------------------------------|
   | 1 |  508   | 148                          |
@@ -494,90 +277,37 @@ Use these table values directly for evenly distributing blocks to prevent calcul
   | 3 |  150   | 148, 326, 504                |
   | 4 |  106   | 148, 282, 416, 550           |
 
-■ Arrow (line shape) coordinate calculation
-  Connections between blocks are represented with shape_type: "line".
-  A line shape renders as a straight connector from start point (left_px, top_px) to end point (left_px+width_px, top_px+height_px).
+Arrow coordinates:
+- Horizontal (A→B): left=A.left+A.width, top=A.top+A.height/2, width=B.left-A.right, height=0
+- Vertical (A→B): left=A.left+A.width/2, top=A.top+A.height, width=0, height=B.top-A.bottom
+- All diagram arrows: end_arrow=true. Min gap between blocks: 28px (arrowhead size=14px).
+- Endpoints must touch block edges exactly — no gap, no penetration.
 
-  - Horizontal arrow (left→right, same row):
-      left_px  = blockA.left + blockA.width              (right edge of A)
-      top_px   = blockA.top + blockA.height / 2          (vertical center of A)
-      width_px = blockB.left - (blockA.left + blockA.width)  (= gap)
-      height_px = 0
-  - Vertical arrow (top→bottom, same column):
-      left_px  = blockA.left + blockA.width / 2          (horizontal center of A)
-      top_px   = blockA.top + blockA.height               (bottom edge of A)
-      width_px = 0
-      height_px = blockB.top - (blockA.top + blockA.height)  (= gap)
-
-■ Arrow properties
-  - end_arrow: true → Displays a triangular arrowhead at the end point (right/bottom).
-  - start_arrow: true → Displays a triangular arrowhead at the start point (left/top).
-  - dash_style: "solid" (default, solid line), "dash" (dashed), "dot" (dotted)
-  - **All connection lines in diagrams must specify end_arrow: true to indicate flow direction.**
-  - For bidirectional arrows, set both start_arrow: true and end_arrow: true.
-  - Only omit (false) both end_arrow/start_arrow for plain connection lines without arrows.
-
-■ Container/wrapper interior utilization (mandatory)
-  When placing child elements (blocks, cards, diagram nodes) inside a container/wrapper shape:
-  - Child elements must utilize **at least 80% of the container's inner width** (after padding).
-  - Do NOT cluster child elements in a narrow sub-region of the container, leaving large empty margins on the sides.
-  - Distribute child elements evenly within the container's inner area using the container's own left_px, width_px, and padding values.
-  - Formula: child_area_left = container.left_px + container.padding_left_px
-             child_area_width = container.width_px - container.padding_left_px - container.padding_right_px
-             Then apply the N-column even distribution formula within child_area_width, starting from child_area_left.
-  - Same principle applies vertically: child elements should span the container's available inner height, not cluster at the top.
-  - **Peer children in the same row must have identical height_px and top_px.** Different heights cause misalignment.
-  - **All children must fit entirely within the container bounds.** For each child, verify:
-    child.left_px >= container.left_px + container.padding_left_px
-    child.top_px >= container.top_px + container.padding_top_px (+ title paragraph height if container has a title)
-    child.left_px + child.width_px <= container.left_px + container.width_px - container.padding_right_px
-    child.top_px + child.height_px <= container.top_px + container.height_px - container.padding_bottom_px
-    If any child overflows, reduce child height/width or increase container size.
-  - **Stacking rows inside a container**: When a container has a horizontal row of children AND additional elements below (e.g., info bars), compute positions top-down:
-    row_bottom = row_top + row_height
-    next_element_top >= row_bottom + gap (at least 12px)
-    Verify the last element's bottom does not exceed the container's inner bottom.
-
-■ Arrow endpoint snapping (mandatory)
-  Arrow endpoints must precisely touch the edge of the connected block — no gap, no penetration.
-  - Start point (left_px, top_px) must lie exactly on the source block's edge.
-  - End point (left_px+width_px, top_px+height_px) must lie exactly on the target block's edge.
-  - Horizontal arrow: left_px == source.left + source.width, left_px + width_px == target.left
-  - Vertical arrow: top_px == source.top + source.height, top_px + height_px == target.top
-  - A gap > 0px means the arrow is visually disconnected ("floating").
-  - A negative gap means the arrow penetrates the block.
-  - Both are visual defects. Always derive arrow coordinates from connected blocks' exact edge values.
-
-■ Minimum arrow gap rule (mandatory)
-  Since arrowheads are 14px, **at least 28px gap** must be maintained between blocks when placing arrows.
-  - Horizontal arrow: width_px >= 28 (distance between blockA's right and blockB's left >= 28)
-  - Vertical arrow: height_px >= 28 (distance between blockA's bottom and blockB's top >= 28)
-  - If gap is less than 28px, arrowheads will overlap or clip against blocks, causing visual artifacts.
-  - If space between blocks is insufficient, reduce block size to ensure arrow gap.
-
-■ 3×2 diagram example (3 columns × 2 rows, gap_h=32, gap_v=28)
-  Block size: width=362, height=240
-  Row 1: top=148  → (64,148), (458,148), (852,148)
-  Row 2: top=416  → (64,416), (458,416), (852,416)
-  Horizontal arrow (row 1, A→B): left=426, top=268, width=32, height=0, end_arrow=true
-  Horizontal arrow (row 1, B→C): left=820, top=268, width=32, height=0, end_arrow=true
-  Vertical arrow (col 1, R1→R2): left=245, top=388, width=0, height=28, end_arrow=true
+Container interior: children must use >= 80% of inner width. All peer children in same row: identical top_px, height_px. All children must fit within container bounds.
 </diagram_grid>
 
+<page_design_rules>
+- Compose visual elements (flowcharts, diagrams, structure charts) using shapes and lines.
+- Keep only essential keywords/short phrases on the slide. Move supplementary text to speaker_notes.
+- Use negative space intentionally — do not fill every gap.
+- Use border_color, fill_color, corner_radius_px to create visual hierarchy.
+- Decorative lines beside cards: match the card's top_px and height_px exactly.
+- Use paragraphs in shapes for structured card interior text.
+</page_design_rules>
+
 <pre_output_verification>
-**Pre-output verification (mandatory)** — Run this checklist before outputting the final JSON:
+Before outputting JSON, verify these critical items. Fix ALL violations before output.
 
-1. For each element, compute bottom = top_px + height_px
-2. For the element below it, check: its top_px >= previous bottom + 16 (minimum gap)
-3. For container-child patterns, verify all children fit within the container bounds
-4. **For left-right split layouts**: verify left_bottom == right_bottom (both regions end at the same Y coordinate). If they differ, adjust the shorter region's height_px so both bottoms match.
-5. **Font size floor check**: Scan all font_size_pt values — card titles must be >= 18pt, card body >= 16pt, section labels >= 14pt. If any violation is found, increase to the minimum.
-6. **Font size consistency check**: Compare font sizes used for equivalent roles across left and right regions. If one side uses significantly smaller fonts (e.g., 10pt vs 15pt for body text), unify to the larger size.
-7. **Section label width check**: For each section label textbox, verify width_px is sufficient for the text to fit on one line. If not, widen the textbox or shorten the text.
-8. **Stacked card consistency check**: For vertically stacked cards in the same column, verify all cards have the same height_px and all gaps between adjacent cards are equal. If card heights differ or gaps are inconsistent, unify them.
-9. **Peer element font size consistency check**: For shapes arranged in the same row (same top_px), compare their paragraphs index by index. Each run at the same position (e.g., all card titles = paragraph[0].runs[0], all card subtitles = paragraph[1].runs[0]) must use the **identical font_size_pt**. If any peer shape has a different font_size_pt for the same-position run, unify to the most common value. This is the most frequent visual inconsistency — always verify.
-10. **Peer element padding consistency check**: For shapes arranged in the same row (same top_px), all shapes must use **identical padding_left_px, padding_right_px, padding_top_px, padding_bottom_px**. If any peer shape has different padding values, unify to the largest value among peers.
-11. If any violation is found, fix the offending values before output.
+1. FONT SIZE (constraint 1 — absolute priority):
+   Scan every font_size_pt. Card title >= 18, card body >= 16, label >= 14, any text >= 10.
+   Peer shapes in same row: identical font_size_pt at each paragraph position.
+   **If any violation: increase font, shorten text, put detail into overflow. NEVER reduce font below floor.**
 
-This verification is critical because coordinate arithmetic errors and font size violations cause visible defects in the rendered slide.
+2. OVERLAP (constraint 2):
+   For every pair of same-level elements: gap = B.top - (A.top + A.height) >= 16.
+   Container children: all fit within parent bounds.
+
+3. ALIGNMENT (constraints 9, 10, 11):
+   Same-row peers: identical top_px, height_px, padding. Stacked cards: uniform height, equal gaps.
+   Split layouts: left_bottom == right_bottom.
 </pre_output_verification>

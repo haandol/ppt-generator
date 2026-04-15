@@ -63,6 +63,15 @@ and output PptxSlideSpec JSON that can be directly rendered with python-pptx.
       "dash_style": "solid"|"dash"|"dot"|null,
       "autofit_mode": "expand_height"|"shrink_text"
     }
+  ],
+  "overflow": [
+    {
+      "title": "Suggested new slide title",
+      "content_summary": "Content that could not fit (outline format)",
+      "component_hint": "bullets"|"step_cards"|etc,
+      "insert_after": number (1-based index of current slide),
+      "reason": "Why this content was excluded"
+    }
   ]
 }
 </output_schema>
@@ -101,4 +110,9 @@ Common rules:
 - autofit_mode controls how text overflow is handled in shapes:
   - "expand_height" (default): Expands height to fit text, then shrinks font if still insufficient.
   - "shrink_text": Keeps height fixed, shrinks font to fit. Use this when shapes must have matching heights (e.g., side-by-side cards or comparison layouts).
+- **overflow** — When content from content_summary cannot fit on the slide at the minimum font sizes (constraint 1), do NOT shrink fonts. Instead:
+  1. Keep only essential keywords and short phrases on the current slide.
+  2. Put the excluded content into the **overflow** array with a suggested title, content_summary, component_hint, and insert_after (current slide's 1-based index).
+  3. The user will decide whether to add the overflow as a new slide.
+  4. overflow is an empty array [] when all content fits on the slide.
 </output_rules>
