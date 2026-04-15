@@ -304,10 +304,17 @@ Before outputting JSON, verify these critical items. Fix ALL violations before o
    **If any violation: increase font, shorten text, put detail into overflow. NEVER reduce font below floor.**
 
 2. OVERLAP (constraint 2):
-   For every pair of same-level elements: gap = B.top - (A.top + A.height) >= 16.
+   For every pair of same-level elements, check BOTH axes:
+   - Vertical adjacency: gap = B.top - (A.top + A.height) >= 16
+   - Horizontal adjacency: gap = B.left - (A.left + A.width) >= 16
+   Two elements overlap when their bounding boxes intersect on BOTH axes simultaneously.
    Container children: all fit within parent bounds.
 
 3. ALIGNMENT (constraints 9, 10, 11):
    Same-row peers: identical top_px, height_px, padding. Stacked cards: uniform height, equal gaps.
-   Split layouts: left_bottom == right_bottom.
+   Split layouts bottom alignment — compute explicitly:
+     left_bottom = max(top_px + height_px) for all elements with left_px < 620
+     right_bottom = max(top_px + height_px) for all elements with left_px >= 620
+     |left_bottom - right_bottom| must be <= 8px.
+     If misaligned, adjust the shorter side's last element height_px to match.
 </pre_output_verification>

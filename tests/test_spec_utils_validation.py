@@ -86,15 +86,15 @@ class TestTextboxHeightExpansion:
         assert result.shapes[0].height_px >= min(required_h, _CANVAS_H - _MARGIN - 64)
 
     def test_shrink_text_mode_preserves_height(self) -> None:
-        """autofit_mode="shrink_text" → height 유지, 폰트 축소."""
+        """autofit_mode="shrink_text" → height 유지, 폰트 축소 (non-card)."""
         long_text = "가나다라마바사아자차" * 3
+        # fill_color 없는 shape → 10pt floor 적용, 16pt 미만으로 축소 가능
         shape = PptxShape(
             left_px=64,
             top_px=64,
             width_px=300,
             height_px=40,
             shape_type="rounded_rectangle",
-            fill_color="#2a2a4e",
             text=long_text,
             text_size_pt=16,
             padding_left_px=16,
@@ -109,7 +109,7 @@ class TestTextboxHeightExpansion:
         assert result.shapes[0].text_size_pt < 16
 
     def test_shrink_text_mode_scales_line_spacing(self) -> None:
-        """autofit_mode="shrink_text" → line_spacing_pt도 함께 축소."""
+        """autofit_mode="shrink_text" → line_spacing_pt도 함께 축소 (non-card)."""
         long_paras = [
             PptxParagraph(
                 runs=[PptxTextRun(text="카드 제목 텍스트", font_size_pt=14, bold=True)]
@@ -160,13 +160,13 @@ class TestTextboxHeightExpansion:
                 bullet_level=0,
             ),
         ]
+        # fill_color 없는 shape → 10pt floor 적용, 줄간격 축소 테스트
         shape = PptxShape(
             left_px=64,
             top_px=148,
             width_px=272,
             height_px=200,
             shape_type="rounded_rectangle",
-            fill_color="#243447",
             paragraphs=long_paras,
             line_spacing_pt=18.0,
             padding_left_px=14,
@@ -185,13 +185,13 @@ class TestTextboxHeightExpansion:
 
     def test_shrink_text_mode_side_by_side_same_height(self) -> None:
         """autofit_mode="shrink_text" → 나란히 배치된 shape 높이 일관성."""
+        # fill_color 없는 shape → 10pt floor, 14pt에서 축소 가능
         shape_left = PptxShape(
             left_px=64,
             top_px=200,
             width_px=560,
             height_px=184,
             shape_type="rounded_rectangle",
-            fill_color="#2a2a4e",
             text="가나다라마바사" * 10,
             text_size_pt=14,
             autofit_mode="shrink_text",
@@ -202,7 +202,6 @@ class TestTextboxHeightExpansion:
             width_px=560,
             height_px=184,
             shape_type="rounded_rectangle",
-            fill_color="#2a2a4e",
             text="가나다라" * 3,
             text_size_pt=14,
             autofit_mode="shrink_text",
@@ -600,6 +599,174 @@ class TestNoColorIntervention:
         )
         result = validate_slide_spec(spec)
         assert result.shapes[0].text_color == "#EEEEEE"
+
+
+# ---------------------------------------------------------------------------
+# 카드 폰트 바닥 강제
+# ---------------------------------------------------------------------------
+
+
+class TestCardFontFloorEnforcement:
+    """카드(fill_color 있는 shape)의 폰트 최소 크기를 강제한다."""
+
+    def test_card_body_font_floor_16pt(self) -> None:
+        """카드 body 텍스트(non-bold)가 16pt 미만이면 16pt로 올린다."""
+        shape = PptxShape(
+            left_px=64,
+            top_px=148,
+            width_px=400,
+            height_px=200,
+            shape_type="rounded_rectangle",
+            fill_color="#2E3D50",
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="본문 텍스트", font_size_pt=12)]),
+            ],
+        )
+        result = validate_slide_spec(_slide(shapes=[shape]))
+        font = result.shapes[0].paragraphs[0].runs[0].font_size_pt
+        assert font is not None
+        assert font >= 16
+
+    def test_card_title_font_floor_18pt(self) -> None:
+        """카드 제목(첫 bold run)이 18pt 미만이면 18pt로 올린다."""
+        shape = PptxShape(
+            left_px=64,
+            top_px=148,
+            width_px=400,
+            height_px=200,
+            shape_type="rounded_rectangle",
+            fill_color="#2E3D50",
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="제목", font_size_pt=14, bold=True)]
+                ),
+                PptxParagraph(runs=[PptxTextRun(text="본문", font_size_pt=12)]),
+            ],
+        )
+        result = validate_slide_spec(_slide(shapes=[shape]))
+        title_font = result.shapes[0].paragraphs[0].runs[0].font_size_pt
+        body_font = result.shapes[0].paragraphs[1].runs[0].font_size_pt
+        assert title_font is not None and title_font >= 18
+        assert body_font is not None and body_font >= 16
+
+    def test_card_simple_text_bold_floor_18pt(self) -> None:
+        """카드의 text + text_bold=True → 18pt floor."""
+        shape = PptxShape(
+            left_px=64,
+            top_px=148,
+            width_px=400,
+            height_px=100,
+            shape_type="rounded_rectangle",
+            fill_color="#2E3D50",
+            text="카드 제목",
+            text_size_pt=12,
+            text_bold=True,
+        )
+        result = validate_slide_spec(_slide(shapes=[shape]))
+        assert result.shapes[0].text_size_pt is not None
+        assert result.shapes[0].text_size_pt >= 18
+
+    def test_card_simple_text_non_bold_floor_16pt(self) -> None:
+        """카드의 text + text_bold=False → 16pt floor."""
+        shape = PptxShape(
+            left_px=64,
+            top_px=148,
+            width_px=400,
+            height_px=100,
+            shape_type="rounded_rectangle",
+            fill_color="#2E3D50",
+            text="카드 본문",
+            text_size_pt=12,
+        )
+        result = validate_slide_spec(_slide(shapes=[shape]))
+        assert result.shapes[0].text_size_pt is not None
+        assert result.shapes[0].text_size_pt >= 16
+
+    def test_non_card_shape_keeps_10pt_floor(self) -> None:
+        """fill_color 없는 shape → 기존 10pt floor 유지."""
+        shape = PptxShape(
+            left_px=64,
+            top_px=148,
+            width_px=400,
+            height_px=200,
+            shape_type="rounded_rectangle",
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="텍스트", font_size_pt=12)]),
+            ],
+        )
+        result = validate_slide_spec(_slide(shapes=[shape]))
+        font = result.shapes[0].paragraphs[0].runs[0].font_size_pt
+        assert font == 12  # 10pt floor에 걸리지 않으므로 12pt 유지
+
+    def test_line_shape_with_fill_not_treated_as_card(self) -> None:
+        """line shape은 fill_color가 있어도 카드로 취급하지 않는다."""
+        shape = PptxShape(
+            left_px=64,
+            top_px=300,
+            width_px=200,
+            height_px=0,
+            shape_type="line",
+            fill_color="#FF9900",
+            border_color="#FF9900",
+            border_width_pt=2,
+            end_arrow=True,
+        )
+        result = validate_slide_spec(_slide(shapes=[shape]))
+        assert result.shapes[0].shape_type == "line"
+
+    def test_card_shrink_text_respects_16pt_floor(self) -> None:
+        """카드 shrink_text 모드에서도 16pt 미만으로 축소되지 않는다."""
+        long_text = "가나다라마바사아자차" * 5
+        shape = PptxShape(
+            left_px=64,
+            top_px=148,
+            width_px=300,
+            height_px=60,
+            shape_type="rounded_rectangle",
+            fill_color="#2E3D50",
+            text=long_text,
+            text_size_pt=20,
+            autofit_mode="shrink_text",
+        )
+        result = validate_slide_spec(_slide(shapes=[shape]))
+        assert result.shapes[0].text_size_pt is not None
+        assert result.shapes[0].text_size_pt >= 16
+
+    def test_section_label_font_floor_14pt(self) -> None:
+        """섹션 레이블(단일 짧은 paragraph) textbox → 14pt floor."""
+        tb = PptxTextBox(
+            left_px=64,
+            top_px=72,
+            width_px=300,
+            height_px=40,
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="Overview", font_size_pt=10)]),
+            ],
+        )
+        result = validate_slide_spec(_slide(textboxes=[tb]))
+        font = result.textboxes[0].paragraphs[0].runs[0].font_size_pt
+        assert font is not None
+        assert font >= 14
+
+    def test_long_textbox_keeps_10pt_floor(self) -> None:
+        """긴 multi-paragraph textbox → 섹션 레이블이 아니므로 10pt floor."""
+        tb = PptxTextBox(
+            left_px=64,
+            top_px=148,
+            width_px=500,
+            height_px=300,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="첫 번째 단락 내용", font_size_pt=12)]
+                ),
+                PptxParagraph(
+                    runs=[PptxTextRun(text="두 번째 단락 내용", font_size_pt=12)]
+                ),
+            ],
+        )
+        result = validate_slide_spec(_slide(textboxes=[tb]))
+        font = result.textboxes[0].paragraphs[0].runs[0].font_size_pt
+        assert font == 12  # 10pt floor에 걸리지 않으므로 12pt 유지
 
 
 class TestNoGapIntervention:

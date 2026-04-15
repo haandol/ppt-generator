@@ -77,6 +77,11 @@ PPTX_VALIDATE_FONT_MIN_PT = 10
 PPTX_VALIDATE_FONT_MAX_PT = 44
 PPTX_VALIDATE_LINE_HEIGHT_FACTOR = 2.0  # pt→px(1.33) × line-height(1.5) ≈ 2.0
 
+# Card-specific font floors (enforced by validator for shapes with fill_color)
+CARD_TITLE_FONT_MIN_PT = 18
+CARD_BODY_FONT_MIN_PT = 16
+SECTION_LABEL_FONT_MIN_PT = 14
+
 SPEC_VALIDATE_MARGIN_PX = 64  # Min margin from slide edges (px)
 SPEC_VALIDATE_MARGIN_BOTTOM_PX = 32  # Min bottom margin (px)
 SPEC_VALIDATE_MIN_GAP_PX = 8  # Min gap between text shapes (px)
@@ -204,6 +209,9 @@ __all__ = [
     "PPTX_VALIDATE_FONT_MIN_PT",
     "PPTX_VALIDATE_FONT_MAX_PT",
     "PPTX_VALIDATE_LINE_HEIGHT_FACTOR",
+    "CARD_TITLE_FONT_MIN_PT",
+    "CARD_BODY_FONT_MIN_PT",
+    "SECTION_LABEL_FONT_MIN_PT",
     "SPEC_VALIDATE_MARGIN_PX",
     "SPEC_VALIDATE_MARGIN_BOTTOM_PX",
     "SPEC_VALIDATE_MIN_GAP_PX",
