@@ -110,11 +110,33 @@ def register_visual_qa_tools(
             container_html = SlidesService._build_container_html(new_count)
             (project_dir / "slides.html").write_text(container_html, encoding="utf-8")
 
+        # Auto export HTML after visual QA
+        slides_html_path: str | None = None
+        if result.slides_fixed > 0 or slide_count > 0:
+            try:
+                from ppt_generator.tools.slides.service import SlidesService as _SS
+
+                all_specs = [
+                    project_service.load_design_spec_slide(project_dir, i)
+                    for i in range(slide_count)
+                ]
+                session_id, htmls = _SS.render_all_slides_html(
+                    all_specs, color_theme=color_theme
+                )
+                project_service.save_slides_html(project_dir, htmls)
+                container_html = _SS._build_container_html(slide_count)
+                path = project_dir / "slides.html"
+                path.write_text(container_html, encoding="utf-8")
+                slides_html_path = str(path)
+                logger.info("Visual QA 후 HTML export 완료: %s", path)
+            except Exception:
+                logger.exception("Visual QA 후 HTML export 실패")
+
         if ctx is not None:
             await ctx.report_progress(max_iterations, max_iterations, "Visual QA 완료")
 
-        # Build response
-        resp: dict = {
+        # Build full response and save to file
+        full_resp: dict = {
             "project_id": project_id,
             "slides_analyzed": result.slides_analyzed,
             "slides_with_issues": result.slides_with_issues,
@@ -142,9 +164,30 @@ def register_visual_qa_tools(
                 "cacheWriteInputTokens": result.total_cache_write_tokens,
             }
         if aggregated_usage:
-            resp["token_usage"] = format_token_usage(aggregated_usage)
-            resp["estimated_cost"] = estimate_cost(
+            full_resp["token_usage"] = format_token_usage(aggregated_usage)
+            full_resp["estimated_cost"] = estimate_cost(
                 aggregated_usage, BEDROCK_DESIGN_MODEL_ID
             )
 
-        return json.dumps(resp, ensure_ascii=False)
+        # Save detailed result to file
+        result_path = project_dir / "visual_qa_result.json"
+        result_path.write_text(
+            json.dumps(full_resp, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+        # Return compact summary (minimal response to avoid client issues)
+        summary: dict = {
+            "project_id": project_id,
+            "slides_analyzed": result.slides_analyzed,
+            "slides_with_issues": result.slides_with_issues,
+            "slides_fixed": result.slides_fixed,
+            "iterations_used": result.iterations_used,
+            "result_detail_path": str(result_path),
+        }
+        if slides_html_path:
+            summary["slides_html_path"] = slides_html_path
+        if aggregated_usage:
+            summary["token_usage"] = full_resp["token_usage"]
+            summary["estimated_cost"] = full_resp["estimated_cost"]
+
+        return json.dumps(summary, ensure_ascii=False)

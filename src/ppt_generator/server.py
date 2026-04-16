@@ -94,6 +94,24 @@ def main() -> None:
 
         ps._log_dir = log_dir
         ps._log_fmt = fmt
+
+        # 서버 전역 로그 (MCP stdio 통신 에러 등 진단용)
+        server_log = os.path.join(log_dir, "_server.log")
+        os.makedirs(log_dir, exist_ok=True)
+        sfh = RotatingFileHandler(
+            server_log,
+            maxBytes=10 * 1024 * 1024,
+            backupCount=2,
+            encoding="utf-8",
+        )
+        sfh.setLevel(logging.DEBUG)
+        sfh.setFormatter(logging.Formatter(fmt))
+        logging.getLogger().addHandler(sfh)
+        # MCP/FastMCP 라이브러리 내부 로그도 캡처
+        for lib_logger_name in ("mcp", "fastmcp"):
+            lib_logger = logging.getLogger(lib_logger_name)
+            lib_logger.setLevel(logging.DEBUG)
+            lib_logger.addHandler(sfh)
     elif log_file:
         fh = RotatingFileHandler(
             log_file,
@@ -115,9 +133,15 @@ def main() -> None:
 
     try:
         mcp = create_server()
+        logger.info("MCP server starting (stdio transport)...")
         mcp.run(transport="stdio")
-    except SystemExit:
-        logger.info("MCP server shut down.")
+        logger.info("MCP server exited normally (mcp.run returned).")
+    except SystemExit as e:
+        logger.info("MCP server shut down (SystemExit code=%s).", e.code)
+    except KeyboardInterrupt:
+        logger.info("MCP server interrupted (KeyboardInterrupt).")
+    except BrokenPipeError:
+        logger.warning("MCP server: client closed stdio pipe (BrokenPipeError).")
     except Exception:
         logger.exception("MCP server crashed unexpectedly")
 
