@@ -114,21 +114,33 @@ def register_visual_qa_tools(
         slides_html_path: str | None = None
         if result.slides_fixed > 0 or slide_count > 0:
             try:
-                from ppt_generator.tools.slides.service import SlidesService as _SS
-
-                all_specs = [
-                    project_service.load_design_spec_slide(project_dir, i)
-                    for i in range(slide_count)
-                ]
-                session_id, htmls = _SS.render_all_slides_html(
-                    all_specs, color_theme=color_theme
+                design_spec = project_service.load_design_spec(project_dir)
+                design_spec = project_service.sync_image_paths(project_dir, design_spec)
+                slide_image_srcs: list[list[str]] = []
+                for idx, slide in enumerate(design_spec.slides):
+                    if slide.images:
+                        srcs = project_service.get_slide_image_srcs(
+                            project_dir, idx, len(slide.images)
+                        )
+                        slide_image_srcs.append(srcs)
+                    else:
+                        slide_image_srcs.append([])
+                metadata = project_service.load_metadata(project_dir)
+                is_imported = "import" in metadata.steps_completed
+                response = slides_service.generate_from_design_spec(
+                    design_spec,
+                    slide_image_srcs=slide_image_srcs,
+                    skip_autofit=is_imported,
+                    color_theme=color_theme,
                 )
-                project_service.save_slides_html(project_dir, htmls)
-                container_html = _SS._build_container_html(slide_count)
-                path = project_dir / "slides.html"
-                path.write_text(container_html, encoding="utf-8")
-                slides_html_path = str(path)
-                logger.info("Visual QA 후 HTML export 완료: %s", path)
+                project_service.save_slides_html(
+                    project_dir,
+                    response.session_id,
+                    response.slide_htmls,
+                    response.container_html,
+                )
+                slides_html_path = str(project_dir / "slides.html")
+                logger.info("Visual QA 후 HTML export 완료: %s", slides_html_path)
             except Exception:
                 logger.exception("Visual QA 후 HTML export 실패")
 
