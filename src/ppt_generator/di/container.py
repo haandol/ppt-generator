@@ -90,7 +90,7 @@ class DIContainer:
             max_tokens=BEDROCK_OUTLINE_MAX_TOKENS,
             json_schema=OUTLINE_JSON_SCHEMA,
             json_schema_name="outline_output",
-            thinking_effort="medium",
+            budget_tokens=4096,
         )
         model = (
             create_anthropic_outline_model
@@ -114,11 +114,11 @@ class DIContainer:
             create_anthropic_visual_qa_model
             if self._provider == "anthropic"
             else create_bedrock_visual_qa_model
-        )(thinking_effort="low")
+        )(budget_tokens=1024)
         return self._create_agent(model=model, prompt_text=VISUAL_QA_FIX_SYSTEM_PROMPT)
 
     def _create_design_agent(
-        self, thinking_effort: str, slide_type: str = "content"
+        self, budget_tokens: int, slide_type: str = "content"
     ) -> Agent:
         prompt_text = DESIGN_SPEC_SYSTEM_PROMPTS.get(
             slide_type, DESIGN_SPEC_SYSTEM_PROMPTS["content"]
@@ -127,7 +127,7 @@ class DIContainer:
             create_anthropic_design_model
             if self._provider == "anthropic"
             else create_bedrock_design_model
-        )(thinking_effort=thinking_effort)
+        )(budget_tokens=budget_tokens)
         return self._create_agent(model=model, prompt_text=prompt_text)
 
     # ---- Service properties (lazy init) ----
@@ -171,12 +171,12 @@ class DIContainer:
         return DesignReviewService(agent=self._create_review_agent())
 
     def create_design_service(
-        self, thinking_effort: str, slide_type: str = "content"
+        self, budget_tokens: int, slide_type: str = "content"
     ) -> DesignService:
         """새 Agent를 포함한 DesignService 인스턴스를 생성한다."""
         return DesignService(
             agent=self._create_design_agent(
-                thinking_effort=thinking_effort, slide_type=slide_type
+                budget_tokens=budget_tokens, slide_type=slide_type
             )
         )
 

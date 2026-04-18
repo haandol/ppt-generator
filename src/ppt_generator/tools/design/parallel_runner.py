@@ -17,7 +17,7 @@ from strands.types.exceptions import ModelThrottledException
 from ppt_generator.interfaces.constants import DESIGN_SPEC_PARALLEL, DESIGN_SPEC_TIMEOUT
 from ppt_generator.interfaces.schemas import OutlineResponse
 from ppt_generator.interfaces.utils import (
-    complexity_to_thinking_effort,
+    complexity_to_budget_tokens,
     estimate_slide_complexity,
 )
 from ppt_generator.tools.design.service import DesignService
@@ -47,7 +47,7 @@ def run_parallel_generation(
     total_slides: int,
     color_theme: str,
     design_summary: dict | None,
-    design_service_factory: Callable[[str, str], DesignService],
+    design_service_factory: Callable[[int, str], DesignService],
     project_service: ProjectService,
     project_dir: "Path",  # noqa: F821
     slides_service: SlidesService | None = None,
@@ -62,7 +62,7 @@ def run_parallel_generation(
         total_slides: 전체 슬라이드 수
         color_theme: 색상 테마
         design_summary: 디자인 요약 dict
-        design_service_factory: (effort, slide_type) → DesignService 팩토리
+        design_service_factory: (budget_tokens, slide_type) → DesignService 팩토리
         project_service: 프로젝트 서비스
         project_dir: 프로젝트 디렉토리 경로
         slides_service: HTML 렌더링 서비스 (None이면 HTML 생성 건너뜀)
@@ -81,10 +81,10 @@ def run_parallel_generation(
     if not parallel_indices:
         return ParallelResult()
 
-    # 캐시 워밍업: content 슬라이드를 effort별로 1개씩 먼저 생성하여
+    # 캐시 워밍업: content 슬라이드를 budget_tokens별로 1개씩 먼저 생성하여
     # Bedrock prompt cache를 만든 뒤 나머지를 병렬 처리한다.
-    # additionalModelRequestFields(thinking effort)가 다르면 캐시 키가 달라지므로
-    # effort별로 각각 워밍업해야 cache hit를 극대화할 수 있다.
+    # additionalModelRequestFields(budget_tokens)가 다르면 캐시 키가 달라지므로
+    # budget별로 각각 워밍업해야 cache hit를 극대화할 수 있다.
     warmup_indices: list[int] = []
     content_indices = [
         i
@@ -92,16 +92,14 @@ def run_parallel_generation(
         if (outline.slides[i].slide_type or "content") == "content"
     ]
     if len(content_indices) >= 2:
-        # effort별로 가장 단순한 content 슬라이드 1개씩 선택
-        effort_to_candidates: dict[str, list[int]] = {}
+        budget_to_candidates: dict[int, list[int]] = {}
         for i in content_indices:
-            effort = complexity_to_thinking_effort(
+            budget = complexity_to_budget_tokens(
                 estimate_slide_complexity(outline.slides[i])
             )
-            effort_to_candidates.setdefault(effort, []).append(i)
-        for effort, candidates in effort_to_candidates.items():
+            budget_to_candidates.setdefault(budget, []).append(i)
+        for budget, candidates in budget_to_candidates.items():
             if len(candidates) >= 2:
-                # 복잡도 내림차순이므로 마지막이 가장 단순
                 warmup_indices.append(candidates[-1])
 
     result = ParallelResult()
@@ -127,20 +125,20 @@ def run_parallel_generation(
             peak_threads[0] = current
         slide_outline = outline.slides[idx]
         complexity = estimate_slide_complexity(slide_outline)
-        effort = complexity_to_thinking_effort(complexity)
+        budget = complexity_to_budget_tokens(complexity)
         slide_type = slide_outline.slide_type or "content"
         logger.info(
-            "slide[%d] 생성 시작 (complexity=%d, effort=%s, slide_type=%s, thread=%s, 동시실행=%d/%d)",
+            "slide[%d] 생성 시작 (complexity=%d, budget_tokens=%d, slide_type=%s, thread=%s, 동시실행=%d/%d)",
             idx,
             complexity,
-            effort,
+            budget,
             slide_type,
             thread_name,
             current,
             max_workers,
         )
         t0 = time.monotonic()
-        svc = design_service_factory(effort, slide_type)
+        svc = design_service_factory(budget, slide_type)
         prev_outline = outline.slides[idx - 1] if idx > 0 else None
         next_outline = (
             outline.slides[idx + 1] if idx + 1 < len(outline.slides) else None
@@ -186,7 +184,7 @@ def run_parallel_generation(
                     )
 
                     def _regenerate(feedback: str) -> tuple:
-                        svc_regen = design_service_factory(effort, slide_type)
+                        svc_regen = design_service_factory(budget, slide_type)
                         new = svc_regen.generate_single_slide(
                             outline.slides[idx],
                             design_summary=design_summary,
@@ -296,11 +294,11 @@ def run_parallel_generation(
                 f"{'완료' if res['status'] == 'success' else '실패'}",
             )
 
-    # 캐시 워밍업: effort별 content 슬라이드를 순차 실행하여 캐시 준비
+    # 캐시 워밍업: budget_tokens별 content 슬라이드를 순차 실행하여 캐시 준비
     warmup_set = set(warmup_indices)
     if warmup_indices:
         logger.info(
-            "cache warmup: slides%s 먼저 생성하여 effort별 prompt cache 준비",
+            "cache warmup: slides%s 먼저 생성하여 budget_tokens별 prompt cache 준비",
             warmup_indices,
         )
         for wi in warmup_indices:

@@ -101,11 +101,10 @@ def build_anthropic_client_args() -> dict[str, Any]:
 # ---- Bedrock model creators ----
 
 
-def create_bedrock_design_model(thinking_effort: str) -> BedrockModel:
-    if thinking_effort and thinking_effort != "none":
+def create_bedrock_design_model(budget_tokens: int) -> BedrockModel:
+    if budget_tokens > 0:
         additional_request_fields: dict[str, Any] = {
-            "thinking": {"type": "adaptive"},
-            "output_config": {"effort": thinking_effort},
+            "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
         }
     else:
         additional_request_fields = {
@@ -126,16 +125,15 @@ def create_bedrock_outline_model(
     max_tokens: int,
     json_schema: dict | None = None,
     json_schema_name: str | None = None,
-    thinking_effort: str | None = None,
+    budget_tokens: int = 0,
 ) -> BedrockModel:
     additional_args: dict[str, Any] = {}
     if json_schema and json_schema_name:
         additional_args = build_json_schema_args(json_schema, json_schema_name)
     additional_request_fields: dict[str, Any] = {}
-    if thinking_effort:
+    if budget_tokens > 0:
         additional_request_fields = {
-            "thinking": {"type": "adaptive"},
-            "output_config": {"effort": thinking_effort},
+            "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
         }
     return BedrockModel(
         model_id=BEDROCK_OUTLINE_MODEL_ID,
@@ -156,11 +154,10 @@ def create_bedrock_outline_model(
 # ---- Anthropic model creators ----
 
 
-def create_anthropic_design_model(thinking_effort: str) -> Any:
+def create_anthropic_design_model(budget_tokens: int) -> Any:
     params: dict[str, Any] = {"temperature": 1.0}
-    if thinking_effort and thinking_effort != "none":
-        params["thinking"] = {"type": "adaptive"}
-        params["output_config"] = {"effort": thinking_effort}
+    if budget_tokens > 0:
+        params["thinking"] = {"type": "enabled", "budget_tokens": budget_tokens}
     else:
         params["thinking"] = {"type": "disabled"}
     return CachingAnthropicModel(
@@ -175,31 +172,21 @@ def create_anthropic_outline_model(
     max_tokens: int,
     json_schema: dict | None = None,
     json_schema_name: str | None = None,
-    thinking_effort: str | None = None,
+    budget_tokens: int = 0,
 ) -> Any:
     from strands.models.anthropic import AnthropicModel
 
     params: dict[str, Any] = {
         "temperature": 1.0,
     }
-    if thinking_effort:
-        params["thinking"] = {"type": "adaptive"}
-        params["output_config"] = {"effort": thinking_effort}
+    if budget_tokens > 0:
+        params["thinking"] = {"type": "enabled", "budget_tokens": budget_tokens}
     if json_schema and json_schema_name:
-        if "output_config" in params:
-            params["output_config"]["format"] = {
-                "type": "json_schema",
-                "schema": json_schema,
-                "name": json_schema_name,
-            }
-        else:
-            params["output_config"] = {
-                "format": {
-                    "type": "json_schema",
-                    "schema": json_schema,
-                    "name": json_schema_name,
-                },
-            }
+        params.setdefault("output_config", {})["format"] = {
+            "type": "json_schema",
+            "schema": json_schema,
+            "name": json_schema_name,
+        }
     return AnthropicModel(
         client_args=build_anthropic_client_args(),
         model_id=ANTHROPIC_OUTLINE_MODEL_ID,
@@ -208,7 +195,7 @@ def create_anthropic_outline_model(
     )
 
 
-# ---- Design review model creators (no adaptive thinking) ----
+# ---- Design review model creators (no extended thinking) ----
 
 
 def create_bedrock_review_model() -> BedrockModel:
@@ -234,7 +221,7 @@ def create_anthropic_review_model() -> Any:
 # ---- Visual QA model creators ----
 
 
-def create_bedrock_visual_qa_model(thinking_effort: str = "low") -> BedrockModel:
+def create_bedrock_visual_qa_model(budget_tokens: int = 1024) -> BedrockModel:
     return BedrockModel(
         model_id=BEDROCK_DESIGN_MODEL_ID,
         region_name=BEDROCK_REGION,
@@ -243,21 +230,19 @@ def create_bedrock_visual_qa_model(thinking_effort: str = "low") -> BedrockModel
         max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
         cache_config=CacheConfig(strategy="auto"),
         additional_request_fields={
-            "thinking": {"type": "adaptive"},
-            "output_config": {"effort": thinking_effort},
+            "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
         },
     )
 
 
-def create_anthropic_visual_qa_model(thinking_effort: str = "low") -> Any:
+def create_anthropic_visual_qa_model(budget_tokens: int = 1024) -> Any:
     return CachingAnthropicModel(
         client_args=build_anthropic_client_args(),
         model_id=ANTHROPIC_DESIGN_MODEL_ID,
         max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
         params={
             "temperature": 1.0,
-            "thinking": {"type": "adaptive"},
-            "output_config": {"effort": thinking_effort},
+            "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
         },
     )
 

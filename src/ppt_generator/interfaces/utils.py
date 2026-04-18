@@ -63,16 +63,16 @@ def estimate_slide_complexity(slide: SlideOutline) -> int:
     return COMPONENT_HINT_COMPLEXITY.get(slide.component_hint, 2)
 
 
-def complexity_to_thinking_effort(complexity: int) -> str:
-    """Converts a complexity score (1-5) to a thinking effort level.
+def complexity_to_budget_tokens(complexity: int) -> int:
+    """Converts a complexity score (1-5) to a thinking budget_tokens value.
 
-    5 → medium, 2-4 → low, 1 → none (no adaptive thinking).
+    5 → 10240, 2-4 → 4096, 1 → 1024.
     """
     if complexity >= 5:
-        return "medium"
+        return 10240
     if complexity >= 2:
-        return "low"
-    return "none"
+        return 4096
+    return 1024
 
 
 # Claude model pricing (USD / 1M tokens)

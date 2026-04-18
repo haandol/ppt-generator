@@ -5,7 +5,7 @@ import pytest
 from ppt_generator.interfaces.constants import COMPONENT_HINT_COMPLEXITY
 from ppt_generator.interfaces.schemas import SlideOutline
 from ppt_generator.interfaces.utils import (
-    complexity_to_thinking_effort,
+    complexity_to_budget_tokens,
     estimate_slide_complexity,
 )
 
@@ -97,39 +97,39 @@ class TestEstimateSlideComplexity:
         assert estimate_slide_complexity(slide) == expected
 
 
-class TestComplexityToThinkingEffort:
-    """complexity_to_thinking_effort 단위 테스트 (1-5 scale)."""
+class TestComplexityToBudgetTokens:
+    """complexity_to_budget_tokens 단위 테스트 (1-5 scale)."""
 
     @pytest.mark.parametrize(
         "complexity,expected",
         [
-            (1, "none"),
-            (2, "low"),
-            (3, "low"),
-            (4, "low"),
-            (5, "medium"),
+            (1, 1024),
+            (2, 4096),
+            (3, 4096),
+            (4, 4096),
+            (5, 10240),
         ],
     )
-    def test_effort_mapping(self, complexity: int, expected: str) -> None:
-        assert complexity_to_thinking_effort(complexity) == expected
+    def test_budget_mapping(self, complexity: int, expected: int) -> None:
+        assert complexity_to_budget_tokens(complexity) == expected
 
-    def test_boundary_1_is_none(self) -> None:
-        assert complexity_to_thinking_effort(1) == "none"
+    def test_boundary_1_is_1024(self) -> None:
+        assert complexity_to_budget_tokens(1) == 1024
 
-    def test_boundary_2_is_low(self) -> None:
-        assert complexity_to_thinking_effort(2) == "low"
+    def test_boundary_2_is_4096(self) -> None:
+        assert complexity_to_budget_tokens(2) == 4096
 
-    def test_boundary_3_is_low(self) -> None:
-        assert complexity_to_thinking_effort(3) == "low"
+    def test_boundary_3_is_4096(self) -> None:
+        assert complexity_to_budget_tokens(3) == 4096
 
-    def test_boundary_4_is_low(self) -> None:
-        assert complexity_to_thinking_effort(4) == "low"
+    def test_boundary_4_is_4096(self) -> None:
+        assert complexity_to_budget_tokens(4) == 4096
 
-    def test_boundary_5_is_medium(self) -> None:
-        assert complexity_to_thinking_effort(5) == "medium"
+    def test_boundary_5_is_10240(self) -> None:
+        assert complexity_to_budget_tokens(5) == 10240
 
     def test_agenda_complexity_is_1(self) -> None:
-        """agenda 슬라이드는 복잡도 1 → thinking effort "none"."""
+        """agenda 슬라이드는 복잡도 1 → budget_tokens 1024."""
         slide = SlideOutline(
             title="Agenda",
             content_summary="발표 순서",
@@ -137,4 +137,4 @@ class TestComplexityToThinkingEffort:
         )
         complexity = estimate_slide_complexity(slide)
         assert complexity == 1
-        assert complexity_to_thinking_effort(complexity) == "none"
+        assert complexity_to_budget_tokens(complexity) == 1024

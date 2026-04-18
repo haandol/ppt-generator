@@ -1,7 +1,7 @@
 """Design spec post-generation review service.
 
 생성된 디자인 스펙을 LLM으로 리뷰하여 규칙 위반을 감지한다.
-Adaptive thinking 없는 Sonnet을 사용하여 빠르고 저렴하게 체크리스트 판단을 수행한다.
+Extended thinking 없는 Sonnet을 사용하여 빠르고 저렴하게 체크리스트 판단을 수행한다.
 """
 
 from __future__ import annotations

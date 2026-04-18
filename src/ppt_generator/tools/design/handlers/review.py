@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from ppt_generator.interfaces.constants import BEDROCK_DESIGN_MODEL_ID
 from ppt_generator.interfaces.utils import (
-    complexity_to_thinking_effort,
+    complexity_to_budget_tokens,
     estimate_cost,
     estimate_slide_complexity,
     format_token_usage,
@@ -80,11 +80,11 @@ def handle_review(
                 slide_outline = parse_outline_json(outline_json).slides[0]
 
             complexity = estimate_slide_complexity(slide_outline)
-            effort = complexity_to_thinking_effort(complexity)
+            budget = complexity_to_budget_tokens(complexity)
             feedback = DesignReviewService.format_feedback(review_result)
 
             svc_regen = deps.design_service_factory(
-                effort, slide_outline.slide_type or "content"
+                budget, slide_outline.slide_type or "content"
             )
             new_spec = svc_regen.generate_single_slide(
                 slide_outline,
