@@ -8,7 +8,6 @@ from ppt_generator.tools.outline.controller import register_outline_tools
 from ppt_generator.tools.pptx.controller import register_pptx_tools
 from ppt_generator.tools.pptx_import.controller import register_pptx_import_tools
 from ppt_generator.tools.project.controller import register_project_tools
-from ppt_generator.tools.script.controller import register_script_tools
 from ppt_generator.tools.slides.controller import register_slides_tools
 from ppt_generator.tools.visual_qa.controller import register_visual_qa_tools
 
@@ -30,13 +29,13 @@ def create_server() -> FastMCP:
             "Alternatively, use Chrome DevTools MCP's `take_screenshot` for manual capture.\n"
             "- Use import_pptx to import an external PPTX file for editing.\n"
             "- Check the project's `source` field: "
-            '"imported" projects have no outline/script. '
+            '"imported" projects have no outline. '
             "For imported projects, use modify_design_spec directly to add/update slides "
             "(pass title, content_summary, etc. inline). "
             "Or use generate_slides_design_spec with explicit outline_json.\n"
             '- **Adding slides**: Call modify_design_spec(action="add") with '
             "title, content_summary, component_hint, etc. "
-            "All file shifts (outline/script/design_spec/HTML) are handled automatically.\n"
+            "All file shifts (outline/design_spec/HTML) are handled automatically.\n"
             '- **Updating slides**: Call modify_design_spec(action="update") with '
             "title/content_summary to update, or call save_outline_slide first. "
             "For imported projects, title and content_summary are **required** (no outline available).\n"
@@ -47,7 +46,6 @@ def create_server() -> FastMCP:
         ),
     )
     container = DIContainer()
-    register_script_tools(mcp, container.script_service, container.project_service)
     register_outline_tools(mcp, container.outline_service, container.project_service)
     register_design_tools(
         mcp,
@@ -82,7 +80,6 @@ def main() -> None:
     # PPT_LOG_DIR: directory for per-project log files (e.g. /tmp/ppt-generator/)
     # PPT_LOG_FILE: single log file path (legacy, e.g. /tmp/ppt-generator.log)
     import os
-    import signal
     from logging.handlers import RotatingFileHandler
 
     log_dir = os.environ.get("PPT_LOG_DIR")
@@ -123,21 +120,11 @@ def main() -> None:
         fh.setFormatter(logging.Formatter(fmt))
         logging.getLogger().addHandler(fh)
 
-    def _shutdown_handler(signum: int, _frame: object) -> None:
-        sig_name = signal.Signals(signum).name
-        logger.info("Received %s, shutting down gracefully...", sig_name)
-        raise SystemExit(0)
-
-    signal.signal(signal.SIGTERM, _shutdown_handler)
-    signal.signal(signal.SIGINT, _shutdown_handler)
-
     try:
         mcp = create_server()
         logger.info("MCP server starting (stdio transport)...")
         mcp.run(transport="stdio")
         logger.info("MCP server exited normally (mcp.run returned).")
-    except SystemExit as e:
-        logger.info("MCP server shut down (SystemExit code=%s).", e.code)
     except KeyboardInterrupt:
         logger.info("MCP server interrupted (KeyboardInterrupt).")
     except BrokenPipeError:
