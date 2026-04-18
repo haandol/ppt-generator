@@ -91,12 +91,12 @@ class DIContainer:
             model=model, prompt_text=VISUAL_QA_ANALYSIS_SYSTEM_PROMPT
         )
 
-    def _create_visual_qa_fix_agent(self) -> Agent:
+    def _create_visual_qa_fix_agent(self, budget_tokens: int = 1024) -> Agent:
         model = (
             create_anthropic_visual_qa_model
             if self._provider == "anthropic"
             else create_bedrock_visual_qa_model
-        )(budget_tokens=1024)
+        )(budget_tokens=budget_tokens)
         return self._create_agent(model=model, prompt_text=VISUAL_QA_FIX_SYSTEM_PROMPT)
 
     def _create_design_agent(
@@ -162,7 +162,9 @@ class DIContainer:
 
         return VisualQAService(
             analysis_agent_factory=self._create_visual_qa_analysis_agent,
-            fix_agent_factory=self._create_visual_qa_fix_agent,
+            fix_agent_factory=lambda budget_tokens: self._create_visual_qa_fix_agent(
+                budget_tokens=budget_tokens
+            ),
         )
 
     @property

@@ -97,6 +97,35 @@ def complexity_to_budget_tokens(complexity: int) -> int:
     return 1024
 
 
+def estimate_spec_complexity(spec: "PptxSlideSpec") -> int:
+    """PptxSlideSpec의 요소 수로 complexity를 추정한다 (1-5 scale).
+
+    Visual QA fix 단계에서 outline 없이 complexity를 판단할 때 사용.
+    """
+    if spec.slide_type in ("title", "closing"):
+        return 1
+    total = len(spec.textboxes) + len(spec.shapes) + len(spec.images)
+    if total >= 15:
+        return 5
+    if total >= 10:
+        return 4
+    if total >= 6:
+        return 3
+    if total >= 3:
+        return 2
+    return 1
+
+
+def complexity_to_qa_budget_tokens(complexity: int) -> int:
+    """Visual QA fix용 budget_tokens. 생성 budget의 절반, low/medium 2단계.
+
+    3+ → 2048 (medium), 1-2 → 1024 (low).
+    """
+    if complexity >= 3:
+        return 2048
+    return 1024
+
+
 # Claude model pricing (USD / 1M tokens)
 # https://www.anthropic.com/pricing
 _MODEL_PRICING: dict[str, dict[str, float]] = {

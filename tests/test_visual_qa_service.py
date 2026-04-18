@@ -170,7 +170,7 @@ class TestVisualQAServiceFix:
 
         svc = VisualQAService(
             analysis_agent_factory=MagicMock(),
-            fix_agent_factory=lambda: mock_agent,
+            fix_agent_factory=lambda _budget: mock_agent,
         )
         result = svc.fix_design_spec(
             png_path,
@@ -199,7 +199,7 @@ class TestVisualQAServiceFix:
 
         svc = VisualQAService(
             analysis_agent_factory=MagicMock(),
-            fix_agent_factory=lambda: mock_agent,
+            fix_agent_factory=lambda _budget: mock_agent,
         )
         result = svc.fix_design_spec(
             png_path,
@@ -233,7 +233,7 @@ class TestVisualQAServiceFix:
 
         svc = VisualQAService(
             analysis_agent_factory=MagicMock(),
-            fix_agent_factory=lambda: mock_agent,
+            fix_agent_factory=lambda _budget: mock_agent,
         )
 
         # 기존 spec에 images 포함
@@ -392,7 +392,7 @@ class TestVisualQARunQA:
 
         svc = VisualQAService(
             analysis_agent_factory=make_analysis_agent,
-            fix_agent_factory=lambda: mock_fix_agent,
+            fix_agent_factory=lambda _budget: mock_fix_agent,
         )
         svc.capture_screenshots = mock_capture
 
