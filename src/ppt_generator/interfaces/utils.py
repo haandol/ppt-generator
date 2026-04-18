@@ -66,12 +66,12 @@ def estimate_slide_complexity(slide: SlideOutline) -> int:
 def complexity_to_budget_tokens(complexity: int) -> int:
     """Converts a complexity score (1-5) to a thinking budget_tokens value.
 
-    5 → 10240, 2-4 → 4096, 1 → 1024.
+    5 → 10240 (high), 3-4 → 5120 (medium), 1-2 → 1024 (low).
     """
     if complexity >= 5:
         return 10240
-    if complexity >= 2:
-        return 4096
+    if complexity >= 3:
+        return 5120
     return 1024
 
 

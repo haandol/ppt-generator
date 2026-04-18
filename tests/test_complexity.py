@@ -67,7 +67,7 @@ class TestEstimateSlideComplexity:
             content_summary="가" * 1000,
             component_hint="step_cards",
         )
-        assert estimate_slide_complexity(short) == estimate_slide_complexity(long) == 3
+        assert estimate_slide_complexity(short) == estimate_slide_complexity(long) == 4
 
     def test_unknown_component_hint_defaults_to_2(self) -> None:
         slide = SlideOutline(
@@ -104,9 +104,9 @@ class TestComplexityToBudgetTokens:
         "complexity,expected",
         [
             (1, 1024),
-            (2, 4096),
-            (3, 4096),
-            (4, 4096),
+            (2, 1024),
+            (3, 5120),
+            (4, 5120),
             (5, 10240),
         ],
     )
@@ -116,14 +116,14 @@ class TestComplexityToBudgetTokens:
     def test_boundary_1_is_1024(self) -> None:
         assert complexity_to_budget_tokens(1) == 1024
 
-    def test_boundary_2_is_4096(self) -> None:
-        assert complexity_to_budget_tokens(2) == 4096
+    def test_boundary_2_is_1024(self) -> None:
+        assert complexity_to_budget_tokens(2) == 1024
 
-    def test_boundary_3_is_4096(self) -> None:
-        assert complexity_to_budget_tokens(3) == 4096
+    def test_boundary_3_is_5120(self) -> None:
+        assert complexity_to_budget_tokens(3) == 5120
 
-    def test_boundary_4_is_4096(self) -> None:
-        assert complexity_to_budget_tokens(4) == 4096
+    def test_boundary_4_is_5120(self) -> None:
+        assert complexity_to_budget_tokens(4) == 5120
 
     def test_boundary_5_is_10240(self) -> None:
         assert complexity_to_budget_tokens(5) == 10240

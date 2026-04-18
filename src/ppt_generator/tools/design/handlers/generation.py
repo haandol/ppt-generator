@@ -55,7 +55,7 @@ async def handle_generate(
         if ctx is not None:
             await ctx.report_progress(0, target_count, "디자인 테마 생성 중...")
         logger.info("Starting design_summary pre-generation (LLM call)")
-        summary_svc = deps.design_service_factory(4096, "content")
+        summary_svc = deps.design_service_factory(5120, "content")
         summary = summary_svc.generate_design_summary(outline, color_theme)
         summary["color_theme"] = color_theme
         project_service.save_design_summary(project_dir, summary)
