@@ -25,8 +25,7 @@ def create_server() -> FastMCP:
             "- After design spec generation, suggest visual_qa(project_id=...) to the user "
             "for pixel-perfect quality check.\n"
             "- Only run visual_qa when the user agrees. "
-            "It requires Playwright (`uv sync --group visual-qa && playwright install chromium`). "
-            "Alternatively, use Chrome DevTools MCP's `take_screenshot` for manual capture.\n"
+            "It requires Chrome running with `--remote-debugging-port=9222`.\n"
             "- Use import_pptx to import an external PPTX file for editing.\n"
             "- Check the project's `source` field: "
             '"imported" projects have no outline. '

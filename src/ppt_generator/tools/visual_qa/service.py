@@ -1,6 +1,6 @@
 """Visual QA 서비스.
 
-Playwright 스크린샷 + Claude Vision 분석 + 자동 수정 로직을 담당한다.
+CDP 스크린샷 + Claude Vision 분석 + 자동 수정 로직을 담당한다.
 
 흐름:
   1. HTML export (전체 슬라이드)
@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 
 class VisualQAService:
-    """Playwright 스크린샷 + LLM 분석으로 슬라이드 시각적 품질을 검사한다."""
+    """CDP 스크린샷 + LLM 분석으로 슬라이드 시각적 품질을 검사한다."""
 
     def __init__(
         self,
@@ -62,7 +62,7 @@ class VisualQAService:
         indices: list[int],
         iteration: int = 0,
     ) -> dict[int, Path]:
-        """Playwright headless Chromium으로 슬라이드 스크린샷을 캡처한다."""
+        """Chrome DevTools Protocol로 슬라이드 스크린샷을 캡처한다."""
         return capture_screenshots(project_dir, indices, iteration)
 
     # ------------------------------------------------------------------

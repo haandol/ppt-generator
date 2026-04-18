@@ -1,4 +1,4 @@
-"""Visual QA service 테스트: Playwright/LLM mock으로 핵심 로직 검증."""
+"""Visual QA service 테스트: CDP/LLM mock으로 핵심 로직 검증."""
 
 import asyncio
 import inspect
@@ -63,36 +63,18 @@ def _make_slide_spec_output() -> SlideSpecOutput:
 class TestVisualQAServiceCapture:
     """capture_screenshots 테스트."""
 
-    def test_playwright_not_installed_raises(self, tmp_path: Path) -> None:
-        """Playwright 미설치 시 RuntimeError 발생."""
+    def test_chrome_not_running_raises(self, tmp_path: Path) -> None:
+        """Chrome이 실행되지 않으면 RuntimeError 발생."""
         svc = VisualQAService(
             analysis_agent_factory=MagicMock(),
             fix_agent_factory=MagicMock(),
         )
-        with patch.dict(
-            "sys.modules", {"playwright": None, "playwright.sync_api": None}
-        ):
-            with pytest.raises(RuntimeError, match="Playwright가 설치되지 않았습니다"):
-                svc.capture_screenshots(tmp_path, [0])
-
-    def test_missing_html_returns_empty(self, tmp_path: Path) -> None:
-        """HTML 파일이 없으면 빈 딕셔너리 반환."""
-        svc = VisualQAService(
-            analysis_agent_factory=MagicMock(),
-            fix_agent_factory=MagicMock(),
-        )
-        slides_dir = tmp_path / "slides"
-        slides_dir.mkdir()
-
-        # Mock playwright to avoid needing it installed
-        mock_playwright = MagicMock()
         with patch(
-            "ppt_generator.tools.visual_qa.service.sync_playwright", create=True
+            "ppt_generator.tools.visual_qa.screenshot._is_chrome_running",
+            return_value=False,
         ):
-            # Directly test that missing HTML results in no screenshots
-            # We can't fully mock playwright's context manager easily,
-            # so let's test the simpler path
-            pass
+            with pytest.raises(RuntimeError, match="Chrome"):
+                svc.capture_screenshots(tmp_path, [0])
 
 
 class TestVisualQAServiceAnalyze:
