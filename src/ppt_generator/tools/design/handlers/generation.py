@@ -172,7 +172,7 @@ def _load_outline(deps: DesignDeps, *, project_id: str, outline_json: str):
         return parse_outline_json(outline_json)
     if project_id:
         _, proj_dir = deps.project_service.resolve_project_dir(project_id)
-        raw = deps.project_service.load_script_or_outline(proj_dir)
+        raw = deps.project_service.load_outline(proj_dir)
         return parse_outline_json(raw)
     raise ValueError("Either outline_json or project_id must be provided.")
 

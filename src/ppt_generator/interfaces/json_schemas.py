@@ -16,6 +16,7 @@ OUTLINE_JSON_SCHEMA = {
                         "enum": ["title", "closing", "content"],
                     },
                     "layout_plan": {"type": "string"},
+                    "speaker_notes": {"type": "string"},
                 },
                 "required": [
                     "title",
@@ -23,31 +24,12 @@ OUTLINE_JSON_SCHEMA = {
                     "component_hint",
                     "slide_type",
                     "layout_plan",
+                    "speaker_notes",
                 ],
                 "additionalProperties": False,
             },
         },
     },
     "required": ["slides"],
-    "additionalProperties": False,
-}
-
-SCRIPT_JSON_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "scripts": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "slide_index": {"type": "integer"},
-                    "speaker_notes": {"type": "string"},
-                },
-                "required": ["slide_index", "speaker_notes"],
-                "additionalProperties": False,
-            },
-        },
-    },
-    "required": ["scripts"],
     "additionalProperties": False,
 }

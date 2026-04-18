@@ -18,13 +18,10 @@ from ppt_generator.di.model_factory import (
 )
 from ppt_generator.interfaces.constants import (
     BEDROCK_OUTLINE_MAX_TOKENS,
-    BEDROCK_SCRIPT_MAX_TOKENS,
     DESIGN_REVIEW_SYSTEM_PROMPT,
     DESIGN_SPEC_SYSTEM_PROMPTS,
     OUTLINE_JSON_SCHEMA,
     OUTLINE_SYSTEM_PROMPT,
-    SCRIPT_JSON_SCHEMA,
-    SCRIPT_SYSTEM_PROMPT,
     VISUAL_QA_ANALYSIS_SYSTEM_PROMPT,
     VISUAL_QA_FIX_SYSTEM_PROMPT,
 )
@@ -33,7 +30,6 @@ from ppt_generator.tools.outline.service import OutlineService
 from ppt_generator.tools.pptx.service import ExportService
 from ppt_generator.tools.pptx_import.service import ImportService
 from ppt_generator.tools.project.service import ProjectService
-from ppt_generator.tools.script.service import ScriptService
 from ppt_generator.tools.slides.service import SlidesService
 
 # Re-export for backward compatibility
@@ -44,7 +40,6 @@ class DIContainer:
     def __init__(self, project_root: Path | None = None) -> None:
         self._project_root = project_root or Path(__file__).resolve().parents[3]
         self._provider = self._resolve_provider()
-        self._script_service: ScriptService | None = None
         self._outline_service: OutlineService | None = None
         self._export_service: ExportService | None = None
         self._slides_service: SlidesService | None = None
@@ -71,19 +66,6 @@ class DIContainer:
             tools=[],
             retry_strategy=None,
         )
-
-    def _create_script_agent(self) -> Agent:
-        model_kwargs = dict(
-            max_tokens=BEDROCK_SCRIPT_MAX_TOKENS,
-            json_schema=SCRIPT_JSON_SCHEMA,
-            json_schema_name="script_output",
-        )
-        model = (
-            create_anthropic_outline_model
-            if self._provider == "anthropic"
-            else create_bedrock_outline_model
-        )(**model_kwargs)
-        return self._create_agent(model=model, prompt_text=SCRIPT_SYSTEM_PROMPT)
 
     def _create_outline_agent(self) -> Agent:
         model_kwargs = dict(
@@ -131,12 +113,6 @@ class DIContainer:
         return self._create_agent(model=model, prompt_text=prompt_text)
 
     # ---- Service properties (lazy init) ----
-
-    @property
-    def script_service(self) -> ScriptService:
-        if self._script_service is None:
-            self._script_service = ScriptService(agent=self._create_script_agent())
-        return self._script_service
 
     @property
     def outline_service(self) -> OutlineService:

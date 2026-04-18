@@ -54,7 +54,7 @@ def register_outline_tools(
 
         **IMPORTANT: After generating the outline, you must show the result to the user and get confirmation.**
         Confirm that the user is satisfied with the outline structure (number of slides, titles, content composition, etc.)
-        before proceeding to the next step (generate_script).
+        before proceeding to the next step (generate_slides_design_spec).
         If the user requests changes, incorporate the modifications and call generate_outline again.
 
         Args:

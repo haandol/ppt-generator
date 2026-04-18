@@ -663,63 +663,6 @@ class TestModifyDesignSpec:
         for i, s in enumerate(outline_data["slides"]):
             assert s["slide_index"] == i
 
-    def test_update_reads_from_script_when_available(
-        self,
-        mcp_tools: dict,
-        project_with_design_spec: tuple,
-        monkeypatch,
-        tmp_path: Path,
-    ) -> None:
-        """update 시 script가 있으면 script에서 우선 읽어온다."""
-        import ppt_generator.tools.project.service as svc_module
-
-        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
-
-        project_id, project_dir = project_with_design_spec
-        import shutil
-
-        dest = tmp_path / project_id
-        if not dest.exists():
-            shutil.copytree(project_dir, dest)
-
-        # script 생성 (speaker_notes 포함)
-        project_service = mcp_tools["_project_service"]
-        script_data = json.dumps(
-            {
-                "slides": [
-                    {
-                        "title": f"스크립트 {i + 1}",
-                        "content_summary": f"내용 {i + 1}",
-                        "component_hint": "bullets",
-                        "speaker_notes": f"발표 노트 {i + 1}",
-                        "slide_type": "content",
-                    }
-                    for i in range(3)
-                ]
-            },
-            ensure_ascii=False,
-        )
-        project_service.save_script(dest, script_data)
-
-        # 사전 조건: script에서 해당 슬라이드를 먼저 수정
-        updated_slide = json.dumps(
-            {"title": "새 슬라이드", "content_summary": "내용"}, ensure_ascii=False
-        )
-        project_service.update_outline_slide(dest, 0, updated_slide)
-
-        # update 수행
-        mcp_tools["modify_design_spec"](
-            project_id=project_id,
-            action="update",
-            slide_index=1,
-        )
-
-        # script에서 수정된 내용이 반영되어 있는지 확인
-        script_raw = project_service.load_script(dest)
-        script = json.loads(script_raw)
-        assert script["slides"][0]["title"] == "새 슬라이드"
-        assert len(script["slides"]) == 3
-
     def test_no_outline_file_raises_on_update(
         self, mcp_tools: dict, monkeypatch, tmp_path: Path
     ) -> None:
@@ -1048,110 +991,6 @@ class TestModifyDesignSpecHtmlSync:
         # 원래 slide 3 → slide_04.html
         assert "slide 3" in html_files[3].read_text(encoding="utf-8")
 
-    def test_delete_syncs_both_outline_and_script(
-        self,
-        mcp_tools: dict,
-        project_with_design_spec: tuple,
-        monkeypatch,
-        tmp_path: Path,
-    ) -> None:
-        """delete 시 outline과 script가 둘 다 존재하면 둘 다 삭제 동기화된다."""
-        project_id, dest = self._setup_with_html(
-            mcp_tools, project_with_design_spec, monkeypatch, tmp_path
-        )
-
-        # script 생성 (outline은 이미 존재)
-        project_service = mcp_tools["_project_service"]
-        script_data = json.dumps(
-            {
-                "slides": [
-                    {
-                        "title": f"스크립트 {i + 1}",
-                        "content_summary": f"내용 {i + 1}",
-                        "component_hint": "bullets",
-                        "speaker_notes": f"노트 {i + 1}",
-                        "slide_type": "content",
-                    }
-                    for i in range(3)
-                ]
-            },
-            ensure_ascii=False,
-        )
-        project_service.save_script(dest, script_data)
-
-        result = json.loads(
-            mcp_tools["modify_design_spec"](
-                project_id=project_id,
-                action="delete",
-                slide_index=2,
-            )
-        )
-        assert result["slide_count"] == 2
-
-        # outline도 2개여야 한다
-        outline_raw = project_service.load_outline(dest)
-        outline_data = json.loads(outline_raw)
-        assert len(outline_data["slides"]) == 2
-
-        # script도 2개여야 한다
-        script_raw = project_service.load_script(dest)
-        script_data = json.loads(script_raw)
-        assert len(script_data["slides"]) == 2
-
-    def test_add_syncs_both_outline_and_script(
-        self,
-        mcp_tools_with_slides: dict,
-        project_with_design_spec: tuple,
-        monkeypatch,
-        tmp_path: Path,
-    ) -> None:
-        """add 시 modify_design_spec이 내부적으로 outline과 script를 둘 다 동기화한다."""
-        project_id, dest = self._setup_with_html(
-            mcp_tools_with_slides, project_with_design_spec, monkeypatch, tmp_path
-        )
-
-        # script 생성 (outline은 이미 존재)
-        project_service = mcp_tools_with_slides["_project_service"]
-        script_data = json.dumps(
-            {
-                "slides": [
-                    {
-                        "title": f"스크립트 {i + 1}",
-                        "content_summary": f"내용 {i + 1}",
-                        "component_hint": "bullets",
-                        "speaker_notes": f"노트 {i + 1}",
-                        "slide_type": "content",
-                    }
-                    for i in range(3)
-                ]
-            },
-            ensure_ascii=False,
-        )
-        project_service.save_script(dest, script_data)
-
-        result = json.loads(
-            mcp_tools_with_slides["modify_design_spec"](
-                project_id=project_id,
-                action="add",
-                slide_index=2,
-                title="새 슬라이드",
-                content_summary="내용",
-            )
-        )
-        assert result["slide_count"] == 4
-
-        # outline이 4개여야 한다
-        outline_raw = project_service.load_outline(dest)
-        outline_data = json.loads(outline_raw)
-        assert len(outline_data["slides"]) == 4
-        assert outline_data["slides"][1]["title"] == "새 슬라이드"
-
-        # script도 4개여야 한다
-        script_raw = project_service.load_script(dest)
-        script_data_loaded = json.loads(script_raw)
-        assert len(script_data_loaded["slides"]) == 4
-        assert script_data_loaded["slides"][1]["title"] == "새 슬라이드"
-
     def test_consecutive_deletes(
         self,
         mcp_tools: dict,
@@ -1234,27 +1073,6 @@ class TestGenerateSlidesDesignSpecFromProject:
             )
         return "batch-file-proj"
 
-    def _setup_project_with_script(
-        self, tmp_path: Path, monkeypatch, num_slides: int = 5
-    ) -> str:
-        project_id = self._setup_project_with_outline(tmp_path, monkeypatch, num_slides)
-        proj_dir = tmp_path / project_id
-        script_dir = proj_dir / "script"
-        script_dir.mkdir()
-        for i in range(num_slides):
-            slide = {
-                "title": f"스크립트 {i + 1}",
-                "content_summary": f"내용 {i + 1}",
-                "component_hint": "bullets",
-                "speaker_notes": f"노트 {i + 1}",
-                "slide_index": i,
-            }
-            (script_dir / f"slide_{i + 1:02d}.json").write_text(
-                json.dumps(slide, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-        return project_id
-
     def test_load_from_outline_file(
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
     ) -> None:
@@ -1274,25 +1092,6 @@ class TestGenerateSlidesDesignSpecFromProject:
         assert result["total_slides"] == 3
         assert result["success_count"] == 3
         assert result["project_id"] == project_id
-
-    def test_load_from_script_file(
-        self, mcp_tools: dict, tmp_path: Path, monkeypatch
-    ) -> None:
-        """script.json이 있으면 우선 로드한다."""
-        project_id = self._setup_project_with_script(
-            tmp_path, monkeypatch, num_slides=3
-        )
-
-        result = json.loads(
-            self._run(
-                mcp_tools["generate_slides_design_spec"](
-                    project_id=project_id,
-                )
-            )
-        )
-
-        assert result["total_slides"] == 3
-        assert result["success_count"] == 3
 
     def test_auto_calculates_total_slides(
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
@@ -2060,7 +1859,7 @@ class TestBugFixInsertWorkflow:
         monkeypatch,
         num_slides: int = 5,
     ) -> tuple[str, Path]:
-        """outline + script + design_spec이 있는 generated 프로젝트를 설정한다."""
+        """outline + design_spec이 있는 generated 프로젝트를 설정한다."""
         import ppt_generator.tools.project.service as svc_module
 
         monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
@@ -2093,24 +1892,6 @@ class TestBugFixInsertWorkflow:
             ensure_ascii=False,
         )
         project_service.save_outline(project_dir, outline_data)
-
-        # script 개별 파일 생성
-        script_data = json.dumps(
-            {
-                "slides": [
-                    {
-                        "title": f"기존 슬라이드 {i + 1}",
-                        "content_summary": f"내용 {i + 1}",
-                        "component_hint": "bullets",
-                        "speaker_notes": f"노트 {i + 1}",
-                        "slide_type": "content",
-                    }
-                    for i in range(num_slides)
-                ]
-            },
-            ensure_ascii=False,
-        )
-        project_service.save_script(project_dir, script_data)
 
         # design_spec 생성
         spec = _make_design_spec(num_slides)
@@ -2162,38 +1943,6 @@ class TestBugFixInsertWorkflow:
         # 기존 3번째(인덱스 2)가 인덱스 3으로 밀렸는지 확인
         assert outline["slides"][3]["title"] == "기존 슬라이드 3"
 
-    def test_save_outline_slide_insert_syncs_script(
-        self, mcp_tools: dict, tmp_path: Path, monkeypatch
-    ) -> None:
-        """save_outline_slide(insert=true)가 script 디렉토리도 동기화한다."""
-        project_id, project_dir = self._setup_generated_project(
-            mcp_tools, tmp_path, monkeypatch, 5
-        )
-        project_service = mcp_tools["_project_service"]
-
-        # insert_outline_slide는 outline + script 둘 다 동기화
-        project_service.insert_outline_slide(
-            project_dir,
-            2,
-            json.dumps(
-                {
-                    "title": "새 슬라이드",
-                    "content_summary": "새 내용",
-                    "component_hint": "bullets",
-                    "slide_type": "content",
-                    "speaker_notes": "",
-                },
-                ensure_ascii=False,
-            ),
-        )
-
-        # script도 6개가 되어야 함
-        script_raw = project_service.load_script(project_dir)
-        script = json.loads(script_raw)
-        assert len(script["slides"]) == 6
-        assert script["slides"][2]["title"] == "새 슬라이드"
-        assert script["slides"][3]["title"] == "기존 슬라이드 3"
-
     def test_add_updates_num_slides(
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
     ) -> None:
@@ -2239,36 +1988,6 @@ class TestBugFixInsertWorkflow:
         # project.json의 num_slides 확인
         meta = project_service.load_metadata(project_dir)
         assert meta.num_slides == 2
-
-    def test_save_outline_slide_overwrite_syncs_script(
-        self, mcp_tools: dict, tmp_path: Path, monkeypatch
-    ) -> None:
-        """save_outline_slide(insert=false)가 script에 해당 파일이 있으면 동기화한다."""
-        project_id, project_dir = self._setup_generated_project(
-            mcp_tools, tmp_path, monkeypatch, 3
-        )
-        project_service = mcp_tools["_project_service"]
-
-        # overwrite 모드로 인덱스 1의 아웃라인 수정
-        project_service.save_outline_slide(
-            project_dir,
-            1,
-            json.dumps(
-                {
-                    "title": "수정된 슬라이드",
-                    "content_summary": "수정된 내용",
-                    "component_hint": "bullets",
-                    "slide_type": "content",
-                    "speaker_notes": "",
-                },
-                ensure_ascii=False,
-            ),
-        )
-
-        # script의 인덱스 1도 동기화되었는지 확인
-        script_slide = json.loads(project_service.load_script_slide(project_dir, 1))
-        assert script_slide["title"] == "수정된 슬라이드"
-        assert script_slide["content_summary"] == "수정된 내용"
 
     def test_consecutive_adds_correct_slide_count(
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
@@ -2359,23 +2078,6 @@ class TestMoveSlide:
             ensure_ascii=False,
         )
         project_service.save_outline(project_dir, outline_data)
-
-        script_data = json.dumps(
-            {
-                "slides": [
-                    {
-                        "title": f"슬라이드 {i + 1}",
-                        "content_summary": f"내용 {i + 1}",
-                        "component_hint": "bullets",
-                        "speaker_notes": f"노트 {i + 1}",
-                        "slide_type": "content",
-                    }
-                    for i in range(num_slides)
-                ]
-            },
-            ensure_ascii=False,
-        )
-        project_service.save_script(project_dir, script_data)
 
         spec = _make_design_spec(num_slides)
         project_service.save_design_spec(project_dir, spec)
@@ -2488,7 +2190,7 @@ class TestMoveSlide:
     def test_move_syncs_all_stores(
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
     ) -> None:
-        """outline, script, design_spec, HTML이 모두 동기화된다."""
+        """outline, design_spec, HTML이 모두 동기화된다."""
         project_id, project_dir = self._setup_project(
             mcp_tools, tmp_path, monkeypatch, 3
         )
@@ -2501,12 +2203,6 @@ class TestMoveSlide:
         assert outline["slides"][0]["title"] == "슬라이드 3"
         assert outline["slides"][1]["title"] == "슬라이드 1"
         assert outline["slides"][2]["title"] == "슬라이드 2"
-
-        # script: [1,2,3] → [3,1,2]
-        script = json.loads(project_service.load_script(project_dir))
-        assert script["slides"][0]["title"] == "슬라이드 3"
-        assert script["slides"][1]["title"] == "슬라이드 1"
-        assert script["slides"][2]["title"] == "슬라이드 2"
 
         # design_spec: 슬라이드 3의 textbox title이 첫 번째에 와야 함
         spec = project_service.load_design_spec(project_dir)

@@ -49,23 +49,6 @@ SAMPLE_OUTLINE = json.dumps(
     indent=2,
 )
 
-SAMPLE_SCRIPT = json.dumps(
-    {
-        "slides": [
-            {
-                "title": "제목",
-                "bullets": ["요점1"],
-                "image_idea": "이미지",
-                "layout_type": "title",
-                "speaker_notes": "안녕하세요, 발표를 시작하겠습니다.",
-                "elements": [],
-            }
-        ]
-    },
-    ensure_ascii=False,
-    indent=2,
-)
-
 SAMPLE_HTML = """<!DOCTYPE html>
 <html><head><meta charset="UTF-8"></head>
 <body><div class="slide">Hello</div></body>
@@ -89,29 +72,6 @@ MULTI_SLIDE_OUTLINE = json.dumps(
                 "title": "마무리",
                 "content_summary": "감사합니다",
                 "slide_type": "closing",
-            },
-        ]
-    },
-    ensure_ascii=False,
-)
-
-MULTI_SLIDE_SCRIPT = json.dumps(
-    {
-        "slides": [
-            {
-                "title": "제목 슬라이드",
-                "content_summary": "소개",
-                "speaker_notes": "안녕하세요.",
-            },
-            {
-                "title": "본문 슬라이드",
-                "content_summary": "핵심 내용",
-                "speaker_notes": "핵심 내용입니다.",
-            },
-            {
-                "title": "마무리",
-                "content_summary": "감사합니다",
-                "speaker_notes": "감사합니다.",
             },
         ]
     },
@@ -154,41 +114,6 @@ class TestSaveAndLoadOutline:
             assert slide["slide_index"] == i
 
 
-class TestSaveAndLoadScript:
-    def test_roundtrip(
-        self, project_service: ProjectService, project_dir: Path
-    ) -> None:
-        project_service.save_script(project_dir, SAMPLE_SCRIPT)
-        loaded = project_service.load_script(project_dir)
-        loaded_slides = json.loads(loaded)["slides"]
-        original_slides = json.loads(SAMPLE_SCRIPT)["slides"]
-        assert len(loaded_slides) == len(original_slides)
-        assert loaded_slides[0]["title"] == original_slides[0]["title"]
-        assert loaded_slides[0]["slide_index"] == 0
-
-    def test_saves_as_individual_files(
-        self, project_service: ProjectService, project_dir: Path
-    ) -> None:
-        project_service.save_script(project_dir, SAMPLE_SCRIPT)
-        script_dir = project_dir / "script"
-        assert script_dir.exists()
-        files = sorted(script_dir.glob("slide_*.json"))
-        assert len(files) == 1
-        slide = json.loads(files[0].read_text(encoding="utf-8"))
-        assert slide["title"] == "제목"
-        assert slide["slide_index"] == 0
-
-    def test_slide_index_injected(
-        self, project_service: ProjectService, project_dir: Path
-    ) -> None:
-        project_service.save_script(project_dir, MULTI_SLIDE_SCRIPT)
-        script_dir = project_dir / "script"
-        files = sorted(script_dir.glob("slide_*.json"))
-        for i, f in enumerate(files):
-            slide = json.loads(f.read_text(encoding="utf-8"))
-            assert slide["slide_index"] == i
-
-
 class TestLoadOutlineSlide:
     def test_load_specific_slide(
         self, project_service: ProjectService, project_dir: Path
@@ -204,23 +129,6 @@ class TestLoadOutlineSlide:
         project_service.save_outline(project_dir, MULTI_SLIDE_OUTLINE)
         with pytest.raises(IndexError):
             project_service.load_outline_slide(project_dir, 10)
-
-
-class TestLoadScriptSlide:
-    def test_load_specific_slide(
-        self, project_service: ProjectService, project_dir: Path
-    ) -> None:
-        project_service.save_script(project_dir, MULTI_SLIDE_SCRIPT)
-        slide = json.loads(project_service.load_script_slide(project_dir, 2))
-        assert slide["title"] == "마무리"
-        assert slide["slide_index"] == 2
-
-    def test_index_out_of_range(
-        self, project_service: ProjectService, project_dir: Path
-    ) -> None:
-        project_service.save_script(project_dir, MULTI_SLIDE_SCRIPT)
-        with pytest.raises(IndexError):
-            project_service.load_script_slide(project_dir, 10)
 
 
 SAMPLE_SLIDE_HTMLS = [
@@ -686,10 +594,6 @@ class TestLoadNonexistentRaises:
     def test_outline(self, project_service: ProjectService, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
             project_service.load_outline(tmp_path / "empty")
-
-    def test_script(self, project_service: ProjectService, tmp_path: Path) -> None:
-        with pytest.raises(FileNotFoundError):
-            project_service.load_script(tmp_path / "empty")
 
     def test_metadata(self, project_service: ProjectService, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):

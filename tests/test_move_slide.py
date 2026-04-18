@@ -52,24 +52,6 @@ def _setup_project(tmp_path: Path, num_slides: int) -> tuple[ProjectService, Pat
     )
     project_service.save_outline(project_dir, outline_data)
 
-    # script
-    script_data = json.dumps(
-        {
-            "slides": [
-                {
-                    "title": f"슬라이드 {i + 1}",
-                    "content_summary": f"내용 {i + 1}",
-                    "component_hint": "bullets",
-                    "speaker_notes": f"노트 {i + 1}",
-                    "slide_type": "content",
-                }
-                for i in range(num_slides)
-            ]
-        },
-        ensure_ascii=False,
-    )
-    project_service.save_script(project_dir, script_data)
-
     # design_spec
     spec = DesignSpec(
         slides=[_make_slide_spec(f"슬라이드 {i + 1}") for i in range(num_slides)]
@@ -108,13 +90,6 @@ class TestSlideCountDetection:
         svc, project_dir = _setup_project(tmp_path, num_slides)
         outline = json.loads(svc.load_outline(project_dir))
         assert len(outline["slides"]) == num_slides
-
-    @pytest.mark.parametrize("num_slides", [10, 16, 20, 25])
-    def test_script_slide_count(self, tmp_path: Path, num_slides: int) -> None:
-        """script 슬라이드 수가 정확히 인식되는지 확인."""
-        svc, project_dir = _setup_project(tmp_path, num_slides)
-        script = json.loads(svc.load_script(project_dir))
-        assert len(script["slides"]) == num_slides
 
     @pytest.mark.parametrize("num_slides", [10, 16, 20, 25])
     def test_html_file_count(self, tmp_path: Path, num_slides: int) -> None:
@@ -355,7 +330,7 @@ class TestHtmlStoreMove:
 
 
 class TestProjectServiceMoveSlide:
-    """ProjectService를 통해 move가 outline, script, design_spec, HTML 전부 동기화되는지 검증."""
+    """ProjectService를 통해 move가 outline, design_spec, HTML 전부 동기화되는지 검증."""
 
     def test_move_16th_to_11th_all_stores(self, tmp_path: Path) -> None:
         """16번째(index=15)를 11번째(index=10)로 이동 시 모든 store가 동기화."""
@@ -372,12 +347,6 @@ class TestProjectServiceMoveSlide:
         assert len(outline["slides"]) == 16
         outline_titles = [s["title"] for s in outline["slides"]]
         assert outline_titles == [f"슬라이드 {i}" for i in expected_order]
-
-        # script
-        script = json.loads(svc.load_script(project_dir))
-        assert len(script["slides"]) == 16
-        script_titles = [s["title"] for s in script["slides"]]
-        assert script_titles == [f"슬라이드 {i}" for i in expected_order]
 
         # design_spec
         spec = svc.load_design_spec(project_dir)

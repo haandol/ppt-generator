@@ -4,19 +4,6 @@ from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
-class ScriptRequest:
-    outline: "OutlineResponse"
-    audience_type: str = "general"
-    presentation_minutes: int = 15
-    purpose: str = ""
-
-
-@dataclass(frozen=True)
-class ScriptResponse:
-    slides: list["SlideOutline"]
-
-
-@dataclass(frozen=True)
 class SlideOutline:
     title: str
     content_summary: str

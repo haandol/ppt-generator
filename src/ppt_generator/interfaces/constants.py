@@ -42,7 +42,7 @@ ANTHROPIC_DESIGN_MODEL_ID = os.environ.get(
 BEDROCK_DESIGN_MAX_TOKENS = int(os.environ.get("BEDROCK_DESIGN_MAX_TOKENS", "64000"))
 BEDROCK_REVIEW_MAX_TOKENS = int(os.environ.get("BEDROCK_REVIEW_MAX_TOKENS", "4096"))
 
-# --- Outline/script generation model ---
+# --- Outline generation model ---
 BEDROCK_OUTLINE_MODEL_ID = os.environ.get(
     "BEDROCK_OUTLINE_MODEL_ID", "global.anthropic.claude-sonnet-4-6"
 )
@@ -50,7 +50,6 @@ ANTHROPIC_OUTLINE_MODEL_ID = os.environ.get(
     "ANTHROPIC_OUTLINE_MODEL_ID", "claude-sonnet-4-6"
 )
 BEDROCK_OUTLINE_MAX_TOKENS = int(os.environ.get("BEDROCK_OUTLINE_MAX_TOKENS", "32000"))
-BEDROCK_SCRIPT_MAX_TOKENS = int(os.environ.get("BEDROCK_SCRIPT_MAX_TOKENS", "32000"))
 
 # --- Common ---
 BEDROCK_REGION = os.environ.get("AWS_REGION", "us-east-1")
@@ -67,10 +66,7 @@ MAX_PRESENTATION_MINUTES = 60
 
 # --- Bedrock Structured Output JSON Schemas (re-export) ---
 
-from ppt_generator.interfaces.json_schemas import (
-    OUTLINE_JSON_SCHEMA,
-    SCRIPT_JSON_SCHEMA,
-)  # noqa: E402
+from ppt_generator.interfaces.json_schemas import OUTLINE_JSON_SCHEMA  # noqa: E402
 
 # --- PPTX numeric constants ---
 
@@ -149,7 +145,6 @@ COMPONENT_HINT_COMPLEXITY: dict[str, int] = {
 PROJECT_SLIDES_DIR = "slides"
 PROJECT_IMAGES_DIR = "slides/images"
 PROJECT_OUTLINE_DIR = "outline"
-PROJECT_SCRIPT_DIR = "script"
 
 TEMPLATE_BG_IMAGES_DIR = (
     Path(__file__).parent.parent / "templates" / "template_bg_images"
@@ -176,8 +171,6 @@ from ppt_generator.interfaces.prompts import (  # noqa: E402
     DESIGN_SUMMARY_USER_PROMPT_TEMPLATE,
     OUTLINE_SYSTEM_PROMPT,
     OUTLINE_USER_PROMPT_TEMPLATE,
-    SCRIPT_SYSTEM_PROMPT,
-    SCRIPT_USER_PROMPT_TEMPLATE,
     VISUAL_QA_ANALYSIS_SYSTEM_PROMPT,
     VISUAL_QA_FIX_SYSTEM_PROMPT,
 )
@@ -188,11 +181,10 @@ __all__ = [
     "ANTHROPIC_DESIGN_MODEL_ID",
     "BEDROCK_DESIGN_MAX_TOKENS",
     "BEDROCK_REVIEW_MAX_TOKENS",
-    # Outline/Script model settings
+    # Outline model settings
     "BEDROCK_OUTLINE_MODEL_ID",
     "ANTHROPIC_OUTLINE_MODEL_ID",
     "BEDROCK_OUTLINE_MAX_TOKENS",
-    "BEDROCK_SCRIPT_MAX_TOKENS",
     # Common
     "BEDROCK_REGION",
     # Numeric constants
@@ -248,7 +240,6 @@ __all__ = [
     "PROJECT_SLIDES_DIR",
     "PROJECT_IMAGES_DIR",
     "PROJECT_OUTLINE_DIR",
-    "PROJECT_SCRIPT_DIR",
     "TEMPLATE_BG_IMAGES_DIR",
     "SLIDES_TEMPLATE_PATH",
     "SLIDE_TEMPLATE_PATH",
@@ -258,7 +249,6 @@ __all__ = [
     "SLIDE_FOOTER_HEIGHT",
     # JSON schemas
     "OUTLINE_JSON_SCHEMA",
-    "SCRIPT_JSON_SCHEMA",
     # Prompts (re-exported from prompts module)
     "DESIGN_REVIEW_SYSTEM_PROMPT",
     "DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE",
@@ -268,8 +258,6 @@ __all__ = [
     "DESIGN_SUMMARY_USER_PROMPT_TEMPLATE",
     "OUTLINE_SYSTEM_PROMPT",
     "OUTLINE_USER_PROMPT_TEMPLATE",
-    "SCRIPT_SYSTEM_PROMPT",
-    "SCRIPT_USER_PROMPT_TEMPLATE",
     "VISUAL_QA_ANALYSIS_SYSTEM_PROMPT",
     "VISUAL_QA_FIX_SYSTEM_PROMPT",
     # Paths

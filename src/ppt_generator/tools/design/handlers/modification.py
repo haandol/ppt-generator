@@ -265,17 +265,13 @@ def _add_slide(
     new_count = slide_count + 1
     if insert_idx > 0:
         try:
-            raw = project_service.load_script_or_outline_slide(
-                project_dir, insert_idx - 1
-            )
+            raw = project_service.load_outline_slide(project_dir, insert_idx - 1)
             prev_outline = parse_outline_json(raw).slides[0]
         except Exception:
             pass
     if insert_idx + 1 < new_count:
         try:
-            raw = project_service.load_script_or_outline_slide(
-                project_dir, insert_idx + 1
-            )
+            raw = project_service.load_outline_slide(project_dir, insert_idx + 1)
             next_outline = parse_outline_json(raw).slides[0]
         except Exception:
             pass
@@ -352,7 +348,7 @@ def _update_slide(
         project_service.save_outline_slide(project_dir, idx, outline_json)
 
     existing_spec = project_service.load_design_spec_slide(project_dir, idx)
-    outline_raw = project_service.load_script_or_outline_slide(project_dir, idx)
+    outline_raw = project_service.load_outline_slide(project_dir, idx)
     outline = parse_outline_json(outline_raw)
     slide_outline = outline.slides[0]
     new_spec, token_usage = _generate_and_review(

@@ -1,12 +1,13 @@
 """spec_utils 검증 로직 통합 테스트.
 
-폰트 메트릭 기반 텍스트 오버플로우 방지, 여백 강제 검증.
-레이아웃 위치 조정은 validator가 수행하지 않으므로 테스트하지 않는다.
+validator는 최소한의 보정만 수행한다:
+- 슬라이드 제목(첫 번째 textbox) 최소 폰트 크기 보장
+- title/closing 슬라이드 제목: 36pt 이상
+- content 슬라이드 제목: 24pt 이상
+- 빈 textbox 제거
 """
 
 from __future__ import annotations
-
-import pytest
 
 from ppt_generator.interfaces.schemas import (
     PptxParagraph,
@@ -17,10 +18,6 @@ from ppt_generator.interfaces.schemas import (
 )
 from ppt_generator.interfaces.spec_utils import validate_slide_spec
 from ppt_generator.interfaces.spec_utils.parser import parse_slide_spec
-from ppt_generator.interfaces.text_measurement import (
-    calculate_required_height,
-    calculate_required_height_simple_text,
-)
 from ppt_generator.tools.slides.html_renderer import textbox_to_html
 
 _MARGIN = 64
@@ -51,236 +48,69 @@ def _slide(
 
 
 # ---------------------------------------------------------------------------
-# 텍스트박스 높이 확장
+# 슬라이드 제목 최소 폰트 보장
 # ---------------------------------------------------------------------------
 
 
-class TestTextboxHeightExpansion:
-    def test_shape_with_padding_expands_height(self) -> None:
-        """padding 있는 shape → 높이 확장."""
-        long_text = "가나다라마바사아자차" * 3
-        shape = PptxShape(
-            left_px=64,
-            top_px=64,
-            width_px=300,
-            height_px=40,
-            shape_type="rounded_rectangle",
-            fill_color="#2a2a4e",
-            text=long_text,
-            text_size_pt=16,
-            padding_left_px=16,
-            padding_right_px=16,
-            padding_top_px=12,
-            padding_bottom_px=12,
-        )
-        result = validate_slide_spec(_slide(shapes=[shape]))
-        required_h = calculate_required_height_simple_text(
-            long_text,
-            16,
-            300,
-            padding_left_px=16,
-            padding_right_px=16,
-            padding_top_px=12,
-            padding_bottom_px=12,
-        )
-        assert result.shapes[0].height_px >= min(required_h, _CANVAS_H - _MARGIN - 64)
+class TestSlideTitleFontFloor:
+    """슬라이드 제목(첫 번째 textbox) 최소 폰트 크기를 보장한다."""
 
-    def test_shrink_text_mode_preserves_height(self) -> None:
-        """autofit_mode="shrink_text" → height 유지, 폰트 축소 (non-card)."""
-        long_text = "가나다라마바사아자차" * 3
-        # fill_color 없는 shape → 10pt floor 적용, 16pt 미만으로 축소 가능
-        shape = PptxShape(
-            left_px=64,
-            top_px=64,
-            width_px=300,
-            height_px=40,
-            shape_type="rounded_rectangle",
-            text=long_text,
-            text_size_pt=16,
-            padding_left_px=16,
-            padding_right_px=16,
-            padding_top_px=12,
-            padding_bottom_px=12,
-            autofit_mode="shrink_text",
-        )
-        result = validate_slide_spec(_slide(shapes=[shape]))
-        assert result.shapes[0].height_px == 40
-        assert result.shapes[0].text_size_pt is not None
-        assert result.shapes[0].text_size_pt < 16
-
-    def test_shrink_text_mode_scales_line_spacing(self) -> None:
-        """autofit_mode="shrink_text" → line_spacing_pt도 함께 축소 (non-card)."""
-        long_paras = [
-            PptxParagraph(
-                runs=[PptxTextRun(text="카드 제목 텍스트", font_size_pt=14, bold=True)]
-            ),
-            PptxParagraph(
-                runs=[
-                    PptxTextRun(
-                        text="부제목 설명 텍스트 길게 작성",
-                        font_size_pt=12,
-                        italic=True,
-                    )
-                ]
-            ),
-            PptxParagraph(
-                runs=[
-                    PptxTextRun(
-                        text="첫 번째 항목 설명을 아주 길게 작성하여 줄바꿈 발생시킴",
-                        font_size_pt=14,
-                    )
-                ],
-                bullet_level=0,
-            ),
-            PptxParagraph(
-                runs=[
-                    PptxTextRun(
-                        text="두 번째 항목 설명을 아주 길게 작성하여 줄바꿈 발생시킴",
-                        font_size_pt=14,
-                    )
-                ],
-                bullet_level=0,
-            ),
-            PptxParagraph(
-                runs=[
-                    PptxTextRun(
-                        text="세 번째 항목 설명을 아주 길게 작성하여 줄바꿈 발생시킴",
-                        font_size_pt=14,
-                    )
-                ],
-                bullet_level=0,
-            ),
-            PptxParagraph(
-                runs=[
-                    PptxTextRun(
-                        text="네 번째 항목 설명을 아주 길게 작성하여 줄바꿈 발생시킴",
-                        font_size_pt=14,
-                    )
-                ],
-                bullet_level=0,
-            ),
-        ]
-        # fill_color 없는 shape → 10pt floor 적용, 줄간격 축소 테스트
-        shape = PptxShape(
-            left_px=64,
-            top_px=148,
-            width_px=272,
-            height_px=200,
-            shape_type="rounded_rectangle",
-            paragraphs=long_paras,
-            line_spacing_pt=18.0,
-            padding_left_px=14,
-            padding_right_px=14,
-            padding_top_px=12,
-            padding_bottom_px=12,
-            autofit_mode="shrink_text",
-        )
-        result = validate_slide_spec(_slide(shapes=[shape]))
-        validated = result.shapes[0]
-        assert validated.height_px == 200
-        assert validated.line_spacing_pt is not None
-        assert validated.line_spacing_pt < 18.0, (
-            "line_spacing_pt should be scaled proportionally"
-        )
-
-    def test_shrink_text_mode_side_by_side_same_height(self) -> None:
-        """autofit_mode="shrink_text" → 나란히 배치된 shape 높이 일관성."""
-        # fill_color 없는 shape → 10pt floor, 14pt에서 축소 가능
-        shape_left = PptxShape(
-            left_px=64,
-            top_px=200,
-            width_px=560,
-            height_px=184,
-            shape_type="rounded_rectangle",
-            text="가나다라마바사" * 10,
-            text_size_pt=14,
-            autofit_mode="shrink_text",
-        )
-        shape_right = PptxShape(
-            left_px=656,
-            top_px=200,
-            width_px=560,
-            height_px=184,
-            shape_type="rounded_rectangle",
-            text="가나다라" * 3,
-            text_size_pt=14,
-            autofit_mode="shrink_text",
-        )
-        result = validate_slide_spec(_slide(shapes=[shape_left, shape_right]))
-        assert result.shapes[0].height_px == result.shapes[1].height_px == 184
-
-
-# ---------------------------------------------------------------------------
-# 폰트 축소
-# ---------------------------------------------------------------------------
-
-
-class TestAutofitFontScale:
-    def test_canvas_bottom_font_shrink_with_minimum(self) -> None:
-        """캔버스 하단 근접 → 폰트 축소, 최소 10pt 보장."""
-        very_long = "가" * 500
-        tb = _tb(very_long, font=20, top_px=640, width_px=200, height_px=16)
+    def test_content_slide_title_floor_24pt(self) -> None:
+        """content 슬라이드 제목이 24pt 미만이면 24pt로 올린다."""
+        tb = _tb("제목 텍스트", font=16)
         result = validate_slide_spec(_slide(textboxes=[tb]))
         font = result.textboxes[0].paragraphs[0].runs[0].font_size_pt
         assert font is not None
-        assert font < 20
-        assert font >= 10
+        assert font >= 24
 
-    def test_autofit_false_preserves_font_size(self) -> None:
-        """autofit=False → 오버플로우 텍스트라도 폰트 크기 유지."""
-        very_long = "가" * 500
-        tb = _tb(very_long, font=24, top_px=500, width_px=200, height_px=50)
-        result = validate_slide_spec(_slide(textboxes=[tb]), autofit=False)
+    def test_title_slide_title_floor_36pt(self) -> None:
+        """title 슬라이드 제목이 36pt 미만이면 36pt로 올린다."""
+        tb = _tb("발표 제목", font=24)
+        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="title"))
         font = result.textboxes[0].paragraphs[0].runs[0].font_size_pt
-        assert font == 24
+        assert font is not None
+        assert font >= 36
 
-    def test_autofit_false_preserves_shape_font_size(self) -> None:
-        """autofit=False → shape의 폰트 크기도 축소하지 않음."""
-        long_text = "가나다라마바사아자차" * 5
+    def test_closing_slide_title_floor_36pt(self) -> None:
+        """closing 슬라이드 제목이 36pt 미만이면 36pt로 올린다."""
+        tb = _tb("감사합니다", font=20)
+        result = validate_slide_spec(_slide(textboxes=[tb], slide_type="closing"))
+        font = result.textboxes[0].paragraphs[0].runs[0].font_size_pt
+        assert font is not None
+        assert font >= 36
+
+    def test_title_above_min_not_changed(self) -> None:
+        """제목이 이미 최소 이상이면 변경하지 않는다."""
+        tb = _tb("큰 제목", font=32)
+        result = validate_slide_spec(_slide(textboxes=[tb]))
+        font = result.textboxes[0].paragraphs[0].runs[0].font_size_pt
+        assert font == 32
+
+    def test_second_textbox_not_affected(self) -> None:
+        """두 번째 textbox는 제목이 아니므로 폰트 변경 없음."""
+        title_tb = _tb("제목", font=28)
+        body_tb = _tb("본문 작은 글씨", font=12, top_px=150)
+        result = validate_slide_spec(_slide(textboxes=[title_tb, body_tb]))
+        body_font = result.textboxes[1].paragraphs[0].runs[0].font_size_pt
+        assert body_font == 12
+
+    def test_shapes_not_modified(self) -> None:
+        """shape의 폰트는 validator가 수정하지 않는다."""
         shape = PptxShape(
             left_px=64,
-            top_px=64,
-            width_px=200,
-            height_px=40,
+            top_px=148,
+            width_px=400,
+            height_px=200,
             shape_type="rounded_rectangle",
-            fill_color="#2a2a4e",
-            text=long_text,
-            text_size_pt=24,
+            fill_color="#2E3D50",
+            text="카드 본문",
+            text_size_pt=12,
         )
-        result = validate_slide_spec(_slide(shapes=[shape]), autofit=False)
-        assert result.shapes[0].text_size_pt == 24
+        result = validate_slide_spec(_slide(shapes=[shape]))
+        assert result.shapes[0].text_size_pt == 12
 
-
-# ---------------------------------------------------------------------------
-# 여백 강제
-# ---------------------------------------------------------------------------
-
-
-class TestMarginEnforcement:
-    @pytest.mark.parametrize(
-        "left,top,check",
-        [
-            (10, 64, "left"),
-            (64, 10, "top"),
-            (1060, 64, "right"),
-        ],
-    )
-    def test_textbox_margin_enforced(self, left: int, top: int, check: str) -> None:
-        """textbox가 캔버스 여백(64px) 안으로 보정된다."""
-        tb = _tb(
-            "테스트", font=16, left_px=left, top_px=top, width_px=200, height_px=50
-        )
-        result = validate_slide_spec(_slide(textboxes=[tb]))
-        v = result.textboxes[0]
-        if check == "left":
-            assert v.left_px >= _MARGIN
-        elif check == "top":
-            assert v.top_px >= _MARGIN
-        else:
-            assert v.left_px + v.width_px <= _CANVAS_W - _MARGIN
-
-    def test_decorative_shape_bypasses_margin(self) -> None:
-        """장식 shape(텍스트 없음, height<=10) → margin 무시, 높이 확장 없음."""
+    def test_shape_position_not_modified(self) -> None:
+        """shape의 위치/크기를 validator가 수정하지 않는다."""
         shape = PptxShape(
             left_px=0,
             top_px=100,
@@ -291,20 +121,8 @@ class TestMarginEnforcement:
         )
         result = validate_slide_spec(_slide(shapes=[shape]))
         assert result.shapes[0].left_px == 0
-        assert result.shapes[0].height_px <= 10
-
-    def test_vertical_decorative_line_bypasses_margin(self) -> None:
-        """세로 꾸밈 라인(width<=10, height>10) → 장식 요소로 인식, margin 무시."""
-        shape = PptxShape(
-            left_px=64,
-            top_px=192,
-            width_px=10,
-            height_px=120,
-            shape_type="rectangle",
-            fill_color="#FF9900",
-        )
-        result = validate_slide_spec(_slide(shapes=[shape]))
-        assert result.shapes[0].height_px == 120
+        assert result.shapes[0].height_px == 3
+        assert result.shapes[0].width_px == 1280
 
 
 # ---------------------------------------------------------------------------
@@ -602,275 +420,6 @@ class TestNoColorIntervention:
 
 
 # ---------------------------------------------------------------------------
-# 카드 폰트 바닥 강제
-# ---------------------------------------------------------------------------
-
-
-class TestCardFontFloorEnforcement:
-    """카드(fill_color 있는 shape)의 폰트 최소 크기를 강제한다."""
-
-    def test_card_body_font_floor_16pt(self) -> None:
-        """카드 body 텍스트(non-bold)가 16pt 미만이면 16pt로 올린다."""
-        shape = PptxShape(
-            left_px=64,
-            top_px=148,
-            width_px=400,
-            height_px=200,
-            shape_type="rounded_rectangle",
-            fill_color="#2E3D50",
-            paragraphs=[
-                PptxParagraph(runs=[PptxTextRun(text="본문 텍스트", font_size_pt=12)]),
-            ],
-        )
-        result = validate_slide_spec(_slide(shapes=[shape]))
-        font = result.shapes[0].paragraphs[0].runs[0].font_size_pt
-        assert font is not None
-        assert font >= 16
-
-    def test_card_title_font_floor_18pt(self) -> None:
-        """카드 제목(첫 bold run)이 18pt 미만이면 18pt로 올린다."""
-        shape = PptxShape(
-            left_px=64,
-            top_px=148,
-            width_px=400,
-            height_px=200,
-            shape_type="rounded_rectangle",
-            fill_color="#2E3D50",
-            paragraphs=[
-                PptxParagraph(
-                    runs=[PptxTextRun(text="제목", font_size_pt=14, bold=True)]
-                ),
-                PptxParagraph(runs=[PptxTextRun(text="본문", font_size_pt=12)]),
-            ],
-        )
-        result = validate_slide_spec(_slide(shapes=[shape]))
-        title_font = result.shapes[0].paragraphs[0].runs[0].font_size_pt
-        body_font = result.shapes[0].paragraphs[1].runs[0].font_size_pt
-        assert title_font is not None and title_font >= 18
-        assert body_font is not None and body_font >= 16
-
-    def test_card_simple_text_bold_floor_18pt(self) -> None:
-        """카드의 text + text_bold=True → 18pt floor."""
-        shape = PptxShape(
-            left_px=64,
-            top_px=148,
-            width_px=400,
-            height_px=100,
-            shape_type="rounded_rectangle",
-            fill_color="#2E3D50",
-            text="카드 제목",
-            text_size_pt=12,
-            text_bold=True,
-        )
-        result = validate_slide_spec(_slide(shapes=[shape]))
-        assert result.shapes[0].text_size_pt is not None
-        assert result.shapes[0].text_size_pt >= 18
-
-    def test_card_simple_text_non_bold_floor_16pt(self) -> None:
-        """카드의 text + text_bold=False → 16pt floor."""
-        shape = PptxShape(
-            left_px=64,
-            top_px=148,
-            width_px=400,
-            height_px=100,
-            shape_type="rounded_rectangle",
-            fill_color="#2E3D50",
-            text="카드 본문",
-            text_size_pt=12,
-        )
-        result = validate_slide_spec(_slide(shapes=[shape]))
-        assert result.shapes[0].text_size_pt is not None
-        assert result.shapes[0].text_size_pt >= 16
-
-    def test_non_card_shape_keeps_10pt_floor(self) -> None:
-        """fill_color 없는 shape → 기존 10pt floor 유지."""
-        shape = PptxShape(
-            left_px=64,
-            top_px=148,
-            width_px=400,
-            height_px=200,
-            shape_type="rounded_rectangle",
-            paragraphs=[
-                PptxParagraph(runs=[PptxTextRun(text="텍스트", font_size_pt=12)]),
-            ],
-        )
-        result = validate_slide_spec(_slide(shapes=[shape]))
-        font = result.shapes[0].paragraphs[0].runs[0].font_size_pt
-        assert font == 12  # 10pt floor에 걸리지 않으므로 12pt 유지
-
-    def test_line_shape_with_fill_not_treated_as_card(self) -> None:
-        """line shape은 fill_color가 있어도 카드로 취급하지 않는다."""
-        shape = PptxShape(
-            left_px=64,
-            top_px=300,
-            width_px=200,
-            height_px=0,
-            shape_type="line",
-            fill_color="#FF9900",
-            border_color="#FF9900",
-            border_width_pt=2,
-            end_arrow=True,
-        )
-        result = validate_slide_spec(_slide(shapes=[shape]))
-        assert result.shapes[0].shape_type == "line"
-
-    def test_card_shrink_text_respects_16pt_floor(self) -> None:
-        """카드 shrink_text 모드에서도 16pt 미만으로 축소되지 않는다."""
-        long_text = "가나다라마바사아자차" * 5
-        shape = PptxShape(
-            left_px=64,
-            top_px=148,
-            width_px=300,
-            height_px=60,
-            shape_type="rounded_rectangle",
-            fill_color="#2E3D50",
-            text=long_text,
-            text_size_pt=20,
-            autofit_mode="shrink_text",
-        )
-        result = validate_slide_spec(_slide(shapes=[shape]))
-        assert result.shapes[0].text_size_pt is not None
-        assert result.shapes[0].text_size_pt >= 16
-
-    def test_small_height_shape_not_treated_as_card(self) -> None:
-        """height < 52px인 fill_color shape → 카드 아님, 10pt floor."""
-        shape = PptxShape(
-            left_px=64,
-            top_px=652,
-            width_px=1152,
-            height_px=36,
-            shape_type="rounded_rectangle",
-            fill_color="#243447",
-            paragraphs=[
-                PptxParagraph(
-                    runs=[
-                        PptxTextRun(text="핵심: ", font_size_pt=14, bold=True),
-                        PptxTextRun(text="긴 설명 텍스트", font_size_pt=12),
-                    ]
-                ),
-            ],
-            autofit_mode="shrink_text",
-        )
-        result = validate_slide_spec(_slide(shapes=[shape]))
-        # 카드가 아니므로 bold run이 18pt로 올라가지 않고, shrink_text로 축소 가능
-        title_font = result.shapes[0].paragraphs[0].runs[0].font_size_pt
-        assert title_font is not None
-        assert title_font < 18  # 카드 title floor 미적용
-        assert title_font >= 10  # global floor는 유지
-
-    def test_section_label_font_floor_14pt(self) -> None:
-        """섹션 레이블(단일 짧은 paragraph) textbox → 14pt floor."""
-        tb = PptxTextBox(
-            left_px=64,
-            top_px=72,
-            width_px=300,
-            height_px=40,
-            paragraphs=[
-                PptxParagraph(runs=[PptxTextRun(text="Overview", font_size_pt=10)]),
-            ],
-        )
-        result = validate_slide_spec(_slide(textboxes=[tb]))
-        font = result.textboxes[0].paragraphs[0].runs[0].font_size_pt
-        assert font is not None
-        assert font >= 14
-
-    def test_slide_title_font_floor_24pt(self) -> None:
-        """슬라이드 제목(top ~72, 첫 textbox, bold) → 24pt floor."""
-        tb = PptxTextBox(
-            left_px=64,
-            top_px=72,
-            width_px=1152,
-            height_px=48,
-            paragraphs=[
-                PptxParagraph(
-                    runs=[
-                        PptxTextRun(
-                            text="Control Plane 인증 흐름: AWS Identity → Virtual Key",
-                            font_size_pt=12,
-                            bold=True,
-                        )
-                    ]
-                ),
-            ],
-        )
-        result = validate_slide_spec(_slide(textboxes=[tb]))
-        font = result.textboxes[0].paragraphs[0].runs[0].font_size_pt
-        assert font is not None
-        assert font >= 24
-
-    def test_slide_title_not_applied_to_second_textbox(self) -> None:
-        """두 번째 textbox는 슬라이드 제목이 아니므로 24pt floor 미적용."""
-        title_tb = PptxTextBox(
-            left_px=64,
-            top_px=72,
-            width_px=1152,
-            height_px=48,
-            paragraphs=[
-                PptxParagraph(
-                    runs=[PptxTextRun(text="제목", font_size_pt=32, bold=True)]
-                ),
-            ],
-        )
-        # multi-paragraph로 section label 감지도 회피
-        body_tb = PptxTextBox(
-            left_px=64,
-            top_px=148,
-            width_px=1152,
-            height_px=300,
-            paragraphs=[
-                PptxParagraph(
-                    runs=[PptxTextRun(text="본문 텍스트 첫 번째 단락", font_size_pt=12)]
-                ),
-                PptxParagraph(
-                    runs=[PptxTextRun(text="본문 텍스트 두 번째 단락", font_size_pt=12)]
-                ),
-            ],
-        )
-        result = validate_slide_spec(_slide(textboxes=[title_tb, body_tb]))
-        body_font = result.textboxes[1].paragraphs[0].runs[0].font_size_pt
-        assert body_font == 12  # 32pt floor 미적용
-
-    def test_non_bold_first_textbox_not_slide_title(self) -> None:
-        """첫 textbox지만 bold가 아니면 슬라이드 제목이 아님."""
-        tb = PptxTextBox(
-            left_px=64,
-            top_px=72,
-            width_px=1152,
-            height_px=48,
-            paragraphs=[
-                PptxParagraph(
-                    runs=[PptxTextRun(text="부제목 텍스트", font_size_pt=12)]
-                ),
-            ],
-        )
-        result = validate_slide_spec(_slide(textboxes=[tb]))
-        font = result.textboxes[0].paragraphs[0].runs[0].font_size_pt
-        # bold가 아니므로 slide title 아님 → section label 14pt 적용 (< 20자)
-        assert font is not None
-        assert font >= 14
-        assert font < 24
-
-    def test_long_textbox_keeps_10pt_floor(self) -> None:
-        """긴 multi-paragraph textbox → 섹션 레이블이 아니므로 10pt floor."""
-        tb = PptxTextBox(
-            left_px=64,
-            top_px=148,
-            width_px=500,
-            height_px=300,
-            paragraphs=[
-                PptxParagraph(
-                    runs=[PptxTextRun(text="첫 번째 단락 내용", font_size_pt=12)]
-                ),
-                PptxParagraph(
-                    runs=[PptxTextRun(text="두 번째 단락 내용", font_size_pt=12)]
-                ),
-            ],
-        )
-        result = validate_slide_spec(_slide(textboxes=[tb]))
-        font = result.textboxes[0].paragraphs[0].runs[0].font_size_pt
-        assert font == 12  # 10pt floor에 걸리지 않으므로 12pt 유지
-
-
 class TestNoGapIntervention:
     """validator가 shape 간 간격을 변경하지 않는 것을 확인한다."""
 

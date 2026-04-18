@@ -15,14 +15,14 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         Most recent projects are listed first.
 
         The "source" field indicates how the project was created:
-        - "generated": Created via generate_outline pipeline (has outline and script)
-        - "imported": Created via import_pptx (no outline or script — modify design spec directly)
+        - "generated": Created via generate_outline pipeline (has outline)
+        - "imported": Created via import_pptx (no outline — modify design spec directly)
 
         **When to use**: Always call this tool first before starting the PPT generation pipeline.
         - If no projects exist: Start a new project (call generate_outline).
         - If projects exist: Guide the user to choose whether to continue an existing project
           or start a new one.
-        - For imported projects: Skip outline/script steps and work directly with design spec.
+        - For imported projects: Skip outline step and work directly with design spec.
 
         Returns:
             Project list JSON string. Empty array [] if no projects exist.
@@ -40,10 +40,10 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
 
         Checks the saved project's topic, slide count, and completion status of each step.
         The "source" field indicates how the project was created:
-        - "generated": Created via generate_outline pipeline (has outline and script)
-        - "imported": Created via import_pptx (no outline or script available)
+        - "generated": Created via generate_outline pipeline (has outline)
+        - "imported": Created via import_pptx (no outline available)
 
-        **For imported projects:** Since there is no outline or script, skip outline/script
+        **For imported projects:** Since there is no outline, skip outline
         modification steps. Use modify_design_spec or generate_slides_design_spec directly
         to modify slides.
 
@@ -73,7 +73,7 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         """Loads the saved outline JSON.
 
         Retrieves the previously generated slide outline from the project directory.
-        The loaded result can be used directly as input for generate_script or export_html.
+        The loaded result can be used directly as input for generate_slides_design_spec or export_html.
 
         Args:
             project_id: Project ID
@@ -93,30 +93,6 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         return json.dumps({"outline_path": outline_path}, ensure_ascii=False)
 
     @mcp.tool()
-    def load_script(project_id: str) -> str:
-        """Loads the saved script JSON.
-
-        Retrieves the previously generated script (outline with speaker_notes) from the project directory.
-        The loaded result can be used directly as input for export_html.
-
-        Args:
-            project_id: Project ID
-
-        Returns:
-            JSON string containing script_path
-        """
-        _, project_dir = project_service.resolve_project_dir(project_id)
-        # Verify file exists (raises exception if not found)
-        project_service.load_script(project_dir)
-        script_dir = project_dir / "script"
-        script_path = (
-            str(script_dir)
-            if script_dir.exists()
-            else str(project_dir / "script.jsonl")
-        )
-        return json.dumps({"script_path": script_path}, ensure_ascii=False)
-
-    @mcp.tool()
     def save_outline_slide(
         project_id: str,
         slide_index: int,
@@ -125,6 +101,7 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         component_hint: str = "bullets",
         slide_type: str = "content",
         speaker_notes: str = "",
+        layout_plan: str = "",
     ) -> str:
         """Saves (overwrites) a single slide outline to the project.
 
@@ -149,6 +126,7 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
             component_hint: Layout hint ("bullets", "step_cards", "comparison_table", "arch_diagram", etc.)
             slide_type: Slide type ("title", "content", "closing", "agenda")
             speaker_notes: Optional speaker notes
+            layout_plan: Content layout plan (arrangement direction, elements, relationships)
 
         Returns:
             JSON string containing project_id, slide_index, outline_path
@@ -162,6 +140,7 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
                 "component_hint": component_hint,
                 "slide_type": slide_type,
                 "speaker_notes": speaker_notes,
+                "layout_plan": layout_plan,
             },
             ensure_ascii=False,
         )

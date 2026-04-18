@@ -69,15 +69,8 @@ def handle_review(
 
         regenerated = False
         if auto_fix and review_result.has_high_severity:
-            # Load outline for regeneration
-            try:
-                outline_json = project_service.load_script_or_outline_slide(
-                    project_dir, idx
-                )
-                slide_outline = parse_outline_json(outline_json).slides[0]
-            except Exception:
-                outline_json = project_service.load_outline_slide(project_dir, idx)
-                slide_outline = parse_outline_json(outline_json).slides[0]
+            outline_json = project_service.load_outline_slide(project_dir, idx)
+            slide_outline = parse_outline_json(outline_json).slides[0]
 
             complexity = estimate_slide_complexity(slide_outline)
             budget = complexity_to_budget_tokens(complexity)

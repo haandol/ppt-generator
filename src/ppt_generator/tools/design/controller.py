@@ -53,7 +53,7 @@ def register_design_tools(
         **Precondition: After outline generation, you must confirm with the user that there are no outline modifications before calling.**
 
         Args:
-            project_id: Project ID. If specified, automatically loads from saved script.json (or outline.json if unavailable).
+            project_id: Project ID. If specified, automatically loads from saved outline.
             outline_json: Full outline JSON ({"slides": [...]}) - including all slides. Can be omitted if project_id is specified.
             total_slides: Total number of slides. 0 = auto-calculated from loaded outline.
             color_theme: Color theme ("dark" or "light", default: "dark")
@@ -84,7 +84,7 @@ def register_design_tools(
     ) -> str:
         """Moves a slide from one position to another. No LLM call — pure file reordering.
 
-        Reorders all related files (outline/script, design_spec, slide HTML) atomically.
+        Reorders all related files (outline, design_spec, slide HTML) atomically.
         After this call, you must call `export_html(project_id=<project_id>)` to refresh HTML.
 
         Args:
@@ -121,7 +121,7 @@ def register_design_tools(
 
         **add: All file shifts are handled automatically.**
         Pass the new slide's outline (title, content_summary, etc.) directly.
-        This tool shifts all files (outline/script/design_spec/HTML) at slide_index+1 onward by +1,
+        This tool shifts all files (outline/design_spec/HTML) at slide_index+1 onward by +1,
         saves the new outline, generates the design spec via LLM, and saves everything.
         No need to call save_outline_slide beforehand.
 

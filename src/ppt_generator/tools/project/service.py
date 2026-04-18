@@ -48,27 +48,17 @@ class ProjectService:
         _maybe_add_project_log_handler(project_id)
         return project_id, project_dir
 
-    # --- 아웃라인/스크립트 (JsonlStore 위임) ---
+    # --- 아웃라인 (JsonlStore 위임) ---
 
     def save_outline(self, project_dir: Path, outline_json: str) -> None:
         self._ensure_dir(project_dir)
         self._jsonl_store.save_outline(project_dir, outline_json)
-
-    def save_script(self, project_dir: Path, script_json: str) -> None:
-        self._ensure_dir(project_dir)
-        self._jsonl_store.save_script(project_dir, script_json)
 
     def load_outline(self, project_dir: Path) -> str:
         return self._jsonl_store.load_outline(project_dir)
 
     def load_outline_slide(self, project_dir: Path, index: int) -> str:
         return self._jsonl_store.load_outline_slide(project_dir, index)
-
-    def load_script(self, project_dir: Path) -> str:
-        return self._jsonl_store.load_script(project_dir)
-
-    def load_script_slide(self, project_dir: Path, index: int) -> str:
-        return self._jsonl_store.load_script_slide(project_dir, index)
 
     def get_outline_slide_count(self, project_dir: Path) -> int:
         return self._jsonl_store.get_outline_slide_count(project_dir)
@@ -82,12 +72,6 @@ class ProjectService:
             project_dir,
             design_spec_count,
         )
-
-    def load_script_or_outline(self, project_dir: Path) -> str:
-        return self._jsonl_store.load_script_or_outline(project_dir)
-
-    def load_script_or_outline_slide(self, project_dir: Path, index: int) -> str:
-        return self._jsonl_store.load_script_or_outline_slide(project_dir, index)
 
     def update_outline_slide(
         self, project_dir: Path, index: int, slide_json: str
