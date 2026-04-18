@@ -1,5 +1,6 @@
 <task>
 Generate PptxSlideSpec JSON based on the following slide outline.
+The outline's layout_plan describes the spatial arrangement — follow it precisely for element count and direction.
 {slide_type_instruction}
 </task>
 

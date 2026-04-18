@@ -57,6 +57,20 @@ Without this order, users cannot anticipate what changes will occur, and course 
 - **No code snippets or file paths**: Do not include implementation code snippets or file paths in ADRs. To avoid needing to update ADRs every time code changes, ADRs should only record "why" and "what" level design decisions, leaving "how" implementation details to the code
 - ADR writing guide: [`docs/adr/README.md`](docs/adr/README.md)
 
+## Pipeline Abstraction Levels (Critical)
+
+Each pipeline stage has a distinct abstraction level. Stages must NOT overlap responsibilities:
+
+| Stage | Decides | Does NOT decide |
+|-------|---------|-----------------|
+| **Outline** | WHAT (topics, key points) + HOW (layout direction, element count, relationships) | Colors, fonts, coordinates, exact sizes |
+| **Design Spec** | WHERE (pixel coordinates) + STYLE (colors, fonts, sizes) | Content topics, element count, spatial direction |
+
+When modifying prompts or pipeline logic:
+- Never let a downstream stage re-decide what an upstream stage already determined
+- Never let an upstream stage specify details that belong to a downstream stage
+- If a stage needs information from another, pass it explicitly — don't duplicate the decision
+
 ## Conventions
 
 - Type hints required (`-> None`, `-> str`, etc.)

@@ -49,18 +49,40 @@ def parse_outline_json(outline_json: str) -> OutlineResponse:
                 speaker_notes=item.get("speaker_notes", ""),
                 slide_type=item.get("slide_type", "content"),
                 slide_index=item.get("slide_index", i),
+                layout_plan=item.get("layout_plan", ""),
             )
         )
     return OutlineResponse(slides=slides)
 
 
 def estimate_slide_complexity(slide: SlideOutline) -> int:
-    """Estimates the design spec generation complexity of a slide (1-5 scale)."""
+    """Estimates the design spec generation complexity of a slide (1-5 scale).
+
+    Uses component_hint as base, then upgrades if layout_plan indicates many elements.
+    """
     if slide.slide_type in ("title", "closing"):
         return 1
     if slide.component_hint == "agenda":
         return 1
-    return COMPONENT_HINT_COMPLEXITY.get(slide.component_hint, 2)
+    base = COMPONENT_HINT_COMPLEXITY.get(slide.component_hint, 2)
+    if slide.layout_plan and _layout_plan_has_many_elements(slide.layout_plan):
+        return max(base, 5)
+    return base
+
+
+def _layout_plan_has_many_elements(layout_plan: str) -> bool:
+    """layout_plan 텍스트에서 요소 수가 6개 이상인지 휴리스틱으로 판단."""
+    import re
+
+    numbers = re.findall(
+        r"(\d+)\s*(?:nodes?|cards?|items?|elements?|blocks?|columns?)",
+        layout_plan,
+        re.IGNORECASE,
+    )
+    for n in numbers:
+        if int(n) >= 6:
+            return True
+    return False
 
 
 def complexity_to_budget_tokens(complexity: int) -> int:

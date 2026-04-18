@@ -24,6 +24,7 @@ class SlideOutline:
     speaker_notes: str = ""
     slide_type: str = "content"
     slide_index: int = -1
+    layout_plan: str = ""
 
 
 @dataclass(frozen=True)
