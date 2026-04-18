@@ -206,7 +206,7 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
             if color:
                 return color
         except Exception:
-            pass
+            logger.debug("레이아웃 배경색 추출 실패", exc_info=True)
 
         try:
             color = self._try_extract_bg_fill(
@@ -215,7 +215,7 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
             if color:
                 return color
         except Exception:
-            pass
+            logger.debug("마스터 배경색 추출 실패", exc_info=True)
 
         return self._default_bg_color or self._theme_color_map.get("bg1")
 
@@ -235,7 +235,7 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
             for scheme_el in p_bg.iter(qn("a:schemeClr")):
                 return resolve_scheme_color(scheme_el, self._theme_color_map)
         except Exception:
-            pass
+            logger.debug("배경 fill 추출 실패", exc_info=True)
         return None
 
     # ── 발표자 노트 ──
@@ -246,7 +246,7 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
             if slide.has_notes_slide:
                 return slide.notes_slide.notes_text_frame.text or ""
         except Exception:
-            pass
+            logger.debug("발표자 노트 추출 실패", exc_info=True)
         return ""
 
     # ── slide_type 추론 ──

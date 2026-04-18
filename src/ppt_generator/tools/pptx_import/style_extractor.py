@@ -6,7 +6,11 @@ python-pptx API 우선 시도 후 실패 시 XML 직접 파싱으로 폴백한�
 
 from __future__ import annotations
 
+import logging
+
 from pptx.oxml.ns import qn
+
+logger = logging.getLogger(__name__)
 
 from ppt_generator.tools.pptx_import.theme_resolver import resolve_scheme_color
 
@@ -46,7 +50,7 @@ class StyleExtractorMixin:
                 if rgb:
                     return f"#{rgb}"
         except (AttributeError, TypeError):
-            pass
+            logger.debug("fill color API 추출 실패", exc_info=True)
         # API 실패 시 XML 직접 파싱 (테마 색상 등)
         try:
             spPr = shape._element.find(qn("p:spPr"))
@@ -65,7 +69,7 @@ class StyleExtractorMixin:
                     if scheme is not None:
                         return resolve_scheme_color(scheme, self._theme_color_map)
         except Exception:
-            pass
+            logger.debug("fill color XML 파싱 실패", exc_info=True)
         # p:style/a:fillRef 폴백 (테마 스타일 참조 도형)
         try:
             style_el = shape._element.find(qn("p:style"))
@@ -76,7 +80,7 @@ class StyleExtractorMixin:
                     if scheme is not None:
                         return resolve_scheme_color(scheme, self._theme_color_map)
         except Exception:
-            pass
+            logger.debug("fillRef 폴백 추출 실패", exc_info=True)
         return None
 
     def _extract_line_style(self, shape) -> tuple[str | None, float | None]:
@@ -92,7 +96,7 @@ class StyleExtractorMixin:
                 if ln is not None and ln.find(qn("a:noFill")) is not None:
                     return None, None
         except Exception:
-            pass
+            logger.debug("line noFill 확인 실패", exc_info=True)
         # python-pptx API로 시도
         try:
             line = shape.line
@@ -101,7 +105,7 @@ class StyleExtractorMixin:
             if line.width is not None:
                 border_width = round(line.width.pt, 1)
         except (AttributeError, TypeError):
-            pass
+            logger.debug("line style API 추출 실패", exc_info=True)
         # API 실패 시 XML 직접 파싱 (테마 색상 등)
         if border_color is None:
             try:
@@ -127,7 +131,7 @@ class StyleExtractorMixin:
                             if w_attr is not None:
                                 border_width = round(int(w_attr) / 12700, 1)  # EMU → pt
             except Exception:
-                pass
+                logger.debug("line style XML 파싱 실패", exc_info=True)
         # p:style/a:lnRef 폴백 (테마 스타일 참조 도형)
         if border_color is None:
             try:
@@ -143,7 +147,7 @@ class StyleExtractorMixin:
                             if border_width is None:
                                 border_width = 0.5  # 테마 기본 선 굵기
             except Exception:
-                pass
+                logger.debug("lnRef 폴백 추출 실패", exc_info=True)
         return border_color, border_width
 
     @staticmethod
@@ -162,5 +166,5 @@ class StyleExtractorMixin:
                         if "dot" in val.lower():
                             return "dot"
         except Exception:
-            pass
+            logger.debug("dash style 추출 실패", exc_info=True)
         return None

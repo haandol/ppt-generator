@@ -88,7 +88,7 @@ Slide 2: Agenda slide
 Slides 3 to N-1: Body slides (at least 1)
   - Main body covering the core content of the topic
   - slide_type: "content". Combine the following types as appropriate for the topic:
-    · Concept explanation: two_column, info_cards, bullets
+    · Concept explanation: arch_diagram, concept_list, process_flow, two_column, info_cards (prefer diagrams over text)
     · Process/workflow: process_flow, step_cards, pipeline
     · Comparison/analysis: vs_comparison, summary_grid
     · Technical detail: code_block, arch_diagram, quote_code
@@ -133,14 +133,23 @@ Guidelines for slide count and content density based on presentation time:
 </time_adaptation>
 
 <diagram_preference>
-Prefer visual/diagrammatic representations over text-heavy slides:
+STRONGLY prefer visual/diagrammatic representations over text-heavy slides:
 
 - If content describes a process, flow, or sequence → use process_flow or pipeline (NOT bullets)
 - If content describes system architecture or component relationships → use arch_diagram
 - If content compares 2 options → use vs_comparison
 - If content lists 3-5 parallel items with descriptions → use step_cards or info_cards (NOT bullets)
 - If content has hierarchical structure → use concept_list
-- Only use bullets when content is truly a flat list of independent points with no visual structure
+- If content explains a concept with multiple aspects → use concept_list or arch_diagram with relationships, NOT bullets
+- If content describes how something works (mechanism, algorithm, protocol) → use process_flow or arch_diagram to show the flow visually
+- If content describes before/after, input/output, or cause/effect → use pipeline or process_flow
+- Only use bullets as a LAST RESORT when content is truly a flat list of independent points with absolutely no visual structure
+
+Priority order for concept explanation slides:
+1. arch_diagram / process_flow (if any relationships or flow exists)
+2. concept_list / step_cards / info_cards (if parallel items)
+3. two_column (if natural left-right split)
+4. bullets (only if nothing else fits)
 
 Reason: Diagrams communicate structure and relationships 10x faster than text. The design phase can render any diagram — prefer it.
 </diagram_preference>

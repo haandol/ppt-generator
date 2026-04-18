@@ -242,4 +242,5 @@ def log_token_usage(result: object, label: str) -> dict[str, int]:
         logger.info("[tokens] %s: %s", label, ", ".join(parts))
         return dict(usage)
     except (AttributeError, TypeError):
+        logger.debug("토큰 사용량 추출 실패", exc_info=True)
         return {}

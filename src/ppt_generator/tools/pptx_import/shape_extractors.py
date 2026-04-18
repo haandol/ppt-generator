@@ -84,7 +84,11 @@ class ShapeExtractorMixin(CompoundExtractorMixin):
                     images.append(self._extract_image(shape))
                     return
                 except Exception:
-                    pass
+                    logger.debug(
+                        "플레이스홀더 이미지 추출 실패 (name=%s)",
+                        getattr(shape, "name", "?"),
+                        exc_info=True,
+                    )
 
         if shape_type == MSO_SHAPE_TYPE.TABLE:
             self._extract_table(shape, shapes, warnings)
@@ -347,6 +351,11 @@ class ShapeExtractorMixin(CompoundExtractorMixin):
         try:
             blob = shape.image.blob
         except Exception:
+            logger.debug(
+                "이미지 blob 추출 실패 (name=%s)",
+                getattr(shape, "name", "?"),
+                exc_info=True,
+            )
             blob = b""
         return PptxImage(
             left_px=self._emu_to_px_x(shape.left),

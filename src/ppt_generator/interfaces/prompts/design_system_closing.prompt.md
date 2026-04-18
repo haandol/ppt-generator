@@ -7,7 +7,7 @@ Thank You slide (slide_type: "closing") design rules:
 - Place main text at the vertical center of the canvas. The vertical center of the entire text group should be near the canvas center (y=360).
 - Layout follows the same left-aligned pattern as the title slide (must use these exact coordinates):
   · Thank you message: left=64, top=260, width=1152, height=80, font_size_pt 40~44, bold, vertical_alignment "middle", alignment "left"
-  · Divider: shape (rectangle), left=64, top=350, width=80, height=4, fill_color accent color (#FF9900), vertical_alignment "top"
+  · Divider: shape (rectangle), left=64, top=350, width=80, height=4, fill_color accent color (#3B82F6), vertical_alignment "top"
   · Subtitle/Q&A: left=64, top=370, width=1152, height=60, font_size_pt 16~20, vertical_alignment "top", alignment "left"
   · Contact/summary (optional): left=64, top=450, width=1000, height=120, font_size_pt 14~16, vertical_alignment "top", alignment "left"
 </slide_type_closing>
@@ -29,21 +29,21 @@ Thank You slide (slide_type: "closing") design rules:
         "left_px": 64, "top_px": 370, "width_px": 1152, "height_px": 60,
         "vertical_alignment": "top",
         "paragraphs": [
-          {"runs": [{"text": "Questions & Feedback", "font_size_pt": 20, "color": "#FFC000", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
+          {"runs": [{"text": "Questions & Feedback", "font_size_pt": 20, "color": "#10B981", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
         ]
       },
       {
         "left_px": 64, "top_px": 450, "width_px": 1000, "height_px": 120,
         "vertical_alignment": "top",
         "paragraphs": [
-          {"runs": [{"text": "References  ", "font_size_pt": 14, "color": "#FF9900", "bold": true, "italic": false}, {"text": "Official Documentation  |  Guide Link", "font_size_pt": 14, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
+          {"runs": [{"text": "References  ", "font_size_pt": 14, "color": "#3B82F6", "bold": true, "italic": false}, {"text": "Official Documentation  |  Guide Link", "font_size_pt": 14, "color": "#CBD5E1", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
         ]
       }
     ],
     "shapes": [
       {
         "left_px": 64, "top_px": 350, "width_px": 80, "height_px": 4,
-        "shape_type": "rectangle", "fill_color": "#FF9900",
+        "shape_type": "rectangle", "fill_color": "#3B82F6",
         "vertical_alignment": "top"
       }
     ]

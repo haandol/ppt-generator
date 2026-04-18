@@ -193,7 +193,7 @@ class VisualQAService:
                 try:
                     await report_progress(progress, total, message)
                 except Exception:
-                    pass
+                    logger.debug("heartbeat progress report 실패", exc_info=True)
                 try:
                     await asyncio.wait_for(done.wait(), timeout=interval)
                 except TimeoutError:

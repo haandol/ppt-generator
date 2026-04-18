@@ -130,7 +130,7 @@ Bottom auxiliary elements (top >= 540):
 <examples>
   <layout_example id="bullets-1" hint="bullets">
   {
-    "background_color": "#232F3E",
+    "background_color": "#0F172A",
     "speaker_notes": "In this slide...",
     "textboxes": [
       {
@@ -145,9 +145,9 @@ Bottom auxiliary elements (top >= 540):
         "vertical_alignment": "middle",
         "line_spacing_pt": 28,
         "paragraphs": [
-          {"runs": [{"text": "First item", "font_size_pt": 24, "color": "#F1F3F3", "bold": false, "italic": false}], "bullet_level": 0, "alignment": "left"},
-          {"runs": [{"text": "Detailed description", "font_size_pt": 20, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": 1, "alignment": "left"},
-          {"runs": [{"text": "Second item", "font_size_pt": 24, "color": "#F1F3F3", "bold": false, "italic": false}], "bullet_level": 0, "alignment": "left"}
+          {"runs": [{"text": "First item", "font_size_pt": 24, "color": "#E2E8F0", "bold": false, "italic": false}], "bullet_level": 0, "alignment": "left"},
+          {"runs": [{"text": "Detailed description", "font_size_pt": 20, "color": "#CBD5E1", "bold": false, "italic": false}], "bullet_level": 1, "alignment": "left"},
+          {"runs": [{"text": "Second item", "font_size_pt": 24, "color": "#E2E8F0", "bold": false, "italic": false}], "bullet_level": 0, "alignment": "left"}
         ]
       }
     ],
@@ -157,7 +157,7 @@ Bottom auxiliary elements (top >= 540):
 
   <layout_example id="step-cards-1" hint="step_cards — 3 cards with paragraphs">
   {
-    "background_color": "#232F3E",
+    "background_color": "#0F172A",
     "speaker_notes": "",
     "textboxes": [
       {
@@ -171,32 +171,32 @@ Bottom auxiliary elements (top >= 540):
     "shapes": [
       {
         "left_px": 64, "top_px": 148, "width_px": 352, "height_px": 472,
-        "shape_type": "rounded_rectangle", "fill_color": "#2E3D50", "corner_radius_px": 12,
+        "shape_type": "rounded_rectangle", "fill_color": "#334155", "corner_radius_px": 12,
         "vertical_alignment": "top",
         "padding_left_px": 16, "padding_right_px": 16, "padding_top_px": 12, "padding_bottom_px": 12,
         "paragraphs": [
           {"runs": [{"text": "First Step", "font_size_pt": 20, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
-          {"runs": [{"text": "Step description text goes here.", "font_size_pt": 16, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
+          {"runs": [{"text": "Step description text goes here.", "font_size_pt": 16, "color": "#CBD5E1", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
         ]
       },
       {
         "left_px": 448, "top_px": 148, "width_px": 352, "height_px": 472,
-        "shape_type": "rounded_rectangle", "fill_color": "#2E3D50", "corner_radius_px": 12,
+        "shape_type": "rounded_rectangle", "fill_color": "#334155", "corner_radius_px": 12,
         "vertical_alignment": "top",
         "padding_left_px": 16, "padding_right_px": 16, "padding_top_px": 12, "padding_bottom_px": 12,
         "paragraphs": [
           {"runs": [{"text": "Second Step", "font_size_pt": 20, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
-          {"runs": [{"text": "Step description text goes here.", "font_size_pt": 16, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
+          {"runs": [{"text": "Step description text goes here.", "font_size_pt": 16, "color": "#CBD5E1", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
         ]
       },
       {
         "left_px": 832, "top_px": 148, "width_px": 352, "height_px": 472,
-        "shape_type": "rounded_rectangle", "fill_color": "#2E3D50", "corner_radius_px": 12,
+        "shape_type": "rounded_rectangle", "fill_color": "#334155", "corner_radius_px": 12,
         "vertical_alignment": "top",
         "padding_left_px": 16, "padding_right_px": 16, "padding_top_px": 12, "padding_bottom_px": 12,
         "paragraphs": [
           {"runs": [{"text": "Third Step", "font_size_pt": 20, "color": "#ffffff", "bold": true, "italic": false}], "bullet_level": -1, "alignment": "left"},
-          {"runs": [{"text": "Step description text goes here.", "font_size_pt": 16, "color": "#D5DBDB", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
+          {"runs": [{"text": "Step description text goes here.", "font_size_pt": 16, "color": "#CBD5E1", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
         ]
       }
     ]
@@ -205,7 +205,7 @@ Bottom auxiliary elements (top >= 540):
 
   <layout_example id="pipeline-1" hint="pipeline — 4 blocks with arrows">
   {
-    "background_color": "#232F3E",
+    "background_color": "#0F172A",
     "speaker_notes": "",
     "textboxes": [
       {
@@ -219,40 +219,40 @@ Bottom auxiliary elements (top >= 540):
     "shapes": [
       {
         "left_px": 64, "top_px": 300, "width_px": 264, "height_px": 120,
-        "shape_type": "rounded_rectangle", "fill_color": "#2E3D50", "corner_radius_px": 12,
+        "shape_type": "rounded_rectangle", "fill_color": "#334155", "corner_radius_px": 12,
         "text": "Input", "text_color": "#FFFFFF", "text_size_pt": 20, "text_bold": true,
         "vertical_alignment": "middle"
       },
       {
         "left_px": 328, "top_px": 360, "width_px": 32, "height_px": 0,
-        "shape_type": "line", "border_color": "#FFC000", "border_width_pt": 2,
+        "shape_type": "line", "border_color": "#3B82F6", "border_width_pt": 2,
         "end_arrow": true, "vertical_alignment": "top"
       },
       {
         "left_px": 360, "top_px": 300, "width_px": 264, "height_px": 120,
-        "shape_type": "rounded_rectangle", "fill_color": "#FF9900", "corner_radius_px": 12,
-        "text": "Process", "text_color": "#1A2332", "text_size_pt": 20, "text_bold": true,
+        "shape_type": "rounded_rectangle", "fill_color": "#3B82F6", "corner_radius_px": 12,
+        "text": "Process", "text_color": "#FFFFFF", "text_size_pt": 20, "text_bold": true,
         "vertical_alignment": "middle"
       },
       {
         "left_px": 624, "top_px": 360, "width_px": 32, "height_px": 0,
-        "shape_type": "line", "border_color": "#FFC000", "border_width_pt": 2,
+        "shape_type": "line", "border_color": "#3B82F6", "border_width_pt": 2,
         "end_arrow": true, "vertical_alignment": "top"
       },
       {
         "left_px": 656, "top_px": 300, "width_px": 264, "height_px": 120,
-        "shape_type": "rounded_rectangle", "fill_color": "#2E3D50", "corner_radius_px": 12,
+        "shape_type": "rounded_rectangle", "fill_color": "#334155", "corner_radius_px": 12,
         "text": "Validate", "text_color": "#FFFFFF", "text_size_pt": 20, "text_bold": true,
         "vertical_alignment": "middle"
       },
       {
         "left_px": 920, "top_px": 360, "width_px": 32, "height_px": 0,
-        "shape_type": "line", "border_color": "#FFC000", "border_width_pt": 2,
+        "shape_type": "line", "border_color": "#3B82F6", "border_width_pt": 2,
         "end_arrow": true, "vertical_alignment": "top"
       },
       {
         "left_px": 952, "top_px": 300, "width_px": 264, "height_px": 120,
-        "shape_type": "rounded_rectangle", "fill_color": "#2E3D50", "corner_radius_px": 12,
+        "shape_type": "rounded_rectangle", "fill_color": "#334155", "corner_radius_px": 12,
         "text": "Output", "text_color": "#FFFFFF", "text_size_pt": 20, "text_bold": true,
         "vertical_alignment": "middle"
       }
@@ -286,6 +286,14 @@ Arrow coordinates:
 - All diagram arrows: end_arrow=true. Min gap between blocks: 28px (arrowhead size=14px).
 - Endpoints must touch block edges exactly — no gap, no penetration.
 
+Fan-out / Fan-in arrows (one block → multiple targets, or vice versa):
+  Do NOT draw separate diagonal/vertical arrows from source center to each target center.
+  Instead, use a bus-line pattern:
+  1. Vertical stub: from source bottom center downward (height = half the vertical gap).
+  2. Horizontal bus: a horizontal line spanning from the leftmost target center_x to the rightmost target center_x, at the stub's bottom y.
+  3. Vertical drops: from the bus line down to each target's top center.
+  This keeps all connections visually clean and aligned. For fan-in (many → one), reverse the direction.
+
 Container interior: children must use >= 80% of inner width. All peer children in same row: identical top_px, height_px. All children must fit within container bounds.
 </diagram_grid>
 
@@ -296,6 +304,7 @@ Container interior: children must use >= 80% of inner width. All peer children i
 - Use border_color, fill_color, corner_radius_px to create visual hierarchy.
 - Decorative lines beside cards: match the card's top_px and height_px exactly.
 - Use paragraphs in shapes for structured card interior text.
+- **NEVER use ASCII art or box-drawing characters** (┌ ─ ┐ │ └ ┘ ┬ ┴ ├ ┤ ╔ ═ ╗ ║ ╚ ╝ etc.) to represent diagrams, tables, or sub-elements inside shapes. Always use actual shape objects (rounded_rectangle, rectangle, line) instead. Text inside shapes must be plain descriptive text only.
 </page_design_rules>
 
 <pre_output_verification>
@@ -320,4 +329,8 @@ Before outputting JSON, verify these critical items. Fix ALL violations before o
      right_bottom = max(top_px + height_px) for all elements with left_px >= 620
      |left_bottom - right_bottom| must be <= 8px.
      If misaligned, adjust the shorter side's last element height_px to match.
+
+4. NO ASCII ART (constraint — absolute):
+   Scan every text/run field for box-drawing or ASCII art characters: ┌ ─ ┐ │ └ ┘ ┬ ┴ ├ ┤ ╔ ═ ╗ ║ ╚ ╝ + - | (used as borders).
+   **If ANY found: replace with plain descriptive text (e.g., "Slice 0", "Slice 1") or represent as child shapes. NEVER use text characters to draw boxes, borders, or diagrams.**
 </pre_output_verification>

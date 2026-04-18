@@ -158,14 +158,14 @@ class TextExtractorMixin:
                 if font.color and font.color.rgb:
                     color = f"#{font.color.rgb}"
             except (AttributeError, TypeError):
-                pass
+                logger.debug("폰트 색상 추출 실패", exc_info=True)
             if color is None:
                 try:
                     rPr = run._r.find(qn("a:rPr"))
                     if rPr is not None:
                         color = extract_color_from_rpr(rPr, self._theme_color_map)
                 except Exception:
-                    pass
+                    logger.debug("rPr 색상 추출 실패", exc_info=True)
             if color is None:
                 color = inherited.color
 
@@ -184,7 +184,7 @@ class TextExtractorMixin:
                 if run.hyperlink and run.hyperlink.address:
                     href = run.hyperlink.address
             except Exception:
-                pass
+                logger.debug("하이퍼링크 추출 실패", exc_info=True)
 
             runs.append(
                 PptxTextRun(
@@ -246,7 +246,7 @@ class TextExtractorMixin:
                 try:
                     return float(spacing.pt)
                 except (AttributeError, TypeError):
-                    pass
+                    logger.debug("줄간격 추출 실패", exc_info=True)
         return None
 
     @staticmethod
@@ -259,5 +259,5 @@ class TextExtractorMixin:
                 if anchor in anchor_map:
                     return anchor_map[anchor]
         except Exception:
-            pass
+            logger.debug("vertical_alignment 추출 실패", exc_info=True)
         return "top"

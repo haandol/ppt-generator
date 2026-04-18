@@ -5,7 +5,10 @@
 
 from __future__ import annotations
 
+import logging
 from io import BytesIO
+
+logger = logging.getLogger(__name__)
 from struct import unpack
 
 from lxml.etree import SubElement
@@ -82,6 +85,7 @@ class SlideBuilder:
             try:
                 is_textbox = shape_obj.shape_type == MSO_SHAPE_TYPE.TEXT_BOX
             except Exception:
+                logger.debug("shape_type 확인 실패 (id=%s)", id(child), exc_info=True)
                 is_textbox = False
 
             if is_textbox:

@@ -150,7 +150,12 @@ class CompoundExtractorMixin:
                         if rgb:
                             fill_color = f"#{rgb}"
                 except Exception:
-                    pass
+                    logger.debug(
+                        "테이블 셀 fill 색상 추출 실패 (r=%d, c=%d)",
+                        r_idx,
+                        c_idx,
+                        exc_info=True,
+                    )
 
                 shapes.append(
                     PptxShape(

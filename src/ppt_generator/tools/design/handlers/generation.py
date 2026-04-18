@@ -213,7 +213,7 @@ async def _run_with_heartbeat(
             try:
                 await ctx.report_progress(0, target_count, message)
             except Exception:
-                pass
+                logger.debug("heartbeat progress report 실패", exc_info=True)
             try:
                 await asyncio.wait_for(done.wait(), timeout=interval)
             except TimeoutError:

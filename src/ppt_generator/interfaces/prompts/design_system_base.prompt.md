@@ -91,24 +91,24 @@ You MUST honor the outline's layout_plan:
 <design_principles>
 The color theme is determined by the color_theme value in the user prompt (defaults to "dark" if unspecified).
 
-Main colors: AWS dark template family
-- Base color axis: #232F3E (AWS navy) ↔ #FF9900 (AWS orange) ↔ #FFC000 (amber)
-- Accent colors: #FFC000 (amber), #FF9900 (AWS orange), #00A1C9 (cyan)
-- Secondary accent colors: #FF9900 (AWS orange), #1A8F73 (green) — limited use for highlights only
+Main colors: Green-Blue-Violet gradient family
+- Base color axis: #10B981 (emerald green) ↔ #3B82F6 (blue) ↔ #8B5CF6 (violet)
+- Accent colors: #3B82F6 (blue), #10B981 (emerald green), #8B5CF6 (violet)
+- Secondary accent colors: #06B6D4 (cyan), #F59E0B (amber) — limited use for highlights only
 
 Dark mode (color_theme: "dark"):
-- Background: #161E2D ~ #232F3E (AWS navy family)
-- Card/shape background: #1B2A3D ~ #2E3D50 (deep navy)
+- Background: #0F172A ~ #1E293B (slate family)
+- Card/shape background: #1E293B ~ #334155 (deep slate)
 - Title text: #FFFFFF
-- Body text: #F1F3F3 ~ #D5DBDB
-- Dividers/borders: #3B4A5C ~ #4A5B6D
+- Body text: #E2E8F0 ~ #CBD5E1
+- Dividers/borders: #334155 ~ #475569
 
 Light mode (color_theme: "light"):
-- Background: #F2F3F3 ~ #FFFFFF (light gray/white)
-- Card/shape background: #E9EBED ~ #D5DBDB (light gray)
-- Title text: #232F3E ~ #16202A
-- Body text: #414D5C ~ #5F6B7A
-- Dividers/borders: #D5DBDB ~ #C4CACF
+- Background: #F8FAFC ~ #FFFFFF (light slate/white)
+- Card/shape background: #E2E8F0 ~ #CBD5E1 (light slate)
+- Title text: #0F172A ~ #1E293B
+- Body text: #475569 ~ #64748B
+- Dividers/borders: #CBD5E1 ~ #94A3B8
 
 Common rules:
 - Dividers: Thin shapes (height 2-4px) to separate title and body

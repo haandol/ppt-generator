@@ -44,6 +44,7 @@ adr/
 - [0033: Design Spec Post-Generation LLM Review](./pipeline/0033-design-spec-post-generation-review.md)
 - [0034: 슬라이드 추가 시 기존 디자인 스펙 참조를 통한 일관성 향상](./pipeline/0034-add-slide-design-consistency.md)
 - [0035: Visual QA 브라우저 도구 안내 개선](./pipeline/0035-visual-qa-browser-tool-fallback.md)
+- [0036: 기본 테마 색상 변경 및 다이어그램 활용 강화](./pipeline/0036-theme-color-change-and-diagram-preference.md)
 
 ## ADR 작성 가이드
 

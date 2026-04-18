@@ -268,13 +268,17 @@ def _add_slide(
             raw = project_service.load_outline_slide(project_dir, insert_idx - 1)
             prev_outline = parse_outline_json(raw).slides[0]
         except Exception:
-            pass
+            logger.debug(
+                "인접 슬라이드 로드 실패 (prev, idx=%d)", insert_idx - 1, exc_info=True
+            )
     if insert_idx + 1 < new_count:
         try:
             raw = project_service.load_outline_slide(project_dir, insert_idx + 1)
             next_outline = parse_outline_json(raw).slides[0]
         except Exception:
-            pass
+            logger.debug(
+                "인접 슬라이드 로드 실패 (next, idx=%d)", insert_idx + 1, exc_info=True
+            )
 
     new_spec, token_usage = _generate_and_review(
         deps,
