@@ -21,7 +21,7 @@ dev = [
     "ruff",
 ]
 visual-qa = [
-    "websockets>=13.0",
+    "playwright",
 ]
 
 [tool.pytest.ini_options]

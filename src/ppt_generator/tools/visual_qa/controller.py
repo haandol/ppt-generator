@@ -34,11 +34,14 @@ def register_visual_qa_tools(
     ) -> str:
         """Checks visual quality of rendered slides and auto-fixes issues (opt-in).
 
-        Uses Chrome DevTools Protocol screenshots + Claude Vision to detect visual defects
+        Uses Playwright screenshots + Claude Vision to detect visual defects
         (word breaks, text truncation, overlap, overflow, contrast, misalignment)
         and automatically fixes the design spec.
 
-        **Requires:** Chrome running with `--remote-debugging-port=9222`
+        **Requires one of:**
+        - Playwright: `uv sync --group visual-qa && playwright install chromium`
+        - Chrome DevTools MCP: If Playwright is not available, you can use Chrome DevTools MCP's
+          `take_screenshot` tool to capture screenshots manually, then review them with the user.
 
         Args:
             project_id: Target project ID (required)
@@ -70,7 +73,7 @@ def register_visual_qa_tools(
         else:
             indices = list(range(slide_count))
 
-        # Create service (lazy — CDP check happens at capture time)
+        # Create service (lazy — Playwright check happens at capture time)
         service: VisualQAService = visual_qa_service_factory()
 
         # design_summary에서 color_theme 로드

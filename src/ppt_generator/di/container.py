@@ -157,7 +157,7 @@ class DIContainer:
         )
 
     def create_visual_qa_service(self) -> "VisualQAService":
-        """VisualQAService 인스턴스를 생성한다 (CDP 또는 Playwright 필요)."""
+        """VisualQAService 인스턴스를 생성한다 (Playwright 필요)."""
         from ppt_generator.tools.visual_qa.service import VisualQAService
 
         return VisualQAService(
