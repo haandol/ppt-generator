@@ -29,3 +29,4 @@ class VisualQAResult:
     total_output_tokens: int = 0
     total_cache_read_tokens: int = 0
     total_cache_write_tokens: int = 0
+    error: str = ""

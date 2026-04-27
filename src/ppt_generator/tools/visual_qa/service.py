@@ -235,6 +235,7 @@ class VisualQAService:
         ever_fixed: set[int] = set()
 
         iterations_used = 0
+        capture_error = ""
         for iteration in range(max_iterations):
             if not pending_indices:
                 break
@@ -266,6 +267,12 @@ class VisualQAService:
                 logger.error("iteration %d: 스크린샷 캡처 phase 타임아웃", iteration)
                 for idx in pending_indices:
                     per_slide[idx].status = "error"
+                break
+            except Exception as exc:
+                logger.exception("iteration %d: 스크린샷 캡처 실패", iteration)
+                for idx in pending_indices:
+                    per_slide[idx].status = "error"
+                capture_error = str(exc)
                 break
 
             # ── Phase 2: LLM 분석 (전체 병렬) ──
@@ -412,6 +419,7 @@ class VisualQAService:
             total_output_tokens=self._total_output_tokens,
             total_cache_read_tokens=self._total_cache_read_tokens,
             total_cache_write_tokens=self._total_cache_write_tokens,
+            error=capture_error,
         )
 
     def _accumulate_tokens(self, usage: dict[str, int]) -> None:

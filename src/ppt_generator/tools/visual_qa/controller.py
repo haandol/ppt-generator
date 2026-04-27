@@ -196,6 +196,8 @@ def register_visual_qa_tools(
             "iterations_used": result.iterations_used,
             "result_detail_path": str(result_path),
         }
+        if result.error:
+            summary["error"] = result.error
         if slides_html_path:
             summary["slides_html_path"] = slides_html_path
         if aggregated_usage:
