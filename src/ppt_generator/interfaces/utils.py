@@ -97,6 +97,16 @@ def complexity_to_budget_tokens(complexity: int) -> int:
     return 1024
 
 
+def complexity_to_thinking_effort(complexity: int) -> str:
+    """Converts a complexity score (1-5) to an adaptive thinking effort level.
+
+    3-5 → "medium", 1-2 → "low".
+    """
+    if complexity >= 3:
+        return "medium"
+    return "low"
+
+
 def estimate_spec_complexity(spec: "PptxSlideSpec") -> int:
     """PptxSlideSpec의 요소 수로 complexity를 추정한다 (1-5 scale).
 
@@ -141,6 +151,12 @@ _MODEL_PRICING: dict[str, dict[str, float]] = {
         "cache_read": 1.50,
         "cache_write": 18.75,
     },
+    "claude-opus-4-7": {
+        "input": 15.0,
+        "output": 75.0,
+        "cache_read": 1.50,
+        "cache_write": 18.75,
+    },
     "claude-haiku-3-5": {
         "input": 0.80,
         "output": 4.0,
@@ -163,6 +179,10 @@ _MODEL_ID_ALIASES: dict[str, str] = {
     "global.anthropic.claude-opus-4-6-v1": "claude-opus-4-6",
     "anthropic.claude-opus-4-6-v1:0": "claude-opus-4-6",
     "anthropic.claude-opus-4-6-v1": "claude-opus-4-6",
+    "global.anthropic.claude-opus-4-7": "claude-opus-4-7",
+    "global.anthropic.claude-opus-4-7-v1": "claude-opus-4-7",
+    "anthropic.claude-opus-4-7-v1:0": "claude-opus-4-7",
+    "anthropic.claude-opus-4-7-v1": "claude-opus-4-7",
     "global.anthropic.claude-haiku-3-5": "claude-haiku-3-5",
     "anthropic.claude-3-5-haiku-20241022-v1:0": "claude-haiku-3-5",
     "global.anthropic.claude-haiku-4-5-20251001": "claude-haiku-4-5",

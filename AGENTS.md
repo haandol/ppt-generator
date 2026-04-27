@@ -5,7 +5,7 @@
 
 ## Project Overview
 
-- **Tech stack**: Python 3.13+ · MCP · AWS Strands SDK · Claude Sonnet 4.6 Extended Thinking
+- **Tech stack**: Python 3.13+ · MCP · AWS Strands SDK · Claude Opus 4-7 (design) / Sonnet 4.6 (outline/script)
 - **Package manager**: uv · Build: hatchling · Entry point: `ppt_generator.server:main`
 - **ALPS design doc**: [`docs/ppt-generator.alps.md`](docs/ppt-generator.alps.md)
 

@@ -202,10 +202,12 @@ def shape_to_html(shape: PptxShape) -> str:
     if shape.shape_type == "custom" and shape.svg_path:
         return _custom_svg_shape_to_html(shape)
 
+    expand = getattr(shape, "autofit_mode", None) == "expand_height"
+    height_prop = "min-height" if expand else "height"
     style = (
         f"position:absolute;"
         f"left:{shape.left_px}px;top:{shape.top_px}px;"
-        f"width:{shape.width_px}px;height:{shape.height_px}px;"
+        f"width:{shape.width_px}px;{height_prop}:{shape.height_px}px;"
     )
     if shape.fill_color:
         style += f"background-color:{shape.fill_color};"
@@ -225,7 +227,7 @@ def shape_to_html(shape: PptxShape) -> str:
     if clip_path:
         style += f"clip-path:{clip_path};"
 
-    style += "overflow:hidden;"
+    style += "overflow:visible;" if expand else "overflow:hidden;"
 
     default_lr = PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU / PX_TO_EMU
     default_tb = PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU / PX_TO_EMU

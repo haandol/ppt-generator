@@ -138,7 +138,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 
 **가격 계산 (`estimate_cost()`):**
 - `interfaces/utils.py`의 `_MODEL_PRICING` 딕셔너리에 모델별 가격 정의 (USD / 1M tokens)
-- Bedrock 모델 ID (`global.anthropic.claude-sonnet-4-6` 등)는 `_MODEL_ID_ALIASES`로 정규화
+- Bedrock 모델 ID (`global.anthropic.claude-opus-4-7` 등)는 `_MODEL_ID_ALIASES`로 정규화
 - `inputTokens`, `outputTokens`, `cacheReadInputTokens`, `cacheWriteInputTokens` 각각 별도 단가 적용
 
 ## MCP 도구

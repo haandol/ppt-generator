@@ -422,7 +422,7 @@ class TestDesignControllerTokenAggregation:
         register_design_tools(
             mcp,
             project_service,
-            design_service_factory=lambda slide_type="content", budget_tokens=4096: (
+            design_service_factory=lambda slide_type="content", thinking_effort="medium": (
                 design_service
             ),
         )
@@ -591,7 +591,7 @@ class TestDesignControllerTokenAggregation:
         register_design_tools(
             mcp,
             project_service,
-            design_service_factory=lambda slide_type="content", budget_tokens=4096: (
+            design_service_factory=lambda slide_type="content", thinking_effort="medium": (
                 design_service
             ),
         )

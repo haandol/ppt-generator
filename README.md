@@ -4,7 +4,7 @@ An MCP (Model Context Protocol) server that automatically generates presentation
 
 ### Cost & Time
 
-> Based on Claude Sonnet 4.6 + Bedrock. Time and cost scale proportionally with slide count and complexity.
+> Based on Claude Opus 4-7 + Bedrock. Time and cost scale proportionally with slide count and complexity.
 
 **5-slide benchmark (Outline → Script → Design, excluding Visual QA)**
 
@@ -106,7 +106,7 @@ Before outline generation, you will be asked for the following:
 - **Presentation duration** — 3–60 minutes (default: 15 minutes)
 - **Audience type** — `general` / `technical` / `executive`
 
-The system then auto-generates in order: Outline → Script → Design Spec. You get a chance to review and edit at each stage.
+The system then auto-generates in order: Outline → Design Spec. You get a chance to review and edit at each stage.
 
 ### Step 3 — Edit Individual Slides (Optional)
 
