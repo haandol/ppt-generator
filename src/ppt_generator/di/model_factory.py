@@ -101,15 +101,7 @@ def build_anthropic_client_args() -> dict[str, Any]:
 # ---- Bedrock model creators ----
 
 
-def create_bedrock_design_model(budget_tokens: int) -> BedrockModel:
-    if budget_tokens > 0:
-        additional_request_fields: dict[str, Any] = {
-            "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
-        }
-    else:
-        additional_request_fields = {
-            "thinking": {"type": "disabled"},
-        }
+def create_bedrock_design_model() -> BedrockModel:
     return BedrockModel(
         model_id=BEDROCK_DESIGN_MODEL_ID,
         region_name=BEDROCK_REGION,
@@ -117,7 +109,9 @@ def create_bedrock_design_model(budget_tokens: int) -> BedrockModel:
         temperature=1.0,
         max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
         cache_config=CacheConfig(strategy="auto"),
-        additional_request_fields=additional_request_fields,
+        additional_request_fields={
+            "thinking": {"type": "enabled", "budget_tokens": 5120},
+        },
     )
 
 
@@ -154,17 +148,15 @@ def create_bedrock_outline_model(
 # ---- Anthropic model creators ----
 
 
-def create_anthropic_design_model(budget_tokens: int) -> Any:
-    params: dict[str, Any] = {"temperature": 1.0}
-    if budget_tokens > 0:
-        params["thinking"] = {"type": "enabled", "budget_tokens": budget_tokens}
-    else:
-        params["thinking"] = {"type": "disabled"}
+def create_anthropic_design_model() -> Any:
     return CachingAnthropicModel(
         client_args=build_anthropic_client_args(),
         model_id=ANTHROPIC_DESIGN_MODEL_ID,
         max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
-        params=params,
+        params={
+            "temperature": 1.0,
+            "thinking": {"type": "adaptive"},
+        },
     )
 
 
@@ -221,7 +213,7 @@ def create_anthropic_review_model() -> Any:
 # ---- Visual QA model creators ----
 
 
-def create_bedrock_visual_qa_model(budget_tokens: int = 1024) -> BedrockModel:
+def create_bedrock_visual_qa_model() -> BedrockModel:
     return BedrockModel(
         model_id=BEDROCK_DESIGN_MODEL_ID,
         region_name=BEDROCK_REGION,
@@ -230,19 +222,19 @@ def create_bedrock_visual_qa_model(budget_tokens: int = 1024) -> BedrockModel:
         max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
         cache_config=CacheConfig(strategy="auto"),
         additional_request_fields={
-            "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
+            "thinking": {"type": "enabled", "budget_tokens": 1024},
         },
     )
 
 
-def create_anthropic_visual_qa_model(budget_tokens: int = 1024) -> Any:
+def create_anthropic_visual_qa_model() -> Any:
     return CachingAnthropicModel(
         client_args=build_anthropic_client_args(),
         model_id=ANTHROPIC_DESIGN_MODEL_ID,
         max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
         params={
             "temperature": 1.0,
-            "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
+            "thinking": {"type": "adaptive"},
         },
     )
 

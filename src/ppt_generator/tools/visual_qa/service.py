@@ -29,11 +29,7 @@ from ppt_generator.interfaces.llm_output_models import SlideSpecOutput, VisualQA
 from ppt_generator.interfaces.schemas import PptxSlideSpec
 from ppt_generator.interfaces.spec_utils import clean_slide_spec
 from ppt_generator.interfaces.spec_utils.serializer import slide_spec_to_json
-from ppt_generator.interfaces.utils import (
-    complexity_to_qa_budget_tokens,
-    estimate_spec_complexity,
-    log_token_usage,
-)
+from ppt_generator.interfaces.utils import log_token_usage
 from ppt_generator.tools.visual_qa.models import SlideQAResult, VisualQAResult
 from ppt_generator.tools.visual_qa.screenshot import capture_screenshots
 
@@ -46,7 +42,7 @@ class VisualQAService:
     def __init__(
         self,
         analysis_agent_factory: Callable[[], Any],
-        fix_agent_factory: Callable[[int], Any],
+        fix_agent_factory: Callable[[], Any],
     ) -> None:
         self._analysis_agent_factory = analysis_agent_factory
         self._fix_agent_factory = fix_agent_factory
@@ -132,10 +128,7 @@ class VisualQAService:
         issues_json = json.dumps(issues, ensure_ascii=False, indent=2)
         image_b64 = base64.b64encode(png_path.read_bytes()).decode()
 
-        complexity = estimate_spec_complexity(current_spec)
-        budget = complexity_to_qa_budget_tokens(complexity)
-        logger.info("fix budget: complexity=%d → budget_tokens=%d", complexity, budget)
-        agent = self._fix_agent_factory(budget)
+        agent = self._fix_agent_factory()
         prompt = (
             "다음 슬라이드 디자인 스펙에서 시각적 이슈를 수정해주세요.\n\n"
             f"<current_design_spec>\n{spec_json}\n</current_design_spec>\n\n"

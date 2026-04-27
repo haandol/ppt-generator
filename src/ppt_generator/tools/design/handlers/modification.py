@@ -10,9 +10,7 @@ from typing import TYPE_CHECKING
 from ppt_generator.interfaces.constants import BEDROCK_DESIGN_MODEL_ID
 from ppt_generator.interfaces.spec_utils import lint_slide_spec
 from ppt_generator.interfaces.utils import (
-    complexity_to_budget_tokens,
     estimate_cost,
-    estimate_slide_complexity,
     format_token_usage,
     parse_outline_json,
 )
@@ -187,10 +185,8 @@ def _generate_and_review(
     next_outline=None,
 ):
     """슬라이드를 생성하고 리뷰 후 필요시 재생성한다."""
-    complexity = estimate_slide_complexity(slide_outline)
-    budget = complexity_to_budget_tokens(complexity)
     slide_type = slide_outline.slide_type or "content"
-    svc = deps.design_service_factory(budget, slide_type)
+    svc = deps.design_service_factory(slide_type)
     spec = svc.generate_single_slide(
         slide_outline,
         design_summary,
@@ -205,7 +201,7 @@ def _generate_and_review(
             from ppt_generator.tools.design.review_service import apply_review_and_fix
 
             def _regenerate(feedback: str) -> tuple:
-                svc_regen = deps.design_service_factory(budget, slide_type)
+                svc_regen = deps.design_service_factory(slide_type)
                 new = svc_regen.generate_single_slide(
                     slide_outline,
                     design_summary,
