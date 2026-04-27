@@ -69,7 +69,7 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         )
 
     @mcp.tool()
-    def load_outline(project_id: str) -> str:
+    def load_outline(project_id: str, include_content: bool = False) -> str:
         """Loads the saved outline JSON.
 
         Retrieves the previously generated slide outline from the project directory.
@@ -77,20 +77,29 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
 
         Args:
             project_id: Project ID
+            include_content: If True, returns full slide outline content alongside path.
+                Defaults to False (path and slide_count only).
 
         Returns:
-            JSON string containing outline_path
+            JSON string containing outline_path, slide_count, and optionally slides array
         """
         _, project_dir = project_service.resolve_project_dir(project_id)
-        # Verify file exists (raises exception if not found)
-        project_service.load_outline(project_dir)
+        outline_json_str = project_service.load_outline(project_dir)
         outline_dir = project_dir / "outline"
         outline_path = (
             str(outline_dir)
             if outline_dir.exists()
             else str(project_dir / "outline.jsonl")
         )
-        return json.dumps({"outline_path": outline_path}, ensure_ascii=False)
+        outline_data = json.loads(outline_json_str)
+        slides = outline_data.get("slides", [])
+        result: dict = {
+            "outline_path": outline_path,
+            "slide_count": len(slides),
+        }
+        if include_content:
+            result["slides"] = slides
+        return json.dumps(result, ensure_ascii=False)
 
     @mcp.tool()
     def save_outline_slide(
