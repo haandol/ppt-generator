@@ -111,7 +111,8 @@ Light mode (color_theme: "light"):
 - Dividers/borders: #CBD5E1 ~ #94A3B8
 
 Common rules:
-- Dividers: Thin shapes (height 2-4px) to separate title and body
+- **No title underline**: Do NOT place a decorative divider line directly below the slide title. The title stands alone with whitespace separation.
+- Dividers: Thin shapes (height 2-4px) may be used to separate content sections — but NOT under the title.
 - Cards: rounded_rectangle shapes, fill_color for background, paragraphs for inner text
 - Maintain consistent color palette and layout patterns across slides
 - Primarily use colors from the gradient axis for accents; use secondary accent colors only for key focal points

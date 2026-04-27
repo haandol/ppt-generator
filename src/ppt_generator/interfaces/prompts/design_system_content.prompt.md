@@ -115,9 +115,9 @@ Body slide (slide_type: "content"):
     TL: left=64, top=148, w=552, h=236 / TR: left=664, top=148
     BL: left=64, top=412 / BR: left=664, top=412
 
-  arch_diagram: Blocks (shapes) + arrows (lines) forming a diagram
-  pipeline: Left-to-right stage blocks + arrows
-  process_flow: Left description + right flow diagram
+  arch_diagram: Blocks (shapes) + arrows (lines) forming a diagram. Minimize decorative divider lines — the diagram itself provides visual structure.
+  pipeline: Left-to-right stage blocks + arrows. Minimize decorative divider lines — arrows and blocks provide visual structure.
+  process_flow: Left description + right flow diagram. Minimize decorative divider lines — the flow provides visual structure.
   code_block / quote / info_cards / feature_list / concept_list / quote_code
 
 Bottom auxiliary elements (top >= 540):
@@ -302,7 +302,9 @@ Container interior: children must use >= 80% of inner width. All peer children i
 - Keep only essential keywords/short phrases on the slide. Move supplementary text to speaker_notes.
 - Use negative space intentionally — do not fill every gap.
 - Use border_color, fill_color, corner_radius_px to create visual hierarchy.
-- Decorative lines beside cards: match the card's top_px and height_px exactly.
+- Decorative lines beside cards: match the card's top_px and height_px exactly. Use corner_radius_px=0 (no rounding) for decorative lines.
+- **No title underline**: Never place a thin decorative line directly below the slide title.
+- **Diagram pages** (arch_diagram, pipeline, process_flow): Avoid decorative divider lines unless absolutely necessary — the diagram elements themselves provide sufficient visual structure.
 - Use paragraphs in shapes for structured card interior text.
 - **NEVER use ASCII art or box-drawing characters** (┌ ─ ┐ │ └ ┘ ┬ ┴ ├ ┤ ╔ ═ ╗ ║ ╚ ╝ etc.) to represent diagrams, tables, or sub-elements inside shapes. Always use actual shape objects (rounded_rectangle, rectangle, line) instead. Text inside shapes must be plain descriptive text only.
 </page_design_rules>
