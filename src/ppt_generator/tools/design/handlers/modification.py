@@ -8,6 +8,7 @@ from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from ppt_generator.interfaces.constants import BEDROCK_DESIGN_MODEL_ID
+from ppt_generator.interfaces.spec_utils import lint_slide_spec
 from ppt_generator.interfaces.utils import (
     complexity_to_budget_tokens,
     estimate_cost,
@@ -154,6 +155,20 @@ def handle_modify(
     if token_usage:
         result["token_usage"] = format_token_usage(token_usage)
         result["estimated_cost"] = estimate_cost(token_usage, BEDROCK_DESIGN_MODEL_ID)
+
+    if action in ("add", "update"):
+        target_idx = (
+            (slide_index - 1) if 1 <= slide_index <= new_count else new_count - 1
+        )
+        spec = project_service.load_design_spec_slide(project_dir, target_idx)
+        slide_lint = lint_slide_spec(spec, slide_index=target_idx + 1)
+        if slide_lint.has_violations:
+            result["lint"] = slide_lint.to_dict()
+            result["lint_suggestion"] = (
+                f"슬라이드 {target_idx + 1}에서 "
+                f"{len(slide_lint.violations)}건의 lint 위반이 발견되었습니다. "
+                "위반 내용을 확인하고 수정 여부를 결정하세요."
+            )
 
     return json.dumps(result, ensure_ascii=False)
 

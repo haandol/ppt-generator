@@ -1,0 +1,566 @@
+"""spec_utils lint 테스트.
+
+lint는 디자인 규칙 위반을 감지하되 수정하지 않는다:
+- title-font-min: 슬라이드 제목 최소 폰트 검사
+- font-range: 폰트 허용 범위(10~44pt) 검사
+- canvas-overflow: 캔버스 경계 이탈 검사
+
+기계적 정리(빈 textbox 제거)는 clean_slide_spec으로 수행.
+"""
+
+from __future__ import annotations
+
+from ppt_generator.interfaces.schemas import (
+    PptxParagraph,
+    PptxShape,
+    PptxSlideSpec,
+    PptxTextBox,
+    PptxTextRun,
+)
+from ppt_generator.interfaces.spec_utils import (
+    clean_slide_spec,
+    lint_design_spec,
+    lint_slide_spec,
+)
+
+
+def _tb(text: str, font: int = 18, **kw) -> PptxTextBox:
+    defaults = dict(left_px=64, top_px=64, width_px=500, height_px=50)
+    defaults.update(kw)
+    return PptxTextBox(
+        paragraphs=[PptxParagraph(runs=[PptxTextRun(text=text, font_size_pt=font)])],
+        **defaults,
+    )
+
+
+def _slide(
+    textboxes: list[PptxTextBox] | None = None,
+    shapes: list[PptxShape] | None = None,
+    slide_type: str = "content",
+) -> PptxSlideSpec:
+    return PptxSlideSpec(
+        background_color="#1a1a2e",
+        textboxes=textboxes or [],
+        shapes=shapes or [],
+        slide_type=slide_type,
+    )
+
+
+# ---------------------------------------------------------------------------
+# title-font-min 규칙
+# ---------------------------------------------------------------------------
+
+
+class TestTitleFontMin:
+    """슬라이드 제목(첫 번째 textbox) 최소 폰트 위반 감지."""
+
+    def test_content_slide_title_below_24pt(self) -> None:
+        tb = _tb("제목 텍스트", font=16)
+        result = lint_slide_spec(_slide(textboxes=[tb]))
+        assert result.has_violations
+        v = result.violations[0]
+        assert v.rule == "title-font-min"
+        assert v.severity == "error"
+        assert v.current_value == 16
+
+    def test_title_slide_title_below_36pt(self) -> None:
+        tb = _tb("발표 제목", font=24)
+        result = lint_slide_spec(_slide(textboxes=[tb], slide_type="title"))
+        assert result.has_violations
+        violations = [v for v in result.violations if v.rule == "title-font-min"]
+        assert len(violations) >= 1
+        assert violations[0].current_value == 24
+
+    def test_closing_slide_title_below_36pt(self) -> None:
+        tb = _tb("감사합니다", font=20)
+        result = lint_slide_spec(_slide(textboxes=[tb], slide_type="closing"))
+        assert result.has_violations
+        violations = [v for v in result.violations if v.rule == "title-font-min"]
+        assert len(violations) >= 1
+
+    def test_title_above_min_no_violation(self) -> None:
+        tb = _tb("큰 제목", font=32)
+        result = lint_slide_spec(_slide(textboxes=[tb]))
+        title_violations = [v for v in result.violations if v.rule == "title-font-min"]
+        assert len(title_violations) == 0
+
+    def test_second_textbox_not_checked_for_title(self) -> None:
+        title_tb = _tb("제목", font=28)
+        body_tb = _tb("본문 작은 글씨", font=12, top_px=150)
+        result = lint_slide_spec(_slide(textboxes=[title_tb, body_tb]))
+        title_violations = [v for v in result.violations if v.rule == "title-font-min"]
+        assert len(title_violations) == 0
+
+    def test_spec_not_modified(self) -> None:
+        """lint는 spec을 수정하지 않는다."""
+        tb = _tb("제목 텍스트", font=16)
+        slide = _slide(textboxes=[tb])
+        lint_slide_spec(slide)
+        assert slide.textboxes[0].paragraphs[0].runs[0].font_size_pt == 16
+
+
+# ---------------------------------------------------------------------------
+# font-range 규칙
+# ---------------------------------------------------------------------------
+
+
+class TestFontRange:
+    """폰트 허용 범위(10~44pt) 위반 감지."""
+
+    def test_font_below_min(self) -> None:
+        tb = _tb("너무 작은 폰트", font=8, top_px=200)
+        title_tb = _tb("제목", font=24)
+        result = lint_slide_spec(_slide(textboxes=[title_tb, tb]))
+        range_violations = [v for v in result.violations if v.rule == "font-range"]
+        assert len(range_violations) >= 1
+        assert range_violations[0].current_value == 8
+
+    def test_font_above_max(self) -> None:
+        tb = _tb("너무 큰 폰트", font=50)
+        result = lint_slide_spec(_slide(textboxes=[tb]))
+        range_violations = [v for v in result.violations if v.rule == "font-range"]
+        assert len(range_violations) >= 1
+        assert range_violations[0].current_value == 50
+
+    def test_font_in_range_no_violation(self) -> None:
+        tb = _tb("정상 폰트", font=24)
+        result = lint_slide_spec(_slide(textboxes=[tb]))
+        range_violations = [v for v in result.violations if v.rule == "font-range"]
+        assert len(range_violations) == 0
+
+    def test_shape_font_below_min(self) -> None:
+        shape = PptxShape(
+            left_px=64,
+            top_px=148,
+            width_px=400,
+            height_px=200,
+            shape_type="rounded_rectangle",
+            fill_color="#2E3D50",
+            text="카드",
+            text_size_pt=8,
+        )
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        range_violations = [v for v in result.violations if v.rule == "font-range"]
+        assert len(range_violations) >= 1
+        assert range_violations[0].element_type == "shape"
+
+    def test_shape_paragraph_font_checked(self) -> None:
+        shape = PptxShape(
+            left_px=64,
+            top_px=148,
+            width_px=400,
+            height_px=200,
+            shape_type="rounded_rectangle",
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="작은 글", font_size_pt=6)])
+            ],
+        )
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        range_violations = [v for v in result.violations if v.rule == "font-range"]
+        assert len(range_violations) >= 1
+
+
+# ---------------------------------------------------------------------------
+# canvas-overflow 규칙
+# ---------------------------------------------------------------------------
+
+
+class TestCanvasOverflow:
+    """캔버스 경계 이탈 감지."""
+
+    def test_textbox_overflow_right(self) -> None:
+        tb = _tb("넘침", font=24, left_px=1200, width_px=200)
+        result = lint_slide_spec(_slide(textboxes=[tb]))
+        overflow_violations = [
+            v for v in result.violations if v.rule == "canvas-overflow"
+        ]
+        assert len(overflow_violations) >= 1
+
+    def test_textbox_overflow_bottom(self) -> None:
+        tb = _tb("넘침", font=24, top_px=700, height_px=100)
+        result = lint_slide_spec(_slide(textboxes=[tb]))
+        overflow_violations = [
+            v for v in result.violations if v.rule == "canvas-overflow"
+        ]
+        assert len(overflow_violations) >= 1
+
+    def test_textbox_negative_left(self) -> None:
+        tb = _tb("넘침", font=24, left_px=-10)
+        result = lint_slide_spec(_slide(textboxes=[tb]))
+        overflow_violations = [
+            v for v in result.violations if v.rule == "canvas-overflow"
+        ]
+        assert len(overflow_violations) >= 1
+
+    def test_textbox_within_canvas_no_violation(self) -> None:
+        tb = _tb("정상", font=24, left_px=64, top_px=64, width_px=500, height_px=50)
+        result = lint_slide_spec(_slide(textboxes=[tb]))
+        overflow_violations = [
+            v for v in result.violations if v.rule == "canvas-overflow"
+        ]
+        assert len(overflow_violations) == 0
+
+    def test_decorative_shape_ignored(self) -> None:
+        """장식 요소(텍스트 없는 얇은 shape)는 canvas-overflow 검사 제외."""
+        shape = PptxShape(
+            left_px=0,
+            top_px=100,
+            width_px=1400,
+            height_px=3,
+            shape_type="rectangle",
+            fill_color="#FF9900",
+        )
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        overflow_violations = [
+            v for v in result.violations if v.rule == "canvas-overflow"
+        ]
+        assert len(overflow_violations) == 0
+
+    def test_shape_with_text_overflow_detected(self) -> None:
+        shape = PptxShape(
+            left_px=1200,
+            top_px=100,
+            width_px=200,
+            height_px=100,
+            shape_type="rectangle",
+            text="넘치는 shape",
+            text_size_pt=16,
+        )
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        overflow_violations = [
+            v for v in result.violations if v.rule == "canvas-overflow"
+        ]
+        assert len(overflow_violations) >= 1
+
+
+# ---------------------------------------------------------------------------
+# decorative-no-rounding 규칙
+# ---------------------------------------------------------------------------
+
+
+class TestDecorativeNoRounding:
+    """장식 요소(꾸밈선)에 라운딩이 설정되면 위반."""
+
+    def test_decorative_with_rounding_detected(self) -> None:
+        shape = PptxShape(
+            left_px=0,
+            top_px=100,
+            width_px=1280,
+            height_px=3,
+            shape_type="rectangle",
+            fill_color="#FF9900",
+            corner_radius_px=8,
+        )
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        violations = [
+            v for v in result.violations if v.rule == "decorative-no-rounding"
+        ]
+        assert len(violations) == 1
+        assert violations[0].current_value == 8
+
+    def test_decorative_without_rounding_no_violation(self) -> None:
+        shape = PptxShape(
+            left_px=0,
+            top_px=100,
+            width_px=1280,
+            height_px=3,
+            shape_type="rectangle",
+            fill_color="#FF9900",
+        )
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        violations = [
+            v for v in result.violations if v.rule == "decorative-no-rounding"
+        ]
+        assert len(violations) == 0
+
+    def test_decorative_with_zero_radius_no_violation(self) -> None:
+        shape = PptxShape(
+            left_px=0,
+            top_px=100,
+            width_px=1280,
+            height_px=3,
+            shape_type="rectangle",
+            fill_color="#FF9900",
+            corner_radius_px=0,
+        )
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        violations = [
+            v for v in result.violations if v.rule == "decorative-no-rounding"
+        ]
+        assert len(violations) == 0
+
+    def test_non_decorative_with_rounding_no_violation(self) -> None:
+        """텍스트가 있는 일반 shape는 라운딩이 있어도 위반이 아님."""
+        shape = PptxShape(
+            left_px=64,
+            top_px=148,
+            width_px=400,
+            height_px=200,
+            shape_type="rounded_rectangle",
+            fill_color="#2E3D50",
+            text="카드",
+            text_size_pt=16,
+            corner_radius_px=12,
+        )
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        violations = [
+            v for v in result.violations if v.rule == "decorative-no-rounding"
+        ]
+        assert len(violations) == 0
+
+    def test_thin_vertical_decorative_with_rounding(self) -> None:
+        """세로 방향 얇은 장식선도 감지."""
+        shape = PptxShape(
+            left_px=640,
+            top_px=100,
+            width_px=3,
+            height_px=500,
+            shape_type="rectangle",
+            fill_color="#CCCCCC",
+            corner_radius_px=5,
+        )
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        violations = [
+            v for v in result.violations if v.rule == "decorative-no-rounding"
+        ]
+        assert len(violations) == 1
+
+
+# ---------------------------------------------------------------------------
+# clean_slide_spec (기계적 정리)
+# ---------------------------------------------------------------------------
+
+
+class TestCleanSpec:
+    """기계적 정리: 빈 textbox 제거."""
+
+    def test_empty_textbox_removed(self) -> None:
+        empty_tb = PptxTextBox(
+            left_px=64,
+            top_px=64,
+            width_px=500,
+            height_px=50,
+            paragraphs=[PptxParagraph(runs=[PptxTextRun(text="")])],
+        )
+        text_tb = _tb("유효 텍스트", font=18, top_px=200)
+        result = clean_slide_spec(_slide(textboxes=[empty_tb, text_tb]))
+        assert len(result.textboxes) == 1
+        assert result.textboxes[0].paragraphs[0].runs[0].text == "유효 텍스트"
+
+    def test_whitespace_only_textbox_removed(self) -> None:
+        ws_tb = PptxTextBox(
+            left_px=64,
+            top_px=64,
+            width_px=500,
+            height_px=50,
+            paragraphs=[PptxParagraph(runs=[PptxTextRun(text="   ")])],
+        )
+        result = clean_slide_spec(_slide(textboxes=[ws_tb]))
+        assert len(result.textboxes) == 0
+
+    def test_valid_textbox_preserved(self) -> None:
+        tb = _tb("유효 텍스트", font=18)
+        result = clean_slide_spec(_slide(textboxes=[tb]))
+        assert len(result.textboxes) == 1
+
+    def test_shapes_not_affected(self) -> None:
+        shape = PptxShape(
+            left_px=64,
+            top_px=148,
+            width_px=400,
+            height_px=200,
+            shape_type="rounded_rectangle",
+            fill_color="#2E3D50",
+            text="카드 본문",
+            text_size_pt=12,
+        )
+        result = clean_slide_spec(_slide(shapes=[shape]))
+        assert len(result.shapes) == 1
+        assert result.shapes[0].text_size_pt == 12
+
+
+# ---------------------------------------------------------------------------
+# 레이아웃/색상 비개입 확인
+# ---------------------------------------------------------------------------
+
+
+class TestNoModification:
+    """lint는 spec을 수정하지 않고, clean_slide_spec은 빈 textbox만 제거한다."""
+
+    def test_position_preserved(self) -> None:
+        tb = PptxTextBox(
+            left_px=100,
+            top_px=100,
+            width_px=1000,
+            height_px=60,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="제목", font_size_pt=32, bold=True)]
+                )
+            ],
+        )
+        result = clean_slide_spec(_slide(textboxes=[tb]))
+        assert result.textboxes[0].left_px == 100
+        assert result.textboxes[0].top_px == 100
+
+    def test_color_preserved(self) -> None:
+        tb = PptxTextBox(
+            left_px=64,
+            top_px=64,
+            width_px=500,
+            height_px=50,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="테스트", font_size_pt=18, color="#222222")]
+                )
+            ],
+        )
+        result = clean_slide_spec(
+            PptxSlideSpec(background_color="#1a1a2e", textboxes=[tb])
+        )
+        assert result.textboxes[0].paragraphs[0].runs[0].color == "#222222"
+
+    def test_padding_preserved(self) -> None:
+        tb = PptxTextBox(
+            left_px=64,
+            top_px=200,
+            width_px=500,
+            height_px=100,
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="테스트", font_size_pt=18)])
+            ],
+            padding_left_px=16,
+            padding_right_px=16,
+            padding_top_px=12,
+            padding_bottom_px=12,
+        )
+        result = clean_slide_spec(_slide(textboxes=[tb]))
+        v = result.textboxes[0]
+        assert v.padding_left_px == 16
+        assert v.padding_right_px == 16
+        assert v.padding_top_px == 12
+        assert v.padding_bottom_px == 12
+
+    def test_vertical_alignment_preserved(self) -> None:
+        tb = PptxTextBox(
+            left_px=64,
+            top_px=180,
+            width_px=1152,
+            height_px=480,
+            vertical_alignment="top",
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text="짧은 본문", font_size_pt=20)],
+                    bullet_level=0,
+                )
+            ],
+        )
+        result = clean_slide_spec(_slide(textboxes=[tb]))
+        assert result.textboxes[0].vertical_alignment == "top"
+
+    def test_shape_position_preserved(self) -> None:
+        shape = PptxShape(
+            left_px=0,
+            top_px=100,
+            width_px=1280,
+            height_px=3,
+            shape_type="rectangle",
+            fill_color="#FF9900",
+        )
+        result = clean_slide_spec(_slide(shapes=[shape]))
+        assert result.shapes[0].left_px == 0
+        assert result.shapes[0].height_px == 3
+        assert result.shapes[0].width_px == 1280
+
+    def test_shape_gap_preserved(self) -> None:
+        s1 = PptxShape(
+            left_px=100,
+            top_px=100,
+            width_px=200,
+            height_px=50,
+            shape_type="rectangle",
+            text="A",
+            text_size_pt=16,
+        )
+        s2 = PptxShape(
+            left_px=100,
+            top_px=153,
+            width_px=200,
+            height_px=50,
+            shape_type="rectangle",
+            text="B",
+            text_size_pt=16,
+        )
+        result = clean_slide_spec(
+            PptxSlideSpec(background_color="#FFFFFF", shapes=[s1, s2])
+        )
+        assert result.shapes[0].top_px == s1.top_px
+        assert result.shapes[1].top_px == s2.top_px
+
+
+# ---------------------------------------------------------------------------
+# lint_design_spec (전체 슬라이드 lint)
+# ---------------------------------------------------------------------------
+
+
+class TestLintDesignSpec:
+    """전체 슬라이드에 대한 lint 결과."""
+
+    def test_all_pass(self) -> None:
+        slides = [
+            _slide(textboxes=[_tb("제목1", font=28)]),
+            _slide(textboxes=[_tb("제목2", font=26)]),
+        ]
+        result = lint_design_spec(slides)
+        assert not result.has_violations
+        assert result.total_violations == 0
+        assert len(result.cleaned_specs) == 2
+
+    def test_mixed_violations(self) -> None:
+        slides = [
+            _slide(textboxes=[_tb("OK 제목", font=28)]),
+            _slide(textboxes=[_tb("작은 제목", font=16)]),
+        ]
+        result = lint_design_spec(slides)
+        assert result.has_violations
+        assert result.total_violations >= 1
+        assert not result.slides[0].has_violations
+        assert result.slides[1].has_violations
+
+    def test_to_dict_format(self) -> None:
+        slides = [
+            _slide(textboxes=[_tb("작은 제목", font=16)]),
+        ]
+        result = lint_design_spec(slides)
+        d = result.to_dict()
+        assert d["total_slides"] == 1
+        assert d["total_violations"] >= 1
+        assert d["failed_slides"] == 1
+        assert d["passed_slides"] == 0
+        assert len(d["per_slide"]) == 1
+        slide_d = d["per_slide"][0]
+        assert slide_d["slide_index"] == 1
+        assert slide_d["status"] == "fail"
+        assert "violations" in slide_d
+
+    def test_pass_slide_not_in_per_slide(self) -> None:
+        """위반 없는 슬라이드는 per_slide에 포함되지 않는다."""
+        slides = [
+            _slide(textboxes=[_tb("OK 제목", font=28)]),
+        ]
+        result = lint_design_spec(slides)
+        d = result.to_dict()
+        assert len(d["per_slide"]) == 0
+
+    def test_cleaned_specs_returned(self) -> None:
+        empty_tb = PptxTextBox(
+            left_px=64,
+            top_px=64,
+            width_px=500,
+            height_px=50,
+            paragraphs=[PptxParagraph(runs=[PptxTextRun(text="")])],
+        )
+        text_tb = _tb("유효 텍스트", font=24, top_px=200)
+        slides = [_slide(textboxes=[empty_tb, text_tb])]
+        result = lint_design_spec(slides)
+        assert len(result.cleaned_specs[0].textboxes) == 1

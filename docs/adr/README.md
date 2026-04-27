@@ -34,7 +34,7 @@ adr/
 - [0020: 토큰 사용량 추적 및 비용 추정](./pipeline/0020-token-usage-tracking-and-cost-estimation.md)
 - [0021: 슬라이드 타입별 시스템 프롬프트 분리](./pipeline/0021-slide-type-specific-system-prompts.md)
 - [0022: 타이틀 슬라이드 긴 제목 텍스트 잘림 수정](./pipeline/0022-title-slide-long-title-overflow-fix.md)
-- [0023: 디자인 스펙 Validator](./pipeline/0023-design-spec-validator.md)
+- [0023: 디자인 스펙 Validator](./pipeline/0023-design-spec-validator.md) — _Superseded by 0041_
 - [0024: Agenda Slide Optional Numbering](./pipeline/0024-agenda-optional-numbering.md)
 - [0025: Enable Medium Thinking for Outline Generation](./pipeline/0025-outline-thinking-medium.md)
 - [0026: Visual QA Pipeline](./pipeline/0026-visual-qa-pipeline.md)
@@ -45,6 +45,7 @@ adr/
 - [0034: 슬라이드 추가 시 기존 디자인 스펙 참조를 통한 일관성 향상](./pipeline/0034-add-slide-design-consistency.md)
 - [0035: Visual QA 브라우저 도구 안내 개선](./pipeline/0035-visual-qa-browser-tool-fallback.md)
 - [0036: 기본 테마 색상 변경 및 다이어그램 활용 강화](./pipeline/0036-theme-color-change-and-diagram-preference.md)
+- [0041: Validator를 Lint로 전환](./pipeline/0041-validator-to-lint.md)
 
 ## ADR 작성 가이드
 

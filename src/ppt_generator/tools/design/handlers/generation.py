@@ -8,6 +8,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from ppt_generator.interfaces.constants import BEDROCK_DESIGN_MODEL_ID
+from ppt_generator.interfaces.spec_utils import lint_design_spec
 from ppt_generator.interfaces.utils import (
     estimate_cost,
     format_token_usage,
@@ -132,6 +133,14 @@ async def handle_generate(
             overflow_path,
         )
 
+    # --- Step 4: Lint design spec ---
+    lint_result_dict: dict | None = None
+    if slide_count > 0:
+        design_spec = project_service.load_design_spec(project_dir)
+        lint_result = lint_design_spec(design_spec.slides)
+        if lint_result.has_violations:
+            lint_result_dict = lint_result.to_dict()
+
     resp: dict = {
         "design_spec_dir": str(project_dir / "design_spec"),
         "slide_count": slide_count,
@@ -145,6 +154,13 @@ async def handle_generate(
             f"실행하려면 visual_qa(project_id='{project_id}') 를 호출하세요."
         ),
     }
+    if lint_result_dict:
+        resp["lint"] = lint_result_dict
+        resp["lint_suggestion"] = (
+            f"디자인 lint에서 {lint_result_dict['total_violations']}건의 위반이 발견되었습니다. "
+            "위반 내용을 확인하고, 수정이 필요하면 해당 슬라이드를 "
+            "modify_design_spec(action='update')로 수정하세요."
+        )
     if all_overflow:
         resp["overflow_suggestion"] = (
             f"{len(all_overflow)}개의 컨텐츠가 슬라이드 공간 부족으로 포함되지 못했습니다. "

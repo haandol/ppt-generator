@@ -27,7 +27,7 @@ from ppt_generator.interfaces.constants import (
 )
 from ppt_generator.interfaces.llm_output_models import SlideSpecOutput, VisualQAOutput
 from ppt_generator.interfaces.schemas import PptxSlideSpec
-from ppt_generator.interfaces.spec_utils import validate_slide_spec
+from ppt_generator.interfaces.spec_utils import clean_slide_spec
 from ppt_generator.interfaces.spec_utils.serializer import slide_spec_to_json
 from ppt_generator.interfaces.utils import (
     complexity_to_qa_budget_tokens,
@@ -171,7 +171,7 @@ class VisualQAService:
                 restore["slide_type"] = current_spec.slide_type
             if restore:
                 spec = replace(spec, **restore)
-            return validate_slide_spec(spec)
+            return clean_slide_spec(spec)
         except Exception:
             logger.exception("디자인 스펙 수정 실패")
             return None

@@ -90,7 +90,7 @@ PPTX_VALIDATE_FONT_MIN_PT = 10
 PPTX_VALIDATE_FONT_MAX_PT = 44
 PPTX_VALIDATE_LINE_HEIGHT_FACTOR = 2.0  # pt→px(1.33) × line-height(1.5) ≈ 2.0
 
-# Card-specific font floors (enforced by validator for shapes with fill_color)
+# Card-specific font floors (checked by lint for shapes with fill_color)
 CARD_TITLE_FONT_MIN_PT = 18
 CARD_BODY_FONT_MIN_PT = 16
 SECTION_LABEL_FONT_MIN_PT = 14

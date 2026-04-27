@@ -20,7 +20,7 @@ from ppt_generator.interfaces.schemas import (
     DesignSpec,
     ExportPptxResponse,
 )
-from ppt_generator.interfaces.spec_utils import validate_slide_spec
+from ppt_generator.interfaces.spec_utils import clean_slide_spec
 from ppt_generator.tools.pptx.slide_builder import SlideBuilder
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ class ExportService:
         blank_layout = prs.slide_layouts[6]
 
         for idx, raw_spec in enumerate(design_spec.slides):
-            spec = validate_slide_spec(raw_spec, autofit=not skip_autofit)
+            spec = clean_slide_spec(raw_spec)
             slide = prs.slides.add_slide(blank_layout)
             self._builder.remove_placeholders(slide)
 

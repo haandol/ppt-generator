@@ -25,7 +25,7 @@ from ppt_generator.interfaces.schemas import (
     PptxSlideSpec,
     SlideOutline,
 )
-from ppt_generator.interfaces.spec_utils import validate_slide_spec
+from ppt_generator.interfaces.spec_utils import clean_slide_spec
 from ppt_generator.interfaces.utils import log_token_usage
 
 logger = logging.getLogger(__name__)
@@ -233,7 +233,7 @@ class DesignService:
                 len(self._last_overflow),
             )
         spec = output.to_dataclass()
-        return validate_slide_spec(spec)
+        return clean_slide_spec(spec)
 
     @staticmethod
     def _slide_type_instruction(slide_type: str) -> str:
