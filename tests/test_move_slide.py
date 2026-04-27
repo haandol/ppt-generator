@@ -492,7 +492,9 @@ class TestMoveSlideToolWith16Pages:
             "card_fills": [],
             "card_borders": [],
         }
-        design_service_factory = lambda effort, slide_type="content": design_service  # noqa: E731
+        design_service_factory = lambda slide_type="content", budget_tokens=4096: (
+            design_service
+        )  # noqa: E731
 
         register_design_tools(
             mcp, project_service, design_service_factory=design_service_factory

@@ -105,9 +105,9 @@ class TestComplexityToBudgetTokens:
         [
             (1, 1024),
             (2, 1024),
-            (3, 5120),
-            (4, 5120),
-            (5, 10240),
+            (3, 2048),
+            (4, 2048),
+            (5, 4096),
         ],
     )
     def test_budget_mapping(self, complexity: int, expected: int) -> None:
@@ -119,14 +119,14 @@ class TestComplexityToBudgetTokens:
     def test_boundary_2_is_1024(self) -> None:
         assert complexity_to_budget_tokens(2) == 1024
 
-    def test_boundary_3_is_5120(self) -> None:
-        assert complexity_to_budget_tokens(3) == 5120
+    def test_boundary_3_is_2048(self) -> None:
+        assert complexity_to_budget_tokens(3) == 2048
 
-    def test_boundary_4_is_5120(self) -> None:
-        assert complexity_to_budget_tokens(4) == 5120
+    def test_boundary_4_is_2048(self) -> None:
+        assert complexity_to_budget_tokens(4) == 2048
 
-    def test_boundary_5_is_10240(self) -> None:
-        assert complexity_to_budget_tokens(5) == 10240
+    def test_boundary_5_is_4096(self) -> None:
+        assert complexity_to_budget_tokens(5) == 4096
 
     def test_agenda_complexity_is_1(self) -> None:
         """agenda 슬라이드는 복잡도 1 → budget_tokens 1024."""

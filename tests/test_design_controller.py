@@ -109,7 +109,9 @@ def mcp_tools(project_service: ProjectService) -> dict:
         "card_borders": [],
     }
 
-    design_service_factory = lambda slide_type="content": design_service  # noqa: E731
+    design_service_factory = lambda slide_type="content", budget_tokens=4096: (
+        design_service
+    )  # noqa: E731
 
     register_design_tools(
         mcp,
@@ -823,7 +825,9 @@ def mcp_tools_with_slides(project_service: ProjectService) -> dict:
         "card_borders": [],
     }
 
-    design_service_factory = lambda slide_type="content": design_service  # noqa: E731
+    design_service_factory = lambda slide_type="content", budget_tokens=4096: (
+        design_service
+    )  # noqa: E731
 
     slides_service = MagicMock()
     slides_service.render_single_slide_html.return_value = "<html>new slide</html>"
@@ -1717,7 +1721,9 @@ class TestGenerateSlidesDesignSpecWithSlidesService:
         register_design_tools(
             mcp,
             project_service,
-            design_service_factory=lambda slide_type="content": design_service,
+            design_service_factory=lambda slide_type="content", budget_tokens=4096: (
+                design_service
+            ),
             slides_service=slides_service,
         )
 

@@ -102,7 +102,7 @@ def build_anthropic_client_args() -> dict[str, Any]:
 # ---- Bedrock model creators ----
 
 
-def create_bedrock_design_model() -> BedrockModel:
+def create_bedrock_design_model(budget_tokens: int = 4096) -> BedrockModel:
     return BedrockModel(
         model_id=BEDROCK_DESIGN_MODEL_ID,
         region_name=BEDROCK_REGION,
@@ -111,7 +111,7 @@ def create_bedrock_design_model() -> BedrockModel:
         max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
         cache_config=CacheConfig(strategy="auto"),
         additional_request_fields={
-            "thinking": {"type": "adaptive"},
+            "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
         },
     )
 
@@ -149,14 +149,14 @@ def create_bedrock_outline_model(
 # ---- Anthropic model creators ----
 
 
-def create_anthropic_design_model() -> Any:
+def create_anthropic_design_model(budget_tokens: int = 4096) -> Any:
     return CachingAnthropicModel(
         client_args=build_anthropic_client_args(),
         model_id=ANTHROPIC_DESIGN_MODEL_ID,
         max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
         params={
             "temperature": 1.0,
-            "thinking": {"type": "adaptive"},
+            "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
         },
     )
 

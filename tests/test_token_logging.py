@@ -422,7 +422,9 @@ class TestDesignControllerTokenAggregation:
         register_design_tools(
             mcp,
             project_service,
-            design_service_factory=lambda effort, slide_type="content": design_service,
+            design_service_factory=lambda slide_type="content", budget_tokens=4096: (
+                design_service
+            ),
         )
         return tools, "token-test-proj"
 
@@ -589,7 +591,9 @@ class TestDesignControllerTokenAggregation:
         register_design_tools(
             mcp,
             project_service,
-            design_service_factory=lambda effort, slide_type="content": design_service,
+            design_service_factory=lambda slide_type="content", budget_tokens=4096: (
+                design_service
+            ),
         )
 
         outline_2 = json.dumps(

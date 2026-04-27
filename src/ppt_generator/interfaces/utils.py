@@ -88,12 +88,12 @@ def _layout_plan_has_many_elements(layout_plan: str) -> bool:
 def complexity_to_budget_tokens(complexity: int) -> int:
     """Converts a complexity score (1-5) to a thinking budget_tokens value.
 
-    5 → 10240 (high), 3-4 → 5120 (medium), 1-2 → 1024 (low).
+    5 → 4096 (high), 3-4 → 2048 (medium), 1-2 → 1024 (low).
     """
     if complexity >= 5:
-        return 10240
+        return 4096
     if complexity >= 3:
-        return 5120
+        return 2048
     return 1024
 
 
