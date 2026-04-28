@@ -6,6 +6,7 @@ requires-python = ">=3.13"
 dependencies = [
     "anthropic",
     "mcp",
+    "playwright",
     "python-dotenv",
     "python-pptx>=1.0.2",
     "strands-agents",
@@ -19,9 +20,6 @@ ppt-generator = "ppt_generator.server:main"
 dev = [
     "pytest",
     "ruff",
-]
-visual-qa = [
-    "playwright",
 ]
 
 [tool.pytest.ini_options]

@@ -1063,6 +1063,7 @@ source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
     { name = "mcp" },
+    { name = "playwright" },
     { name = "python-dotenv" },
     { name = "python-pptx" },
     { name = "strands-agents" },
@@ -1074,14 +1075,12 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
-visual-qa = [
-    { name = "playwright" },
-]
 
 [package.metadata]
 requires-dist = [
     { name = "anthropic" },
     { name = "mcp" },
+    { name = "playwright" },
     { name = "python-dotenv" },
     { name = "python-pptx", specifier = ">=1.0.2" },
     { name = "strands-agents" },
@@ -1093,7 +1092,6 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
-visual-qa = [{ name = "playwright" }]
 
 [[package]]
 name = "prompt-toolkit"

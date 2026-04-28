@@ -63,16 +63,30 @@ def _make_slide_spec_output() -> SlideSpecOutput:
 class TestVisualQAServiceCapture:
     """capture_screenshots 테스트."""
 
-    def test_playwright_not_installed_raises(self, tmp_path: Path) -> None:
-        """Playwright 미설치 시 RuntimeError 발생."""
+    def test_chromium_not_installed_raises(self, tmp_path: Path) -> None:
+        """Chromium 브라우저 바이너리 미설치 시 RuntimeError 발생."""
         svc = VisualQAService(
             analysis_agent_factory=MagicMock(),
             fix_agent_factory=MagicMock(),
         )
-        with patch.dict(
-            "sys.modules", {"playwright": None, "playwright.sync_api": None}
+        slides_dir = tmp_path / "slides"
+        slides_dir.mkdir()
+        (slides_dir / "slide_01.html").write_text("<html></html>")
+
+        mock_pw_ctx = MagicMock()
+        mock_pw_ctx.__enter__ = MagicMock(return_value=mock_pw_ctx)
+        mock_pw_ctx.__exit__ = MagicMock(return_value=False)
+        mock_pw_ctx.chromium.launch.side_effect = Exception(
+            "Executable doesn't exist at /path/chromium"
+        )
+
+        with patch(
+            "ppt_generator.tools.visual_qa.screenshot.sync_playwright",
+            return_value=mock_pw_ctx,
         ):
-            with pytest.raises(RuntimeError, match="Playwright가 설치되지 않았습니다"):
+            with pytest.raises(
+                RuntimeError, match="Chromium 브라우저가 설치되지 않았습니다"
+            ):
                 svc.capture_screenshots(tmp_path, [0])
 
     def test_missing_html_returns_empty(self, tmp_path: Path) -> None:
@@ -84,15 +98,16 @@ class TestVisualQAServiceCapture:
         slides_dir = tmp_path / "slides"
         slides_dir.mkdir()
 
-        # Mock playwright to avoid needing it installed
-        mock_playwright = MagicMock()
+        mock_pw_ctx = MagicMock()
+        mock_pw_ctx.__enter__ = MagicMock(return_value=mock_pw_ctx)
+        mock_pw_ctx.__exit__ = MagicMock(return_value=False)
+
         with patch(
-            "ppt_generator.tools.visual_qa.service.sync_playwright", create=True
+            "ppt_generator.tools.visual_qa.screenshot.sync_playwright",
+            return_value=mock_pw_ctx,
         ):
-            # Directly test that missing HTML results in no screenshots
-            # We can't fully mock playwright's context manager easily,
-            # so let's test the simpler path
-            pass
+            result = svc.capture_screenshots(tmp_path, [0])
+            assert result == {}
 
 
 class TestVisualQAServiceAnalyze:

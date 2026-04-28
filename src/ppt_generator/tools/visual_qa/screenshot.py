@@ -6,6 +6,8 @@ import logging
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from pathlib import Path
 
+from playwright.sync_api import sync_playwright
+
 from ppt_generator.interfaces.constants import (
     SCREENSHOT_TIMEOUT,
     VISUAL_QA_PARALLEL,
@@ -22,15 +24,6 @@ def capture_screenshots(
     iteration: int = 0,
 ) -> dict[int, Path]:
     """Playwright headless Chromium으로 슬라이드 스크린샷을 캡처한다."""
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        raise RuntimeError(
-            "Playwright가 설치되지 않았습니다.\n"
-            "설치: uv sync --group visual-qa && playwright install chromium\n\n"
-            "또는 Chrome DevTools MCP의 take_screenshot 도구를 사용하여 "
-            "수동으로 스크린샷을 캡처할 수도 있습니다."
-        )
 
     screenshots_dir = project_dir / "screenshots"
     screenshots_dir.mkdir(parents=True, exist_ok=True)
@@ -59,7 +52,12 @@ def capture_screenshots(
                 browser.close()
             logger.info("스크린샷 캡처: %s", png_path)
             return idx, png_path
-        except Exception:
+        except Exception as exc:
+            if "executable doesn't exist" in str(exc).lower():
+                raise RuntimeError(
+                    "Chromium 브라우저가 설치되지 않았습니다.\n"
+                    "설치: playwright install chromium"
+                ) from exc
             logger.exception("스크린샷 캡처 실패: slide_index=%d", idx)
             return idx, None
 
