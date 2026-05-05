@@ -15,6 +15,9 @@ from ppt_generator.interfaces.spec_utils.lint_rules.font_range import (
 from ppt_generator.interfaces.spec_utils.lint_rules.sibling_gap import (
     check_sibling_gap,
 )
+from ppt_generator.interfaces.spec_utils.lint_rules.sibling_grid import (
+    check_sibling_grid,
+)
 from ppt_generator.interfaces.spec_utils.lint_rules.text_overflow import (
     check_text_overflow,
 )
@@ -32,6 +35,7 @@ ALL_RULES = [
     check_text_overflow,
     check_expand_height_collision,
     check_sibling_gap,
+    check_sibling_grid,
     check_zero_size_shape,
     check_decorative_no_rounding,
 ]

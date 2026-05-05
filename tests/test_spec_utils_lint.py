@@ -596,6 +596,91 @@ class TestZeroSizeShape:
 
 
 # ---------------------------------------------------------------------------
+# sibling-grid-uniformity 규칙
+# ---------------------------------------------------------------------------
+
+
+class TestSiblingGridUniformity:
+    """같은 row/column 에 3개 이상 있는 카드의 크기 균일성 검사."""
+
+    def _card(self, left: int, top: int, w: int, h: int) -> PptxShape:
+        return PptxShape(
+            left_px=left,
+            top_px=top,
+            width_px=w,
+            height_px=h,
+            shape_type="rounded_rectangle",
+            fill_color="#1E293B",
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="카드", font_size_pt=18)])
+            ],
+        )
+
+    def test_row_height_mismatch_detected(self) -> None:
+        """같은 row 3개 카드 중 하나만 height 다름."""
+        a = self._card(left=64, top=200, w=200, h=100)
+        b = self._card(left=272, top=200, w=200, h=100)
+        c = self._card(left=480, top=200, w=200, h=132)  # 32px 더 높음
+        result = lint_slide_spec(_slide(shapes=[a, b, c]))
+        violations = [
+            v for v in result.violations if v.rule == "sibling-grid-uniformity"
+        ]
+        assert len(violations) == 1
+        assert violations[0].current_value["axis"] == "row"
+        assert violations[0].current_value["dimension"] == "height"
+
+    def test_row_uniform_heights_no_violation(self) -> None:
+        a = self._card(left=64, top=200, w=200, h=100)
+        b = self._card(left=272, top=200, w=200, h=100)
+        c = self._card(left=480, top=200, w=200, h=102)  # 2px 차이 — tolerance 이내
+        result = lint_slide_spec(_slide(shapes=[a, b, c]))
+        violations = [
+            v for v in result.violations if v.rule == "sibling-grid-uniformity"
+        ]
+        assert len(violations) == 0
+
+    def test_column_width_mismatch_detected(self) -> None:
+        a = self._card(left=64, top=148, w=400, h=100)
+        b = self._card(left=64, top=256, w=400, h=100)
+        c = self._card(left=64, top=364, w=360, h=100)  # 40px 더 좁음
+        result = lint_slide_spec(_slide(shapes=[a, b, c]))
+        violations = [
+            v for v in result.violations if v.rule == "sibling-grid-uniformity"
+        ]
+        assert len(violations) == 1
+        assert violations[0].current_value["axis"] == "column"
+        assert violations[0].current_value["dimension"] == "width"
+
+    def test_two_cards_not_checked(self) -> None:
+        """같은 row 에 카드가 2개만 있으면 검사 대상 아님."""
+        a = self._card(left=64, top=524, w=672, h=100)
+        b = self._card(left=752, top=524, w=464, h=100)
+        result = lint_slide_spec(_slide(shapes=[a, b]))
+        violations = [
+            v for v in result.violations if v.rule == "sibling-grid-uniformity"
+        ]
+        assert len(violations) == 0
+
+    def test_non_card_shapes_ignored(self) -> None:
+        """fill_color 없는 shape 는 카드로 취급되지 않음."""
+        a = self._card(left=64, top=200, w=200, h=100)
+        b = self._card(left=272, top=200, w=200, h=100)
+        # fill_color 없는 장식 shape — 카드 아님
+        deco = PptxShape(
+            left_px=480,
+            top_px=200,
+            width_px=200,
+            height_px=140,
+            shape_type="rectangle",
+        )
+        result = lint_slide_spec(_slide(shapes=[a, b, deco]))
+        violations = [
+            v for v in result.violations if v.rule == "sibling-grid-uniformity"
+        ]
+        assert len(violations) == 0
+
+
+# ---------------------------------------------------------------------------
 # clean_slide_spec (기계적 정리)
 # ---------------------------------------------------------------------------
 
