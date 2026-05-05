@@ -72,7 +72,6 @@ class DIContainer:
             max_tokens=BEDROCK_OUTLINE_MAX_TOKENS,
             json_schema=OUTLINE_JSON_SCHEMA,
             json_schema_name="outline_output",
-            budget_tokens=4096,
         )
         model = (
             create_anthropic_outline_model

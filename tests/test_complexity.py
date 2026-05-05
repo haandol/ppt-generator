@@ -4,10 +4,7 @@ import pytest
 
 from ppt_generator.interfaces.constants import COMPONENT_HINT_COMPLEXITY
 from ppt_generator.interfaces.schemas import SlideOutline
-from ppt_generator.interfaces.utils import (
-    complexity_to_budget_tokens,
-    estimate_slide_complexity,
-)
+from ppt_generator.interfaces.utils import estimate_slide_complexity
 
 
 class TestEstimateSlideComplexity:
@@ -95,46 +92,3 @@ class TestEstimateSlideComplexity:
             component_hint=hint,
         )
         assert estimate_slide_complexity(slide) == expected
-
-
-class TestComplexityToBudgetTokens:
-    """complexity_to_budget_tokens 단위 테스트 (1-5 scale)."""
-
-    @pytest.mark.parametrize(
-        "complexity,expected",
-        [
-            (1, 1024),
-            (2, 1024),
-            (3, 2048),
-            (4, 2048),
-            (5, 4096),
-        ],
-    )
-    def test_budget_mapping(self, complexity: int, expected: int) -> None:
-        assert complexity_to_budget_tokens(complexity) == expected
-
-    def test_boundary_1_is_1024(self) -> None:
-        assert complexity_to_budget_tokens(1) == 1024
-
-    def test_boundary_2_is_1024(self) -> None:
-        assert complexity_to_budget_tokens(2) == 1024
-
-    def test_boundary_3_is_2048(self) -> None:
-        assert complexity_to_budget_tokens(3) == 2048
-
-    def test_boundary_4_is_2048(self) -> None:
-        assert complexity_to_budget_tokens(4) == 2048
-
-    def test_boundary_5_is_4096(self) -> None:
-        assert complexity_to_budget_tokens(5) == 4096
-
-    def test_agenda_complexity_is_1(self) -> None:
-        """agenda 슬라이드는 복잡도 1 → budget_tokens 1024."""
-        slide = SlideOutline(
-            title="Agenda",
-            content_summary="발표 순서",
-            component_hint="agenda",
-        )
-        complexity = estimate_slide_complexity(slide)
-        assert complexity == 1
-        assert complexity_to_budget_tokens(complexity) == 1024

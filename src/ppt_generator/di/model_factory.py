@@ -120,16 +120,10 @@ def create_bedrock_outline_model(
     max_tokens: int,
     json_schema: dict | None = None,
     json_schema_name: str | None = None,
-    budget_tokens: int = 0,
 ) -> BedrockModel:
     additional_args: dict[str, Any] = {}
     if json_schema and json_schema_name:
         additional_args = build_json_schema_args(json_schema, json_schema_name)
-    additional_request_fields: dict[str, Any] = {}
-    if budget_tokens > 0:
-        additional_request_fields = {
-            "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
-        }
     return BedrockModel(
         model_id=BEDROCK_OUTLINE_MODEL_ID,
         region_name=BEDROCK_REGION,
@@ -138,11 +132,9 @@ def create_bedrock_outline_model(
         max_tokens=max_tokens,
         cache_config=CacheConfig(strategy="auto"),
         additional_args=additional_args,
-        **(
-            {"additional_request_fields": additional_request_fields}
-            if additional_request_fields
-            else {}
-        ),
+        additional_request_fields={
+            "thinking": {"type": "adaptive"},
+        },
     )
 
 
@@ -165,15 +157,13 @@ def create_anthropic_outline_model(
     max_tokens: int,
     json_schema: dict | None = None,
     json_schema_name: str | None = None,
-    budget_tokens: int = 0,
 ) -> Any:
     from strands.models.anthropic import AnthropicModel
 
     params: dict[str, Any] = {
         "temperature": 1.0,
+        "thinking": {"type": "adaptive"},
     }
-    if budget_tokens > 0:
-        params["thinking"] = {"type": "enabled", "budget_tokens": budget_tokens}
     if json_schema and json_schema_name:
         params.setdefault("output_config", {})["format"] = {
             "type": "json_schema",

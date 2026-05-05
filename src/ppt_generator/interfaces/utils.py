@@ -85,18 +85,6 @@ def _layout_plan_has_many_elements(layout_plan: str) -> bool:
     return False
 
 
-def complexity_to_budget_tokens(complexity: int) -> int:
-    """Converts a complexity score (1-5) to a thinking budget_tokens value.
-
-    5 → 4096 (high), 3-4 → 2048 (medium), 1-2 → 1024 (low).
-    """
-    if complexity >= 5:
-        return 4096
-    if complexity >= 3:
-        return 2048
-    return 1024
-
-
 def complexity_to_thinking_effort(complexity: int) -> str:
     """Converts a complexity score (1-5) to an adaptive thinking effort level.
 
@@ -124,16 +112,6 @@ def estimate_spec_complexity(spec: "PptxSlideSpec") -> int:
     if total >= 3:
         return 2
     return 1
-
-
-def complexity_to_qa_budget_tokens(complexity: int) -> int:
-    """Visual QA fix용 budget_tokens. 생성 budget의 절반, low/medium 2단계.
-
-    3+ → 2048 (medium), 1-2 → 1024 (low).
-    """
-    if complexity >= 3:
-        return 2048
-    return 1024
 
 
 # Claude model pricing (USD / 1M tokens)

@@ -7,7 +7,7 @@
 - LLM 인증 (아래 중 하나 선택):
   - **Anthropic API** (권장): `ANTHROPIC_API_KEY` 환경변수 설정
   - **AWS Bedrock (기본)**: 별도 설정 없이 기본 AWS credential chain 사용 (`~/.aws/credentials`, 환경변수, IAM role 등)
-    - Amazon Bedrock 모델 접근 권한 필요 (Claude Opus 4-7 / Sonnet 4.6)
+    - Amazon Bedrock 모델 접근 권한 필요 (Claude Sonnet 4.6 / Haiku 4.5)
     - 리전: `us-east-1` (기본값)
   - **AWS Bedrock (API key)**: `AWS_BEARER_TOKEN_BEDROCK` 환경변수로 bearer token 설정 시 SigV4 대신 bearer token 인증 사용
     - 리전: `us-east-1` (기본값)
@@ -22,8 +22,8 @@
 | `AWS_SECRET_ACCESS_KEY`    | AWS Secret Key          | Bedrock IAM 인증                                                                                         |
 | `AWS_REGION`               | AWS 리전                | Bedrock 리전 (기본: us-east-1)                                                                           |
 | `AWS_BEARER_TOKEN_BEDROCK` | Bearer Token 문자열     | Bedrock API key (bearer token) 인증. 설정 시 bearer token 우선, 미설정 시 기본 AWS credential chain 사용 |
-| `BEDROCK_DESIGN_MODEL_ID`  | 모델 ID 문자열          | 디자인 스펙 생성 Bedrock 모델 (기본: `global.anthropic.claude-opus-4-7`)                                  |
-| `ANTHROPIC_DESIGN_MODEL_ID`| 모델 ID 문자열          | 디자인 스펙 생성 Anthropic 모델 (기본: `claude-opus-4-7`)                                                |
+| `BEDROCK_DESIGN_MODEL_ID`  | 모델 ID 문자열          | 디자인 스펙 생성 Bedrock 모델 (기본: `global.anthropic.claude-sonnet-4-6`)                                |
+| `ANTHROPIC_DESIGN_MODEL_ID`| 모델 ID 문자열          | 디자인 스펙 생성 Anthropic 모델 (기본: `claude-sonnet-4-6`)                                              |
 | `BEDROCK_DESIGN_MAX_TOKENS`| 정수 (기본: 64000)      | 디자인 스펙 생성 max tokens                                                                              |
 | `BEDROCK_OUTLINE_MODEL_ID` | 모델 ID 문자열          | 아웃라인/스크립트 Bedrock 모델 (기본: `global.anthropic.claude-sonnet-4-6`)                               |
 | `ANTHROPIC_OUTLINE_MODEL_ID`| 모델 ID 문자열         | 아웃라인/스크립트 Anthropic 모델 (기본: `claude-sonnet-4-6`)                                             |
@@ -39,10 +39,10 @@
 
 | 용도              | Bedrock 모델 ID                          | Anthropic 모델 ID   | Max Tokens | Thinking Effort                          |
 | ----------------- | ---------------------------------------- | -------------------- | ---------- | ---------------------------------------- |
-| 디자인 스펙 생성  | `global.anthropic.claude-opus-4-7`       | `claude-opus-4-7`   | 16,384     | adaptive (슬라이드 복잡도 기반 medium/low)       |
-| 아웃라인          | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 32,000     | medium                                           |
-| Visual QA 분석   | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 64,000     | adaptive (medium)                                |
-| Visual QA 수정   | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 64,000     | adaptive (high)                                  |
+| 디자인 스펙 생성  | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 16,384     | adaptive                                         |
+| 아웃라인          | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 32,000     | adaptive                                         |
+| Visual QA 분석   | `global.anthropic.claude-haiku-4-5`      | `claude-haiku-4-5`  | 8,192      | (thinking 미사용)                                |
+| Visual QA 수정   | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 4,096      | adaptive                                         |
 
 ## MCP Client Configuration
 
