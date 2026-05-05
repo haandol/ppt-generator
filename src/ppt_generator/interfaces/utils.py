@@ -85,16 +85,6 @@ def _layout_plan_has_many_elements(layout_plan: str) -> bool:
     return False
 
 
-def complexity_to_thinking_effort(complexity: int) -> str:
-    """Converts a complexity score (1-5) to an adaptive thinking effort level.
-
-    3-5 → "medium", 1-2 → "low".
-    """
-    if complexity >= 3:
-        return "medium"
-    return "low"
-
-
 def estimate_spec_complexity(spec: "PptxSlideSpec") -> int:
     """PptxSlideSpec의 요소 수로 complexity를 추정한다 (1-5 scale).
 

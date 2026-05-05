@@ -102,7 +102,7 @@ def build_anthropic_client_args() -> dict[str, Any]:
 # ---- Bedrock model creators ----
 
 
-def create_bedrock_design_model(thinking_effort: str = "medium") -> BedrockModel:
+def create_bedrock_design_model() -> BedrockModel:
     return BedrockModel(
         model_id=BEDROCK_DESIGN_MODEL_ID,
         region_name=BEDROCK_REGION,
@@ -141,14 +141,14 @@ def create_bedrock_outline_model(
 # ---- Anthropic model creators ----
 
 
-def create_anthropic_design_model(thinking_effort: str = "medium") -> Any:
+def create_anthropic_design_model() -> Any:
     return CachingAnthropicModel(
         client_args=build_anthropic_client_args(),
         model_id=ANTHROPIC_DESIGN_MODEL_ID,
         max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
         params={
             "temperature": 1.0,
-            "thinking": {"type": "adaptive", "effort": thinking_effort},
+            "thinking": {"type": "adaptive"},
         },
     )
 

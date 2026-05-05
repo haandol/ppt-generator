@@ -98,9 +98,7 @@ class DIContainer:
         )()
         return self._create_agent(model=model, prompt_text=VISUAL_QA_FIX_SYSTEM_PROMPT)
 
-    def _create_design_agent(
-        self, slide_type: str = "content", thinking_effort: str = "medium"
-    ) -> Agent:
+    def _create_design_agent(self, slide_type: str = "content") -> Agent:
         prompt_text = DESIGN_SPEC_SYSTEM_PROMPTS.get(
             slide_type, DESIGN_SPEC_SYSTEM_PROMPTS["content"]
         )
@@ -108,7 +106,7 @@ class DIContainer:
             create_anthropic_design_model
             if self._provider == "anthropic"
             else create_bedrock_design_model
-        )(thinking_effort=thinking_effort)
+        )()
         return self._create_agent(model=model, prompt_text=prompt_text)
 
     # ---- Service properties (lazy init) ----
@@ -145,15 +143,9 @@ class DIContainer:
 
         return DesignReviewService(agent=self._create_review_agent())
 
-    def create_design_service(
-        self, slide_type: str = "content", thinking_effort: str = "medium"
-    ) -> DesignService:
+    def create_design_service(self, slide_type: str = "content") -> DesignService:
         """새 Agent를 포함한 DesignService 인스턴스를 생성한다."""
-        return DesignService(
-            agent=self._create_design_agent(
-                slide_type=slide_type, thinking_effort=thinking_effort
-            )
-        )
+        return DesignService(agent=self._create_design_agent(slide_type=slide_type))
 
     def create_visual_qa_service(self) -> "VisualQAService":
         """VisualQAService 인스턴스를 생성한다 (Playwright 필요)."""

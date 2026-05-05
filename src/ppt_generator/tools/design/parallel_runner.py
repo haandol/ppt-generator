@@ -16,10 +16,7 @@ from strands.types.exceptions import ModelThrottledException
 
 from ppt_generator.interfaces.constants import DESIGN_SPEC_PARALLEL, DESIGN_SPEC_TIMEOUT
 from ppt_generator.interfaces.schemas import OutlineResponse
-from ppt_generator.interfaces.utils import (
-    complexity_to_thinking_effort,
-    estimate_slide_complexity,
-)
+from ppt_generator.interfaces.utils import estimate_slide_complexity
 from ppt_generator.tools.design.service import DesignService
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
@@ -77,14 +74,23 @@ def run_parallel_generation(
         return ParallelResult()
 
     # 캐시 워밍업: slide_type별로 1개씩 먼저 생성하여 prompt cache를 준비한다.
+    # 같은 slide_type 끼리 같은 system prompt 를 쓰므로, 각 slide_type 의
+    # 첫 슬라이드만 순차 실행해 캐시에 올린 뒤 나머지를 병렬 실행한다.
     warmup_indices: list[int] = []
-    content_indices = [
-        i
-        for i in parallel_indices
-        if (outline.slides[i].slide_type or "content") == "content"
-    ]
-    if len(content_indices) >= 2:
-        warmup_indices.append(content_indices[0])
+    seen_types: set[str] = set()
+    for i in parallel_indices:
+        st = outline.slides[i].slide_type or "content"
+        if st in seen_types:
+            continue
+        # 같은 slide_type 의 슬라이드가 2개 이상일 때만 워밍업 의미 있음
+        same_type_count = sum(
+            1
+            for j in parallel_indices
+            if (outline.slides[j].slide_type or "content") == st
+        )
+        if same_type_count >= 2:
+            warmup_indices.append(i)
+        seen_types.add(st)
 
     result = ParallelResult()
     results_map: dict[int, dict] = {}
@@ -110,19 +116,17 @@ def run_parallel_generation(
         slide_outline = outline.slides[idx]
         slide_type = slide_outline.slide_type or "content"
         complexity = estimate_slide_complexity(slide_outline)
-        thinking_effort = complexity_to_thinking_effort(complexity)
         logger.info(
-            "slide[%d] 생성 시작 (slide_type=%s, complexity=%d, effort=%s, thread=%s, 동시실행=%d/%d)",
+            "slide[%d] 생성 시작 (slide_type=%s, complexity=%d, thread=%s, 동시실행=%d/%d)",
             idx,
             slide_type,
             complexity,
-            thinking_effort,
             thread_name,
             current,
             max_workers,
         )
         t0 = time.monotonic()
-        svc = design_service_factory(slide_type, thinking_effort=thinking_effort)
+        svc = design_service_factory(slide_type)
         prev_outline = outline.slides[idx - 1] if idx > 0 else None
         next_outline = (
             outline.slides[idx + 1] if idx + 1 < len(outline.slides) else None
@@ -165,9 +169,7 @@ def run_parallel_generation(
                     )
 
                     def _regenerate(feedback: str) -> tuple:
-                        svc_regen = design_service_factory(
-                            slide_type, thinking_effort=thinking_effort
-                        )
+                        svc_regen = design_service_factory(slide_type)
                         new = svc_regen.generate_single_slide(
                             outline.slides[idx],
                             design_summary=design_summary,
