@@ -327,6 +327,129 @@ class TestDecorativeNoRounding:
 
 
 # ---------------------------------------------------------------------------
+# expand-height-collision 규칙
+# ---------------------------------------------------------------------------
+
+
+class TestExpandHeightCollision:
+    """autofit_mode='expand_height' shape 가 텍스트 확장 시 아래 이웃과 겹침 감지."""
+
+    def _long_shape(self, top: int, height: int = 56) -> PptxShape:
+        """단일 줄 height(56)밖에 없는데 2줄짜리 텍스트가 들어간 step 카드."""
+        long_text = (
+            "긴 프롬프트 1개를 전체 복사해 Claude Code 에 붙여넣어 "
+            "이 텍스트는 한 줄을 반드시 넘겨야 테스트가 성립한다."
+        )
+        return PptxShape(
+            left_px=664,
+            top_px=top,
+            width_px=552,
+            height_px=height,
+            shape_type="rounded_rectangle",
+            fill_color="#1E293B",
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text=long_text, font_size_pt=18)])
+            ],
+            autofit_mode="expand_height",
+            padding_left_px=24,
+            padding_right_px=24,
+            padding_top_px=16,
+            padding_bottom_px=16,
+        )
+
+    def _next_card(self, top: int) -> PptxShape:
+        return PptxShape(
+            left_px=664,
+            top_px=top,
+            width_px=552,
+            height_px=56,
+            shape_type="rounded_rectangle",
+            fill_color="#1E293B",
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="다음 카드", font_size_pt=18)])
+            ],
+            autofit_mode="expand_height",
+        )
+
+    def test_expand_height_overlap_with_next_shape_detected(self) -> None:
+        overflowing = self._long_shape(top=184, height=56)
+        neighbor = self._next_card(top=256)  # gap=16, but shape expands > 72
+        result = lint_slide_spec(_slide(shapes=[overflowing, neighbor]))
+        violations = [
+            v for v in result.violations if v.rule == "expand-height-collision"
+        ]
+        assert len(violations) == 1
+        assert violations[0].current_value["neighbor_index"] == 1
+
+    def test_no_overflow_no_violation(self) -> None:
+        """텍스트가 선언 높이 안에 들어오면 확장 없으므로 위반 없음."""
+        short = PptxShape(
+            left_px=664,
+            top_px=184,
+            width_px=552,
+            height_px=96,
+            shape_type="rounded_rectangle",
+            fill_color="#1E293B",
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="짧은 텍스트", font_size_pt=18)])
+            ],
+            autofit_mode="expand_height",
+        )
+        neighbor = self._next_card(top=300)
+        result = lint_slide_spec(_slide(shapes=[short, neighbor]))
+        violations = [
+            v for v in result.violations if v.rule == "expand-height-collision"
+        ]
+        assert len(violations) == 0
+
+    def test_horizontal_neighbor_ignored(self) -> None:
+        """가로로만 겹치고 아래에 있지 않은 이웃은 대상 아님."""
+        overflowing = self._long_shape(top=184, height=56)
+        side_by_side = PptxShape(
+            left_px=64,  # 가로로 떨어진 컬럼
+            top_px=400,
+            width_px=552,
+            height_px=100,
+            shape_type="rounded_rectangle",
+            fill_color="#1E293B",
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="옆 카드", font_size_pt=18)])
+            ],
+            autofit_mode="expand_height",
+        )
+        result = lint_slide_spec(_slide(shapes=[overflowing, side_by_side]))
+        violations = [
+            v for v in result.violations if v.rule == "expand-height-collision"
+        ]
+        assert len(violations) == 0
+
+    def test_shrink_text_mode_skipped(self) -> None:
+        """autofit_mode='shrink_text' 는 높이가 고정되므로 대상 아님."""
+        long_text = (
+            "긴 프롬프트 1개를 전체 복사해 Claude Code 에 붙여넣어 "
+            "이 텍스트는 한 줄을 반드시 넘겨야 테스트가 성립한다."
+        )
+        shrink = PptxShape(
+            left_px=664,
+            top_px=184,
+            width_px=552,
+            height_px=56,
+            shape_type="rounded_rectangle",
+            fill_color="#1E293B",
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text=long_text, font_size_pt=18)])
+            ],
+            autofit_mode="shrink_text",
+        )
+        neighbor = self._next_card(top=256)
+        result = lint_slide_spec(_slide(shapes=[shrink, neighbor]))
+        violations = [
+            v for v in result.violations if v.rule == "expand-height-collision"
+        ]
+        assert len(violations) == 0
+
+
+# ---------------------------------------------------------------------------
 # clean_slide_spec (기계적 정리)
 # ---------------------------------------------------------------------------
 

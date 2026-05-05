@@ -123,6 +123,11 @@ Common rules:
 - autofit_mode controls how text overflow is handled in shapes:
   - "expand_height" (default): Expands height to fit text, then shrinks font if still insufficient.
   - "shrink_text": Keeps height fixed, shrinks font to fit. Use this when shapes must have matching heights (e.g., side-by-side cards or comparison layouts).
+- **Vertical stacking with expand_height (IMPORTANT)**: When stacking shapes vertically (same column, one below the other), the `expand_height` mode renders as CSS `min-height`, so a shape whose text wraps beyond its declared `height_px` will push downward and visually overlap the next shape. To prevent this:
+  1. Estimate the wrapped line count yourself (Korean/English ~18pt text at 500px width fits roughly 40 chars per line) and set `height_px` to cover ALL rendered lines plus vertical padding. A single-line step card with 18pt text needs at least ~56px; two lines need ~92px; three lines need ~128px.
+  2. When two or more shapes share the same left/width column, ensure `next.top_px >= prev.top_px + prev.height_px + 8` using the estimated real height — do not just trust the declared `height_px` of the previous shape if its text might wrap.
+  3. If a card's text is long enough to wrap and you cannot raise its `height_px`, either shorten the text, split it into two cards, or switch that specific shape to `"shrink_text"`.
+  4. The `expand-height-collision` lint rule will flag violations of this guidance.
 - **overflow** — When content from content_summary cannot fit on the slide at the minimum font sizes (constraint 1), do NOT shrink fonts. Instead:
   1. Keep only essential keywords and short phrases on the current slide.
   2. Put the excluded content into the **overflow** array with a suggested title, content_summary, component_hint, and insert_after (current slide's 1-based index).
