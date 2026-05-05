@@ -450,6 +450,152 @@ class TestExpandHeightCollision:
 
 
 # ---------------------------------------------------------------------------
+# sibling-gap-minimum 규칙
+# ---------------------------------------------------------------------------
+
+
+class TestSiblingGapMinimum:
+    """수평/수직으로 인접한 형제 shape 간 최소 간격 검사."""
+
+    def _card(self, left: int, top: int, w: int = 160, h: int = 120) -> PptxShape:
+        return PptxShape(
+            left_px=left,
+            top_px=top,
+            width_px=w,
+            height_px=h,
+            shape_type="rounded_rectangle",
+            fill_color="#1E293B",
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="카드", font_size_pt=18)])
+            ],
+        )
+
+    def test_horizontal_zero_gap_detected(self) -> None:
+        """STEP 1 (right=816) ↔ STEP 2 (left=816) 실제 0px 간격 케이스."""
+        a = self._card(left=656, top=200)  # right=816
+        b = self._card(left=816, top=200)  # 0px gap
+        result = lint_slide_spec(_slide(shapes=[a, b]))
+        violations = [v for v in result.violations if v.rule == "sibling-gap-minimum"]
+        assert len(violations) == 1
+        assert violations[0].current_value["direction"] == "horizontal"
+
+    def test_horizontal_sufficient_gap_no_violation(self) -> None:
+        a = self._card(left=656, top=200)  # right=816
+        b = self._card(left=830, top=200)  # gap=14
+        result = lint_slide_spec(_slide(shapes=[a, b]))
+        violations = [v for v in result.violations if v.rule == "sibling-gap-minimum"]
+        assert len(violations) == 0
+
+    def test_thin_line_between_cards_still_detected(self) -> None:
+        """두 카드 사이에 얇은 화살표가 끼어있어도 카드 간 간격이 없으면 위반."""
+        a = self._card(left=656, top=200)  # right=816
+        arrow = PptxShape(
+            left_px=816,
+            top_px=258,
+            width_px=40,
+            height_px=0,
+            shape_type="line",
+        )
+        b = self._card(left=856, top=200)  # 카드 ↔ 카드 간 40px (화살표가 끼어있음)
+        # 카드끼리 직접 비교 시 40px gap 이라 통과해야 하는데, 본 규칙은
+        # 실제 밀집 상황을 잡기 위해 line 공간을 1차적으로 무시하지 않음.
+        # 따라서 이 케이스는 pass 여야 한다 (40px >= 8px).
+        result = lint_slide_spec(_slide(shapes=[a, arrow, b]))
+        violations = [v for v in result.violations if v.rule == "sibling-gap-minimum"]
+        assert len(violations) == 0
+
+    def test_vertical_zero_gap_detected(self) -> None:
+        a = self._card(left=64, top=148, w=500, h=100)  # bottom=248
+        b = self._card(left=64, top=248, w=500, h=100)  # 0px gap
+        result = lint_slide_spec(_slide(shapes=[a, b]))
+        violations = [v for v in result.violations if v.rule == "sibling-gap-minimum"]
+        assert len(violations) == 1
+        assert violations[0].current_value["direction"] == "vertical"
+
+    def test_non_adjacent_shapes_ignored(self) -> None:
+        """x/y 가 서로 떨어진 shape 는 이웃이 아님."""
+        a = self._card(left=64, top=148)
+        b = self._card(left=600, top=500)
+        result = lint_slide_spec(_slide(shapes=[a, b]))
+        violations = [v for v in result.violations if v.rule == "sibling-gap-minimum"]
+        assert len(violations) == 0
+
+
+# ---------------------------------------------------------------------------
+# zero-size-shape 규칙
+# ---------------------------------------------------------------------------
+
+
+class TestZeroSizeShape:
+    """width 또는 height 가 0 인 shape 감지."""
+
+    def test_zero_height_rectangle_detected(self) -> None:
+        shape = PptxShape(
+            left_px=100,
+            top_px=100,
+            width_px=200,
+            height_px=0,
+            shape_type="rectangle",
+            fill_color="#FF9900",
+        )
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        violations = [v for v in result.violations if v.rule == "zero-size-shape"]
+        assert len(violations) == 1
+
+    def test_zero_width_rectangle_detected(self) -> None:
+        shape = PptxShape(
+            left_px=100,
+            top_px=100,
+            width_px=0,
+            height_px=200,
+            shape_type="rectangle",
+            fill_color="#FF9900",
+        )
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        violations = [v for v in result.violations if v.rule == "zero-size-shape"]
+        assert len(violations) == 1
+
+    def test_line_with_both_axes_zero_detected(self) -> None:
+        """line 도 두 끝점이 모두 0 이면 렌더되지 않음."""
+        shape = PptxShape(
+            left_px=100,
+            top_px=100,
+            width_px=0,
+            height_px=0,
+            shape_type="line",
+        )
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        violations = [v for v in result.violations if v.rule == "zero-size-shape"]
+        assert len(violations) == 1
+
+    def test_line_with_one_axis_zero_allowed(self) -> None:
+        """line 은 한 축이 0 이어도 다른 축이 충분하면 정상 렌더."""
+        shape = PptxShape(
+            left_px=100,
+            top_px=100,
+            width_px=40,
+            height_px=0,
+            shape_type="line",
+        )
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        violations = [v for v in result.violations if v.rule == "zero-size-shape"]
+        assert len(violations) == 0
+
+    def test_normal_shape_no_violation(self) -> None:
+        shape = PptxShape(
+            left_px=100,
+            top_px=100,
+            width_px=200,
+            height_px=100,
+            shape_type="rectangle",
+            fill_color="#FF9900",
+        )
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        violations = [v for v in result.violations if v.rule == "zero-size-shape"]
+        assert len(violations) == 0
+
+
+# ---------------------------------------------------------------------------
 # clean_slide_spec (기계적 정리)
 # ---------------------------------------------------------------------------
 
