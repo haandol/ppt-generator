@@ -14,6 +14,8 @@ from strands import Agent
 
 from ppt_generator.interfaces.llm_output_models import DesignReviewOutput
 from ppt_generator.interfaces.schemas import PptxSlideSpec
+from ppt_generator.interfaces.spec_utils import lint_slide_spec
+from ppt_generator.interfaces.spec_utils.lint_types import SlideLintResult
 from ppt_generator.interfaces.spec_utils.serializer import slide_spec_to_json
 from ppt_generator.interfaces.utils import log_token_usage
 
@@ -27,20 +29,33 @@ class DesignReviewService:
         self._agent = agent
         self._last_token_usage: dict[str, int] = {}
 
-    def review(self, spec: PptxSlideSpec, slide_index: int) -> DesignReviewOutput:
+    def review(
+        self,
+        spec: PptxSlideSpec,
+        slide_index: int,
+        lint_result: SlideLintResult | None = None,
+    ) -> DesignReviewOutput:
         """슬라이드 스펙을 리뷰하고 구조화된 결과를 반환한다.
 
         Args:
             spec: 리뷰할 디자인 스펙
             slide_index: 1-based 슬라이드 인덱스 (로깅용)
+            lint_result: 코드 린트 결과. 전달되면 LLM 이 이미 기계적으로
+                잡힌 위반은 중복 보고하지 않고 시각/의미 레벨 이슈만 찾도록
+                프롬프트에 포함된다. None 이면 자동 실행하여 동일 효과.
 
         Returns:
             DesignReviewOutput (has_high_severity, issues)
         """
+        if lint_result is None:
+            lint_result = lint_slide_spec(spec)
+
         spec_json = slide_spec_to_json(spec)
+        lint_block = _format_lint_block(lint_result)
         prompt = (
             f"Review the following slide {slide_index} design spec JSON "
             f"against the review checklist.\n\n"
+            f"{lint_block}"
             f"<design_spec>\n{spec_json}\n</design_spec>"
         )
         result = self._agent(prompt, structured_output_model=DesignReviewOutput)
@@ -67,6 +82,41 @@ class DesignReviewService:
             )
         lines.append("</design_review_feedback>")
         return "\n".join(lines)
+
+
+def _format_lint_block(lint_result: SlideLintResult) -> str:
+    """린트 위반을 LLM 이 참고할 수 있는 텍스트 블록으로 변환한다.
+
+    전달된 위반 목록은 이미 기계적으로 감지된 것이므로, LLM 에게는
+    "이것들은 이미 알고 있다 — 시각/의미 레벨 이슈만 추가로 찾아라"
+    라고 지시해 중복 보고를 피한다.
+    """
+    if not lint_result.violations:
+        return (
+            "<code_lint_results>\n"
+            "No mechanical violations were found by the code-level lint.\n"
+            "Focus on visual/semantic issues the lint cannot detect "
+            "(balance, hierarchy, readability, color contrast, label clarity, etc.).\n"
+            "</code_lint_results>\n\n"
+        )
+
+    lines = [
+        "<code_lint_results>",
+        "The following rule violations have already been detected by the code-level "
+        "lint BEFORE this LLM review. Do NOT repeat them in your output — they are "
+        "reported separately. Focus your review on visual/semantic issues that the "
+        "lint cannot detect (balance, hierarchy, readability, color contrast, label "
+        "clarity, layout intent, etc.).",
+        "",
+    ]
+    for v in lint_result.violations:
+        lines.append(
+            f"- [{v.severity.upper()}] {v.rule} "
+            f"({v.element_type}[{v.element_index}]): {v.message}"
+        )
+    lines.append("</code_lint_results>")
+    lines.append("")
+    return "\n".join(lines)
 
 
 def merge_token_usage(*usages: dict[str, int]) -> dict[str, int]:
@@ -97,6 +147,7 @@ def apply_review_and_fix(
     gen_usage: dict[str, int],
     review_service_factory: Callable[[], DesignReviewService],
     regenerate: Callable[[str], tuple[PptxSlideSpec, dict[str, int]]],
+    lint_result: SlideLintResult | None = None,
 ) -> ReviewResult:
     """리뷰를 실행하고 결과를 리포트한다.
 
@@ -111,12 +162,16 @@ def apply_review_and_fix(
         review_service_factory: DesignReviewService 팩토리
         regenerate: feedback 문자열을 받아 (new_spec, regen_usage)를 반환하는 콜백
             (현재는 사용되지 않으며, 호환성을 위해 유지)
+        lint_result: 코드 린트 결과. 전달되면 LLM 리뷰 프롬프트에 포함되어
+            중복 보고를 피한다. None 이면 review 서비스가 자체 실행.
 
     Returns:
         ReviewResult (spec, token_usage, regenerated=False, review_issues)
     """
     review_svc = review_service_factory()
-    review_output = review_svc.review(spec, slide_index=slide_index)
+    review_output = review_svc.review(
+        spec, slide_index=slide_index, lint_result=lint_result
+    )
     review_usage = review_svc.last_token_usage
 
     if review_output.has_high_severity:

@@ -8,6 +8,7 @@ from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from ppt_generator.interfaces.constants import BEDROCK_DESIGN_MODEL_ID
+from ppt_generator.interfaces.spec_utils import lint_slide_spec
 from ppt_generator.interfaces.utils import (
     estimate_cost,
     format_token_usage,
@@ -59,9 +60,14 @@ def handle_review(
         idx = slide_index - 1
         spec = project_service.load_design_spec_slide(project_dir, idx)
 
+        # 기계적 린트를 먼저 돌려 LLM 리뷰에 힌트로 전달
+        lint_result = lint_slide_spec(spec)
+
         # Review
         review_svc = deps.review_service_factory()
-        review_result = review_svc.review(spec, slide_index=slide_index)
+        review_result = review_svc.review(
+            spec, slide_index=slide_index, lint_result=lint_result
+        )
         review_usage = review_svc.last_token_usage
         slide_usage = review_usage
 

@@ -144,9 +144,15 @@ def run_parallel_generation(
             review_issues: list[dict] = []
             if review_service_factory is not None:
                 try:
+                    from ppt_generator.interfaces.spec_utils import lint_slide_spec
                     from ppt_generator.tools.design.review_service import (
                         apply_review_and_fix,
                     )
+
+                    # 기계적 린트를 먼저 돌려 LLM 리뷰에 힌트로 전달.
+                    # LLM 은 이미 잡힌 위반을 중복 보고하지 않고 시각/의미
+                    # 레벨 이슈만 찾는 데 집중하게 된다.
+                    lint_result = lint_slide_spec(spec)
 
                     def _regenerate(feedback: str) -> tuple:
                         svc_regen = design_service_factory(slide_type)
@@ -178,6 +184,7 @@ def run_parallel_generation(
                         gen_usage=gen_usage,
                         review_service_factory=review_service_factory,
                         regenerate=_regenerate,
+                        lint_result=lint_result,
                     )
                     spec = rr.spec
                     combined_usage = rr.token_usage

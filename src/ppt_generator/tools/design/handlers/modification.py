@@ -198,7 +198,10 @@ def _generate_and_review(
 
     if deps.review_service_factory is not None:
         try:
+            from ppt_generator.interfaces.spec_utils import lint_slide_spec
             from ppt_generator.tools.design.review_service import apply_review_and_fix
+
+            lint_result = lint_slide_spec(spec)
 
             def _regenerate(feedback: str) -> tuple:
                 svc_regen = deps.design_service_factory(slide_type)
@@ -218,6 +221,7 @@ def _generate_and_review(
                 gen_usage=token_usage,
                 review_service_factory=deps.review_service_factory,
                 regenerate=_regenerate,
+                lint_result=lint_result,
             )
             return rr.spec, rr.token_usage
         except Exception as exc:
