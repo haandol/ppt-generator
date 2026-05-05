@@ -30,7 +30,7 @@ adr/
 - [0014: 파일 기반 통신, 슬라이드 단위 CRUD 및 파일 분리](./pipeline/0014-file-based-communication-and-per-slide-crud.md)
 - [0016: 슬라이드별 HTML 파일 분리 및 iframe 컨테이너](./pipeline/0016-per-slide-html-iframe.md)
 - [0017: 폰트 메트릭 기반 텍스트 오버플로우 방지](./pipeline/0017-font-metric-text-overflow-prevention.md)
-- [0018: 디자인 스펙 병렬 생성, 프롬프트 캐싱 및 Adaptive Effort](./pipeline/0018-parallel-design-spec-and-prompt-caching.md)
+- [0018: 디자인 스펙 병렬 생성, 프롬프트 캐싱 및 Adaptive Effort](./pipeline/0018-parallel-design-spec-and-prompt-caching.md) — _Partially superseded by 0039_
 - [0020: 토큰 사용량 추적 및 비용 추정](./pipeline/0020-token-usage-tracking-and-cost-estimation.md)
 - [0021: 슬라이드 타입별 시스템 프롬프트 분리](./pipeline/0021-slide-type-specific-system-prompts.md)
 - [0022: 타이틀 슬라이드 긴 제목 텍스트 잘림 수정](./pipeline/0022-title-slide-long-title-overflow-fix.md)
@@ -45,6 +45,7 @@ adr/
 - [0034: 슬라이드 추가 시 기존 디자인 스펙 참조를 통한 일관성 향상](./pipeline/0034-add-slide-design-consistency.md)
 - [0035: Visual QA 브라우저 도구 안내 개선](./pipeline/0035-visual-qa-browser-tool-fallback.md)
 - [0036: 기본 테마 색상 변경 및 다이어그램 활용 강화](./pipeline/0036-theme-color-change-and-diagram-preference.md)
+- [0039: Prompt 캐시 제거 및 워밍업 없이 전체 병렬 실행](./pipeline/0039-remove-prompt-cache-and-warmup-full-parallel.md)
 - [0041: Validator를 Lint로 전환](./pipeline/0041-validator-to-lint.md)
 
 ## ADR 작성 가이드

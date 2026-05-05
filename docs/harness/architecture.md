@@ -103,25 +103,26 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 - **파일 기반 통신**: 모든 도구는 결과를 파일로 저장하고 파일 경로를 반환합니다. `project_id`만으로 도구를 체이닝할 수 있어 인라인 JSON 전달이 불필요하며, MCP 클라이언트의 컨텍스트 윈도우 토큰 사용을 최적화합니다.
 - **슬라이드 단위 세분화**: `modify_design_spec` 도구로 중간 산출물(디자인 스펙)의 개별 슬라이드를 추가/수정/삭제할 수 있어, 전체 재생성 없이 반복적 개선이 가능합니다. 디자인 스펙은 `design_spec/slide_NN.json`, HTML은 `slides/slide_NN.html` 형식으로 슬라이드별 개별 파일에 저장됩니다.
 
-## Concurrency & Prompt Caching
+## Concurrency
 
-디자인 스펙 생성은 슬라이드별 독립 LLM 호출이므로 병렬 처리와 프롬프트 캐싱을 적용합니다. ([ADR-0018](adr/pipeline/0018-parallel-design-spec-and-prompt-caching.md))
+디자인 스펙 생성은 슬라이드별 독립 LLM 호출이므로 병렬 처리를 적용합니다. ([ADR-0018](adr/pipeline/0018-parallel-design-spec-and-prompt-caching.md), [ADR-0039](adr/pipeline/0039-remove-prompt-cache-and-warmup-full-parallel.md))
 
 **병렬 생성** (`tools/design/parallel_runner.py`):
 - `generate_slides_design_spec`에서 `run_parallel_generation()`을 호출하여 `ThreadPoolExecutor`로 슬라이드를 병렬 생성
 - `DESIGN_SPEC_PARALLEL` 환경변수(기본 8)로 최대 동시 워커 수 제어
-- 워커마다 `design_service_factory(effort)`로 독립 Agent 인스턴스 생성 (strands Agent는 stateful이므로 공유 불가)
+- 워커마다 `design_service_factory(slide_type)`로 독립 Agent 인스턴스 생성 (strands Agent는 stateful이므로 공유 불가)
 - `ProjectService._metadata_lock`으로 `project.json` 동시 쓰기 보호
+- 첫 요청부터 전체 슬라이드를 병렬 실행 (워밍업 순차 실행 단계 없음)
 - 토큰 사용량을 워커별로 수집하여 합산 (`ParallelResult` 반환)
 
-**복잡도 기반 스케줄링 & Adaptive Thinking Effort:** ([ADR-0019](adr/pipeline/0019-complexity-based-scheduling-and-adaptive-effort.md))
-- `component_hint` + `content_summary` 길이로 결정론적 복잡도 점수(1~13)를 산출 (`estimate_slide_complexity()`)
-- **Longest-job-first 스케줄링**: 복잡한 슬라이드부터 먼저 thread pool에 제출 → 워커 idle time 감소, wall-clock time 단축
-- **Adaptive thinking effort**: 복잡도에 따라 `high`(7~13), `medium`(4~6), `low`(1~3) effort를 동적 적용 → 단순 슬라이드 토큰 절약, 복잡한 슬라이드 품질 유지. `generate_slides_design_spec`과 `modify_design_spec` 모두에 적용
+**Adaptive Thinking (공통):**
+- 모든 디자인/아웃라인 모델은 `{"thinking": {"type": "adaptive"}}` 로 통일 — 복잡도 기반 `thinking_effort` 분기 없음
+- 로깅용 `estimate_slide_complexity()` 는 유지 (스케줄링에는 사용하지 않음)
 
-**프롬프트 캐싱:**
-- Bedrock: `BedrockModel(cache_config=CacheConfig(strategy="auto"))` — 시스템 프롬프트에 자동 cache point 주입
-- Anthropic: `CachingAnthropicModel` — `format_request()` 오버라이드로 `cache_control: {"type": "ephemeral"}` 적용
+**Prompt Caching — 현재 미사용:**
+- Sonnet 4.6 + adaptive thinking 조합에서 `cacheWriteInputTokens` 만 발생하고 `cacheReadInputTokens=0` 이 재현되어 제거됨
+- `CacheConfig(strategy="auto")`, Anthropic 쪽 `cache_control: ephemeral` 래퍼 모두 미적용
+- 상세 근거 및 재도입 조건은 [ADR-0039](adr/pipeline/0039-remove-prompt-cache-and-warmup-full-parallel.md) 참조
 
 ## Token Usage Tracking & Cost Estimation
 

@@ -4,7 +4,9 @@ Date: 2026-02-21
 
 ## Status
 
-Accepted
+Partially superseded by [ADR-0039](./0039-remove-prompt-cache-and-warmup-full-parallel.md).
+
+프롬프트 캐싱(섹션 6), 캐시 워밍업(섹션 7), 복잡도 기반 Adaptive Thinking Effort(섹션 5) 는 실측에서 `cacheRead=0` 재현으로 인해 제거됨. ThreadPoolExecutor 기반 병렬 생성(섹션 1~3) 과 결정론적 복잡도 추정(섹션 4) 의 로깅 목적은 그대로 유효.
 
 ## Context
 
