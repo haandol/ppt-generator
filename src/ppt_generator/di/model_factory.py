@@ -7,13 +7,11 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 from botocore.config import Config as BotocoreConfig
-from strands.models.bedrock import BedrockModel, CacheConfig
-from strands.types.content import Messages
-from strands.types.tools import ToolChoice, ToolSpec
+from strands.models.bedrock import BedrockModel
 
 from ppt_generator.interfaces.constants import (
     ANTHROPIC_DESIGN_MODEL_ID,
@@ -27,43 +25,7 @@ from ppt_generator.interfaces.constants import (
     BEDROCK_VISUAL_QA_ANALYSIS_MAX_TOKENS,
     BEDROCK_VISUAL_QA_ANALYSIS_MODEL_ID,
     BEDROCK_VISUAL_QA_FIX_MAX_TOKENS,
-    VISUAL_QA_ANALYSIS_SYSTEM_PROMPT,
-    VISUAL_QA_FIX_SYSTEM_PROMPT,
 )
-
-
-class CachingAnthropicModel:
-    """AnthropicModel 서브클래스: system_prompt에 cache_control을 적용.
-
-    Anthropic API는 system 필드를 content block 리스트로 받을 때
-    cache_control: {"type": "ephemeral"}을 지정하면 prompt caching이 활성화된다.
-    """
-
-    def __new__(cls, **kwargs: Any) -> Any:
-        from strands.models.anthropic import AnthropicModel
-
-        class _CachingAnthropicModel(AnthropicModel):
-            def format_request(
-                self,
-                messages: Messages,
-                tool_specs: Optional[list[ToolSpec]] = None,
-                system_prompt: Optional[str] = None,
-                tool_choice: ToolChoice | None = None,
-            ) -> dict[str, Any]:
-                request = super().format_request(
-                    messages, tool_specs, system_prompt, tool_choice
-                )
-                if system_prompt and "system" in request:
-                    request["system"] = [
-                        {
-                            "type": "text",
-                            "text": system_prompt,
-                            "cache_control": {"type": "ephemeral"},
-                        },
-                    ]
-                return request
-
-        return _CachingAnthropicModel(**kwargs)
 
 
 # ---- Static helpers ----
@@ -109,7 +71,6 @@ def create_bedrock_design_model() -> BedrockModel:
         boto_client_config=build_client_config(),
         temperature=1.0,
         max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
-        cache_config=CacheConfig(strategy="auto"),
         additional_request_fields={
             "thinking": {"type": "adaptive"},
         },
@@ -130,7 +91,6 @@ def create_bedrock_outline_model(
         boto_client_config=build_client_config(),
         temperature=1.0,
         max_tokens=max_tokens,
-        cache_config=CacheConfig(strategy="auto"),
         additional_args=additional_args,
         additional_request_fields={
             "thinking": {"type": "adaptive"},
@@ -142,7 +102,9 @@ def create_bedrock_outline_model(
 
 
 def create_anthropic_design_model() -> Any:
-    return CachingAnthropicModel(
+    from strands.models.anthropic import AnthropicModel
+
+    return AnthropicModel(
         client_args=build_anthropic_client_args(),
         model_id=ANTHROPIC_DESIGN_MODEL_ID,
         max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
@@ -188,12 +150,13 @@ def create_bedrock_review_model() -> BedrockModel:
         boto_client_config=build_client_config(),
         temperature=1.0,
         max_tokens=BEDROCK_REVIEW_MAX_TOKENS,
-        cache_config=CacheConfig(strategy="auto"),
     )
 
 
 def create_anthropic_review_model() -> Any:
-    return CachingAnthropicModel(
+    from strands.models.anthropic import AnthropicModel
+
+    return AnthropicModel(
         client_args=build_anthropic_client_args(),
         model_id=ANTHROPIC_DESIGN_MODEL_ID,
         max_tokens=BEDROCK_REVIEW_MAX_TOKENS,
@@ -211,7 +174,6 @@ def create_bedrock_visual_qa_model() -> BedrockModel:
         boto_client_config=build_client_config(),
         temperature=1.0,
         max_tokens=BEDROCK_VISUAL_QA_FIX_MAX_TOKENS,
-        cache_config=CacheConfig(strategy="auto"),
         additional_request_fields={
             "thinking": {"type": "adaptive"},
         },
@@ -219,7 +181,9 @@ def create_bedrock_visual_qa_model() -> BedrockModel:
 
 
 def create_anthropic_visual_qa_model() -> Any:
-    return CachingAnthropicModel(
+    from strands.models.anthropic import AnthropicModel
+
+    return AnthropicModel(
         client_args=build_anthropic_client_args(),
         model_id=ANTHROPIC_DESIGN_MODEL_ID,
         max_tokens=BEDROCK_VISUAL_QA_FIX_MAX_TOKENS,
@@ -241,13 +205,14 @@ def create_bedrock_visual_qa_analysis_model() -> BedrockModel:
         boto_client_config=build_client_config(),
         temperature=1.0,
         max_tokens=BEDROCK_VISUAL_QA_ANALYSIS_MAX_TOKENS,
-        cache_config=CacheConfig(strategy="auto"),
     )
 
 
 def create_anthropic_visual_qa_analysis_model() -> Any:
     """Haiku 기반 Visual QA 분석 모델 (이슈 감지 전용)."""
-    return CachingAnthropicModel(
+    from strands.models.anthropic import AnthropicModel
+
+    return AnthropicModel(
         client_args=build_anthropic_client_args(),
         model_id=ANTHROPIC_VISUAL_QA_ANALYSIS_MODEL_ID,
         max_tokens=BEDROCK_VISUAL_QA_ANALYSIS_MAX_TOKENS,

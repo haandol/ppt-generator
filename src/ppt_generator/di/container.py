@@ -4,7 +4,6 @@ from pathlib import Path
 from strands import Agent
 
 from ppt_generator.di.model_factory import (
-    CachingAnthropicModel,
     create_anthropic_design_model,
     create_anthropic_outline_model,
     create_anthropic_review_model,
@@ -32,8 +31,7 @@ from ppt_generator.tools.pptx_import.service import ImportService
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
 
-# Re-export for backward compatibility
-__all__ = ["CachingAnthropicModel", "DIContainer"]
+__all__ = ["DIContainer"]
 
 
 class DIContainer:
@@ -58,7 +56,7 @@ class DIContainer:
     # ---- Agent creation (provider-aware) ----
 
     def _create_agent(self, *, model, prompt_text: str) -> Agent:
-        """Agent를 생성한다. Bedrock 캐싱은 CacheConfig(strategy="auto")가 처리한다."""
+        """Agent를 생성한다."""
         return Agent(
             model=model,
             system_prompt=prompt_text,

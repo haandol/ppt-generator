@@ -73,35 +73,15 @@ def run_parallel_generation(
     if not parallel_indices:
         return ParallelResult()
 
-    # 캐시 워밍업: slide_type별로 1개씩 먼저 생성하여 prompt cache를 준비한다.
-    # 같은 slide_type 끼리 같은 system prompt 를 쓰므로, 각 slide_type 의
-    # 첫 슬라이드만 순차 실행해 캐시에 올린 뒤 나머지를 병렬 실행한다.
-    warmup_indices: list[int] = []
-    seen_types: set[str] = set()
-    for i in parallel_indices:
-        st = outline.slides[i].slide_type or "content"
-        if st in seen_types:
-            continue
-        # 같은 slide_type 의 슬라이드가 2개 이상일 때만 워밍업 의미 있음
-        same_type_count = sum(
-            1
-            for j in parallel_indices
-            if (outline.slides[j].slide_type or "content") == st
-        )
-        if same_type_count >= 2:
-            warmup_indices.append(i)
-        seen_types.add(st)
-
     result = ParallelResult()
     results_map: dict[int, dict] = {}
     max_workers = min(DESIGN_SPEC_PARALLEL, len(parallel_indices))
 
     logger.info(
-        "병렬 처리 설정: DESIGN_SPEC_PARALLEL=%d, 대상 슬라이드=%d개, max_workers=%d, cache_warmup=slides%s",
+        "병렬 처리 설정: DESIGN_SPEC_PARALLEL=%d, 대상 슬라이드=%d개, max_workers=%d",
         DESIGN_SPEC_PARALLEL,
         len(parallel_indices),
         max_workers,
-        warmup_indices if warmup_indices else "[]",
     )
 
     active_threads: list[int] = [0]
@@ -279,21 +259,9 @@ def run_parallel_generation(
                 f"{'완료' if res['status'] == 'success' else '실패'}",
             )
 
-    warmup_set = set(warmup_indices)
-    if warmup_indices:
-        logger.info(
-            "cache warmup: slides%s 먼저 생성하여 prompt cache 준비",
-            warmup_indices,
-        )
-        for wi in warmup_indices:
-            _collect_result(_generate_slide(wi))
-        remaining_indices = [i for i in parallel_indices if i not in warmup_set]
-    else:
-        remaining_indices = parallel_indices
-
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_idx = {
-            executor.submit(_generate_slide, i): i for i in remaining_indices
+            executor.submit(_generate_slide, i): i for i in parallel_indices
         }
         for future in as_completed(future_to_idx):
             idx = future_to_idx[future]
