@@ -52,7 +52,7 @@ def _register_tools(project_service: ProjectService) -> dict:
     register_design_tools(
         mcp,
         project_service,
-        design_service_factory=lambda slide_type="content", thinking_effort="medium": (
+        design_service_factory=lambda slide_type="content", budget_tokens=8192: (
             design_service
         ),
         slides_service=slides_service,

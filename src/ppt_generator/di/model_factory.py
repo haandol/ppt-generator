@@ -64,7 +64,7 @@ def build_anthropic_client_args() -> dict[str, Any]:
 # ---- Bedrock model creators ----
 
 
-def create_bedrock_design_model() -> BedrockModel:
+def create_bedrock_design_model(budget_tokens: int = 8192) -> BedrockModel:
     return BedrockModel(
         model_id=BEDROCK_DESIGN_MODEL_ID,
         region_name=BEDROCK_REGION,
@@ -72,7 +72,7 @@ def create_bedrock_design_model() -> BedrockModel:
         temperature=1.0,
         max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
         additional_request_fields={
-            "thinking": {"type": "adaptive"},
+            "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
         },
     )
 
@@ -81,6 +81,7 @@ def create_bedrock_outline_model(
     max_tokens: int,
     json_schema: dict | None = None,
     json_schema_name: str | None = None,
+    budget_tokens: int = 8192,
 ) -> BedrockModel:
     additional_args: dict[str, Any] = {}
     if json_schema and json_schema_name:
@@ -93,7 +94,7 @@ def create_bedrock_outline_model(
         max_tokens=max_tokens,
         additional_args=additional_args,
         additional_request_fields={
-            "thinking": {"type": "adaptive"},
+            "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
         },
     )
 
@@ -101,7 +102,7 @@ def create_bedrock_outline_model(
 # ---- Anthropic model creators ----
 
 
-def create_anthropic_design_model() -> Any:
+def create_anthropic_design_model(budget_tokens: int = 8192) -> Any:
     from strands.models.anthropic import AnthropicModel
 
     return AnthropicModel(
@@ -110,7 +111,7 @@ def create_anthropic_design_model() -> Any:
         max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
         params={
             "temperature": 1.0,
-            "thinking": {"type": "adaptive"},
+            "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
         },
     )
 
@@ -119,12 +120,13 @@ def create_anthropic_outline_model(
     max_tokens: int,
     json_schema: dict | None = None,
     json_schema_name: str | None = None,
+    budget_tokens: int = 8192,
 ) -> Any:
     from strands.models.anthropic import AnthropicModel
 
     params: dict[str, Any] = {
         "temperature": 1.0,
-        "thinking": {"type": "adaptive"},
+        "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
     }
     if json_schema and json_schema_name:
         params.setdefault("output_config", {})["format"] = {
@@ -175,7 +177,7 @@ def create_bedrock_visual_qa_model() -> BedrockModel:
         temperature=1.0,
         max_tokens=BEDROCK_VISUAL_QA_FIX_MAX_TOKENS,
         additional_request_fields={
-            "thinking": {"type": "adaptive"},
+            "thinking": {"type": "enabled", "budget_tokens": 2048},
         },
     )
 
@@ -189,7 +191,7 @@ def create_anthropic_visual_qa_model() -> Any:
         max_tokens=BEDROCK_VISUAL_QA_FIX_MAX_TOKENS,
         params={
             "temperature": 1.0,
-            "thinking": {"type": "adaptive"},
+            "thinking": {"type": "enabled", "budget_tokens": 2048},
         },
     )
 

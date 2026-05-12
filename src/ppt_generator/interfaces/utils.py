@@ -85,6 +85,15 @@ def _layout_plan_has_many_elements(layout_plan: str) -> bool:
     return False
 
 
+def complexity_to_budget_tokens(complexity: int) -> int:
+    """Complexity (1-5) → thinking budget_tokens 매핑."""
+    if complexity <= 2:
+        return 4096
+    if complexity <= 4:
+        return 8192
+    return 12288
+
+
 def estimate_spec_complexity(spec: "PptxSlideSpec") -> int:
     """PptxSlideSpec의 요소 수로 complexity를 추정한다 (1-5 scale).
 

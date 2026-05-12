@@ -74,7 +74,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 | `interfaces/json_schemas.py` | Bedrock Structured Output용 JSON 스키마 정의 |
 | `interfaces/text_measurement.py` | 폰트 메트릭 기반 텍스트 크기 추정 |
 | `templates/layout_mapping.py` | layout_index → 슬라이드 레이아웃 매핑 (97종) |
-| `tools/design/service.py` | 디자인 스펙 생성 — 복잡도 기반 adaptive effort |
+| `tools/design/service.py` | 디자인 스펙 생성 — 복잡도 기반 고정 thinking budget |
 | `tools/design/parallel_runner.py` | ThreadPoolExecutor 기반 슬라이드 병렬 생성, 토큰 집계 |
 | `tools/visual_qa/service.py` | Visual QA — Playwright 스크린샷 + Claude Vision 분석 + 자동 수정 루프 |
 | `di/model_factory.py` | LLM 모델 생성 팩토리 (Bedrock/Anthropic 프로바이더별) |
@@ -115,9 +115,12 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 - 첫 요청부터 전체 슬라이드를 병렬 실행 (워밍업 순차 실행 단계 없음)
 - 토큰 사용량을 워커별로 수집하여 합산 (`ParallelResult` 반환)
 
-**Adaptive Thinking (공통):**
-- 모든 디자인/아웃라인 모델은 `{"thinking": {"type": "adaptive"}}` 로 통일 — 복잡도 기반 `thinking_effort` 분기 없음
-- 로깅용 `estimate_slide_complexity()` 는 유지 (스케줄링에는 사용하지 않음)
+**Thinking Budget (전체 Sonnet 모델):**
+- Sonnet + structured_output (tool use/json_schema 기반) 조합에서 adaptive thinking은 출력 토큰을 예측 불가능하게 소비하여 `MaxTokensReachedException` 유발 → 고정 budget 필수 (ADR-0043)
+- 디자인 스펙: `{"thinking": {"type": "enabled", "budget_tokens": N}}` — complexity에 따라 4K/8K/12K 차등 적용
+- 아웃라인: 고정 8K budget
+- Visual QA fix: 고정 2K budget
+- `estimate_slide_complexity()` → `complexity_to_budget_tokens()` 로 매핑 (디자인 스펙만 해당)
 
 **Prompt Caching — 현재 미사용:**
 - Sonnet 4.6 + adaptive thinking 조합에서 `cacheWriteInputTokens` 만 발생하고 `cacheReadInputTokens=0` 이 재현되어 제거됨
@@ -174,8 +177,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 `generate_slides_design_spec`은 슬라이드별 독립 LLM 호출을 `ThreadPoolExecutor`로 병렬 처리합니다.
 
 - **병렬 워커 수**: `DESIGN_SPEC_PARALLEL` 환경변수로 제어 (기본 `8`). API rate limit에 맞게 조절 가능
-- **Longest-job-first 스케줄링**: 슬라이드 복잡도 점수(1~13)를 산출하여 복잡한 슬라이드부터 먼저 처리 → wall-clock time 단축
-- **Adaptive thinking effort**: 복잡도에 따라 `high`(7~13) / `medium`(4~6) / `low`(1~3) effort를 동적 적용 → 단순 슬라이드 토큰 절약, 복잡한 슬라이드 품질 유지
+- **복잡도 기반 thinking budget**: complexity 1-2 → 4K, 3-4 → 8K, 5 → 12K budget_tokens 차등 적용 → 단순 슬라이드 토큰 절약, 복잡한 슬라이드 품질 유지
 
 #### Visual QA 파이프라인
 
@@ -184,10 +186,10 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 ```
 for iteration in range(max_iterations):    # 기본 2회
     1. Playwright 스크린샷 캡처 (1280×720, ThreadPoolExecutor 병렬)
-    2. Claude Vision 분석 (asyncio.gather 병렬, thinking_effort=medium)
+    2. Claude Vision 분석 (asyncio.gather 병렬)
        → has_issues=false → "pass" / "fixed"
        → has_issues=true  → 수정 대상 분류
-    3. LLM 디자인 스펙 수정 (asyncio.gather 병렬, thinking_effort=high)
+    3. LLM 디자인 스펙 수정 (asyncio.gather 병렬)
        → 스펙 저장 + HTML 재렌더링 → 다음 iteration에서 재검사
     종료: 이슈 없음 / 모든 수정 실패 / max_iterations 도달
 ```

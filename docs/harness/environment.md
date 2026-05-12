@@ -37,12 +37,12 @@
 
 ## 사용 모델
 
-| 용도              | Bedrock 모델 ID                          | Anthropic 모델 ID   | Max Tokens | Thinking Effort                          |
+| 용도              | Bedrock 모델 ID                          | Anthropic 모델 ID   | Max Tokens | Thinking                                         |
 | ----------------- | ---------------------------------------- | -------------------- | ---------- | ---------------------------------------- |
-| 디자인 스펙 생성  | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 16,384     | adaptive                                         |
-| 아웃라인          | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 32,000     | adaptive                                         |
+| 디자인 스펙 생성  | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 64,000     | enabled, budget 4K/8K/12K (complexity별) |
+| 아웃라인          | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 32,000     | enabled, budget 8K                               |
 | Visual QA 분석   | `global.anthropic.claude-haiku-4-5`      | `claude-haiku-4-5`  | 8,192      | (thinking 미사용)                                |
-| Visual QA 수정   | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 4,096      | adaptive                                         |
+| Visual QA 수정   | `global.anthropic.claude-sonnet-4-6`     | `claude-sonnet-4-6` | 4,096      | enabled, budget 2K                               |
 
 ## MCP Client Configuration
 

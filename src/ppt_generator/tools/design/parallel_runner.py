@@ -16,7 +16,10 @@ from strands.types.exceptions import ModelThrottledException
 
 from ppt_generator.interfaces.constants import DESIGN_SPEC_PARALLEL, DESIGN_SPEC_TIMEOUT
 from ppt_generator.interfaces.schemas import OutlineResponse
-from ppt_generator.interfaces.utils import estimate_slide_complexity
+from ppt_generator.interfaces.utils import (
+    complexity_to_budget_tokens,
+    estimate_slide_complexity,
+)
 from ppt_generator.tools.design.service import DesignService
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
@@ -96,17 +99,19 @@ def run_parallel_generation(
         slide_outline = outline.slides[idx]
         slide_type = slide_outline.slide_type or "content"
         complexity = estimate_slide_complexity(slide_outline)
+        budget_tokens = complexity_to_budget_tokens(complexity)
         logger.info(
-            "slide[%d] 생성 시작 (slide_type=%s, complexity=%d, thread=%s, 동시실행=%d/%d)",
+            "slide[%d] 생성 시작 (slide_type=%s, complexity=%d, budget_tokens=%d, thread=%s, 동시실행=%d/%d)",
             idx,
             slide_type,
             complexity,
+            budget_tokens,
             thread_name,
             current,
             max_workers,
         )
         t0 = time.monotonic()
-        svc = design_service_factory(slide_type)
+        svc = design_service_factory(slide_type, budget_tokens=budget_tokens)
         prev_outline = outline.slides[idx - 1] if idx > 0 else None
         next_outline = (
             outline.slides[idx + 1] if idx + 1 < len(outline.slides) else None
@@ -155,7 +160,9 @@ def run_parallel_generation(
                     lint_result = lint_slide_spec(spec)
 
                     def _regenerate(feedback: str) -> tuple:
-                        svc_regen = design_service_factory(slide_type)
+                        svc_regen = design_service_factory(
+                            slide_type, budget_tokens=budget_tokens
+                        )
                         new = svc_regen.generate_single_slide(
                             outline.slides[idx],
                             design_summary=design_summary,

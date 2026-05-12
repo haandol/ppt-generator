@@ -36,16 +36,18 @@ ADR-0018 이 채택한 prompt 캐싱 + 워밍업 구조가 실측에서 의도�
 `BedrockModel` 생성자에서 `cache_config=CacheConfig(strategy="auto")` 인자를 모두 제거한다. 대상: design / outline / review / visual_qa / visual_qa_analysis 모델 5종.
 
 ```python
-def create_bedrock_design_model() -> BedrockModel:
+def create_bedrock_design_model(budget_tokens: int = 8192) -> BedrockModel:
     return BedrockModel(
         model_id=BEDROCK_DESIGN_MODEL_ID,
         region_name=BEDROCK_REGION,
         boto_client_config=build_client_config(),
         temperature=1.0,
         max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
-        additional_request_fields={"thinking": {"type": "adaptive"}},
+        additional_request_fields={"thinking": {"type": "enabled", "budget_tokens": budget_tokens}},
     )
 ```
+
+> **Note (2026-05-12):** ADR-0043에서 adaptive → 고정 budget으로 전환됨. Sonnet + structured_output에서 adaptive thinking이 output 토큰을 예측 불가능하게 소비하여 MaxTokensReachedException 유발.
 
 ### 2. Anthropic 쪽 `CachingAnthropicModel` 서브클래스 삭제
 
