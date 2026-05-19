@@ -108,6 +108,7 @@ class PptxTextBox:
     padding_top_px: float | None = None
     padding_bottom_px: float | None = None
     z_index: int | None = None  # rendering order (lower = behind, higher = front)
+    grid_cell: str | None = None  # GridPlan cell id this element belongs to
 
 
 @dataclass(frozen=True)
@@ -152,6 +153,7 @@ class PptxShape:
     )
     autofit_mode: str = "expand_height"  # "expand_height" (default) | "shrink_text" (keep height, shrink font)
     z_index: int | None = None  # rendering order (lower = behind, higher = front)
+    grid_cell: str | None = None  # GridPlan cell id this element belongs to
 
 
 @dataclass(frozen=True)
@@ -167,6 +169,42 @@ class PptxImage:
     image_path: str = ""  # 이미지 절대경로 (외부 파일 참조 시 사용)
     corner_radius_px: float | None = None  # 둥근 모서리 반경
     z_index: int | None = None  # rendering order (lower = behind, higher = front)
+    grid_cell: str | None = None  # GridPlan cell id this element belongs to
+
+
+@dataclass(frozen=True)
+class GridCell:
+    """A single cell of GridPlan.
+
+    Identifies a rectangular slot inside a region (header/content/footer).
+    Coordinates are derived from the parent region + content_columns/content_rows;
+    this dataclass only carries the abstract location.
+    """
+
+    id: str
+    region: str  # "header" | "content" | "footer"
+    row: int = 1  # 1-based
+    col: int = 1  # 1-based
+    row_span: int = 1
+    col_span: int = 1
+    role: str = ""  # free-form label for debugging/lint messages
+
+
+@dataclass(frozen=True)
+class GridPlan:
+    """Slide-level grid plan.
+
+    Declares which y-axis regions the slide uses, how the content region is
+    subdivided into rows/columns, and the list of cells that elements can
+    reference via PptxTextBox.grid_cell / PptxShape.grid_cell.
+    """
+
+    regions: list[str] = field(
+        default_factory=list
+    )  # subset of ["header", "content", "footer"]
+    content_columns: int = 1  # 1..4
+    content_rows: int = 1  # 1..N
+    cells: list[GridCell] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -179,6 +217,7 @@ class PptxSlideSpec:
     images: list[PptxImage] = field(default_factory=list)
     speaker_notes: str = ""
     slide_type: str = "content"
+    grid_plan: GridPlan | None = None
 
 
 # --- Design spec schema ---

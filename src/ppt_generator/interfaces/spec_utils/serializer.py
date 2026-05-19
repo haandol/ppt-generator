@@ -19,6 +19,20 @@ def _strip_none_z_index(data: dict) -> None:
                 item.pop("z_index", None)
 
 
+def _strip_none_grid_cell(data: dict) -> None:
+    """grid_cell=None인 element 키를 제거하여 JSON을 깔끔하게 유지한다."""
+    for key in ("textboxes", "shapes", "images"):
+        for item in data.get(key, []):
+            if item.get("grid_cell") is None:
+                item.pop("grid_cell", None)
+
+
+def _strip_empty_grid_plan(data: dict) -> None:
+    """grid_plan이 None이면 키 자체를 제거한다."""
+    if data.get("grid_plan") is None:
+        data.pop("grid_plan", None)
+
+
 def _strip_image_internals(data: dict) -> None:
     """이미지에서 내부 전용 필드를 제거한다."""
     for img in data.get("images", []):
@@ -34,6 +48,8 @@ def slide_spec_to_json(slide_spec: PptxSlideSpec) -> str:
     data = asdict(slide_spec)
     _strip_image_internals(data)
     _strip_none_z_index(data)
+    _strip_none_grid_cell(data)
+    _strip_empty_grid_plan(data)
     return json.dumps(data, ensure_ascii=False, indent=2)
 
 
@@ -43,4 +59,6 @@ def design_spec_to_json(design_spec: DesignSpec) -> str:
     for slide in data.get("slides", []):
         _strip_image_internals(slide)
         _strip_none_z_index(slide)
+        _strip_none_grid_cell(slide)
+        _strip_empty_grid_plan(slide)
     return json.dumps(data, ensure_ascii=False, indent=2)

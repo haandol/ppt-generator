@@ -48,6 +48,7 @@ adr/
 - [0039: Prompt 캐시 제거 및 워밍업 없이 전체 병렬 실행](./pipeline/0039-remove-prompt-cache-and-warmup-full-parallel.md)
 - [0041: Validator를 Lint로 전환](./pipeline/0041-validator-to-lint.md)
 - [0043: 디자인 스펙 thinking을 adaptive에서 고정 budget으로 전환](./pipeline/0043-design-spec-fixed-thinking-budget.md)
+- [0044: Grid-First Design Spec — 그리드 우선 디자인 스펙](./pipeline/0044-grid-first-design-spec.md) — _Proposed_
 
 ## ADR 작성 가이드
 

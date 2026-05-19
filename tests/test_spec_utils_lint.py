@@ -11,6 +11,8 @@ lint는 디자인 규칙 위반을 감지하되 수정하지 않는다:
 from __future__ import annotations
 
 from ppt_generator.interfaces.schemas import (
+    GridCell,
+    GridPlan,
     PptxParagraph,
     PptxShape,
     PptxSlideSpec,
@@ -22,6 +24,19 @@ from ppt_generator.interfaces.spec_utils import (
     lint_design_spec,
     lint_slide_spec,
 )
+
+
+def _minimal_content_grid_plan() -> GridPlan:
+    """content 슬라이드용 최소 grid_plan: header+content 1열 1행."""
+    return GridPlan(
+        regions=["header", "content"],
+        content_columns=1,
+        content_rows=1,
+        cells=[
+            GridCell(id="h1", region="header", row=1, col=1, role="title"),
+            GridCell(id="c1", region="content", row=1, col=1, role="body"),
+        ],
+    )
 
 
 def _tb(text: str, font: int = 18, **kw) -> PptxTextBox:
@@ -37,12 +52,14 @@ def _slide(
     textboxes: list[PptxTextBox] | None = None,
     shapes: list[PptxShape] | None = None,
     slide_type: str = "content",
+    grid_plan: GridPlan | None = None,
 ) -> PptxSlideSpec:
     return PptxSlideSpec(
         background_color="#1a1a2e",
         textboxes=textboxes or [],
         shapes=shapes or [],
         slide_type=slide_type,
+        grid_plan=grid_plan,
     )
 
 
@@ -862,8 +879,20 @@ class TestLintDesignSpec:
 
     def test_all_pass(self) -> None:
         slides = [
-            _slide(textboxes=[_tb("제목1", font=28)]),
-            _slide(textboxes=[_tb("제목2", font=26)]),
+            _slide(
+                textboxes=[
+                    _tb("제목1", font=28, grid_cell="h1"),
+                    _tb("body", font=18, top_px=200, grid_cell="c1"),
+                ],
+                grid_plan=_minimal_content_grid_plan(),
+            ),
+            _slide(
+                textboxes=[
+                    _tb("제목2", font=26, grid_cell="h1"),
+                    _tb("body", font=18, top_px=200, grid_cell="c1"),
+                ],
+                grid_plan=_minimal_content_grid_plan(),
+            ),
         ]
         result = lint_design_spec(slides)
         assert not result.has_violations
@@ -871,10 +900,21 @@ class TestLintDesignSpec:
         assert len(result.cleaned_specs) == 2
 
     def test_mixed_violations(self) -> None:
-        slides = [
-            _slide(textboxes=[_tb("OK 제목", font=28)]),
-            _slide(textboxes=[_tb("작은 제목", font=16)]),
-        ]
+        ok_slide = _slide(
+            textboxes=[
+                _tb("OK 제목", font=28, grid_cell="h1"),
+                _tb("body", font=18, top_px=200, grid_cell="c1"),
+            ],
+            grid_plan=_minimal_content_grid_plan(),
+        )
+        bad_slide = _slide(
+            textboxes=[
+                _tb("작은 제목", font=16, grid_cell="h1"),
+                _tb("body", font=18, top_px=200, grid_cell="c1"),
+            ],
+            grid_plan=_minimal_content_grid_plan(),
+        )
+        slides = [ok_slide, bad_slide]
         result = lint_design_spec(slides)
         assert result.has_violations
         assert result.total_violations >= 1
@@ -900,7 +940,13 @@ class TestLintDesignSpec:
     def test_pass_slide_not_in_per_slide(self) -> None:
         """위반 없는 슬라이드는 per_slide에 포함되지 않는다."""
         slides = [
-            _slide(textboxes=[_tb("OK 제목", font=28)]),
+            _slide(
+                textboxes=[
+                    _tb("OK 제목", font=28, grid_cell="h1"),
+                    _tb("body", font=18, top_px=200, grid_cell="c1"),
+                ],
+                grid_plan=_minimal_content_grid_plan(),
+            ),
         ]
         result = lint_design_spec(slides)
         d = result.to_dict()

@@ -9,6 +9,8 @@ import json
 
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
+    GridCell,
+    GridPlan,
     PptxImage,
     PptxParagraph,
     PptxShape,
@@ -16,6 +18,29 @@ from ppt_generator.interfaces.schemas import (
     PptxTextBox,
     PptxTextRun,
 )
+
+
+def _parse_grid_plan(data: dict | None) -> GridPlan | None:
+    if not data:
+        return None
+    cells = [
+        GridCell(
+            id=c.get("id", ""),
+            region=c.get("region", "content"),
+            row=c.get("row", 1),
+            col=c.get("col", 1),
+            row_span=c.get("row_span", 1),
+            col_span=c.get("col_span", 1),
+            role=c.get("role", ""),
+        )
+        for c in data.get("cells", [])
+    ]
+    return GridPlan(
+        regions=list(data.get("regions", [])),
+        content_columns=data.get("content_columns", 1),
+        content_rows=data.get("content_rows", 1),
+        cells=cells,
+    )
 
 
 def parse_slide_spec(data: dict) -> PptxSlideSpec:
@@ -58,6 +83,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
                 padding_top_px=tb.get("padding_top_px"),
                 padding_bottom_px=tb.get("padding_bottom_px"),
                 z_index=tb.get("z_index"),
+                grid_cell=tb.get("grid_cell"),
             )
         )
 
@@ -113,6 +139,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
                 svg_path=s.get("svg_path"),
                 autofit_mode=s.get("autofit_mode", "expand_height"),
                 z_index=s.get("z_index"),
+                grid_cell=s.get("grid_cell"),
             )
         )
 
@@ -126,6 +153,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
             image_path=img.get("image_path", ""),
             corner_radius_px=img.get("corner_radius_px"),
             z_index=img.get("z_index"),
+            grid_cell=img.get("grid_cell"),
         )
         for img in data.get("images", [])
     ]
@@ -137,6 +165,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
         images=images,
         speaker_notes=data.get("speaker_notes", ""),
         slide_type=data.get("slide_type", "content"),
+        grid_plan=_parse_grid_plan(data.get("grid_plan")),
     )
 
 

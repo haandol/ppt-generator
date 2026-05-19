@@ -1,6 +1,7 @@
 <slide_type_closing>
 Thank You slide (slide_type: "closing") design rules:
 
+- Closing slides have a fixed special layout (thank-you + divider + Q&A + contact), so `grid_plan` MAY be omitted (output `"grid_plan": null` or skip the field). Element-level `grid_cell` should also be omitted/null.
 - The last slide of the presentation. Contains thank you message, contact information, Q&A guidance
 - Set background_color to null (background image will be auto-inserted)
 - Do not place elements in the bottom-right area (left_px > 1080, top_px > 600) (logo auto-insertion area)

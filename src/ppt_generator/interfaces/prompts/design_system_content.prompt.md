@@ -130,10 +130,20 @@ Bottom auxiliary elements (top >= 540):
 <examples>
   <layout_example id="bullets-1" hint="bullets">
   {
+    "grid_plan": {
+      "regions": ["header", "content"],
+      "content_columns": 1,
+      "content_rows": 1,
+      "cells": [
+        {"id": "h1", "region": "header", "row": 1, "col": 1, "row_span": 1, "col_span": 1, "role": "title"},
+        {"id": "c1", "region": "content", "row": 1, "col": 1, "row_span": 1, "col_span": 1, "role": "bullet_list"}
+      ]
+    },
     "background_color": "#0F172A",
     "speaker_notes": "In this slide...",
     "textboxes": [
       {
+        "grid_cell": "h1",
         "left_px": 64, "top_px": 72, "width_px": 1152, "height_px": 48,
         "vertical_alignment": "middle",
         "paragraphs": [
@@ -141,6 +151,7 @@ Bottom auxiliary elements (top >= 540):
         ]
       },
       {
+        "grid_cell": "c1",
         "left_px": 64, "top_px": 148, "width_px": 1152, "height_px": 346,
         "vertical_alignment": "middle",
         "line_spacing_pt": 28,
@@ -157,10 +168,22 @@ Bottom auxiliary elements (top >= 540):
 
   <layout_example id="step-cards-1" hint="step_cards — 3 cards with paragraphs">
   {
+    "grid_plan": {
+      "regions": ["header", "content"],
+      "content_columns": 3,
+      "content_rows": 1,
+      "cells": [
+        {"id": "h1", "region": "header", "row": 1, "col": 1, "row_span": 1, "col_span": 1, "role": "title"},
+        {"id": "c1", "region": "content", "row": 1, "col": 1, "row_span": 1, "col_span": 1, "role": "step1_card"},
+        {"id": "c2", "region": "content", "row": 1, "col": 2, "row_span": 1, "col_span": 1, "role": "step2_card"},
+        {"id": "c3", "region": "content", "row": 1, "col": 3, "row_span": 1, "col_span": 1, "role": "step3_card"}
+      ]
+    },
     "background_color": "#0F172A",
     "speaker_notes": "",
     "textboxes": [
       {
+        "grid_cell": "h1",
         "left_px": 64, "top_px": 72, "width_px": 1152, "height_px": 48,
         "vertical_alignment": "middle",
         "paragraphs": [
@@ -170,6 +193,7 @@ Bottom auxiliary elements (top >= 540):
     ],
     "shapes": [
       {
+        "grid_cell": "c1",
         "left_px": 64, "top_px": 148, "width_px": 352, "height_px": 472,
         "shape_type": "rounded_rectangle", "fill_color": "#334155", "corner_radius_px": 12,
         "vertical_alignment": "top",
@@ -180,6 +204,7 @@ Bottom auxiliary elements (top >= 540):
         ]
       },
       {
+        "grid_cell": "c2",
         "left_px": 448, "top_px": 148, "width_px": 352, "height_px": 472,
         "shape_type": "rounded_rectangle", "fill_color": "#334155", "corner_radius_px": 12,
         "vertical_alignment": "top",
@@ -190,6 +215,7 @@ Bottom auxiliary elements (top >= 540):
         ]
       },
       {
+        "grid_cell": "c3",
         "left_px": 832, "top_px": 148, "width_px": 352, "height_px": 472,
         "shape_type": "rounded_rectangle", "fill_color": "#334155", "corner_radius_px": 12,
         "vertical_alignment": "top",
@@ -205,10 +231,23 @@ Bottom auxiliary elements (top >= 540):
 
   <layout_example id="pipeline-1" hint="pipeline — 4 blocks with arrows">
   {
+    "grid_plan": {
+      "regions": ["header", "content"],
+      "content_columns": 4,
+      "content_rows": 1,
+      "cells": [
+        {"id": "h1", "region": "header", "row": 1, "col": 1, "row_span": 1, "col_span": 1, "role": "title"},
+        {"id": "c1", "region": "content", "row": 1, "col": 1, "row_span": 1, "col_span": 1, "role": "stage_input"},
+        {"id": "c2", "region": "content", "row": 1, "col": 2, "row_span": 1, "col_span": 1, "role": "stage_process"},
+        {"id": "c3", "region": "content", "row": 1, "col": 3, "row_span": 1, "col_span": 1, "role": "stage_validate"},
+        {"id": "c4", "region": "content", "row": 1, "col": 4, "row_span": 1, "col_span": 1, "role": "stage_output"}
+      ]
+    },
     "background_color": "#0F172A",
     "speaker_notes": "",
     "textboxes": [
       {
+        "grid_cell": "h1",
         "left_px": 64, "top_px": 72, "width_px": 1152, "height_px": 48,
         "vertical_alignment": "middle",
         "paragraphs": [
@@ -218,39 +257,46 @@ Bottom auxiliary elements (top >= 540):
     ],
     "shapes": [
       {
+        "grid_cell": "c1",
         "left_px": 64, "top_px": 300, "width_px": 264, "height_px": 120,
         "shape_type": "rounded_rectangle", "fill_color": "#334155", "corner_radius_px": 12,
         "text": "Input", "text_color": "#FFFFFF", "text_size_pt": 20, "text_bold": true,
         "vertical_alignment": "middle"
       },
       {
+        "grid_cell": null,
         "left_px": 328, "top_px": 360, "width_px": 32, "height_px": 0,
         "shape_type": "line", "border_color": "#3B82F6", "border_width_pt": 2,
         "end_arrow": true, "vertical_alignment": "top"
       },
       {
+        "grid_cell": "c2",
         "left_px": 360, "top_px": 300, "width_px": 264, "height_px": 120,
         "shape_type": "rounded_rectangle", "fill_color": "#3B82F6", "corner_radius_px": 12,
         "text": "Process", "text_color": "#FFFFFF", "text_size_pt": 20, "text_bold": true,
         "vertical_alignment": "middle"
       },
       {
+        "grid_cell": null,
         "left_px": 624, "top_px": 360, "width_px": 32, "height_px": 0,
         "shape_type": "line", "border_color": "#3B82F6", "border_width_pt": 2,
         "end_arrow": true, "vertical_alignment": "top"
       },
       {
+        "grid_cell": "c3",
         "left_px": 656, "top_px": 300, "width_px": 264, "height_px": 120,
         "shape_type": "rounded_rectangle", "fill_color": "#334155", "corner_radius_px": 12,
         "text": "Validate", "text_color": "#FFFFFF", "text_size_pt": 20, "text_bold": true,
         "vertical_alignment": "middle"
       },
       {
+        "grid_cell": null,
         "left_px": 920, "top_px": 360, "width_px": 32, "height_px": 0,
         "shape_type": "line", "border_color": "#3B82F6", "border_width_pt": 2,
         "end_arrow": true, "vertical_alignment": "top"
       },
       {
+        "grid_cell": "c4",
         "left_px": 952, "top_px": 300, "width_px": 264, "height_px": 120,
         "shape_type": "rounded_rectangle", "fill_color": "#334155", "corner_radius_px": 12,
         "text": "Output", "text_color": "#FFFFFF", "text_size_pt": 20, "text_bold": true,

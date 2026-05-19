@@ -11,6 +11,8 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from ppt_generator.interfaces.schemas import (
+    GridCell,
+    GridPlan,
     PptxParagraph,
     PptxShape,
     PptxSlideSpec,
@@ -53,6 +55,7 @@ class TextBoxOutput(BaseModel):
     padding_right_px: float | None = None
     padding_top_px: float | None = None
     padding_bottom_px: float | None = None
+    grid_cell: str | None = None
 
 
 class ShapeOutput(BaseModel):
@@ -85,6 +88,35 @@ class ShapeOutput(BaseModel):
     dash_style: Literal["solid", "dash", "dot"] | None = None
     svg_path: str | None = None
     autofit_mode: Literal["expand_height", "shrink_text"] = "expand_height"
+    grid_cell: str | None = None
+
+
+class GridCellOutput(BaseModel):
+    """LLM 출력용 GridCell Pydantic 모델."""
+
+    id: str
+    region: Literal["header", "content", "footer"] = "content"
+    row: int = Field(default=1, ge=1)
+    col: int = Field(default=1, ge=1)
+    row_span: int = Field(default=1, ge=1)
+    col_span: int = Field(default=1, ge=1)
+    role: str = ""
+
+
+class GridPlanOutput(BaseModel):
+    """LLM 출력용 GridPlan Pydantic 모델.
+
+    LLM이 PptxSlideSpec 본체를 채우기 전에 먼저 산출해야 하는 구획 계획이다.
+    regions: header(권장)/content(필수)/footer(옵션) 중 사용하는 영역 목록.
+    content_columns: content 영역 열 수 (1..4).
+    content_rows: content 영역 행 수 (1..N).
+    cells: 영역+row/col span 으로 식별되는 cell 목록.
+    """
+
+    regions: list[Literal["header", "content", "footer"]] = Field(default_factory=list)
+    content_columns: int = Field(default=1, ge=1, le=4)
+    content_rows: int = Field(default=1, ge=1)
+    cells: list[GridCellOutput] = Field(default_factory=list)
 
 
 # --- Visual QA models ---
@@ -162,8 +194,13 @@ class OverflowContent(BaseModel):
 
 
 class SlideSpecOutput(BaseModel):
-    """LLM structured_output용 슬라이드 스펙 Pydantic 모델."""
+    """LLM structured_output용 슬라이드 스펙 Pydantic 모델.
 
+    grid_plan은 본체 element 산출 전에 LLM이 먼저 결정해야 하는 구획 계획이다.
+    Pydantic 필드 순서를 grid_plan → 나머지 순으로 두어 LLM 자기-조건화를 유도한다.
+    """
+
+    grid_plan: GridPlanOutput | None = None
     background_color: str | None = None
     speaker_notes: str = ""
     textboxes: list[TextBoxOutput] = Field(default_factory=list)
@@ -185,6 +222,7 @@ class SlideSpecOutput(BaseModel):
                 padding_right_px=tb.padding_right_px,
                 padding_top_px=tb.padding_top_px,
                 padding_bottom_px=tb.padding_bottom_px,
+                grid_cell=tb.grid_cell,
             )
             for tb in self.textboxes
         ]
@@ -215,15 +253,36 @@ class SlideSpecOutput(BaseModel):
                 dash_style=s.dash_style,
                 svg_path=s.svg_path,
                 autofit_mode=s.autofit_mode,
+                grid_cell=s.grid_cell,
             )
             for s in self.shapes
         ]
+        grid_plan: GridPlan | None = None
+        if self.grid_plan is not None:
+            grid_plan = GridPlan(
+                regions=list(self.grid_plan.regions),
+                content_columns=self.grid_plan.content_columns,
+                content_rows=self.grid_plan.content_rows,
+                cells=[
+                    GridCell(
+                        id=c.id,
+                        region=c.region,
+                        row=c.row,
+                        col=c.col,
+                        row_span=c.row_span,
+                        col_span=c.col_span,
+                        role=c.role,
+                    )
+                    for c in self.grid_plan.cells
+                ],
+            )
         return PptxSlideSpec(
             background_color=self.background_color,
             textboxes=textboxes,
             shapes=shapes,
             images=[],
             speaker_notes=self.speaker_notes,
+            grid_plan=grid_plan,
         )
 
 

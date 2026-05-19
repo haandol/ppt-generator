@@ -27,12 +27,53 @@ You MUST honor the outline's layout_plan:
 - All coordinates and sizes are in px units (integers or decimals)
 </coordinate_system>
 
+<grid_first_principle>
+**Grid-First (MANDATORY)**: Before emitting any textbox/shape coordinates, first decide the slide's `grid_plan`. Then concretize that plan into pixel coordinates. Do NOT skip the grid_plan step — every element must reference a declared grid cell (or explicitly null for decorative connectors).
+
+Two-step procedure inside this single response:
+
+**Step 1 — Decide grid_plan**:
+1. Choose `regions`: include `"header"` (recommended for content slides), `"content"` (REQUIRED), and `"footer"` only when the slide truly needs a footnote/source line.
+2. Choose `content_columns` (1..4) and `content_rows` (1..N) based on `outline.layout_plan` and `component_hint`.
+   - `bullets`, `agenda` (single column) → 1 column
+   - `two_column`, `vs_comparison`, `process_flow`, `concept_list`, `quote_code` → 2 columns
+   - `step_cards` (3 cards), `info_cards` (3 cards), `pipeline` (3 stages), `arch_diagram` (3-tier) → 3 columns
+   - `step_cards`/`info_cards` with 4 items, `pipeline` with 4 stages, `summary_grid` (2x2 → 2 columns x 2 rows) → 4 columns or 2x2
+3. Enumerate `cells`: every visible slot the slide needs. Title goes in a header cell; each card/diagram block in a content cell; footer text in a footer cell.
+4. Use `row_span`/`col_span` when an element spans multiple rows/columns (e.g., a tall left description that spans 2 rows in a 2x2 layout).
+
+**Step 2 — Concretize**:
+- Map every textbox/shape/image to a cell via `grid_cell` field.
+- Compute pixel coordinates from the chosen region (design_summary header_region/content_region/footer_region) + content_columns/content_rows.
+- Decorative-only elements (connecting arrows, dividers) MAY use `grid_cell: null` but must not introduce alignment that conflicts with declared cells.
+
+**Cell ID convention**: short, slide-local labels like `"h1"` (header row 1), `"c1"`/`"c2"` (content cells in declaration order), `"f1"` (footer). The `role` field is free text describing what the cell holds (e.g., `"title"`, `"step1_card"`, `"left_diagram"`).
+
+**Coordinate derivation from region + columns/rows**:
+- content_region defines `top_px` and `height_px` of the entire content band.
+- With `content_columns = N`, each column's width = `(1152 - 32 * (N - 1)) / N` (32px gap), starting at left_px = 64 + col_index * (column_width + 32).
+- With `content_rows = M`, each row's height = `(content_region.height_px - 16 * (M - 1)) / M`, starting at top_px = content_region.top_px + row_index * (row_height + 16).
+- A cell spanning `col_span` columns covers from its column's left_px to the rightmost column's right edge (including internal gaps).
+
+Same-row cells MUST share identical height_px. Same-column cells MUST share identical width_px. The lint rule `grid-cell-uniformity` enforces this.
+</grid_first_principle>
+
 <output_schema>
 {
+  "grid_plan": {
+    "regions": ["header", "content"]  // subset of header/content/footer; content required,
+    "content_columns": number  // 1..4,
+    "content_rows": number  // 1..N,
+    "cells": [
+      {"id": "h1", "region": "header", "row": 1, "col": 1, "row_span": 1, "col_span": 1, "role": "title"},
+      {"id": "c1", "region": "content", "row": 1, "col": 1, "row_span": 1, "col_span": 1, "role": "step1_card"}
+    ]
+  },
   "background_color": "#RRGGBB or null",
   "speaker_notes": "Speaker notes text",
   "textboxes": [
     {
+      "grid_cell": "h1"|"c1"|...|null,
       "left_px": number, "top_px": number, "width_px": number, "height_px": number,
       "line_spacing_pt": number|null,
       "vertical_alignment": "top"|"middle"|"bottom",
@@ -53,6 +94,7 @@ You MUST honor the outline's layout_plan:
   ],
   "shapes": [
     {
+      "grid_cell": "c1"|"c2"|...|null,
       "left_px": number, "top_px": number, "width_px": number, "height_px": number,
       "shape_type": "rectangle"|"rounded_rectangle"|"ellipse"|"line",
       "fill_color": "#RRGGBB"|null,
@@ -119,6 +161,10 @@ Common rules:
 </design_principles>
 
 <output_rules>
+- **grid_plan FIRST (IMPORTANT)**: Output `grid_plan` before any textbox/shape body. Every textbox/shape that holds slide content must reference a declared cell via `grid_cell`. Pure-decorative connectors (lines/arrows that span across cells) MAY use `grid_cell: null` but never to bypass alignment. The lint rules `grid-plan-required`, `grid-cell-uniformity`, `grid-cell-coverage`, `region-stacking` enforce these expectations.
+- **Region pixel ranges come from design_summary** (header_region/content_region/footer_region). Do NOT invent your own y-axis bands — read them from the design_summary input and place cells inside those bands. Slide title at top=72, height=48 fits inside the default header_region (top=64, h=64).
+- **Cell coordinates must agree with region + content_columns/content_rows** (with 32px column gap and 16px row gap). Two cells in the same row share identical top_px+height_px; two cells in the same column share identical left_px+width_px. Use `row_span`/`col_span` for intentional asymmetry instead of resizing individual cells.
+- **Footer-aware content sizing**: When `regions` includes `"footer"`, content cells must NOT extend below `footer_region.top_px - 16` (16px gap). The lint rule `region-stacking` flags violations.
 - Include the input's speaker_notes in speaker_notes as-is, and also add supplementary explanations omitted from the slide body.
 - autofit_mode controls how text overflow is handled in shapes:
   - "expand_height" (default): Expands height to fit text, then shrinks font if still insufficient.

@@ -13,8 +13,8 @@ class LintViolation:
     rule: str
     severity: str  # "error" | "warning"
     message: str
-    element_index: int
-    element_type: str  # "textbox" | "shape"
+    element_index: int  # -1 일 때 슬라이드 전체 위반
+    element_type: str  # "textbox" | "shape" | "slide"
     current_value: Any = None
     expected: str = ""
 
