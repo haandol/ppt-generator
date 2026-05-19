@@ -103,19 +103,25 @@ class GridCellOutput(BaseModel):
     role: str = ""
 
 
-class GridPlanOutput(BaseModel):
-    """LLM 출력용 GridPlan Pydantic 모델.
+class GridLayoutOutput(BaseModel):
+    """Stage 2: 슬라이드의 거시 레이아웃 결정 (ADR-0046).
 
-    LLM이 PptxSlideSpec 본체를 채우기 전에 먼저 산출해야 하는 구획 계획이다.
-    regions: header(권장)/content(필수)/footer(옵션) 중 사용하는 영역 목록.
-    content_columns: content 영역 열 수 (1..4).
-    content_rows: content 영역 행 수 (1..N).
-    cells: 영역+row/col span 으로 식별되는 cell 목록.
+    어떤 region 을 쓸지, content 를 몇 행/열로 나눌지의 최상위 결정.
+    이 결정 후 cell_assignment 단계에서 cell 정의로 내려간다.
     """
 
     regions: list[Literal["header", "content", "footer"]] = Field(default_factory=list)
     content_columns: int = Field(default=1, ge=1, le=4)
     content_rows: int = Field(default=1, ge=1)
+
+
+class GridCellAssignmentOutput(BaseModel):
+    """Stage 3: grid_layout 위에서 각 cell 의 위치/span/region/role 할당 (ADR-0046).
+
+    Stage 2 의 layout 을 받아 실제 cell 목록을 정의한다. 이 단계 후 element 단계에서
+    각 textbox/shape 가 cell id 를 참조해 좌표·스타일을 채운다.
+    """
+
     cells: list[GridCellOutput] = Field(default_factory=list)
 
 
@@ -193,14 +199,23 @@ class OverflowContent(BaseModel):
     reason: str = Field(description="왜 현재 슬라이드에 담지 못했는지 짧은 설명")
 
 
-class SlideSpecOutput(BaseModel):
-    """LLM structured_output용 슬라이드 스펙 Pydantic 모델.
+class _BaseSlideSpecOutput(BaseModel):
+    """슬라이드 스펙 LLM 출력의 공통 필드/변환 로직.
 
-    grid_plan은 본체 element 산출 전에 LLM이 먼저 결정해야 하는 구획 계획이다.
-    Pydantic 필드 순서를 grid_plan → 나머지 순으로 두어 LLM 자기-조건화를 유도한다.
+    ADR-0046: 점진적 추상화 하강을 schema 에 박는다.
+        Stage 2: grid_layout       (regions/columns/rows)
+        Stage 3: cell_assignment   (cells)
+        Stage 4: textboxes/shapes  (cell_id 참조)
+
+    하위 클래스(`ContentSlideSpecOutput`, `SimpleSlideSpecOutput`)가 grid_layout/
+    cell_assignment 의 Required/Optional 여부만 분기해서 재선언한다 (ADR-0045).
+
+    Pydantic 필드 선언 순서가 LLM 출력 순서를 유도하므로 거시 → 중간 → 미시 순으로
+    배치한다.
     """
 
-    grid_plan: GridPlanOutput | None = None
+    grid_layout: GridLayoutOutput | None
+    cell_assignment: GridCellAssignmentOutput | None
     background_color: str | None = None
     speaker_notes: str = ""
     textboxes: list[TextBoxOutput] = Field(default_factory=list)
@@ -258,11 +273,14 @@ class SlideSpecOutput(BaseModel):
             for s in self.shapes
         ]
         grid_plan: GridPlan | None = None
-        if self.grid_plan is not None:
+        if self.grid_layout is not None:
+            cells_src = (
+                self.cell_assignment.cells if self.cell_assignment is not None else []
+            )
             grid_plan = GridPlan(
-                regions=list(self.grid_plan.regions),
-                content_columns=self.grid_plan.content_columns,
-                content_rows=self.grid_plan.content_rows,
+                regions=list(self.grid_layout.regions),
+                content_columns=self.grid_layout.content_columns,
+                content_rows=self.grid_layout.content_rows,
                 cells=[
                     GridCell(
                         id=c.id,
@@ -273,7 +291,7 @@ class SlideSpecOutput(BaseModel):
                         col_span=c.col_span,
                         role=c.role,
                     )
-                    for c in self.grid_plan.cells
+                    for c in cells_src
                 ],
             )
         return PptxSlideSpec(
@@ -284,6 +302,27 @@ class SlideSpecOutput(BaseModel):
             speaker_notes=self.speaker_notes,
             grid_plan=grid_plan,
         )
+
+
+class ContentSlideSpecOutput(_BaseSlideSpecOutput):
+    """content 슬라이드용 LLM 응답 모델 (ADR-0045 / ADR-0046).
+
+    Stage 2(grid_layout) 와 Stage 3(cell_assignment) 모두 Required.
+    LLM 이 거시 → 중간 → 미시 순으로 점진적 추상화 하강을 따르도록 강제한다.
+    """
+
+    grid_layout: GridLayoutOutput
+    cell_assignment: GridCellAssignmentOutput
+
+
+class SimpleSlideSpecOutput(_BaseSlideSpecOutput):
+    """title/closing 등 fixed special layout 슬라이드용 LLM 응답 모델.
+
+    ADR-0044 결정 2: title/closing 슬라이드는 grid 단계 omit 가능.
+    """
+
+    grid_layout: GridLayoutOutput | None = None
+    cell_assignment: GridCellAssignmentOutput | None = None
 
 
 # --- Design Review models ---

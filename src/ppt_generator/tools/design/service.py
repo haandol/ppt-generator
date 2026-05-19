@@ -19,7 +19,11 @@ from ppt_generator.interfaces.constants import (
     DESIGN_SPEC_USER_PROMPT_TEMPLATE,
     DESIGN_SUMMARY_USER_PROMPT_TEMPLATE,
 )
-from ppt_generator.interfaces.llm_output_models import SlideSpecOutput
+from ppt_generator.interfaces.llm_output_models import (
+    ContentSlideSpecOutput,
+    SimpleSlideSpecOutput,
+    _BaseSlideSpecOutput,
+)
 from ppt_generator.interfaces.schemas import (
     OutlineResponse,
     PptxSlideSpec,
@@ -94,6 +98,7 @@ class DesignService:
 
         spec = self._generate_with_structured_output(
             prompt,
+            slide_type=slide_outline.slide_type or "content",
             label=f"slide[{slide_index}/{total_slides}]",
         )
         return replace(spec, slide_type=slide_outline.slide_type)
@@ -214,16 +219,27 @@ class DesignService:
         return self._last_overflow
 
     def _generate_with_structured_output(
-        self, prompt: str, *, label: str = "design_spec"
+        self,
+        prompt: str,
+        *,
+        slide_type: str,
+        label: str = "design_spec",
     ) -> PptxSlideSpec:
-        """Generates and validates slide spec via strands structured_output."""
+        """Generates and validates slide spec via strands structured_output.
+
+        ADR-0045: slide_type 에 따라 응답 모델을 분기해 content 슬라이드는
+        grid_plan 을 Pydantic Required 로 강제한다. title/closing 은 옵셔널.
+        """
+        model: type[_BaseSlideSpecOutput] = (
+            ContentSlideSpecOutput if slide_type == "content" else SimpleSlideSpecOutput
+        )
         try:
-            result = self._agent(prompt, structured_output_model=SlideSpecOutput)
+            result = self._agent(prompt, structured_output_model=model)
             self._last_token_usage = log_token_usage(result, label)
         except ModelThrottledException:
             logger.warning("Bedrock throttling during design spec generation")
             raise
-        output: SlideSpecOutput = result.structured_output
+        output: _BaseSlideSpecOutput = result.structured_output
         self._last_overflow = (
             [item.model_dump() for item in output.overflow] if output.overflow else []
         )

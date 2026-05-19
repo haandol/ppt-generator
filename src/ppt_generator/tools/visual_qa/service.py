@@ -25,7 +25,12 @@ from ppt_generator.interfaces.constants import (
     SCREENSHOT_TIMEOUT,
     VISUAL_QA_PHASE_TIMEOUT,
 )
-from ppt_generator.interfaces.llm_output_models import SlideSpecOutput, VisualQAOutput
+from ppt_generator.interfaces.llm_output_models import (
+    ContentSlideSpecOutput,
+    SimpleSlideSpecOutput,
+    VisualQAOutput,
+    _BaseSlideSpecOutput,
+)
 from ppt_generator.interfaces.schemas import PptxSlideSpec
 from ppt_generator.interfaces.spec_utils import clean_slide_spec
 from ppt_generator.interfaces.spec_utils.serializer import slide_spec_to_json
@@ -151,11 +156,15 @@ class VisualQAService:
             },
         ]
 
+        slide_type = current_spec.slide_type or "content"
+        model: type[_BaseSlideSpecOutput] = (
+            ContentSlideSpecOutput if slide_type == "content" else SimpleSlideSpecOutput
+        )
         try:
-            result = agent(messages, structured_output_model=SlideSpecOutput)
+            result = agent(messages, structured_output_model=model)
             usage = log_token_usage(result, "visual_qa_fix")
             self._accumulate_tokens(usage)
-            output: SlideSpecOutput = result.structured_output
+            output: _BaseSlideSpecOutput = result.structured_output
             spec = output.to_dataclass()
             restore = {}
             if current_spec.images:

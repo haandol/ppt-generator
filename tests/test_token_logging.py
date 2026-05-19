@@ -276,11 +276,11 @@ class TestDesignServiceTokenLogging:
     def test_logs_tokens_on_structured_output(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
-        from ppt_generator.interfaces.llm_output_models import SlideSpecOutput
+        from ppt_generator.interfaces.llm_output_models import SimpleSlideSpecOutput
         from ppt_generator.interfaces.schemas import SlideOutline
         from ppt_generator.tools.design.service import DesignService
 
-        mock_output = SlideSpecOutput(
+        mock_output = SimpleSlideSpecOutput(
             background_color="#1a1a2e",
             textboxes=[],
             shapes=[],
@@ -302,11 +302,11 @@ class TestDesignServiceTokenLogging:
         assert "slide[2/5]" in token_logs[0].message
 
     def test_last_token_usage_property(self) -> None:
-        from ppt_generator.interfaces.llm_output_models import SlideSpecOutput
+        from ppt_generator.interfaces.llm_output_models import SimpleSlideSpecOutput
         from ppt_generator.interfaces.schemas import SlideOutline
         from ppt_generator.tools.design.service import DesignService
 
-        mock_output = SlideSpecOutput(
+        mock_output = SimpleSlideSpecOutput(
             background_color="#1a1a2e",
             textboxes=[],
             shapes=[],

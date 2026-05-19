@@ -130,10 +130,12 @@ Bottom auxiliary elements (top >= 540):
 <examples>
   <layout_example id="bullets-1" hint="bullets">
   {
-    "grid_plan": {
+    "grid_layout": {
       "regions": ["header", "content"],
       "content_columns": 1,
-      "content_rows": 1,
+      "content_rows": 1
+    },
+    "cell_assignment": {
       "cells": [
         {"id": "h1", "region": "header", "row": 1, "col": 1, "row_span": 1, "col_span": 1, "role": "title"},
         {"id": "c1", "region": "content", "row": 1, "col": 1, "row_span": 1, "col_span": 1, "role": "bullet_list"}
@@ -168,10 +170,12 @@ Bottom auxiliary elements (top >= 540):
 
   <layout_example id="step-cards-1" hint="step_cards — 3 cards with paragraphs">
   {
-    "grid_plan": {
+    "grid_layout": {
       "regions": ["header", "content"],
       "content_columns": 3,
-      "content_rows": 1,
+      "content_rows": 1
+    },
+    "cell_assignment": {
       "cells": [
         {"id": "h1", "region": "header", "row": 1, "col": 1, "row_span": 1, "col_span": 1, "role": "title"},
         {"id": "c1", "region": "content", "row": 1, "col": 1, "row_span": 1, "col_span": 1, "role": "step1_card"},
@@ -231,10 +235,12 @@ Bottom auxiliary elements (top >= 540):
 
   <layout_example id="pipeline-1" hint="pipeline — 4 blocks with arrows">
   {
-    "grid_plan": {
+    "grid_layout": {
       "regions": ["header", "content"],
       "content_columns": 4,
-      "content_rows": 1,
+      "content_rows": 1
+    },
+    "cell_assignment": {
       "cells": [
         {"id": "h1", "region": "header", "row": 1, "col": 1, "row_span": 1, "col_span": 1, "role": "title"},
         {"id": "c1", "region": "content", "row": 1, "col": 1, "row_span": 1, "col_span": 1, "role": "stage_input"},

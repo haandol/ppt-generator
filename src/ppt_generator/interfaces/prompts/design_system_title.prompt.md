@@ -1,7 +1,7 @@
 <slide_type_title>
 Title slide (slide_type: "title") design rules:
 
-- Title slides have a fixed special layout (main title + divider + subtitle + presenter info), so `grid_plan` MAY be omitted (output `"grid_plan": null` or skip the field). Element-level `grid_cell` should also be omitted/null.
+- Title slides have a fixed special layout (main title + divider + subtitle + presenter info), so `grid_layout` and `cell_assignment` MAY be omitted (output `null` or skip the fields). Element-level `grid_cell` should also be omitted/null.
 - The first slide of the presentation. Contains topic name, subtitle, and presenter information
 - Set background_color to null (background image will be auto-inserted)
 - Do not place elements in the bottom-right area (left_px > 1080, top_px > 600) (logo auto-insertion area)

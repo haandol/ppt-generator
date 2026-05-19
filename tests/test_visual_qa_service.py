@@ -10,7 +10,7 @@ import pytest
 
 from ppt_generator.interfaces.llm_output_models import (
     ParagraphOutput,
-    SlideSpecOutput,
+    SimpleSlideSpecOutput,
     TextBoxOutput,
     TextRunOutput,
     VisualQAIssue,
@@ -40,8 +40,8 @@ def _make_qa_output(
     )
 
 
-def _make_slide_spec_output() -> SlideSpecOutput:
-    return SlideSpecOutput(
+def _make_slide_spec_output() -> SimpleSlideSpecOutput:
+    return SimpleSlideSpecOutput(
         background_color="#1a1a2e",
         textboxes=[
             TextBoxOutput(

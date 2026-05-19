@@ -27,27 +27,38 @@ You MUST honor the outline's layout_plan:
 - All coordinates and sizes are in px units (integers or decimals)
 </coordinate_system>
 
-<grid_first_principle>
-**Grid-First (MANDATORY)**: Before emitting any textbox/shape coordinates, first decide the slide's `grid_plan`. Then concretize that plan into pixel coordinates. Do NOT skip the grid_plan step — every element must reference a declared grid cell (or explicitly null for decorative connectors).
+<progressive_abstraction_principle>
+**Progressive Abstraction (MANDATORY)**: This response follows a strict descent from macro to micro. Output the four stages in declared order; do NOT skip ahead, and do NOT revise upstream stages once you start a downstream stage.
 
-Two-step procedure inside this single response:
+```
+Stage 1 (input)         outline                — WHAT and HOW (already decided upstream)
+Stage 2 (output)        grid_layout            — regions + content_columns + content_rows
+Stage 3 (output)        cell_assignment.cells  — each cell's row/col/span/region/role
+Stage 4 (output)        textboxes / shapes     — coordinates + style, each refers to a cell
+```
 
-**Step 1 — Decide grid_plan**:
+**Stage 2 — grid_layout** (decide the slide's macro layout):
 1. Choose `regions`: include `"header"` (recommended for content slides), `"content"` (REQUIRED), and `"footer"` only when the slide truly needs a footnote/source line.
 2. Choose `content_columns` (1..4) and `content_rows` (1..N) based on `outline.layout_plan` and `component_hint`.
    - `bullets`, `agenda` (single column) → 1 column
    - `two_column`, `vs_comparison`, `process_flow`, `concept_list`, `quote_code` → 2 columns
    - `step_cards` (3 cards), `info_cards` (3 cards), `pipeline` (3 stages), `arch_diagram` (3-tier) → 3 columns
    - `step_cards`/`info_cards` with 4 items, `pipeline` with 4 stages, `summary_grid` (2x2 → 2 columns x 2 rows) → 4 columns or 2x2
-3. Enumerate `cells`: every visible slot the slide needs. Title goes in a header cell; each card/diagram block in a content cell; footer text in a footer cell.
-4. Use `row_span`/`col_span` when an element spans multiple rows/columns (e.g., a tall left description that spans 2 rows in a 2x2 layout).
 
-**Step 2 — Concretize**:
+DO NOT think about individual cells in this stage. Only decide the overall regions and how content is divided.
+
+**Stage 3 — cell_assignment.cells** (assign each cell on top of the layout above):
+1. Enumerate every visible slot the slide needs. Title goes in a header cell; each card/diagram block in a content cell; footer text in a footer cell.
+2. For each cell give `id`, `region`, `row`, `col`, `row_span`, `col_span`, `role`.
+3. Use `row_span`/`col_span` when an element spans multiple rows/columns (e.g., a tall left description that spans 2 rows in a 2x2 layout).
+4. All cells you intend to use MUST be declared here BEFORE Stage 4. No element may reference a cell that was not declared.
+
+**Cell ID convention**: short, slide-local labels like `"h1"` (header row 1), `"c1"`/`"c2"` (content cells in declaration order), `"f1"` (footer). The `role` field is free text describing what the cell holds (e.g., `"title"`, `"step1_card"`, `"left_diagram"`).
+
+**Stage 4 — textboxes / shapes** (concretize each cell into pixels):
 - Map every textbox/shape/image to a cell via `grid_cell` field.
 - Compute pixel coordinates from the chosen region (design_summary header_region/content_region/footer_region) + content_columns/content_rows.
 - Decorative-only elements (connecting arrows, dividers) MAY use `grid_cell: null` but must not introduce alignment that conflicts with declared cells.
-
-**Cell ID convention**: short, slide-local labels like `"h1"` (header row 1), `"c1"`/`"c2"` (content cells in declaration order), `"f1"` (footer). The `role` field is free text describing what the cell holds (e.g., `"title"`, `"step1_card"`, `"left_diagram"`).
 
 **Coordinate derivation from region + columns/rows**:
 - content_region defines `top_px` and `height_px` of the entire content band.
@@ -56,14 +67,16 @@ Two-step procedure inside this single response:
 - A cell spanning `col_span` columns covers from its column's left_px to the rightmost column's right edge (including internal gaps).
 
 Same-row cells MUST share identical height_px. Same-column cells MUST share identical width_px. The lint rule `grid-cell-uniformity` enforces this.
-</grid_first_principle>
+</progressive_abstraction_principle>
 
 <output_schema>
 {
-  "grid_plan": {
-    "regions": ["header", "content"]  // subset of header/content/footer; content required,
-    "content_columns": number  // 1..4,
-    "content_rows": number  // 1..N,
+  "grid_layout": {
+    "regions": ["header", "content"],  // subset of header/content/footer; content required
+    "content_columns": number,  // 1..4
+    "content_rows": number  // 1..N
+  },
+  "cell_assignment": {
     "cells": [
       {"id": "h1", "region": "header", "row": 1, "col": 1, "row_span": 1, "col_span": 1, "role": "title"},
       {"id": "c1", "region": "content", "row": 1, "col": 1, "row_span": 1, "col_span": 1, "role": "step1_card"}
@@ -161,7 +174,7 @@ Common rules:
 </design_principles>
 
 <output_rules>
-- **grid_plan FIRST (IMPORTANT)**: Output `grid_plan` before any textbox/shape body. Every textbox/shape that holds slide content must reference a declared cell via `grid_cell`. Pure-decorative connectors (lines/arrows that span across cells) MAY use `grid_cell: null` but never to bypass alignment. The lint rules `grid-plan-required`, `grid-cell-uniformity`, `grid-cell-coverage`, `region-stacking` enforce these expectations.
+- **Progressive output order (IMPORTANT)**: Output `grid_layout` first, then `cell_assignment` (with all cells declared), and only then any textbox/shape body. Every textbox/shape that holds slide content must reference a cell declared in `cell_assignment.cells` via `grid_cell`. Pure-decorative connectors (lines/arrows that span across cells) MAY use `grid_cell: null` but never to bypass alignment. The lint rules `grid-plan-required`, `grid-cell-uniformity`, `grid-cell-coverage`, `region-stacking` enforce these expectations.
 - **Region pixel ranges come from design_summary** (header_region/content_region/footer_region). Do NOT invent your own y-axis bands — read them from the design_summary input and place cells inside those bands. Slide title at top=72, height=48 fits inside the default header_region (top=64, h=64).
 - **Cell coordinates must agree with region + content_columns/content_rows** (with 32px column gap and 16px row gap). Two cells in the same row share identical top_px+height_px; two cells in the same column share identical left_px+width_px. Use `row_span`/`col_span` for intentional asymmetry instead of resizing individual cells.
 - **Footer-aware content sizing**: When `regions` includes `"footer"`, content cells must NOT extend below `footer_region.top_px - 16` (16px gap). The lint rule `region-stacking` flags violations.
