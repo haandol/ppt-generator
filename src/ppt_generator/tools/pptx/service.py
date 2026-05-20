@@ -60,7 +60,13 @@ class ExportService:
             if spec.background_color:
                 self._builder.set_slide_background(slide, spec.background_color)
 
-            if spec.slide_type in ("title", "closing"):
+            # 슬라이드별 배경 이미지가 명시되어 있으면 우선 적용 (임포트 라운드트립 보존).
+            # 명시가 없을 때만 title/closing 기본 배경 이미지로 폴백한다.
+            if spec.background_image_bytes:
+                self._builder.set_slide_background_image(
+                    slide, spec.background_image_bytes
+                )
+            elif spec.slide_type in ("title", "closing"):
                 bg_bytes = bg_image_utils.get_bg_image_bytes(color_theme)
                 if bg_bytes:
                     self._builder.set_slide_background_image(slide, bg_bytes)

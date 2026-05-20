@@ -297,6 +297,40 @@ class TestRoundTrip:
 
         assert imported.slides[0].background_color == "#1A1A2E"
 
+    def test_background_image_preserved(self, export_service, import_service, tmp_path):
+        """슬라이드 배경의 blipFill 이미지가 라운드트립에서 보존되어야 한다.
+
+        회귀 방지: solid color만 추출하고 blipFill을 무시하면 임포트 시
+        흰색으로 폴백되어 시각적으로 누락된다.
+        """
+        # content 슬라이드여서 기본 폴백 배경 이미지가 적용되지 않는 케이스로 검증
+        png_bytes = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+            b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
+            b"\x00\x00\x00\rIDATx\x9cc\xfc\xcf\xc0\xf0\x1f\x00\x05\x00\x01\xff"
+            b"\x18p\xb1\x82\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    background_color="#1A1A2E",
+                    background_image_bytes=png_bytes,
+                    textboxes=[],
+                    shapes=[],
+                    speaker_notes="",
+                    slide_type="content",
+                ),
+            ]
+        )
+        imported = self._round_trip(export_service, import_service, spec, tmp_path)
+
+        assert imported.slides[0].background_image_bytes, (
+            "blipFill 슬라이드 배경 이미지가 임포트에서 추출되지 않음"
+        )
+        assert imported.slides[0].background_image_bytes.startswith(b"\x89PNG"), (
+            "추출된 배경 이미지가 PNG가 아님"
+        )
+
     def test_speaker_notes_preserved(self, export_service, import_service, tmp_path):
         spec = _make_rich_spec()
         imported = self._round_trip(export_service, import_service, spec, tmp_path)

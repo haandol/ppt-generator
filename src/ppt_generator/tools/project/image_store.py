@@ -157,7 +157,10 @@ class ImageStore:
         project_dir: Path,
         load_spec_fn: LoadDesignSpecFn,
     ) -> DesignSpec:
-        """design spec을 로드한 후, 각 이미지의 src/image_path로부터 image_bytes를 복원한다."""
+        """design spec을 로드한 후, 각 이미지의 src/image_path로부터 image_bytes를 복원한다.
+
+        슬라이드 단위 배경 이미지(`background_image_src`)도 같이 복원한다.
+        """
         spec = load_spec_fn(project_dir)
         slides_dir = project_dir / PROJECT_SLIDES_DIR
         updated_slides: list[PptxSlideSpec] = []
@@ -165,8 +168,27 @@ class ImageStore:
             new_images = [
                 self.resolve_image_bytes(img, slides_dir) for img in slide.images
             ]
-            if new_images != list(slide.images):
-                updated_slides.append(replace(slide, images=new_images))
+            bg_bytes = slide.background_image_bytes
+            if not bg_bytes and slide.background_image_src:
+                bg_path = slides_dir / slide.background_image_src
+                if bg_path.exists():
+                    bg_bytes = bg_path.read_bytes()
+                else:
+                    logger.warning(
+                        "배경 이미지 파일 없음 (background_image_src): %s", bg_path
+                    )
+            changed = (
+                new_images != list(slide.images)
+                or bg_bytes != slide.background_image_bytes
+            )
+            if changed:
+                updated_slides.append(
+                    replace(
+                        slide,
+                        images=new_images,
+                        background_image_bytes=bg_bytes,
+                    )
+                )
             else:
                 updated_slides.append(slide)
         return DesignSpec(slides=updated_slides)

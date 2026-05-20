@@ -167,3 +167,40 @@ class TestSpecToHtmlSectionWithImages:
 
         assert "<img " in html
         assert "IMAGE</span>" in html
+
+
+class TestBackgroundImageRendering:
+    """슬라이드 단위 배경 이미지(`background_image_src`)가 CSS에 적용되는지 검증."""
+
+    def test_background_image_src_applied(self):
+        spec = PptxSlideSpec(
+            background_color="#FFFFFF",
+            background_image_src="images/slide_03_bg.png",
+        )
+        html = spec_to_html_section(0, spec)
+
+        assert "background-image:url(images/slide_03_bg.png)" in html
+        assert "background-size:cover" in html
+
+    def test_background_image_src_overrides_default_bg(self):
+        """spec에 배경 이미지가 있으면 title/closing의 기본 배경 base64보다 우선해야 한다."""
+        spec = PptxSlideSpec(
+            background_color="#FFFFFF",
+            background_image_src="images/slide_01_bg.png",
+            slide_type="title",
+        )
+        html = spec_to_html_section(
+            0,
+            spec,
+            bg_image_base64="ZmFsbGJhY2tfYmFzZTY0",
+        )
+
+        assert "background-image:url(images/slide_01_bg.png)" in html
+        assert "ZmFsbGJhY2tfYmFzZTY0" not in html
+
+    def test_no_background_image_when_unset(self):
+        spec = PptxSlideSpec(background_color="#1A2332")
+        html = spec_to_html_section(0, spec)
+
+        assert "background-image" not in html
+        assert "background-color:#1A2332" in html

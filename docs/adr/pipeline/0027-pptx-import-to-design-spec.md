@@ -58,9 +58,22 @@ PPTX Import:  .pptx file    ──→  python-pptx objects  ──→  PptxSlide
 
 | PPTX 속성 | DesignSpec 필드 |
 |-----------|-----------------|
-| Solid fill | `background_color: "#RRGGBB"` |
-| blipFill (이미지 배경) | 전체 캔버스 크기 이미지 요소로 추가 |
-| Gradient fill | Dominant color를 추출하여 단색 근사 |
+| Solid fill | `background_color` (단색 hex) |
+| blipFill (이미지 배경) | `background_image_*` (슬라이드 단위 이미지) |
+| Gradient fill | Dominant color를 추출하여 `background_color`로 단색 근사 |
+
+**blipFill 처리 원칙**
+
+PPTX의 슬라이드 배경 이미지는 **`shapes`/`images`로 평탄화하지 않는다**. 두 가지 이유가 있다:
+
+1. OOXML 의미상 `<p:bg>`는 슬라이드 속성이지 도형이 아니다. 도형 추출 루프에 섞으면 `z_index`/그리드 레이아웃에 의도치 않은 영향을 준다.
+2. 슬라이드별로 단 하나만 존재하고, HTML/PPTX 양쪽 모두 슬라이드 단위 배경 API(`background-image` CSS, `<p:bg>/blipFill`)가 따로 있어 자연스럽게 매핑된다.
+
+대신 PptxSlideSpec에 슬라이드 단위 배경 이미지 필드를 추가하여 보존한다. 메모리 전용 바이너리와 직렬화용 상대경로가 분리되어 있고, 임포트 시 별도 PNG 파일로 저장된다. 탐색 우선순위는 `slide → slide_layout → slide_master`로, 최초로 발견한 blipFill의 이미지 파트를 사용한다. `background_color`와 공존할 수 있으며 **HTML/PPTX 렌더 시 이미지가 우선**, 색상은 이미지 로드 실패 시 폴백으로 노출된다.
+
+**라운드트립 무결성:** 임포트 시 추출·저장한 배경 이미지는 export 파이프라인이 다시 슬라이드 `<p:bg>`로 복원한다. 기존 title/closing 자동 배경 로직은 spec에 명시 배경이 없을 때만 적용되도록 폴백 우선순위를 정리했다.
+
+**회귀 방지:** 슬라이드 배경이 이미지인 외부 PPTX(예: 섹션 디바이더 슬라이드)에서 이전에는 solid color 폴백만 추출되어 흰색으로 누락되었다. 라운드트립 회귀 테스트와 HTML 렌더 회귀 테스트로 차단한다.
 
 ##### 2. 텍스트박스 (TextBox)
 
@@ -229,6 +242,7 @@ import_pptx(file_path: str) -> { project_id, num_slides, slides_html_path }
 9. 미지원 요소(차트, 비디오 등) 발견 시 경고 메시지가 반환된다
 10. Import → Export 라운드트립 시 이미지가 PPTX에 포함된다
 11. 임포트된 PPTX의 원본 텍스트 크기가 보존된다 (autofit 비활성화)
+12. 슬라이드 배경의 `blipFill`(이미지 배경)이 임포트 시 PNG로 저장되고, HTML 렌더 및 PPTX export에서 동일 이미지로 복원된다 — solid color 폴백으로 누락되지 않는다
 
 ### Out of Scope
 
