@@ -334,6 +334,32 @@ class TestLineShapeHtml:
             "긴 대각선에서 화살표 머리가 기본 크기여야 한다"
         )
 
+    def test_negative_height_container_top_anchored_at_top_px(self):
+        """음수 height(↗) 대각선의 SVG 컨테이너 top은 항상 shape.top_px - pad 여야 한다.
+
+        과거에는 음수 height 시 container_top = top_px + h - pad 로 계산해 박스가
+        |h|만큼 위로 떠올라 화살표가 의도한 위치보다 위에 그려지던 회귀가 있었다.
+        """
+        import re
+
+        shape = PptxShape(
+            left_px=854,
+            top_px=344,
+            width_px=218,
+            height_px=-60,
+            shape_type="line",
+            border_color="#FF9900",
+            border_width_pt=2,
+        )
+        html = shape_to_html(shape)
+        top_match = re.search(r"top:(-?\d+(?:\.\d+)?)px;", html)
+        assert top_match is not None
+        # pad = max(stroke_width*2, 8) = max(4, 8) = 8
+        # 음수 height fix: container_top = top_px - pad = 344 - 8 = 336
+        assert float(top_match.group(1)) == 336.0, (
+            f"음수 height 박스 top은 top_px-pad(=336)이어야 함, 실제={top_match.group(1)}"
+        )
+
 
 class TestClipPathShapes:
     """clip-path 기반 도형 HTML 렌더링 테스트."""

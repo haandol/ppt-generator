@@ -111,7 +111,9 @@ def _line_shape_to_html(shape: PptxShape) -> str:
     if defs_parts:
         defs_html = f"<defs>{''.join(defs_parts)}</defs>"
 
-    container_top = shape.top_px + h - pad if h < 0 else shape.top_px - pad
+    # 음수 height(flipV) 의미: 박스는 (left, top)~(left+w, top+|h|) 그대로 두되
+    # 라인이 좌하→우상으로 그려진다. container_top은 항상 top_px - pad.
+    container_top = shape.top_px - pad
     container_style = (
         f"position:absolute;"
         f"left:{shape.left_px - pad}px;top:{container_top}px;"

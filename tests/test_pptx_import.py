@@ -651,6 +651,70 @@ class TestSpecialElements:
         assert line.dash_style == "dash"
         assert line.end_arrow is True
 
+    @pytest.mark.parametrize(
+        "ooxml_dash_val,expected",
+        [
+            ("dash", "dash"),
+            ("lgDash", "dash"),
+            ("sysDash", "dash"),
+            ("dashDot", "dash"),
+            ("lgDashDot", "dash"),
+            ("lgDashDotDot", "dash"),
+            ("dot", "dot"),
+            ("sysDot", "dot"),
+            ("solid", None),
+            ("", None),
+        ],
+    )
+    def test_connector_dash_style_normalization(
+        self, ooxml_dash_val, expected, tmp_path
+    ):
+        """OOXML prstDash 변형(sysDot/sysDash 등)이 임포터에서 dash/dot로 정규화되어야 한다.
+
+        회귀 방지: 과거 임포터는 ("dash","dot") 만 인정하여 sysDot/sysDash 등이 누락됐다.
+        """
+        # python-pptx 의 connector 객체를 모킹하기보다, slide_reader 의 연결자 추출 코드를
+        # 직접 호출하기 위해 PPTX 파일을 만들고 a:prstDash val 을 직접 설정해 임포트한다.
+        from io import BytesIO
+        from pptx import Presentation
+        from pptx.oxml.ns import qn
+        from pptx.util import Inches
+        from lxml import etree
+
+        prs = Presentation()
+        prs.slide_width = Inches(13.333)
+        prs.slide_height = Inches(7.5)
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+
+        # CXN connector 추가 (line)
+        from pptx.shapes.connector import Connector
+
+        cxn = slide.shapes.add_connector(1, Inches(1), Inches(2), Inches(3), Inches(2))
+        # a:ln 에 prstDash val 직접 삽입
+        spPr = cxn._element.find(qn("p:spPr"))
+        ln = spPr.find(qn("a:ln"))
+        if ln is None:
+            ln = etree.SubElement(spPr, qn("a:ln"))
+        # 기존 prstDash 제거
+        for old in ln.findall(qn("a:prstDash")):
+            ln.remove(old)
+        if ooxml_dash_val:
+            prst = etree.SubElement(ln, qn("a:prstDash"))
+            prst.set("val", ooxml_dash_val)
+
+        buf = BytesIO()
+        prs.save(buf)
+        buf.seek(0)
+        path = tmp_path / "dash.pptx"
+        path.write_bytes(buf.read())
+
+        imported, _ = ImportService().import_from_file(path)
+        lines = [s for s in imported.slides[0].shapes if s.shape_type == "line"]
+        assert lines, "line shape 가 임포트되어야 한다"
+        assert lines[0].dash_style == expected, (
+            f"OOXML {ooxml_dash_val!r} → expected {expected!r}, got {lines[0].dash_style!r}"
+        )
+
     def test_italic_preserved(self, export_service, import_service, tmp_path):
         """italic 속성이 보존되는지 검증."""
         spec = DesignSpec(

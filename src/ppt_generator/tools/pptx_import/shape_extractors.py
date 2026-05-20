@@ -298,8 +298,18 @@ class ShapeExtractorMixin(CompoundExtractorMixin):
             prst_dash = ln.find(qn("a:prstDash"))
             if prst_dash is not None:
                 dash_val = prst_dash.get("val", "")
-                if dash_val in ("dash", "dot"):
-                    dash_style = dash_val
+                # OOXML prstDash 값을 ("dash"|"dot") 으로 정규화
+                if dash_val in (
+                    "dash",
+                    "lgDash",
+                    "sysDash",
+                    "dashDot",
+                    "lgDashDot",
+                    "lgDashDotDot",
+                ):
+                    dash_style = "dash"
+                elif dash_val in ("dot", "sysDot"):
+                    dash_style = "dot"
 
         width_px = self._emu_to_px_x(width_emu)
         height_px = self._emu_to_px_y(height_emu)
