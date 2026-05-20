@@ -119,6 +119,16 @@ class ProjectService:
     ) -> list[str]:
         return self._html_store.save_slide_images(project_dir, slide_index, images)
 
+    def save_slide_bg_image(
+        self,
+        project_dir: Path,
+        slide_index: int,
+        image_bytes: bytes,
+    ) -> str:
+        return self._html_store.save_slide_bg_image(
+            project_dir, slide_index, image_bytes
+        )
+
     def get_slide_image_srcs(
         self,
         project_dir: Path,

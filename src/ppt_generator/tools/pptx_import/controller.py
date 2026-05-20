@@ -69,7 +69,18 @@ def register_pptx_import_tools(
                 replace(img, src=src) if src else img
                 for img, src in zip(slide.images, srcs)
             ]
-            updated_slides.append(replace(slide, images=new_images))
+            # 배경 이미지 저장
+            bg_src = project_service.save_slide_bg_image(
+                project_dir, idx, slide.background_image_bytes
+            )
+            updated_slides.append(
+                replace(
+                    slide,
+                    images=new_images,
+                    background_image_src=bg_src,
+                    background_image_bytes=b"",
+                )
+            )
         design_spec = DesignSpec(slides=updated_slides)
         # src가 포함된 design_spec 재저장
         project_service.save_design_spec(project_dir, design_spec)

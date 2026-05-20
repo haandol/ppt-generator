@@ -54,9 +54,12 @@ def _clean_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
 
     return PptxSlideSpec(
         background_color=spec.background_color,
+        background_image_bytes=spec.background_image_bytes,
+        background_image_src=spec.background_image_src,
         textboxes=cleaned_tbs,
         shapes=spec.shapes,
         images=spec.images,
         speaker_notes=spec.speaker_notes,
         slide_type=spec.slide_type,
+        grid_plan=spec.grid_plan,
     )

@@ -43,10 +43,18 @@ def _strip_image_internals(data: dict) -> None:
             img.pop("corner_radius_px", None)
 
 
+def _strip_slide_internals(data: dict) -> None:
+    """슬라이드 레벨 내부 전용 필드를 제거한다."""
+    data.pop("background_image_bytes", None)
+    if not data.get("background_image_src"):
+        data.pop("background_image_src", None)
+
+
 def slide_spec_to_json(slide_spec: PptxSlideSpec) -> str:
     """단일 PptxSlideSpec을 JSON 문자열로 직렬화."""
     data = asdict(slide_spec)
     _strip_image_internals(data)
+    _strip_slide_internals(data)
     _strip_none_z_index(data)
     _strip_none_grid_cell(data)
     _strip_empty_grid_plan(data)
@@ -58,6 +66,7 @@ def design_spec_to_json(design_spec: DesignSpec) -> str:
     data = asdict(design_spec)
     for slide in data.get("slides", []):
         _strip_image_internals(slide)
+        _strip_slide_internals(slide)
         _strip_none_z_index(slide)
         _strip_none_grid_cell(slide)
         _strip_empty_grid_plan(slide)

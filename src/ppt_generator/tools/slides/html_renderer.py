@@ -145,7 +145,12 @@ def spec_to_html_section(
         notes_attr = f' data-speaker-notes="{escaped_notes}"'
 
     bg_image_css = ""
-    if bg_image_base64:
+    if spec.background_image_src:
+        bg_image_css = (
+            f"background-image:url({spec.background_image_src});"
+            "background-size:cover;background-position:center;"
+        )
+    elif bg_image_base64:
         bg_image_css = (
             f"background-image:url(data:image/png;base64,{bg_image_base64});"
             "background-size:cover;background-position:center;"

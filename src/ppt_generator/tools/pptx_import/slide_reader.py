@@ -109,6 +109,7 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
         """단일 슬라이드 → PptxSlideSpec 변환."""
         self._cache_layout_def_rpr(slide)
         background_color = self._extract_background_color(slide)
+        background_image_bytes = self._extract_background_image_bytes(slide)
         textboxes: list[PptxTextBox] = []
         shapes: list[PptxShape] = []
         images: list[PptxImage] = []
@@ -156,6 +157,7 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
 
         return PptxSlideSpec(
             background_color=background_color,
+            background_image_bytes=background_image_bytes,
             textboxes=textboxes,
             shapes=shapes,
             images=images,
@@ -218,6 +220,45 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
             logger.debug("마스터 배경색 추출 실패", exc_info=True)
 
         return self._default_bg_color or self._theme_color_map.get("bg1")
+
+    def _extract_background_image_bytes(self, slide: Slide) -> bytes:
+        """슬라이드 배경의 blipFill 이미지 바이트를 추출.
+
+        slide → layout → master 순서로 탐색. 최초 발견 시 반환.
+        """
+        for source in (
+            slide,
+            getattr(slide, "slide_layout", None),
+            getattr(getattr(slide, "slide_layout", None), "slide_master", None),
+        ):
+            if source is None:
+                continue
+            try:
+                bg = source.background
+                bg_el = bg._element if hasattr(bg, "_element") else bg
+                p_bg = bg_el.find(qn("p:bg")) if bg_el.tag != qn("p:bg") else bg_el
+                if p_bg is None:
+                    continue
+                blip = p_bg.find(f".//{qn('a:blip')}")
+                if blip is None:
+                    continue
+                embed_id = blip.get(qn("r:embed"))
+                if not embed_id:
+                    continue
+                # source.part에서 관계로 이미지 part 조회
+                part = getattr(source, "part", None)
+                if part is None:
+                    continue
+                try:
+                    image_part = part.related_part(embed_id)
+                    return image_part.blob
+                except Exception:
+                    logger.debug(
+                        "관계 ID로 이미지 파트 조회 실패: %s", embed_id, exc_info=True
+                    )
+            except Exception:
+                logger.debug("배경 blipFill 추출 실패", exc_info=True)
+        return b""
 
     def _try_extract_bg_fill(self, bg) -> str | None:
         """background 객체에서 solid fill 색상을 XML 직접 파싱으로 추출."""

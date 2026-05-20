@@ -25,6 +25,26 @@ class HtmlStore:
         """이미지 파일명 생성: slide_01_img_01.png"""
         return f"slide_{slide_index + 1:02d}_img_{image_index + 1:02d}.png"
 
+    @staticmethod
+    def _bg_image_filename(slide_index: int) -> str:
+        """배경 이미지 파일명 생성: slide_01_bg.png"""
+        return f"slide_{slide_index + 1:02d}_bg.png"
+
+    def save_slide_bg_image(
+        self,
+        project_dir: Path,
+        slide_index: int,
+        image_bytes: bytes,
+    ) -> str:
+        """슬라이드 배경 이미지를 slides/images/에 PNG로 저장하고 상대경로를 반환."""
+        if not image_bytes:
+            return ""
+        images_dir = project_dir / PROJECT_IMAGES_DIR
+        images_dir.mkdir(parents=True, exist_ok=True)
+        fname = self._bg_image_filename(slide_index)
+        (images_dir / fname).write_bytes(image_bytes)
+        return f"images/{fname}"
+
     def save_slides_html(
         self,
         project_dir: Path,

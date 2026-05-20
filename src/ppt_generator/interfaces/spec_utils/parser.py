@@ -160,6 +160,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
 
     return PptxSlideSpec(
         background_color=data.get("background_color"),
+        background_image_src=data.get("background_image_src", ""),
         textboxes=textboxes,
         shapes=shapes,
         images=images,

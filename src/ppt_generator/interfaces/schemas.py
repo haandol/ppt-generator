@@ -212,6 +212,8 @@ class PptxSlideSpec:
     """Full slide spec: background color, textbox list, shape list, image list."""
 
     background_color: str | None = None
+    background_image_bytes: bytes = b""  # in-memory PNG bytes (not serialized)
+    background_image_src: str = ""  # relative path (e.g. "images/slide_01_bg.png")
     textboxes: list[PptxTextBox] = field(default_factory=list)
     shapes: list[PptxShape] = field(default_factory=list)
     images: list[PptxImage] = field(default_factory=list)
