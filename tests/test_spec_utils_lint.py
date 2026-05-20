@@ -344,6 +344,118 @@ class TestDecorativeNoRounding:
 
 
 # ---------------------------------------------------------------------------
+# hidden-decorative-strip 규칙
+# ---------------------------------------------------------------------------
+
+
+class TestHiddenDecorativeStripRule:
+    """장식 strip이 더 큰 카드에 가려지는 z-order 결함 검사."""
+
+    def test_strip_behind_card_detected(self) -> None:
+        """동일 위치에 시작하는 6px 강조 바가 카드 뒤에 있으면 위반."""
+        bar = PptxShape(
+            left_px=626,
+            top_px=148,
+            width_px=6,
+            height_px=160,
+            shape_type="rectangle",
+            fill_color="#FFC000",
+            z_index=10,
+        )
+        card = PptxShape(
+            left_px=626,
+            top_px=148,
+            width_px=590,
+            height_px=160,
+            shape_type="rounded_rectangle",
+            fill_color="#243447",
+            z_index=11,
+        )
+        result = lint_slide_spec(_slide(shapes=[bar, card]))
+        violations = [
+            v for v in result.violations if v.rule == "hidden-decorative-strip"
+        ]
+        assert len(violations) == 1
+        assert violations[0].element_index == 0
+
+    def test_strip_on_top_no_violation(self) -> None:
+        """strip이 카드보다 위 z-order면 위반 없음."""
+        card = PptxShape(
+            left_px=626,
+            top_px=148,
+            width_px=590,
+            height_px=160,
+            shape_type="rounded_rectangle",
+            fill_color="#243447",
+            z_index=10,
+        )
+        bar = PptxShape(
+            left_px=626,
+            top_px=148,
+            width_px=6,
+            height_px=160,
+            shape_type="rectangle",
+            fill_color="#FFC000",
+            z_index=11,
+        )
+        result = lint_slide_spec(_slide(shapes=[card, bar]))
+        violations = [
+            v for v in result.violations if v.rule == "hidden-decorative-strip"
+        ]
+        assert len(violations) == 0
+
+    def test_z_index_none_uses_array_order(self) -> None:
+        """z_index 미설정 시 배열 인덱스로 판정 — strip이 먼저 나오면 카드에 가려짐."""
+        bar = PptxShape(
+            left_px=626,
+            top_px=148,
+            width_px=6,
+            height_px=160,
+            shape_type="rectangle",
+            fill_color="#FFC000",
+        )
+        card = PptxShape(
+            left_px=626,
+            top_px=148,
+            width_px=590,
+            height_px=160,
+            shape_type="rounded_rectangle",
+            fill_color="#243447",
+        )
+        result = lint_slide_spec(_slide(shapes=[bar, card]))
+        violations = [
+            v for v in result.violations if v.rule == "hidden-decorative-strip"
+        ]
+        assert len(violations) == 1
+
+    def test_strip_not_contained_no_violation(self) -> None:
+        """strip이 카드 영역에 포함되지 않으면 무시."""
+        bar = PptxShape(
+            left_px=64,
+            top_px=148,
+            width_px=6,
+            height_px=160,
+            shape_type="rectangle",
+            fill_color="#FFC000",
+            z_index=10,
+        )
+        card = PptxShape(
+            left_px=626,
+            top_px=148,
+            width_px=590,
+            height_px=160,
+            shape_type="rounded_rectangle",
+            fill_color="#243447",
+            z_index=11,
+        )
+        result = lint_slide_spec(_slide(shapes=[bar, card]))
+        violations = [
+            v for v in result.violations if v.rule == "hidden-decorative-strip"
+        ]
+        assert len(violations) == 0
+
+
+# ---------------------------------------------------------------------------
 # expand-height-collision 규칙
 # ---------------------------------------------------------------------------
 

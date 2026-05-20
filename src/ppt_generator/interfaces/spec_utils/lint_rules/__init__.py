@@ -18,6 +18,9 @@ from ppt_generator.interfaces.spec_utils.lint_rules.grid_cell_coverage import (
 from ppt_generator.interfaces.spec_utils.lint_rules.grid_plan_required import (
     check_grid_plan_required,
 )
+from ppt_generator.interfaces.spec_utils.lint_rules.hidden_decorative_strip import (
+    check_hidden_decorative_strip,
+)
 from ppt_generator.interfaces.spec_utils.lint_rules.region_stacking import (
     check_region_stacking,
 )
@@ -47,6 +50,7 @@ ALL_RULES = [
     check_sibling_grid,
     check_zero_size_shape,
     check_decorative_no_rounding,
+    check_hidden_decorative_strip,
     check_grid_plan_required,
     check_grid_cell_coverage,
     check_region_stacking,

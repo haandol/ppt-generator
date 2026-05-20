@@ -33,6 +33,10 @@ or text content as needed. Output the complete corrected slide spec JSON.
 - `content_too_dense`: Increase font sizes back to recommended minimums (body >= 16pt, card body >= 14pt), restore padding to recommended values (16px LR, 12px TB), and if still too crowded, move excess content to speaker_notes. Reduce the number of visible elements if more than 7 are competing for attention.
 - `unbalanced_spacing`: Recalculate inter-element spacing for repeating elements (chart rows, card stacks, list items) to achieve balanced optical density. Use formula: gap = (available_height - N × item_height) / (N + 1), clamped to [12px, 1.5 × item_height]. Center the content block vertically within the parent area. Adjust all elements' top_px values uniformly.
 - `label_line_overlap`: Move the text label above or below the arrow/line with a minimum 4px gap. For horizontal arrows: set label.top_px = arrow.top_px - label.height_px - 4 (above) or label.top_px = arrow.top_px + 4 (below). For vertical arrows: offset label.left_px so it clears the arrow line. Ensure the label remains within canvas bounds and does not overlap other elements. Set diagram flow label font size to 12~14pt if not already.
+- `hidden_decorative_strip` / `wrong_z_order`: Raise the thin/decorative shape's render order above the larger occluding shape. Two equivalent approaches:
+  1. **z_index** — Set the thin shape's `z_index` to a value strictly greater than the occluding shape's `z_index`. If both are null, also set both shapes' `z_index` explicitly so the relationship is unambiguous (e.g., card.z_index=10, strip.z_index=11).
+  2. **Array order** — When `z_index` is null on all elements, move the thin shape to a later position in the `shapes` array so it renders on top.
+  Prefer setting `z_index` explicitly because it survives downstream array reordering. Do NOT change the strip's geometry (left_px/top_px/width/height) or color — the issue is layering, not placement. Apply to all sibling thin/large pairs that exhibit the same defect on the slide.
 </fix_strategies>
 
 <design_rules>
