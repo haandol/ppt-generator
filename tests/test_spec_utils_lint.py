@@ -456,6 +456,144 @@ class TestHiddenDecorativeStripRule:
 
 
 # ---------------------------------------------------------------------------
+# spacer-paragraph 규칙
+# ---------------------------------------------------------------------------
+
+
+def _card_with_paragraphs(paragraphs, fill_color="#243447"):
+    return PptxShape(
+        left_px=626,
+        top_px=148,
+        width_px=590,
+        height_px=160,
+        shape_type="rounded_rectangle",
+        fill_color=fill_color,
+        paragraphs=paragraphs,
+        autofit_mode="shrink_text",
+    )
+
+
+class TestSpacerParagraphRule:
+    """카드 fill 색상과 동일한 색의 공백 단락이 spacer 안티패턴으로 차단되는지 검증."""
+
+    def test_spacer_paragraph_detected(self) -> None:
+        card = _card_with_paragraphs(
+            [
+                PptxParagraph(
+                    runs=[PptxTextRun(text="01 제목", font_size_pt=18, color="#FFC000")]
+                ),
+                PptxParagraph(
+                    runs=[PptxTextRun(text=" ", font_size_pt=10, color="#243447")]
+                ),
+                PptxParagraph(
+                    runs=[PptxTextRun(text="본문", font_size_pt=16, color="#D5DBDB")]
+                ),
+            ]
+        )
+        result = lint_slide_spec(_slide(shapes=[card]))
+        violations = [v for v in result.violations if v.rule == "spacer-paragraph"]
+        assert len(violations) == 1
+        assert violations[0].current_value["paragraph_index"] == 1
+
+    def test_real_text_paragraph_no_violation(self) -> None:
+        """실제 텍스트가 있는 단락은 위반 아님."""
+        card = _card_with_paragraphs(
+            [
+                PptxParagraph(
+                    runs=[PptxTextRun(text="01 제목", font_size_pt=18, color="#FFC000")]
+                ),
+                PptxParagraph(
+                    runs=[PptxTextRun(text="본문", font_size_pt=16, color="#D5DBDB")]
+                ),
+            ]
+        )
+        result = lint_slide_spec(_slide(shapes=[card]))
+        assert not [v for v in result.violations if v.rule == "spacer-paragraph"]
+
+    def test_spacer_with_different_color_no_violation(self) -> None:
+        """공백이지만 색상이 fill과 다르면 spacer 안티패턴이 아님 (의도적 보임)."""
+        card = _card_with_paragraphs(
+            [
+                PptxParagraph(
+                    runs=[PptxTextRun(text=" ", font_size_pt=10, color="#FF0000")]
+                ),
+            ]
+        )
+        result = lint_slide_spec(_slide(shapes=[card]))
+        assert not [v for v in result.violations if v.rule == "spacer-paragraph"]
+
+
+# ---------------------------------------------------------------------------
+# row-autofit-consistency 규칙
+# ---------------------------------------------------------------------------
+
+
+def _row_card(top_px, autofit_mode, *, idx_label="01"):
+    return PptxShape(
+        left_px=626,
+        top_px=top_px,
+        width_px=590,
+        height_px=160,
+        shape_type="rounded_rectangle",
+        fill_color="#243447",
+        paragraphs=[
+            PptxParagraph(
+                runs=[
+                    PptxTextRun(
+                        text=f"{idx_label} 제목", font_size_pt=18, color="#FFC000"
+                    )
+                ]
+            ),
+        ],
+        autofit_mode=autofit_mode,
+    )
+
+
+class TestRowAutofitConsistency:
+    """같은 행 카드들의 autofit_mode 충돌 감지."""
+
+    def test_mixed_autofit_modes_detected(self) -> None:
+        a = _row_card(148.0, "shrink_text", idx_label="01")
+        b = _row_card(148.0, "expand_height", idx_label="02")
+        result = lint_slide_spec(_slide(shapes=[a, b]))
+        rule_violations = [
+            v for v in result.violations if v.rule == "row-autofit-mismatch"
+        ]
+        # 두 카드 모두 보고
+        assert len(rule_violations) == 2
+
+    def test_both_expand_height_in_row_detected(self) -> None:
+        a = _row_card(148.0, "expand_height", idx_label="01")
+        b = _row_card(148.0, "expand_height", idx_label="02")
+        result = lint_slide_spec(_slide(shapes=[a, b]))
+        violations = [
+            v for v in result.violations if v.rule == "row-expand-height-unsafe"
+        ]
+        assert len(violations) == 2
+
+    def test_both_shrink_text_in_row_no_violation(self) -> None:
+        a = _row_card(148.0, "shrink_text", idx_label="01")
+        b = _row_card(148.0, "shrink_text", idx_label="02")
+        result = lint_slide_spec(_slide(shapes=[a, b]))
+        assert not [
+            v
+            for v in result.violations
+            if v.rule in ("row-autofit-mismatch", "row-expand-height-unsafe")
+        ]
+
+    def test_different_rows_not_grouped(self) -> None:
+        """top_px가 다르면 같은 행이 아니므로 autofit 차이가 위반이 아님."""
+        a = _row_card(148.0, "shrink_text", idx_label="01")
+        b = _row_card(322.0, "expand_height", idx_label="02")
+        result = lint_slide_spec(_slide(shapes=[a, b]))
+        assert not [
+            v
+            for v in result.violations
+            if v.rule in ("row-autofit-mismatch", "row-expand-height-unsafe")
+        ]
+
+
+# ---------------------------------------------------------------------------
 # expand-height-collision 규칙
 # ---------------------------------------------------------------------------
 

@@ -24,8 +24,14 @@ from ppt_generator.interfaces.spec_utils.lint_rules.hidden_decorative_strip impo
 from ppt_generator.interfaces.spec_utils.lint_rules.region_stacking import (
     check_region_stacking,
 )
+from ppt_generator.interfaces.spec_utils.lint_rules.row_autofit_consistency import (
+    check_row_autofit_consistency,
+)
 from ppt_generator.interfaces.spec_utils.lint_rules.sibling_gap import (
     check_sibling_gap,
+)
+from ppt_generator.interfaces.spec_utils.lint_rules.spacer_paragraph import (
+    check_spacer_paragraph,
 )
 from ppt_generator.interfaces.spec_utils.lint_rules.sibling_grid import (
     check_sibling_grid,
@@ -54,6 +60,8 @@ ALL_RULES = [
     check_grid_plan_required,
     check_grid_cell_coverage,
     check_region_stacking,
+    check_row_autofit_consistency,
+    check_spacer_paragraph,
 ]
 
 __all__ = ["ALL_RULES"]
