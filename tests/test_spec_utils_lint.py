@@ -1214,3 +1214,109 @@ class TestLintDesignSpec:
         slides = [_slide(textboxes=[empty_tb, text_tb])]
         result = lint_design_spec(slides)
         assert len(result.cleaned_specs[0].textboxes) == 1
+
+
+# ---------------------------------------------------------------------------
+# nowrap-overflow 규칙 (ADR-0047)
+# ---------------------------------------------------------------------------
+
+
+class TestNowrapOverflow:
+    """nowrap 으로 렌더될 paragraph 의 추정 폭이 가용 폭을 초과하는지 검사."""
+
+    def _shape_with_text(
+        self,
+        text: str,
+        font: int,
+        width_px: float,
+        padding_lr: float = 12.0,
+        bullet_level: int = -1,
+    ) -> PptxShape:
+        return PptxShape(
+            left_px=64,
+            top_px=64,
+            width_px=width_px,
+            height_px=120,
+            shape_type="rounded_rectangle",
+            fill_color="#243447",
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text=text, font_size_pt=font)],
+                    bullet_level=bullet_level,
+                )
+            ],
+            padding_left_px=padding_lr,
+            padding_right_px=padding_lr,
+        )
+
+    def test_short_text_within_box_no_violation(self) -> None:
+        """박스 폭의 약 50% 인 짧은 한글 텍스트는 위반 없음."""
+        shape = self._shape_with_text("짧은 라벨", font=14, width_px=500)
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        violations = [v for v in result.violations if v.rule == "nowrap-overflow"]
+        assert len(violations) == 0
+
+    def test_long_text_wraps_naturally_no_violation(self) -> None:
+        """긴 한글 텍스트는 nowrap 게이트를 통과하지 못해 wrap 됨 → 위반 없음."""
+        shape = self._shape_with_text(
+            "이 문장은 박스 가용 폭을 한참 넘는 긴 한글 문장이라 nowrap 이 적용되지 않습니다",
+            font=14,
+            width_px=300,
+        )
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        violations = [v for v in result.violations if v.rule == "nowrap-overflow"]
+        assert len(violations) == 0
+
+    def test_borderline_text_within_95_percent_no_violation(self) -> None:
+        """ADR-0047 의 0.95 tolerance 안에 들어오는 텍스트는 nowrap 적용되어도 위반 없음."""
+        # 가용 폭 ~ 244px (268 - 12*2). 추정 폭이 230px 정도가 되도록 조정.
+        shape = self._shape_with_text("스킬로 자가개선", font=14, width_px=268)
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        violations = [v for v in result.violations if v.rule == "nowrap-overflow"]
+        assert len(violations) == 0
+
+    def test_bullet_paragraph_excluded(self) -> None:
+        """bullet (`<li>`) 는 렌더러가 nowrap 을 적용하지 않으므로 검사 대상 제외."""
+        shape = self._shape_with_text(
+            "박스 폭에 거의 맞는 한글 라벨",
+            font=14,
+            width_px=300,
+            bullet_level=0,
+        )
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        violations = [v for v in result.violations if v.rule == "nowrap-overflow"]
+        assert len(violations) == 0
+
+    def test_textbox_short_text_no_violation(self) -> None:
+        """textbox 의 짧은 텍스트도 가용 폭 이내면 위반 없음."""
+        tb = _tb("작은 라벨", font=14, width_px=400)
+        result = lint_slide_spec(_slide(textboxes=[tb]))
+        violations = [v for v in result.violations if v.rule == "nowrap-overflow"]
+        assert len(violations) == 0
+
+    def test_regression_when_nowrap_gate_admits_overflowing_paragraph(
+        self, monkeypatch
+    ) -> None:
+        """nowrap 게이트가 가용 폭을 초과하는 paragraph 를 허용하는 경우 lint 가 잡는다.
+
+        tolerance 0.95 에서는 자연 발생하지 않지만, 향후 tolerance 가 다시 느슨해지거나
+        `should_apply_nowrap_to_paragraph` 구현이 바뀌어 회귀가 생기면 이 lint 가
+        감지해야 한다. 게이트를 강제로 True 로 패치하여 시나리오를 재현한다.
+        """
+        from ppt_generator.interfaces.spec_utils.lint_rules import nowrap_overflow
+
+        monkeypatch.setattr(
+            nowrap_overflow,
+            "should_apply_nowrap_to_paragraph",
+            lambda paragraph, usable_width_px: True,
+        )
+        # 가용 폭 ~244px (268-24), 추정 폭이 가용 폭을 초과하도록 충분히 긴 한글.
+        shape = self._shape_with_text(
+            "스킬로 작업 실행 결과 자가 개선 패턴 누적",
+            font=14,
+            width_px=268,
+        )
+        result = lint_slide_spec(_slide(shapes=[shape]))
+        violations = [v for v in result.violations if v.rule == "nowrap-overflow"]
+        assert len(violations) == 1
+        assert violations[0].element_type == "shape"

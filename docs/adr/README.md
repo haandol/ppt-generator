@@ -49,6 +49,7 @@ adr/
 - [0041: Validator를 Lint로 전환](./pipeline/0041-validator-to-lint.md)
 - [0043: 디자인 스펙 thinking을 adaptive에서 고정 budget으로 전환](./pipeline/0043-design-spec-fixed-thinking-budget.md)
 - [0044: Grid-First Design Spec — 그리드 우선 디자인 스펙](./pipeline/0044-grid-first-design-spec.md) — _Proposed_
+- [0047: nowrap 오버플로우 방지 — tolerance 보수화 + lint 추가](./pipeline/0047-nowrap-overflow-prevention.md) — _Proposed_
 
 ## ADR 작성 가이드
 

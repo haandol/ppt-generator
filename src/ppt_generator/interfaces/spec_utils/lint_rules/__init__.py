@@ -21,6 +21,9 @@ from ppt_generator.interfaces.spec_utils.lint_rules.grid_plan_required import (
 from ppt_generator.interfaces.spec_utils.lint_rules.hidden_decorative_strip import (
     check_hidden_decorative_strip,
 )
+from ppt_generator.interfaces.spec_utils.lint_rules.nowrap_overflow import (
+    check_nowrap_overflow,
+)
 from ppt_generator.interfaces.spec_utils.lint_rules.region_stacking import (
     check_region_stacking,
 )
@@ -51,6 +54,7 @@ ALL_RULES = [
     check_font_range,
     check_canvas_overflow,
     check_text_overflow,
+    check_nowrap_overflow,
     check_expand_height_collision,
     check_sibling_gap,
     check_sibling_grid,

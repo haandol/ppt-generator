@@ -117,10 +117,11 @@ TEXT_MEASURE_BULLET_INDENT_L1_PX = 48.0
 TEXT_MEASURE_DEFAULT_SHAPE_PADDING_LR_PX = 4.8
 TEXT_MEASURE_DEFAULT_SHAPE_PADDING_TB_PX = 2.4
 
-# PPT의 폰트 메트릭(시스템 폰트)과 브라우저의 폰트 메트릭(웹 폰트) 차이로
-# 경계 케이스(박스 폭에 거의 들어맞는 텍스트)가 두 줄로 wrap되는 것을 막기 위한 안전 마진.
+# PPT의 폰트 메트릭(시스템 폰트)과 브라우저의 폰트 메트릭(웹 폰트) 차이를 흡수하기 위한 nowrap 게이트.
 # 단일 paragraph 텍스트의 추정 폭이 사용 가능 폭의 이 배율 이내면 white-space:nowrap을 적용한다.
-TEXT_MEASURE_NOWRAP_TOLERANCE_RATIO = 1.15
+# 1.15(과거)는 박스를 뚫고 좌우로 텍스트가 넘치는 사고를 유발했다 (ADR-0047).
+# 0.95는 박스 폭의 5% 안전 마진을 남겨 어떤 메트릭 차이가 있어도 좌우 오버플로우가 발생하지 않도록 한다.
+TEXT_MEASURE_NOWRAP_TOLERANCE_RATIO = 0.95
 
 PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU = 45720  # ~0.05 inch
 PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU = 22860  # ~0.025 inch
