@@ -38,14 +38,26 @@ def run_to_html(run: PptxTextRun) -> str:
     return inner
 
 
-def paragraph_to_html(para: PptxParagraph) -> str:
-    """PptxParagraph -> HTML 변환."""
+def paragraph_to_html(para: PptxParagraph, *, nowrap: bool = False) -> str:
+    """PptxParagraph -> HTML 변환.
+
+    nowrap=True 이면 white-space:nowrap을 적용하여 PPT의 한 줄 레이아웃을 유지한다.
+    """
     runs_html = "".join(run_to_html(r) for r in para.runs)
-    align_style = ""
+    style_props: list[str] = []
     if para.alignment:
-        align_style = f' style="text-align:{para.alignment}"'
+        style_props.append(f"text-align:{para.alignment}")
+    if nowrap:
+        style_props.append("white-space:nowrap")
+
+    style_attr = f' style="{";".join(style_props)}"' if style_props else ""
 
     if para.bullet_level >= 0:
         indent = 20 * (para.bullet_level + 1)
-        return f'<li style="margin-left:{indent}px{(";text-align:" + para.alignment) if para.alignment else ""}">{runs_html}</li>'
-    return f"<p{align_style}>{runs_html}</p>"
+        li_styles = [f"margin-left:{indent}px"]
+        if para.alignment:
+            li_styles.append(f"text-align:{para.alignment}")
+        if nowrap:
+            li_styles.append("white-space:nowrap")
+        return f'<li style="{";".join(li_styles)}">{runs_html}</li>'
+    return f"<p{style_attr}>{runs_html}</p>"

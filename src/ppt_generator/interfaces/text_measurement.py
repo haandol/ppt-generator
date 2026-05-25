@@ -18,6 +18,7 @@ from ppt_generator.interfaces.constants import (
     TEXT_MEASURE_DEFAULT_SHAPE_PADDING_TB_PX,
     TEXT_MEASURE_LATIN_WIDTH_RATIO,
     TEXT_MEASURE_MONOSPACE_WIDTH_RATIO,
+    TEXT_MEASURE_NOWRAP_TOLERANCE_RATIO,
     TEXT_MEASURE_PX_PER_PT,
 )
 
@@ -179,6 +180,41 @@ def calculate_required_height_simple_text(
 
     total_height = padding_top_px + padding_bottom_px + total_lines * line_height_px
     return total_height
+
+
+def should_apply_nowrap_to_paragraph(
+    paragraph: "PptxParagraph",
+    available_width_px: float,
+    tolerance_ratio: float = TEXT_MEASURE_NOWRAP_TOLERANCE_RATIO,
+) -> bool:
+    """단일 paragraph가 PPT에서는 한 줄로 표시되지만 브라우저 메트릭 차이로
+    wrap되는 경계 케이스인지 판정한다.
+
+    추정 텍스트 폭이 사용 가능 폭의 tolerance_ratio 배 이내면 nowrap을 적용해야
+    PPT와 같은 한 줄 레이아웃을 유지할 수 있다.
+
+    명시적 줄바꿈(텍스트 안의 '\\n')이 있으면 nowrap을 적용하지 않는다.
+    """
+    if available_width_px <= 0:
+        return False
+
+    total_width = 0.0
+    has_text = False
+
+    for run in paragraph.runs:
+        if not run.text:
+            continue
+        if "\n" in run.text:
+            return False
+        has_text = True
+        font_pt = run.font_size_pt or 16
+        is_mono = run.font_family == "monospace"
+        total_width += estimate_text_width_px(run.text, font_pt, is_mono)
+
+    if not has_text:
+        return False
+
+    return total_width <= available_width_px * tolerance_ratio
 
 
 def calculate_autofit_font_scale(

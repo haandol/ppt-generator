@@ -13,6 +13,7 @@ from ppt_generator.interfaces.constants import (
     PX_TO_EMU,
 )
 from ppt_generator.interfaces.schemas import PptxShape
+from ppt_generator.interfaces.text_measurement import should_apply_nowrap_to_paragraph
 from ppt_generator.tools.slides.text_renderer import escape_html, paragraph_to_html
 
 # CSS clip-path polygon 매핑: shape_type → polygon points
@@ -251,9 +252,15 @@ def shape_to_html(shape: PptxShape) -> str:
 
     inner = ""
     if shape.paragraphs:
+        usable_w = shape.width_px - pl - pr
+        # 단일 paragraph인 경우에만 nowrap 판정 (multi-paragraph는 의도된 줄바꿈)
+        single_para = len(shape.paragraphs) == 1
         para_parts: list[str] = []
         for para in shape.paragraphs:
-            para_parts.append(paragraph_to_html(para))
+            apply_nowrap = single_para and should_apply_nowrap_to_paragraph(
+                para, usable_w
+            )
+            para_parts.append(paragraph_to_html(para, nowrap=apply_nowrap))
         inner = "".join(para_parts)
     elif shape.text:
         text_style = ""
