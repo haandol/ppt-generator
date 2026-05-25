@@ -54,6 +54,9 @@ from ppt_generator.interfaces.spec_utils.lint_rules.text_overflow import (
 from ppt_generator.interfaces.spec_utils.lint_rules.textbox_shape_intrusion import (
     check_textbox_shape_intrusion,
 )
+from ppt_generator.interfaces.spec_utils.lint_rules.textbox_textbox_overlap import (
+    check_textbox_textbox_overlap,
+)
 from ppt_generator.interfaces.spec_utils.lint_rules.title_font import (
     check_title_font,
 )
@@ -70,6 +73,7 @@ ALL_RULES = [
     check_arrow_endpoint_attachment,
     check_label_orphan,
     check_textbox_shape_intrusion,
+    check_textbox_textbox_overlap,
     check_decoration_shape_overlap,
     check_expand_height_collision,
     check_sibling_gap,

@@ -233,9 +233,13 @@ class TextExtractorMixin:
 
     @staticmethod
     def _extract_alignment(paragraph) -> str | None:
+        # paragraph.alignment 가 None 이면 PPTX 의 master/layout 기본값에 따라 렌더되지만,
+        # 우리 spec 은 master inheritance 를 추적하지 않으므로 동일 spec 이 PPTX/HTML 에서
+        # 다르게 렌더된다 (PPTX 는 master 의 algn=ctr, HTML 은 CSS 기본 left). 좌측으로
+        # 정규화해 두 렌더러가 일관되게 좌측 정렬되도록 한다.
         if paragraph.alignment is None:
-            return None
-        return ALIGN_REVERSE_MAP.get(paragraph.alignment)
+            return "left"
+        return ALIGN_REVERSE_MAP.get(paragraph.alignment) or "left"
 
     @staticmethod
     def _extract_line_spacing(text_frame) -> float | None:

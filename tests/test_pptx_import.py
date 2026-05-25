@@ -623,6 +623,77 @@ class TestSpecialElements:
         tb = imported.slides[0].textboxes[0]
         assert tb.paragraphs[0].alignment == "center"
 
+    def test_negative_height_diagonal_arrow_roundtrip(
+        self, export_service, import_service, tmp_path
+    ):
+        """음수 height 대각선 (↗) 화살표가 export→import 후 좌표/방향 보존되는지.
+
+        회귀: bbox top 보정 + flipV 명시 set 이 이중 적용되어 export 후 화살표가
+        캔버스 위로 떠 있던 버그. spec convention 은 (left, top) = bbox 좌상,
+        h<0 = ↗ 방향이며 export 는 begin/end 좌표만 정확히 넘기면 python-pptx 가
+        flipV 를 자동 설정한다.
+        """
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    shapes=[
+                        PptxShape(
+                            left_px=854,
+                            top_px=224,
+                            width_px=218,
+                            height_px=-60,
+                            shape_type="line",
+                            border_color="#FFFFFF",
+                            border_width_pt=2,
+                            end_arrow=True,
+                        )
+                    ],
+                )
+            ]
+        )
+        response = export_service.export_from_design_spec(spec, output_dir=tmp_path)
+        imported, _ = import_service.import_from_file(response.pptx_path)
+
+        line = imported.slides[0].shapes[0]
+        assert round(line.left_px) == 854
+        assert round(line.top_px) == 224  # bbox top, 화살표가 위로 안 떠야 함
+        assert round(line.width_px) == 218
+        assert round(line.height_px) == -60
+        assert line.end_arrow is True
+        assert line.start_arrow is False
+
+    def test_positive_height_diagonal_arrow_roundtrip(
+        self, export_service, import_service, tmp_path
+    ):
+        """양수 height 대각선 (↘) 화살표가 정확히 보존되는지."""
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    shapes=[
+                        PptxShape(
+                            left_px=100,
+                            top_px=100,
+                            width_px=200,
+                            height_px=80,
+                            shape_type="line",
+                            border_color="#FFFFFF",
+                            border_width_pt=2,
+                            end_arrow=True,
+                        )
+                    ],
+                )
+            ]
+        )
+        response = export_service.export_from_design_spec(spec, output_dir=tmp_path)
+        imported, _ = import_service.import_from_file(response.pptx_path)
+
+        line = imported.slides[0].shapes[0]
+        assert round(line.left_px) == 100
+        assert round(line.top_px) == 100
+        assert round(line.width_px) == 200
+        assert round(line.height_px) == 80
+        assert line.end_arrow is True
+
     def test_dash_style_preserved(self, export_service, import_service, tmp_path):
         """dash_style이 보존되는지 검증."""
         spec = DesignSpec(

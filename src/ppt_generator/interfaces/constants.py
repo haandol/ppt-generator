@@ -141,6 +141,9 @@ LINT_TEXTBOX_INTRUSION_RATIO = 0.5
 LINT_DECORATION_OVERLAP_RATIO = 0.5
 # decoration 으로 간주할 도형의 한 변 최대 길이 (px).
 LINT_DECORATION_MAX_DIM_PX = 80.0
+# textbox-textbox-overlap: 두 텍스트박스 bbox 의 교집합 면적이 더 작은 쪽 면적의
+# 이 비율을 넘으면 위반. 글자끼리 충돌은 허용 안 함이라 임계값을 낮게 (10%) 둔다.
+LINT_TEXTBOX_TEXTBOX_OVERLAP_RATIO = 0.1
 
 PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU = 45720  # ~0.05 inch
 PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU = 22860  # ~0.025 inch
@@ -274,6 +277,7 @@ __all__ = [
     "LINT_TEXTBOX_INTRUSION_RATIO",
     "LINT_DECORATION_OVERLAP_RATIO",
     "LINT_DECORATION_MAX_DIM_PX",
+    "LINT_TEXTBOX_TEXTBOX_OVERLAP_RATIO",
     "PROJECT_SLIDES_DIR",
     "PROJECT_IMAGES_DIR",
     "PROJECT_OUTLINE_DIR",

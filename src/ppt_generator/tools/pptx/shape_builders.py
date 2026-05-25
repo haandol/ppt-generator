@@ -198,42 +198,46 @@ def add_auto_shape_from_spec(slide, shape_spec: PptxShape) -> None:
 
 
 def add_connector_from_spec(slide, shape_spec: PptxShape) -> None:
-    """Line shape를 python-pptx Connector(직선)로 생성하고 화살표 머리를 설정."""
+    """Line shape 를 python-pptx Connector(직선)로 생성하고 화살표 머리를 설정.
+
+    spec convention: (left, top) 은 라인의 bounding box 좌상점, (w, h) 는
+    그 박스의 폭/높이. h<0 이면 박스 자체는 (left, top+|h|)~(left+w, top) 으로
+    뒤집혀 ↗ 대각선이 그려진다. HTML 렌더러도 이 convention 을 따른다
+    (shape_renderer._line_shape_to_html).
+
+    그러므로 화살표 시작점은 항상 (left, top+|h|), 끝점은 (left+w, top) 이다
+    (h>=0 인 정상 ↘ 케이스는 시작=(left,top), 끝=(left+w, top+h) 로 동일).
+    python-pptx 의 add_connector 가 begin/end 좌표 비교로 flipH/flipV 를 자동
+    설정하므로 호출자는 begin/end 좌표만 정확히 넘기면 된다.
+    """
     w = shape_spec.width_px
     h = shape_spec.height_px
     abs_h = abs(h)
     if w > 0 and 0 < abs_h <= _SNAP_THRESHOLD:
         h = 0  # 수평선 보정
+        abs_h = 0
     elif abs_h > 0 and 0 < w <= _SNAP_THRESHOLD:
         w = 0  # 수직선 보정
 
-    need_flip = h < 0
-    abs_h = abs(h)
+    if h < 0:
+        begin_px = (shape_spec.left_px, shape_spec.top_px + abs_h)
+        end_px = (shape_spec.left_px + w, shape_spec.top_px)
+    else:
+        begin_px = (shape_spec.left_px, shape_spec.top_px)
+        end_px = (shape_spec.left_px + w, shape_spec.top_px + h)
 
-    # 바운딩 박스 좌표 계산: add_connector는 내부에서 xfrm으로 변환하므로
-    # 음수 height인 경우 top을 끝점(더 위)으로 맞추고 flipV로 방향 보정
-    box_left = shape_spec.left_px
-    box_top = shape_spec.top_px + h if need_flip else shape_spec.top_px
-
-    start_x = Inches(box_left * EXPORT_PX_TO_INCHES_X)
-    start_y = Inches(box_top * EXPORT_PX_TO_INCHES_Y)
-    end_x = Inches((box_left + w) * EXPORT_PX_TO_INCHES_X)
-    end_y = Inches((box_top + abs_h) * EXPORT_PX_TO_INCHES_Y)
+    begin_x = Inches(begin_px[0] * EXPORT_PX_TO_INCHES_X)
+    begin_y = Inches(begin_px[1] * EXPORT_PX_TO_INCHES_Y)
+    end_x = Inches(end_px[0] * EXPORT_PX_TO_INCHES_X)
+    end_y = Inches(end_px[1] * EXPORT_PX_TO_INCHES_Y)
 
     connector = slide.shapes.add_connector(
         MSO_CONNECTOR_TYPE.STRAIGHT,
-        start_x,
-        start_y,
+        begin_x,
+        begin_y,
         end_x,
         end_y,
     )
-
-    # 음수 height → flipV 설정 (좌하→우상 대각선)
-    if need_flip:
-        spPr = connector._element.find(qn("p:spPr"))
-        xfrm = spPr.find(qn("a:xfrm"))
-        if xfrm is not None:
-            xfrm.set("flipV", "1")
 
     if shape_spec.border_color:
         rgb = parse_color(shape_spec.border_color)

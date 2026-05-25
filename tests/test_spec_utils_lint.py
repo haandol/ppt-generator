@@ -1697,3 +1697,70 @@ class TestDecorationShapeOverlap:
         result = lint_slide_spec(_slide(shapes=[card_a, card_b]))
         v = [x for x in result.violations if x.rule == "decoration-shape-overlap"]
         assert len(v) == 0
+
+
+# ---------------------------------------------------------------------------
+# textbox-textbox-overlap 규칙
+# ---------------------------------------------------------------------------
+
+
+class TestTextboxTextboxOverlap:
+    """두 텍스트박스 bbox 가 시각적으로 겹쳐 글자가 충돌하는 케이스 검출."""
+
+    def _label(
+        self,
+        text: str,
+        left: float,
+        top: float,
+        width: float = 100,
+        height: float = 22,
+        font: int = 12,
+    ) -> PptxTextBox:
+        return PptxTextBox(
+            left_px=left,
+            top_px=top,
+            width_px=width,
+            height_px=height,
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text=text, font_size_pt=font)])
+            ],
+        )
+
+    def test_overlapping_labels_detected(self) -> None:
+        """두 라벨 bbox 가 같은 row 에서 겹침 → fail."""
+        a = self._label("파싱 후 호출", left=980, top=376, width=80)
+        b = self._label("함수들", left=998, top=376, width=160)
+        result = lint_slide_spec(_slide(textboxes=[a, b]))
+        v = [x for x in result.violations if x.rule == "textbox-textbox-overlap"]
+        assert len(v) == 1
+
+    def test_separated_labels_pass(self) -> None:
+        """라벨이 서로 떨어져 있으면 pass."""
+        a = self._label("라벨 A", left=200, top=100)
+        b = self._label("라벨 B", left=400, top=100)
+        result = lint_slide_spec(_slide(textboxes=[a, b]))
+        v = [x for x in result.violations if x.rule == "textbox-textbox-overlap"]
+        assert len(v) == 0
+
+    def test_minor_corner_touch_passes(self) -> None:
+        """모서리만 살짝 닿는 정도(겹침 < 10%)는 pass."""
+        # a: (200~300, 100~120), b: (295~395, 115~135), 교집합=5x5=25, min_area=2000 → 1.25%
+        a = self._label("A", left=200, top=100, width=100, height=20)
+        b = self._label("B", left=295, top=115, width=100, height=20)
+        result = lint_slide_spec(_slide(textboxes=[a, b]))
+        v = [x for x in result.violations if x.rule == "textbox-textbox-overlap"]
+        assert len(v) == 0
+
+    def test_empty_textbox_excluded(self) -> None:
+        """빈 텍스트박스는 검사 대상 아님."""
+        a = self._label("라벨", left=200, top=100)
+        empty = PptxTextBox(
+            left_px=210,
+            top_px=110,
+            width_px=80,
+            height_px=20,
+            paragraphs=[PptxParagraph(runs=[PptxTextRun(text="", font_size_pt=12)])],
+        )
+        result = lint_slide_spec(_slide(textboxes=[a, empty]))
+        v = [x for x in result.violations if x.rule == "textbox-textbox-overlap"]
+        assert len(v) == 0
