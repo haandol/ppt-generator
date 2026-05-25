@@ -6,6 +6,9 @@ from ppt_generator.interfaces.spec_utils.lint_rules.arrow_endpoint_attachment im
 from ppt_generator.interfaces.spec_utils.lint_rules.canvas_overflow import (
     check_canvas_overflow,
 )
+from ppt_generator.interfaces.spec_utils.lint_rules.decoration_shape_overlap import (
+    check_decoration_shape_overlap,
+)
 from ppt_generator.interfaces.spec_utils.lint_rules.decorative_no_rounding import (
     check_decorative_no_rounding,
 )
@@ -48,6 +51,9 @@ from ppt_generator.interfaces.spec_utils.lint_rules.sibling_grid import (
 from ppt_generator.interfaces.spec_utils.lint_rules.text_overflow import (
     check_text_overflow,
 )
+from ppt_generator.interfaces.spec_utils.lint_rules.textbox_shape_intrusion import (
+    check_textbox_shape_intrusion,
+)
 from ppt_generator.interfaces.spec_utils.lint_rules.title_font import (
     check_title_font,
 )
@@ -63,6 +69,8 @@ ALL_RULES = [
     check_nowrap_overflow,
     check_arrow_endpoint_attachment,
     check_label_orphan,
+    check_textbox_shape_intrusion,
+    check_decoration_shape_overlap,
     check_expand_height_collision,
     check_sibling_gap,
     check_sibling_grid,

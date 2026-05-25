@@ -1517,3 +1517,183 @@ class TestLabelOrphan:
         )
         v = [x for x in result.violations if x.rule == "label-orphan"]
         assert len(v) == 0
+
+
+# ---------------------------------------------------------------------------
+# textbox-shape-intrusion 규칙
+# ---------------------------------------------------------------------------
+
+
+class TestTextboxShapeIntrusion:
+    """텍스트박스가 채워진 카드 도형 영역으로 침범하는지 검사."""
+
+    def _label_tb(
+        self,
+        text: str,
+        left: float,
+        top: float,
+        font: int = 12,
+        width: float = 140,
+        height: float = 22,
+        grid_cell: str | None = None,
+    ) -> PptxTextBox:
+        return PptxTextBox(
+            left_px=left,
+            top_px=top,
+            width_px=width,
+            height_px=height,
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text=text, font_size_pt=font)])
+            ],
+            grid_cell=grid_cell,
+        )
+
+    def _card(
+        self,
+        left: float,
+        top: float,
+        width: float = 260,
+        height: float = 56,
+        text: str = "web_search()",
+        dash_style: str | None = None,
+        fill_color: str | None = "#243447",
+        grid_cell: str | None = None,
+    ) -> PptxShape:
+        return PptxShape(
+            left_px=left,
+            top_px=top,
+            width_px=width,
+            height_px=height,
+            shape_type="rounded_rectangle",
+            fill_color=fill_color,
+            dash_style=dash_style,
+            paragraphs=[PptxParagraph(runs=[PptxTextRun(text=text, font_size_pt=16)])],
+            grid_cell=grid_cell,
+        )
+
+    def test_label_intruding_card_detected(self) -> None:
+        """라벨이 카드 위로 50% 이상 침범 → fail."""
+        card = self._card(880, 265, width=268, height=50)
+        # 라벨 (820~960, 282~310) 이 카드 (880~1148, 265~315) 안으로 깊이 침범
+        label = self._label_tb("직접 호출 불가 ✗", left=820, top=282)
+        result = lint_slide_spec(_slide(textboxes=[label], shapes=[card]))
+        v = [x for x in result.violations if x.rule == "textbox-shape-intrusion"]
+        assert len(v) == 1
+        assert v[0].element_type == "textbox"
+
+    def test_label_outside_card_passes(self) -> None:
+        """라벨이 카드 밖에 위치 → pass."""
+        card = self._card(880, 265)
+        label = self._label_tb("라벨", left=700, top=270)  # 카드 왼쪽 바깥
+        result = lint_slide_spec(_slide(textboxes=[label], shapes=[card]))
+        v = [x for x in result.violations if x.rule == "textbox-shape-intrusion"]
+        assert len(v) == 0
+
+    def test_dashed_container_child_excluded(self) -> None:
+        """점선 컨테이너 안에 의도적으로 배치된 자식 라벨은 제외."""
+        # 큰 점선 컨테이너 (fill 없음)
+        container = self._card(
+            880,
+            220,
+            width=300,
+            height=380,
+            text="",
+            dash_style="dash",
+            fill_color=None,
+        )
+        # 라벨이 컨테이너 내부에 완전히 포함
+        label = self._label_tb("애플리케이션 영역", left=900, top=230, width=260)
+        result = lint_slide_spec(_slide(textboxes=[label], shapes=[container]))
+        v = [x for x in result.violations if x.rule == "textbox-shape-intrusion"]
+        assert len(v) == 0
+
+    def test_minor_overlap_below_ratio_passes(self) -> None:
+        """라벨이 카드와 살짝 겹치지만 침범 비율이 50% 미만 → pass."""
+        card = self._card(880, 265, width=268, height=50)
+        # 라벨 (700~840, 270~292) 이 카드 (880~..) 와 겹치지 않음
+        label = self._label_tb("토큰 처리 ✓", left=700, top=270, width=140)
+        result = lint_slide_spec(_slide(textboxes=[label], shapes=[card]))
+        v = [x for x in result.violations if x.rule == "textbox-shape-intrusion"]
+        assert len(v) == 0
+
+
+# ---------------------------------------------------------------------------
+# decoration-shape-overlap 규칙
+# ---------------------------------------------------------------------------
+
+
+class TestDecorationShapeOverlap:
+    """작은 강조 도형이 채워진 카드 위에 얹히는지 검사."""
+
+    def _card(
+        self,
+        left: float,
+        top: float,
+        width: float = 260,
+        height: float = 80,
+    ) -> PptxShape:
+        return PptxShape(
+            left_px=left,
+            top_px=top,
+            width_px=width,
+            height_px=height,
+            shape_type="rounded_rectangle",
+            fill_color="#243447",
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="web_search()", font_size_pt=16)])
+            ],
+        )
+
+    def _badge(
+        self,
+        left: float,
+        top: float,
+        size: float = 44,
+        text: str = "✕",
+    ) -> PptxShape:
+        return PptxShape(
+            left_px=left,
+            top_px=top,
+            width_px=size,
+            height_px=size,
+            shape_type="ellipse",
+            fill_color="#E74C3C",
+            text=text,
+            text_color="#FFFFFF",
+            text_size_pt=20,
+            text_bold=True,
+        )
+
+    def test_badge_on_card_detected(self) -> None:
+        """✕ 뱃지가 카드 영역에 100% 얹힘 → fail."""
+        card = self._card(880, 265, width=268, height=80)
+        badge = self._badge(900, 280)  # 카드 안쪽
+        result = lint_slide_spec(_slide(shapes=[card, badge]))
+        v = [x for x in result.violations if x.rule == "decoration-shape-overlap"]
+        assert len(v) == 1
+        assert v[0].element_index == 1  # badge index
+
+    def test_badge_outside_card_passes(self) -> None:
+        """뱃지가 카드 바깥 화살표 경로에 있음 → pass."""
+        card = self._card(880, 265)
+        badge = self._badge(820, 290)  # 카드 왼쪽 바깥
+        result = lint_slide_spec(_slide(shapes=[card, badge]))
+        v = [x for x in result.violations if x.rule == "decoration-shape-overlap"]
+        assert len(v) == 0
+
+    def test_centered_overlay_excluded(self) -> None:
+        """뱃지가 카드 정중앙(±20%)에 위치하면 의도된 오버레이로 간주, 제외."""
+        card = self._card(800, 260, width=300, height=200)
+        # 카드 중앙 (950, 360) 근처에 뱃지 배치
+        badge = self._badge(930, 340, size=40)
+        result = lint_slide_spec(_slide(shapes=[card, badge]))
+        v = [x for x in result.violations if x.rule == "decoration-shape-overlap"]
+        assert len(v) == 0
+
+    def test_large_shape_not_decoration(self) -> None:
+        """큰 카드끼리 겹쳐도 decoration 규칙은 적용 안 됨."""
+        card_a = self._card(800, 260, width=300, height=100)
+        card_b = self._card(900, 290, width=300, height=100)
+        result = lint_slide_spec(_slide(shapes=[card_a, card_b]))
+        v = [x for x in result.violations if x.rule == "decoration-shape-overlap"]
+        assert len(v) == 0

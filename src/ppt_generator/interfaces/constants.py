@@ -133,6 +133,14 @@ LINT_LABEL_ORPHAN_PROXIMITY_PX = 32.0
 LINT_LABEL_ORPHAN_MAX_CHARS = 12
 LINT_LABEL_ORPHAN_MAX_FONT_PT = 14
 LINT_LABEL_ORPHAN_MAX_HEIGHT_PX = 32.0
+# textbox-shape-intrusion: 텍스트박스 bbox 가 fill 있는 다른 shape bbox 안으로
+# 침범하는 양 (겹침 면적 / 텍스트박스 면적). 이 비율을 넘으면 위반.
+LINT_TEXTBOX_INTRUSION_RATIO = 0.5
+# decoration-shape-overlap: 작은 ellipse/뱃지 등이 fill 있는 카드 위에 얹힌 경우
+# 겹침 면적 / decoration 면적 이 비율을 넘으면 위반.
+LINT_DECORATION_OVERLAP_RATIO = 0.5
+# decoration 으로 간주할 도형의 한 변 최대 길이 (px).
+LINT_DECORATION_MAX_DIM_PX = 80.0
 
 PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU = 45720  # ~0.05 inch
 PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU = 22860  # ~0.025 inch
@@ -263,6 +271,9 @@ __all__ = [
     "LINT_LABEL_ORPHAN_MAX_CHARS",
     "LINT_LABEL_ORPHAN_MAX_FONT_PT",
     "LINT_LABEL_ORPHAN_MAX_HEIGHT_PX",
+    "LINT_TEXTBOX_INTRUSION_RATIO",
+    "LINT_DECORATION_OVERLAP_RATIO",
+    "LINT_DECORATION_MAX_DIM_PX",
     "PROJECT_SLIDES_DIR",
     "PROJECT_IMAGES_DIR",
     "PROJECT_OUTLINE_DIR",
