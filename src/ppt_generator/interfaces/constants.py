@@ -121,7 +121,18 @@ TEXT_MEASURE_DEFAULT_SHAPE_PADDING_TB_PX = 2.4
 # 단일 paragraph 텍스트의 추정 폭이 사용 가능 폭의 이 배율 이내면 white-space:nowrap을 적용한다.
 # 1.15(과거)는 박스를 뚫고 좌우로 텍스트가 넘치는 사고를 유발했다 (ADR-0047).
 # 0.95는 박스 폭의 5% 안전 마진을 남겨 어떤 메트릭 차이가 있어도 좌우 오버플로우가 발생하지 않도록 한다.
+# 메트릭 차이로 짧은 라벨이 wrap 되는 케이스는 spec 단계에서 박스 폭을 살짝 키워 해결한다.
 TEXT_MEASURE_NOWRAP_TOLERANCE_RATIO = 0.95
+
+# --- Lint thresholds (ADR-0048) ---
+# 화살표 끝점이 이 거리 이내에 박스 외곽 변이 있어야 부착된 것으로 간주.
+LINT_ARROW_ATTACH_TOLERANCE_PX = 8.0
+# label-orphan: 라벨 textbox 가 이 거리 이내에 박스가 없으면 orphan.
+LINT_LABEL_ORPHAN_PROXIMITY_PX = 32.0
+# label-orphan: 라벨로 간주할 텍스트 길이/폰트/높이 상한.
+LINT_LABEL_ORPHAN_MAX_CHARS = 12
+LINT_LABEL_ORPHAN_MAX_FONT_PT = 14
+LINT_LABEL_ORPHAN_MAX_HEIGHT_PX = 32.0
 
 PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU = 45720  # ~0.05 inch
 PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU = 22860  # ~0.025 inch
@@ -247,6 +258,11 @@ __all__ = [
     "TEXT_MEASURE_DEFAULT_SHAPE_PADDING_LR_PX",
     "TEXT_MEASURE_DEFAULT_SHAPE_PADDING_TB_PX",
     "TEXT_MEASURE_NOWRAP_TOLERANCE_RATIO",
+    "LINT_ARROW_ATTACH_TOLERANCE_PX",
+    "LINT_LABEL_ORPHAN_PROXIMITY_PX",
+    "LINT_LABEL_ORPHAN_MAX_CHARS",
+    "LINT_LABEL_ORPHAN_MAX_FONT_PT",
+    "LINT_LABEL_ORPHAN_MAX_HEIGHT_PX",
     "PROJECT_SLIDES_DIR",
     "PROJECT_IMAGES_DIR",
     "PROJECT_OUTLINE_DIR",

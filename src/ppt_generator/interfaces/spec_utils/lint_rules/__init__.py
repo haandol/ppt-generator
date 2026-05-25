@@ -1,5 +1,8 @@
 """Lint 규칙 모음. 각 규칙은 (spec, result) → None 시그니처의 함수."""
 
+from ppt_generator.interfaces.spec_utils.lint_rules.arrow_endpoint_attachment import (
+    check_arrow_endpoint_attachment,
+)
 from ppt_generator.interfaces.spec_utils.lint_rules.canvas_overflow import (
     check_canvas_overflow,
 )
@@ -20,6 +23,9 @@ from ppt_generator.interfaces.spec_utils.lint_rules.grid_plan_required import (
 )
 from ppt_generator.interfaces.spec_utils.lint_rules.hidden_decorative_strip import (
     check_hidden_decorative_strip,
+)
+from ppt_generator.interfaces.spec_utils.lint_rules.label_orphan import (
+    check_label_orphan,
 )
 from ppt_generator.interfaces.spec_utils.lint_rules.nowrap_overflow import (
     check_nowrap_overflow,
@@ -55,6 +61,8 @@ ALL_RULES = [
     check_canvas_overflow,
     check_text_overflow,
     check_nowrap_overflow,
+    check_arrow_endpoint_attachment,
+    check_label_orphan,
     check_expand_height_collision,
     check_sibling_gap,
     check_sibling_grid,

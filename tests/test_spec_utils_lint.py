@@ -1320,3 +1320,200 @@ class TestNowrapOverflow:
         violations = [v for v in result.violations if v.rule == "nowrap-overflow"]
         assert len(violations) == 1
         assert violations[0].element_type == "shape"
+
+
+# ---------------------------------------------------------------------------
+# arrow-endpoint-attachment 규칙 (ADR-0048)
+# ---------------------------------------------------------------------------
+
+
+class TestArrowEndpointAttachment:
+    """화살표 끝점이 박스 변에 부착되어 있는지 검사."""
+
+    def _box(
+        self, left: float, top: float, width: float = 100, height: float = 60
+    ) -> PptxShape:
+        return PptxShape(
+            left_px=left,
+            top_px=top,
+            width_px=width,
+            height_px=height,
+            shape_type="rounded_rectangle",
+            fill_color="#243447",
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="박스", font_size_pt=16)])
+            ],
+        )
+
+    def _arrow(
+        self,
+        left: float,
+        top: float,
+        width: float,
+        height: float,
+        end_arrow: bool = True,
+        start_arrow: bool = False,
+    ) -> PptxShape:
+        return PptxShape(
+            left_px=left,
+            top_px=top,
+            width_px=width,
+            height_px=height,
+            shape_type="line",
+            border_color="#FF9900",
+            border_width_pt=1.5,
+            end_arrow=end_arrow,
+            start_arrow=start_arrow,
+        )
+
+    def test_arrow_end_touches_box_edge_passes(self) -> None:
+        """화살표 end 가 박스 left edge 정확히 닿음."""
+        # 박스: (200, 100) ~ (300, 160). 화살표 end = (200, 130) ← 박스 left edge mid
+        box = self._box(200, 100)
+        arrow = self._arrow(150, 130, 50, 0)  # end=(200,130)
+        result = lint_slide_spec(_slide(shapes=[box, arrow]))
+        v = [x for x in result.violations if x.rule == "arrow-endpoint-attachment"]
+        assert len(v) == 0
+
+    def test_arrow_end_within_tolerance_passes(self) -> None:
+        """화살표 end 가 박스에서 5px 떨어짐 (8px 이내)."""
+        box = self._box(200, 100)
+        arrow = self._arrow(150, 130, 45, 0)  # end=(195,130), 5px 떨어짐
+        result = lint_slide_spec(_slide(shapes=[box, arrow]))
+        v = [x for x in result.violations if x.rule == "arrow-endpoint-attachment"]
+        assert len(v) == 0
+
+    def test_arrow_end_floating_fails(self) -> None:
+        """화살표 end 가 박스에서 30px 떨어져 허공에서 끝남."""
+        box = self._box(200, 100)
+        arrow = self._arrow(50, 130, 100, 0)  # end=(150,130), 50px 떨어짐
+        result = lint_slide_spec(_slide(shapes=[box, arrow]))
+        v = [x for x in result.violations if x.rule == "arrow-endpoint-attachment"]
+        assert len(v) == 1
+        assert v[0].current_value["endpoint"] == "end"
+
+    def test_arrow_start_floating_fails(self) -> None:
+        """start_arrow=True 일 때 line 시작점이 박스에서 멀면 fail."""
+        box = self._box(200, 100)
+        arrow = self._arrow(
+            50, 130, 100, 0, end_arrow=False, start_arrow=True
+        )  # start=(50,130) 떠있음
+        result = lint_slide_spec(_slide(shapes=[box, arrow]))
+        v = [x for x in result.violations if x.rule == "arrow-endpoint-attachment"]
+        assert len(v) == 1
+        assert v[0].current_value["endpoint"] == "start"
+
+    def test_line_without_arrowhead_excluded(self) -> None:
+        """end_arrow/start_arrow 모두 False 인 line 은 검사 제외."""
+        box = self._box(200, 100)
+        arrow = self._arrow(50, 130, 100, 0, end_arrow=False, start_arrow=False)
+        result = lint_slide_spec(_slide(shapes=[box, arrow]))
+        v = [x for x in result.violations if x.rule == "arrow-endpoint-attachment"]
+        assert len(v) == 0
+
+
+# ---------------------------------------------------------------------------
+# label-orphan 규칙 (ADR-0048)
+# ---------------------------------------------------------------------------
+
+
+class TestLabelOrphan:
+    """짧은 라벨 textbox 가 어떤 박스에도 부착되지 않고 떠있는지 검사."""
+
+    def _label_tb(
+        self,
+        text: str,
+        left: float,
+        top: float,
+        font: int = 12,
+        width: float = 36,
+        height: float = 22,
+    ) -> PptxTextBox:
+        return PptxTextBox(
+            left_px=left,
+            top_px=top,
+            width_px=width,
+            height_px=height,
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text=text, font_size_pt=font)])
+            ],
+        )
+
+    def _box(
+        self, left: float, top: float, width: float = 100, height: float = 60
+    ) -> PptxShape:
+        return PptxShape(
+            left_px=left,
+            top_px=top,
+            width_px=width,
+            height_px=height,
+            shape_type="rounded_rectangle",
+            fill_color="#243447",
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="박스", font_size_pt=16)])
+            ],
+        )
+
+    def test_label_near_box_passes(self) -> None:
+        """라벨이 박스 옆 10px 거리 → pass."""
+        box = self._box(200, 100)  # (200,100)~(300,160)
+        label = self._label_tb("Yes", left=310, top=120)  # 박스 right edge에서 10px
+        result = lint_slide_spec(_slide(textboxes=[label], shapes=[box]))
+        v = [x for x in result.violations if x.rule == "label-orphan"]
+        assert len(v) == 0
+
+    def test_label_floating_far_fails(self) -> None:
+        """라벨이 박스에서 100px 이상 떨어짐 → fail."""
+        box = self._box(200, 100)
+        label = self._label_tb("Yes", left=600, top=400)
+        result = lint_slide_spec(_slide(textboxes=[label], shapes=[box]))
+        v = [x for x in result.violations if x.rule == "label-orphan"]
+        assert len(v) == 1
+        assert v[0].element_type == "textbox"
+
+    def test_long_text_excluded(self) -> None:
+        """글자수 12 초과 → 라벨 게이트 통과 못 함, 검사 제외."""
+        box = self._box(200, 100)
+        long_tb = self._label_tb(
+            "이건 본문 텍스트라서 라벨이 아니다", left=600, top=400, font=14, width=300
+        )
+        result = lint_slide_spec(_slide(textboxes=[long_tb], shapes=[box]))
+        v = [x for x in result.violations if x.rule == "label-orphan"]
+        assert len(v) == 0
+
+    def test_large_font_excluded(self) -> None:
+        """폰트 14pt 초과 → 라벨 게이트 통과 못 함."""
+        box = self._box(200, 100)
+        big_tb = self._label_tb("Yes", left=600, top=400, font=18)
+        result = lint_slide_spec(_slide(textboxes=[big_tb], shapes=[box]))
+        v = [x for x in result.violations if x.rule == "label-orphan"]
+        assert len(v) == 0
+
+    def test_header_region_excluded(self) -> None:
+        """제목 (header region) 은 검사 제외."""
+        plan = GridPlan(
+            regions=["header", "content"],
+            content_columns=1,
+            content_rows=1,
+            cells=[
+                GridCell(id="h1", region="header", row=1, col=1, role="title"),
+                GridCell(id="c1", region="content", row=1, col=1, role="body"),
+            ],
+        )
+        title_tb = PptxTextBox(
+            left_px=64,
+            top_px=72,
+            width_px=1152,
+            height_px=24,
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="짧은제목", font_size_pt=12)])
+            ],
+            grid_cell="h1",
+        )
+        box = self._box(64, 200, width=400, height=200)
+        # box 와 title_tb 거리 > 32px 이지만 header 라서 제외
+        result = lint_slide_spec(
+            _slide(textboxes=[title_tb], shapes=[box], grid_plan=plan)
+        )
+        v = [x for x in result.violations if x.rule == "label-orphan"]
+        assert len(v) == 0

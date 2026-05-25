@@ -41,6 +41,8 @@ shape의 `expand_height` 모드는 `min-height` + `overflow:visible`이라 heigh
 
 `TEXT_MEASURE_NOWRAP_TOLERANCE_RATIO`를 `0.95`로 낮춘다. 추정 폭이 박스 가용 폭의 **95% 이하일 때만** nowrap을 적용하여, 어떤 메트릭 차이가 발생해도 박스를 뚫지 않도록 한다.
 
+> **운영 노트**: 메트릭 차이로 짧은 라벨(예: 토큰 박스 `_ with`)이 wrap 되는 케이스가 드물게 발생할 수 있다. 이는 tolerance 를 더 키우는 대신 **spec 단계에서 해당 박스 폭을 살짝 키워 해결**한다 (정확도 게임 회피). 1.05 같은 중간값은 두 부작용 모두 못 막을 수 있어 채택하지 않았다.
+
 ### B. lint 규칙 신설: `nowrap-overflow`
 
 새 lint 규칙 `check_nowrap_overflow`를 `lint_rules/`에 추가한다. shape/textbox의 paragraph마다 `should_apply_nowrap_to_paragraph` 결과를 시뮬레이션하고, nowrap이 적용될 paragraph의 추정 폭이 가용 폭을 초과하면 warning을 발행한다. 이는 향후 tolerance가 다시 느슨해지거나 다른 경로로 nowrap이 적용되는 경우의 회귀를 사전에 잡는 사후 검증이다.
@@ -56,7 +58,7 @@ TEXT_MEASURE_NOWRAP_TOLERANCE_RATIO = 1.15
 TEXT_MEASURE_NOWRAP_TOLERANCE_RATIO = 0.95
 ```
 
-근거: 폭 추정 함수가 한글 0.9, Latin 0.55의 보수적 비율을 사용하므로, 추정값이 실제값보다 작게 나올 가능성이 있다. 이 갭을 1.15로 보정하면 박스를 뚫는 부작용이 발생한다. 0.95는 추정 정확도를 유지하면서 박스 폭의 5% 안전 마진을 남기는 값이다.
+근거: 폭 추정 함수가 한글 0.9, Latin 0.55의 보수적 비율을 사용하므로, 추정값이 실제값보다 작게 나올 가능성이 있다. 이 갭을 1.15로 보정하면 박스를 뚫는 부작용이 발생한다. 0.95는 추정 정확도를 유지하면서 박스 폭의 5% 안전 마진을 남기는 값이다. 짧은 라벨이 wrap 되는 케이스는 spec 단계에서 박스 폭을 키워 처리한다 (양쪽 모두 만족하는 tolerance 는 존재하지 않음).
 
 #### 2. 새 lint 규칙 (`lint_rules/nowrap_overflow.py`)
 
