@@ -57,13 +57,24 @@ TEXT_MEASURE_BULLET_INDENT_L0_PX = 24.0
 TEXT_MEASURE_BULLET_INDENT_L1_PX = 48.0
 TEXT_MEASURE_DEFAULT_SHAPE_PADDING_LR_PX = 4.8
 TEXT_MEASURE_DEFAULT_SHAPE_PADDING_TB_PX = 2.4
+TEXT_MEASURE_NOWRAP_TOLERANCE_RATIO = 1.15
 ```
 
 #### 3. 검증 로직에 적용
 
 텍스트 측정 모듈을 validator에서 호출하여 높이 검증과 autofit 폰트 축소를 수행한다. validator의 적용 상세는 [ADR-0023](./0023-design-spec-validator.md) 참조.
 
-#### 4. 프롬프트 강화 (`interfaces/prompts/design_system_content.prompt.md`)
+#### 4. 렌더링 단계 nowrap 보정 (PPT↔브라우저 폰트 메트릭 차이)
+
+PPT는 시스템 폰트(맑은 고딕/Consolas) 메트릭으로 텍스트 폭을 측정하지만 브라우저는 웹 폰트(Noto Sans KR/Source Code Pro) 메트릭으로 렌더링한다. 박스 폭에 거의 들어맞는 텍스트가 두 줄로 wrap 되어 박스 height가 늘어나고, 그 결과 옆/아래에 배치된 화살표·라벨의 좌표가 어긋나는 경계 회귀가 발생한다.
+
+이를 막기 위해 렌더러에서 paragraph 단위로 `should_apply_nowrap_to_paragraph`를 호출하여, 추정 폭이 사용 가능 폭의 `TEXT_MEASURE_NOWRAP_TOLERANCE_RATIO`(기본 1.15) 이하일 때 `white-space:nowrap`을 적용한다.
+
+판정은 항상 paragraph 단위로 이루어진다. shape/textbox에 paragraph가 여러 개여도 paragraph **사이**의 줄바꿈만 의도된 것이고, 각 paragraph **내부**에서 메트릭 차이로 wrap되는 것은 의도되지 않은 회귀이므로 단일/다중 paragraph를 구분하지 않는다. 안전성은 함수 내부의 tolerance 게이트가 보장한다(긴 본문은 자연히 False, 명시적 `\n` 포함 시 False).
+
+bullet(`<li>`) 항목에는 nowrap을 적용하지 않는다 — 불릿 본문은 wrap이 자연스럽고, 다이어그램 라벨에서 bullet을 쓰는 사례가 없기 때문이다.
+
+#### 5. 프롬프트 강화 (`interfaces/prompts/design_system_content.prompt.md`)
 
 하드 제약 조건 앞에 텍스트 크기 추정 가이드 섹션 추가:
 - 한글 1글자 ≈ `font_size_pt × 1.2px`, Latin 1글자 ≈ `font_size_pt × 0.73px`
@@ -86,7 +97,8 @@ TEXT_MEASURE_DEFAULT_SHAPE_PADDING_TB_PX = 2.4
 3. 캔버스 하단 가까이에서 확장 불가능 시 폰트 축소가 적용된다
 4. 폰트 축소 시 최소 폰트 크기(10pt) 이하로 내려가지 않는다
 5. 장식용 shape(텍스트 없음, height ≤ 10px)는 텍스트 기반 확장이 적용되지 않는다
-6. 기존 테스트가 모두 통과한다
+6. 다중 paragraph로 구성된 shape/textbox에서도 각 paragraph가 tolerance 이내면 nowrap이 적용된다
+7. 기존 테스트가 모두 통과한다
 
 ### Out of Scope
 

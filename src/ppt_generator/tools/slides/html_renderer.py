@@ -53,8 +53,6 @@ def textbox_to_html(tb: PptxTextBox) -> str:
     # 불릿 그룹핑
     has_bullets = any(p.bullet_level >= 0 for p in tb.paragraphs)
     usable_w = tb.width_px - pl - pr
-    # 단일 paragraph인 경우에만 nowrap 판정 (multi-paragraph는 의도된 줄바꿈)
-    single_para = len(tb.paragraphs) == 1 and not has_bullets
     inner_parts: list[str] = []
     if has_bullets:
         bullet_items: list[str] = []
@@ -75,9 +73,7 @@ def textbox_to_html(tb: PptxTextBox) -> str:
             )
     else:
         for para in tb.paragraphs:
-            apply_nowrap = single_para and should_apply_nowrap_to_paragraph(
-                para, usable_w
-            )
+            apply_nowrap = should_apply_nowrap_to_paragraph(para, usable_w)
             inner_parts.append(paragraph_to_html(para, nowrap=apply_nowrap))
 
     return f'<div style="{style}">{"".join(inner_parts)}</div>'

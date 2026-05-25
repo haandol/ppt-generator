@@ -253,13 +253,9 @@ def shape_to_html(shape: PptxShape) -> str:
     inner = ""
     if shape.paragraphs:
         usable_w = shape.width_px - pl - pr
-        # 단일 paragraph인 경우에만 nowrap 판정 (multi-paragraph는 의도된 줄바꿈)
-        single_para = len(shape.paragraphs) == 1
         para_parts: list[str] = []
         for para in shape.paragraphs:
-            apply_nowrap = single_para and should_apply_nowrap_to_paragraph(
-                para, usable_w
-            )
+            apply_nowrap = should_apply_nowrap_to_paragraph(para, usable_w)
             para_parts.append(paragraph_to_html(para, nowrap=apply_nowrap))
         inner = "".join(para_parts)
     elif shape.text:
