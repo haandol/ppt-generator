@@ -4,23 +4,23 @@ Date: 2026-04-27
 
 ## Status
 
-Accepted (Supersedes [ADR-0001](./0001-design-spec-validator.md))
+Accepted (Supersedes [0001](./0001-design-spec-validator.md))
 
 ## Context
 
 LLM이 생성하는 PptxSlideSpec JSON은 폰트 크기 이상, 캔버스 경계 이탈 등 렌더링 품질을 저하시키는 결함을 포함할 수 있다. 프롬프트만으로는 이를 완전히 방지할 수 없으므로, 디자인 스펙 품질을 검증하는 안전망이 필요하다.
 
-기존 validator(ADR-0001)는 결함을 **직접 보정**하는 방식이었다. 이 방식의 한계:
+기존 validator(0001)는 결함을 **직접 보정**하는 방식이었다. 이 방식의 한계:
 
 1. **전체 레이아웃 컨텍스트 부재**: 제목 폰트를 강제로 올리면 본문과의 비례 관계가 깨질 수 있다
 2. **규칙 확장 어려움**: 요소 겹침, 색상 대비, 여백 균형 등 "감지는 쉽지만 기계적 수정은 위험한" 규칙을 추가하기 어렵다
 3. **visual_qa와 패턴 불일치**: visual_qa는 "감지 → LLM 수정" 패턴인데, spec 레벨에서는 "감지 → 강제 수정" 패턴이라 불일치
 
 관련 ADR:
-- [ADR-0001 (design)](../design/0001-design-spec-pipeline.md): 디자인 스펙 파이프라인에서 lint의 위치
-- [ADR-0002 (design)](../design/0002-font-metric-text-overflow.md): 폰트 메트릭 기반 텍스트 측정
-- [ADR-0004 (design)](../design/0004-slide-type-specific-prompts.md): 프롬프트 분리로 보정 부담 경감
-- [ADR-0001 (visual-qa)](../visual-qa/0001-visual-qa-pipeline.md): Visual QA 파이프라인
+- [design/0001](../design/0001-design-spec-pipeline.md): 디자인 스펙 파이프라인에서 lint의 위치
+- [design/0002](../design/0002-font-metric-text-overflow.md): 폰트 메트릭 기반 텍스트 측정
+- [design/0004](../design/0004-slide-type-specific-prompts.md): 프롬프트 분리로 보정 부담 경감
+- [visual-qa/0001](../visual-qa/0001-visual-qa-pipeline.md): Visual QA 파이프라인
 
 ## Decision
 

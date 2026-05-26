@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-디자인 스펙은 ADR-0014에서 `design_spec/slide_NN.json`으로 슬라이드별 파일 분리가 완료되었다. 그러나 HTML 슬라이드는 여전히 단일 `slides.html` 파일에 모든 슬라이드가 포함되어 있다.
+디자인 스펙은 [modify/0001](../modify/0001-file-based-communication-and-per-slide-crud.md) 에서 `design_spec/slide_NN.json` 으로 슬라이드별 파일 분리가 완료되었다. 그러나 HTML 슬라이드는 여전히 단일 `slides.html` 파일에 모든 슬라이드가 포함되어 있다.
 
 기존 구조:
 ```

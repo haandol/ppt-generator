@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-ADR-0001 (import) 의 임포트 파이프라인은 외부 PPTX 를 DesignSpec 으로 변환하지만, 임포트 결과 슬라이드는 design_doc / grid_plan / 모든 element 의 grid_cell·component_id 가 None 인 상태로 들어온다 (graceful fallback 정책). 이 상태에서는 ADR-0003 의 `modify_component` 가 design_doc.layout leaf 매칭에 의존하므로 사용 불가다. 사용자가 imported 슬라이드를 부분 수정하려면 `modify_design_spec(action="update")` 로 슬라이드 전체를 outline 기반 재생성해야 했고, 이는 imported 시각 자산의 "원본 보존" 가치를 깨뜨린다.
+import/0001 의 임포트 파이프라인은 외부 PPTX 를 DesignSpec 으로 변환하지만, 임포트 결과 슬라이드는 design_doc / grid_plan / 모든 element 의 grid_cell·component_id 가 None 인 상태로 들어온다 (graceful fallback 정책). 이 상태에서는 0003 의 `modify_component` 가 design_doc.layout leaf 매칭에 의존하므로 사용 불가다. 사용자가 imported 슬라이드를 부분 수정하려면 `modify_design_spec(action="update")` 로 슬라이드 전체를 outline 기반 재생성해야 했고, 이는 imported 시각 자산의 "원본 보존" 가치를 깨뜨린다.
 
 import 시점에 *모든* 슬라이드를 일괄 backfill 하는 것은 비합리적이다. 사용자가 안 만지는 슬라이드까지 LLM 호출이 들어가고(30 슬라이드 PPTX 면 30 회), 사용자가 즉시 결과를 보고 싶은 import 단계가 길어지며, 일부 backfill 실패 시 전체 import 재실행 부담이 크다.
 
@@ -102,6 +102,6 @@ backfill 결과는 슬라이드 spec 에 저장. 후속 modify_component 호출�
 
 ## References
 
-- [ADR-0001 (import): PPTX 임포트 → 디자인 스펙](../import/0001-pptx-import-to-design-spec.md)
-- [ADR-0011 (design): 5단 디자인 스펙 계층](../design/0011-five-layer-design-spec-hierarchy.md)
-- [ADR-0003: modify_component MCP 도구](./0003-modify-component-mcp-tool.md)
+- [import/0001 (import): PPTX 임포트 → 디자인 스펙](../import/0001-pptx-import-to-design-spec.md)
+- [design/0011 (design): 5단 디자인 스펙 계층](../design/0011-five-layer-design-spec-hierarchy.md)
+- [0003: modify_component MCP 도구](./0003-modify-component-mcp-tool.md)

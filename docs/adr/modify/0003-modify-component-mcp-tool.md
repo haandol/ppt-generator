@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-ADR-0011 (design) 가 5단 디자인 스펙 계층(Project / Slide / Layout / Section / Content) 을 정의하면서 얻은 핵심 가치는 **Section 트리의 component_id 로 의미 단위 요소를 정확히 지칭할 수 있다** 는 점이다. 그러나 ADR-0011 (design) 는 그 가치를 사용자가 직접 호출할 수 있는 MCP 도구로 노출하지 않은 채 Out of Scope 로 미뤘다.
+design/0011 가 5단 디자인 스펙 계층(Project / Slide / Layout / Section / Content) 을 정의하면서 얻은 핵심 가치는 **Section 트리의 component_id 로 의미 단위 요소를 정확히 지칭할 수 있다** 는 점이다. 그러나 design/0011 는 그 가치를 사용자가 직접 호출할 수 있는 MCP 도구로 노출하지 않은 채 Out of Scope 로 미뤘다.
 
 기존 `modify_design_spec(action="update")` 는 슬라이드 전체를 outline 기반으로 재생성한다. 이 방식의 문제:
 
@@ -50,7 +50,7 @@ LLM 이 수정할 수 있는 것:
 
 ### 비-design 메타 필드 보존
 
-LLM 이 element 전체를 출력해도, ADR-0013 (design) 결정 3 에 따라 schema 에 없는 z_index / grid_cell / component_id 는 코드가 기존 element 에서 가져와 보존한다.
+LLM 이 element 전체를 출력해도, design/0013 결정 3 에 따라 schema 에 없는 z_index / grid_cell / component_id 는 코드가 기존 element 에서 가져와 보존한다.
 
 ## 대안 검토
 
@@ -58,14 +58,14 @@ LLM 이 element 전체를 출력해도, ADR-0013 (design) 결정 3 에 따라 sc
 |---|---|
 | element-only LLM 입력 (슬라이드 컨텍스트 제외) | 형제 정렬·디자인 일관성 정보 손실 — 색만 바꿨는데 옆 카드와 보색 깨짐 |
 | 다중 component 동시 수정을 v1 부터 지원 | API 복잡도 + 부분 실패 처리(어떤 component 만 적용?) 가 깊어짐 |
-| design_doc 없는 슬라이드도 자동 backfill 후 수정 | 본 ADR 범위 밖. backfill 정책은 ADR-0004 에서 분리해 다룸 |
+| design_doc 없는 슬라이드도 자동 backfill 후 수정 | 본 ADR 범위 밖. backfill 정책은 0004 에서 분리해 다룸 |
 | 자동 review_service 재호출 후 재수정 | 부분 수정에는 비용 대비 이득 작음 — lint 결과 응답 노출로 충분 |
 
 ## 하위 호환성
 
 - 기존 `modify_design_spec(action="update")` 는 그대로 유지. 사용자가 큰 변경(트리 구조, 여러 element) 을 요청하면 기존 도구를 안내.
 - design_doc 없는 슬라이드(title/closing) 는 미지원 — 명확한 에러로 update 도구 안내.
-- imported PPTX 슬라이드는 design_doc=None 이라 미지원이지만, ADR-0004 의 lazy backfill 이 첫 modify_component 호출 시 자동으로 design_doc 을 채운다.
+- imported PPTX 슬라이드는 design_doc=None 이라 미지원이지만, 0004 의 lazy backfill 이 첫 modify_component 호출 시 자동으로 design_doc 을 채운다.
 
 ## Consequences
 
@@ -73,7 +73,7 @@ LLM 이 element 전체를 출력해도, ADR-0013 (design) 결정 3 에 따라 sc
 
 - **부분 수정 비용 감소** — 슬라이드 전체 재생성 대비 토큰·시간 절감.
 - **결정성 향상** — 대상 외 element 가 byte-equal 보존되어 사용자 신뢰 상승.
-- **5단 계층 가치 실현** — ADR-0011 (design) 가 정의한 component_id 식별성을 사용자 인터페이스까지 노출.
+- **5단 계층 가치 실현** — design/0011 가 정의한 component_id 식별성을 사용자 인터페이스까지 노출.
 - **lint 의 구조적 보장** — 기존 layout-tree-* / grid-cell-* / font-range 규칙이 자연스럽게 부분 수정의 안전망.
 
 ### Negative / Risks
@@ -90,8 +90,8 @@ LLM 이 element 전체를 출력해도, ADR-0013 (design) 결정 3 에 따라 sc
 
 ## References
 
-- [ADR-0001: 파일 기반 통신 + 슬라이드별 CRUD](./0001-file-based-communication-and-per-slide-crud.md)
-- [ADR-0002: modify_design_spec inline outline](./0002-modify-design-spec-inline-outline.md)
-- [ADR-0011 (design): 5단 디자인 스펙 계층](../design/0011-five-layer-design-spec-hierarchy.md)
-- [ADR-0004: Imported 슬라이드 design_doc lazy backfill](./0004-imported-slide-lazy-backfill.md)
-- [ADR-0013 (design): 5단 계층 데이터 무결성](../design/0013-five-layer-data-integrity.md) — z_index 등 비-design 메타 필드 보존 정책
+- [0001: 파일 기반 통신 + 슬라이드별 CRUD](./0001-file-based-communication-and-per-slide-crud.md)
+- [0002: modify_design_spec inline outline](./0002-modify-design-spec-inline-outline.md)
+- [design/0011 (design): 5단 디자인 스펙 계층](../design/0011-five-layer-design-spec-hierarchy.md)
+- [0004: Imported 슬라이드 design_doc lazy backfill](./0004-imported-slide-lazy-backfill.md)
+- [design/0013 (design): 5단 계층 데이터 무결성](../design/0013-five-layer-data-integrity.md) — z_index 등 비-design 메타 필드 보존 정책

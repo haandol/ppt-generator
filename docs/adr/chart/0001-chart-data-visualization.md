@@ -26,7 +26,7 @@ python-pptx는 네이티브 Chart API를 제공하여 편집 가능한 차트를
 #### 설계 원칙
 
 - **LLM의 역할 최소화**: LLM은 차트 유형, 카테고리, 시리즈 데이터, 위치/크기만 결정. 좌표 계산과 시각적 렌더링은 코드가 결정적으로 처리.
-- **Single Source of Truth 유지**: 기존 디자인 스펙 → {HTML, PPTX} 결정적 변환 아키텍처(ADR-0001 (design))를 그대로 따른다.
+- **Single Source of Truth 유지**: 기존 디자인 스펙 → {HTML, PPTX} 결정적 변환 아키텍처(design/0001)를 그대로 따른다.
 - **z_index 통합**: 기존 요소 타입과 동일하게 z_index 기반 렌더링 순서에 참여한다.
 - **하위 호환**: `charts` 필드의 기본값은 빈 리스트이므로 기존 디자인 스펙에 영향 없음.
 
@@ -124,5 +124,5 @@ python-pptx의 `CategoryChartData` + `add_chart()` API를 사용하여 네이티
 
 ## References
 
-- [ADR-0001 (design): Design Spec Pipeline](0013-design-spec-pipeline.md) — 디자인 스펙 아키텍처
-- [ADR-0007 (design): Image Path Support](0030-image-path-and-corner-radius-support.md) — 새 요소 타입 추가 선례
+- [0013 (design): Design Spec Pipeline](0013-design-spec-pipeline.md) — 디자인 스펙 아키텍처
+- [0030 (design): Image Path Support](0030-image-path-and-corner-radius-support.md) — 새 요소 타입 추가 선례

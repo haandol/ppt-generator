@@ -45,4 +45,4 @@ Visual QA를 2-Phase로 분리한다:
 
 ## References
 
-- ADR-0002: Visual QA 브라우저 도구 fallback
+- 0002: Visual QA 브라우저 도구 fallback

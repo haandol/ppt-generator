@@ -1,6 +1,6 @@
 # 5단 디자인 스펙 계층 — 데이터 무결성
 
-Date: 2026-05-26 (split from ADR-0011 결정 7/8/11)
+Date: 2026-05-26 (split from 0011 결정 7/8/11)
 
 ## Status
 
@@ -8,15 +8,15 @@ Accepted
 
 ## Context
 
-ADR-0011 가 5단 계층(Project / Slide / Layout / Section / Content) 을 정의하고도, *정의* 만으로는 안전망이 없다. 파이프라인이 슬라이드를 LLM 출력 → parse → lint/clean → save → load → render → modify 순으로 옮길 때 어느 한 곳에서 Layout/Section 메타가 떨어져 나가면 5단 계층의 가치(부분 수정 식별성, 구조적 충돌 차단) 가 그 시점부터 깨진다.
+0011 가 5단 계층(Project / Slide / Layout / Section / Content) 을 정의하고도, *정의* 만으로는 안전망이 없다. 파이프라인이 슬라이드를 LLM 출력 → parse → lint/clean → save → load → render → modify 순으로 옮길 때 어느 한 곳에서 Layout/Section 메타가 떨어져 나가면 5단 계층의 가치(부분 수정 식별성, 구조적 충돌 차단) 가 그 시점부터 깨진다.
 
 실제로 다음 회귀가 이미 한 번 발견됐다.
 
 - "정리" 함수(`clean_slide_spec`) 가 dataclass 를 명시 생성하면서 design_doc / images 등을 누락. 새 필드가 추가될 때마다 사람이 손으로 인자를 추가해야 했고 한 차례 빠뜨림.
-- modify_component(ADR-0003 (modify)) 가 LLM 응답으로 element 를 통째 교체할 때, LLM schema 에 *포함되지 않는* 비-design 메타 필드(z_index 등) 가 새 element 에서 누락되어 렌더 순서가 흔들림.
+- modify_component(modify/0003) 가 LLM 응답으로 element 를 통째 교체할 때, LLM schema 에 *포함되지 않는* 비-design 메타 필드(z_index 등) 가 새 element 에서 누락되어 렌더 순서가 흔들림.
 - lint rule 이 새로 추가됐는데 `RULE_LAYER_MAP` 등록이 누락되어 `"content"` default 로 fallback. layer 별 단계적 검증이 잘못된 layer 에서 일어남.
 
-세 케이스 모두 ADR-0011 의 결정에는 모순되지 않지만 *실행 차원에서* 결정이 깨진다. 본 ADR 은 데이터 무결성 약속을 명시 결정으로 분리해 강제한다.
+세 케이스 모두 0011 의 결정에는 모순되지 않지만 *실행 차원에서* 결정이 깨진다. 본 ADR 은 데이터 무결성 약속을 명시 결정으로 분리해 강제한다.
 
 ## Decision
 
@@ -79,6 +79,6 @@ modify_component 같은 도구가 LLM 으로부터 단일 textbox/shape 을 통�
 
 ## References
 
-- [ADR-0011: 5단 디자인 스펙 계층](./0011-five-layer-design-spec-hierarchy.md)
-- [ADR-0003 (modify): modify_component MCP 도구](../modify/0003-modify-component-mcp-tool.md)
-- [ADR-0005 (lint): 5단 계층 lint 정책](../lint/0005-five-layer-lint-policy.md)
+- [0011: 5단 디자인 스펙 계층](./0011-five-layer-design-spec-hierarchy.md)
+- [modify/0003 (modify): modify_component MCP 도구](../modify/0003-modify-component-mcp-tool.md)
+- [lint/0005 (lint): 5단 계층 lint 정책](../lint/0005-five-layer-lint-policy.md)

@@ -48,7 +48,7 @@ docs/adr/
 - [0005 타이틀 슬라이드 긴 제목 텍스트 잘림 수정](./design/0005-title-long-title-overflow-fix.md)
 - [0006 텍스트 런 하이퍼링크 지원](./design/0006-text-run-hyperlink.md)
 - [0007 이미지 image_path 및 corner_radius_px 지원](./design/0007-image-path-corner-radius.md)
-- [0008 Design Spec Post-Generation LLM Review](./design/0008-design-spec-post-generation-review.md) — _Proposed_
+- [0008 Design Spec Post-Generation LLM Review](./design/0008-design-spec-post-generation-review.md)
 - [0009 슬라이드 추가 시 기존 디자인 스펙 참조 일관성](./design/0009-add-slide-design-consistency.md) — _Superseded by design/0010_
 - [0010 기본 테마 색상 변경 + 다이어그램 활용 강화](./design/0010-theme-color-change.md)
 - [0011 5단 디자인 스펙 계층 — Project / Slide / Layout / Section / Content](./design/0011-five-layer-design-spec-hierarchy.md)

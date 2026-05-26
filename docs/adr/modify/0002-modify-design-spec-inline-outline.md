@@ -105,5 +105,5 @@ move_slide(from=16, to=11) → outline에 index 15가 없어 IndexError
 
 ## References
 
-- [ADR-0001: 파일 기반 통신, 슬라이드 단위 CRUD](./0001-file-based-communication-and-per-slide-crud.md)
-- [ADR-0001 (import): PPTX 임포트](../import/0001-pptx-import-to-design-spec.md)
+- [0001: 파일 기반 통신, 슬라이드 단위 CRUD](./0001-file-based-communication-and-per-slide-crud.md)
+- [import/0001 (import): PPTX 임포트](../import/0001-pptx-import-to-design-spec.md)

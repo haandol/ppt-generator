@@ -1,6 +1,6 @@
 # 5단 디자인 스펙 계층 — Lint 정책
 
-Date: 2026-05-26 (split from ADR-0011 (design) 결정 12/13)
+Date: 2026-05-26 (split from design/0011 결정 12/13)
 
 ## Status
 
@@ -8,9 +8,9 @@ Accepted
 
 ## Context
 
-ADR-0011 (design) 가 5단 계층(Project / Slide / Layout / Section / Content) 의 *구조* 를 정의하고 ADR-0013 (design) 이 데이터 무결성을 강제하지만, 각 계층이 서로 정합적으로 link 되어 있는지(예: textbox.component_id 가 design_doc.layout 의 leaf 와 매칭되는지) 검증하는 메커니즘은 lint 안에 명시 결정이 없었다.
+design/0011 가 5단 계층(Project / Slide / Layout / Section / Content) 의 *구조* 를 정의하고 design/0013 이 데이터 무결성을 강제하지만, 각 계층이 서로 정합적으로 link 되어 있는지(예: textbox.component_id 가 design_doc.layout 의 leaf 와 매칭되는지) 검증하는 메커니즘은 lint 안에 명시 결정이 없었다.
 
-또한 lint 호출 지점들이 모든 규칙을 한꺼번에 돌렸기 때문에, 거시 위반(grid_plan 미정의) 이 미시 노이즈(개별 textbox 의 폰트 ±1pt) 와 섞여 사용자가 우선순위를 가리기 어려웠다. ADR-0011 (design) 결정 3 의 "구조적 사전 차단" 약속을 실행 차원에서 보강할 두 가지 정책이 필요하다.
+또한 lint 호출 지점들이 모든 규칙을 한꺼번에 돌렸기 때문에, 거시 위반(grid_plan 미정의) 이 미시 노이즈(개별 textbox 의 폰트 ±1pt) 와 섞여 사용자가 우선순위를 가리기 어려웠다. design/0011 결정 3 의 "구조적 사전 차단" 약속을 실행 차원에서 보강할 두 가지 정책이 필요하다.
 
 1. **Cross-layer link 정합성 검증** — base prompt 가이드만으로는 LLM 결함이 사후 modify 단계에서 ValueError 로 늦게 터진다. 이른 단계에서 lint 로 잡아야 한다.
 2. **단계적 lint 실행** — layer 별 우선순위에 따라 검사하다가 거시 layer 에 error 가 있으면 미시 검사를 스킵.
@@ -19,7 +19,7 @@ ADR-0011 (design) 가 5단 계층(Project / Slide / Layout / Section / Content) 
 
 ### 결정 1 — cross-layer link 정합성을 lint 로 강제한다
 
-다음 lint 규칙군을 `cross` layer 로 추가한다 (모두 ADR-0013 (design) 결정 2 의 RULE_LAYER_MAP 에 등록).
+다음 lint 규칙군을 `cross` layer 로 추가한다 (모두 design/0013 결정 2 의 RULE_LAYER_MAP 에 등록).
 
 **Section ↔ Content 매칭 (`component-id-link`)**:
 - 모든 textbox/shape 의 component_id 는 design_doc.layout 트리 어딘가의 leaf 노드 id 와 매칭되어야 한다 (orphan element).
@@ -34,7 +34,7 @@ ADR-0011 (design) 가 5단 계층(Project / Slide / Layout / Section / Content) 
 `design_doc` 또는 `grid_plan` 이 None 인 슬라이드는 검사 제외.
 
 **Section ↔ Content bbox 동기화 (`section-element-bbox-mismatch`)**:
-- design_doc 의 component leaf bbox 와 그 leaf 를 component_id 로 참조하는 textbox/shape 의 bbox 가 8px 이상 어긋나면 위반. ADR-0011 (design) 결정 3 의 "Section bbox 가 Content bbox 보다 *먼저* 결정된다" 는 약속을 lint 로 검증.
+- design_doc 의 component leaf bbox 와 그 leaf 를 component_id 로 참조하는 textbox/shape 의 bbox 가 8px 이상 어긋나면 위반. design/0011 결정 3 의 "Section bbox 가 Content bbox 보다 *먼저* 결정된다" 는 약속을 lint 로 검증.
 
 **Section/Cell containment**:
 - `element-out-of-section` (severity=error): textbox/shape bbox 가 component_id 로 link 된 leaf 의 가장 가까운 ancestor section/group bbox 외부로 8px 초과 빠져나감.
@@ -42,7 +42,7 @@ ADR-0011 (design) 가 5단 계층(Project / Slide / Layout / Section / Content) 
 
 ### 결정 2 — layout-tree 구조 위반은 warning 이 아닌 error 로 격상
 
-ADR-0011 (design) 결정 3 의 "구조적 사전 차단" 을 실질화하려면 다음 3 개 규칙은 *데이터 구조 결함* 이라 시각 결함보다 우선순위가 높다. modify_component 시 의미 영역을 잘못 가리키게 되어 부분 수정이 신뢰를 잃는다.
+design/0011 결정 3 의 "구조적 사전 차단" 을 실질화하려면 다음 3 개 규칙은 *데이터 구조 결함* 이라 시각 결함보다 우선순위가 높다. modify_component 시 의미 영역을 잘못 가리키게 되어 부분 수정이 신뢰를 잃는다.
 
 - `layout-tree-sibling-overlap`: 같은 부모 아래 형제 섹션 bbox 가 1px² 초과로 겹침
 - `layout-tree-containment`: 자식 bbox 가 부모 bbox 외부로 빠져나감
@@ -92,7 +92,7 @@ generate_slides_design_spec 결과에서 `severity="error"` & `layer="cross"` �
 
 ## References
 
-- [ADR-0011 (design): 5단 디자인 스펙 계층](../design/0011-five-layer-design-spec-hierarchy.md)
-- [ADR-0013 (design): 5단 계층 데이터 무결성](../design/0013-five-layer-data-integrity.md)
-- [ADR-0003: Validator 를 Lint 로 전환](./0003-validator-to-lint.md) — 본 ADR 이 그 위에 cross-layer 정책을 더함
-- [ADR-0004: 화살표·라벨 부착 검증 lint](./0004-arrow-label-attachment-lint.md) — cross layer 이전 사례
+- [design/0011 (design): 5단 디자인 스펙 계층](../design/0011-five-layer-design-spec-hierarchy.md)
+- [design/0013 (design): 5단 계층 데이터 무결성](../design/0013-five-layer-data-integrity.md)
+- [0003: Validator 를 Lint 로 전환](./0003-validator-to-lint.md) — 본 ADR 이 그 위에 cross-layer 정책을 더함
+- [0004: 화살표·라벨 부착 검증 lint](./0004-arrow-label-attachment-lint.md) — cross layer 이전 사례

@@ -1,6 +1,6 @@
 # PptxShape autofit 기본값을 "shrink_text" 로
 
-Date: 2026-05-26 (split from ADR-0011 결정 14)
+Date: 2026-05-26 (split from 0011 결정 14)
 
 ## Status
 
@@ -57,5 +57,5 @@ PptxShape 의 `autofit_mode` 는 두 가지가 있다.
 
 ## References
 
-- [ADR-0011: 5단 디자인 스펙 계층](./0011-five-layer-design-spec-hierarchy.md)
-- [ADR-0002: 폰트 메트릭 기반 텍스트 오버플로우 방지](./0002-font-metric-text-overflow.md)
+- [0011: 5단 디자인 스펙 계층](./0011-five-layer-design-spec-hierarchy.md)
+- [0002: 폰트 메트릭 기반 텍스트 오버플로우 방지](./0002-font-metric-text-overflow.md)

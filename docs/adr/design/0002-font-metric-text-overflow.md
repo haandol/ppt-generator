@@ -32,7 +32,7 @@ LLM 이 생성한 디자인 스펙은 텍스트가 박스보다 커서 두 가�
 
 ### 세로 오버플로우 — spec 단계 검증
 
-디자인 스펙 lint 가 `text-overflow` 규칙으로 paragraph 의 줄바꿈 수 × line height 합산값과 박스 height 를 비교한다 (15% 여유 허용). shape 가 `autofit_mode="shrink_text"` 인 경우 (ADR-0011 결정 14) 폰트 자동 축소가 height 부족을 자연 흡수하므로 검사 대상에서 제외한다.
+디자인 스펙 lint 가 `text-overflow` 규칙으로 paragraph 의 줄바꿈 수 × line height 합산값과 박스 height 를 비교한다 (15% 여유 허용). shape 가 `autofit_mode="shrink_text"` 인 경우 (0011 결정 14) 폰트 자동 축소가 height 부족을 자연 흡수하므로 검사 대상에서 제외한다.
 
 ### 가로 오버플로우 — 렌더링 단계 nowrap 보정 + lint 안전망
 
@@ -73,6 +73,6 @@ bullet(`<li>`) 항목에는 nowrap 을 적용하지 않는다 — bullet 본문�
 
 ## References
 
-- [ADR-0001](./0001-design-spec-pipeline.md) — 디자인 스펙 파이프라인에서 lint 의 위치
-- [ADR-0001 (lint)](../lint/0001-design-spec-validator.md) (Superseded by 0041) → [ADR-0003 (lint)](../lint/0003-validator-to-lint.md) — Lint 의 일반 정책
-- [ADR-0011](./0011-five-layer-design-spec-hierarchy.md) 결정 14 — autofit shrink_text 기본값
+- [0001](./0001-design-spec-pipeline.md) — 디자인 스펙 파이프라인에서 lint 의 위치
+- [lint/0001](../lint/0001-design-spec-validator.md) (Superseded by 0041) → [lint/0003](../lint/0003-validator-to-lint.md) — Lint 의 일반 정책
+- [0011](./0011-five-layer-design-spec-hierarchy.md) 결정 14 — autofit shrink_text 기본값

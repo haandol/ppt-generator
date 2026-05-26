@@ -69,7 +69,7 @@ Accepted
 ## 하위 호환성
 
 - 기존 generated 슬라이드는 영향 없음 (변환기는 새 경로).
-- 임포트된 슬라이드는 grid_plan/design_doc=None 으로 들어옴 — 5단 계층 가치(부분 수정 식별성) 는 ADR-0004 (modify) 의 lazy backfill 로 후속 활용.
+- 임포트된 슬라이드는 grid_plan/design_doc=None 으로 들어옴 — 5단 계층 가치(부분 수정 식별성) 는 modify/0004 의 lazy backfill 로 후속 활용.
 
 ## Consequences
 
@@ -100,8 +100,8 @@ Accepted
 
 ## References
 
-- [ADR-0001 (design): 디자인 스펙 기반 슬라이드 생성 파이프라인](../design/0001-design-spec-pipeline.md)
-- [ADR-0001 (modify): 파일 기반 통신 + 슬라이드별 CRUD](../modify/0001-file-based-communication-and-per-slide-crud.md)
-- [ADR-0001 (visual-qa): Visual QA 파이프라인](../visual-qa/0001-visual-qa-pipeline.md)
-- [ADR-0003 (lint): Validator 를 Lint 로 전환](../lint/0003-validator-to-lint.md)
-- [ADR-0004 (modify): Imported 슬라이드 design_doc lazy backfill](../modify/0004-imported-slide-lazy-backfill.md)
+- [design/0001 (design): 디자인 스펙 기반 슬라이드 생성 파이프라인](../design/0001-design-spec-pipeline.md)
+- [modify/0001 (modify): 파일 기반 통신 + 슬라이드별 CRUD](../modify/0001-file-based-communication-and-per-slide-crud.md)
+- [visual-qa/0001 (visual-qa): Visual QA 파이프라인](../visual-qa/0001-visual-qa-pipeline.md)
+- [lint/0003 (lint): Validator 를 Lint 로 전환](../lint/0003-validator-to-lint.md)
+- [modify/0004 (modify): Imported 슬라이드 design_doc lazy backfill](../modify/0004-imported-slide-lazy-backfill.md)

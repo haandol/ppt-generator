@@ -42,7 +42,7 @@ schema 토큰·자유형 표현력 손실이 크다. **컨텐츠 영역(section 
 
 ## Context
 
-ADR-0011 가 5단 계층(Project / Slide / Layout / Section / Content) 을 정의하면서
+0011 가 5단 계층(Project / Slide / Layout / Section / Content) 을 정의하면서
 **Layout(GridPlan)** 이 슬라이드 *전역 캔버스* 를 격자로 나누고, **Content(textbox/
 shape)** 는 자유 픽셀로 배치된다. Section(design_doc.layout) 은 그 사이에서
 의미 영역의 bbox 만 결정하고 자식 component 의 좌표는 LLM 이 *자유롭게* 픽셀로
@@ -69,7 +69,7 @@ shape)** 는 자유 픽셀로 배치된다. Section(design_doc.layout) 은 그 �
    영역 복잡도가 올라갈수록 자유 배치의 *충돌 확률* 이 기하급수적으로 증가
    하고, 사후 lint 만으로는 LLM 을 안정적으로 가이드하기 어렵다.
 
-ADR-0011 의 GridPlan 이 *전역* 격자를 도입해 슬라이드 거시 분할을 구조화한
+0011 의 GridPlan 이 *전역* 격자를 도입해 슬라이드 거시 분할을 구조화한
 것처럼, 본 ADR 은 **컨텐츠가 복잡한 Section 영역 내부** 에 **로컬 그리드**
 를 도입해 그 안의 component 배치를 *구조적으로* 다룬다. 단순 영역은
 local_grid=None 으로 두고 자유 배치를 유지하므로, 본 결정은 *복잡도가
@@ -103,7 +103,7 @@ class LayoutNode:
 이지 grid 를 *가질* 수 없다). LLM 이 영역 복잡도에 맞춰 1×1 (자유 1 슬롯) /
 2×3 (카드 묶음) / 4×2 (다이어그램) 등을 선택.
 
-`local_grid=None` 이면 기존 ADR-0011 의 자유 배치 fallback (하위 호환).
+`local_grid=None` 이면 기존 0011 의 자유 배치 fallback (하위 호환).
 
 ### 결정 2 — `LayoutNode.local_cell` 필드 (component leaf 가 부모 로컬 grid cell 참조)
 
@@ -195,7 +195,7 @@ violations 와 *중복 보고* 만 회피하는 정도로 이후 별도 ADR 에�
 
 ### 하위 호환성
 
-- 기존 generated 슬라이드는 `local_grid=None` 으로 graceful fallback (ADR-0011
+- 기존 generated 슬라이드는 `local_grid=None` 으로 graceful fallback (0011
   와 동일 패턴).
 - HTML / PPTX 렌더러는 `local_grid` / `local_cell` 을 *무시* 한다 (자식 bbox 의
   픽셀 좌표가 여전히 진실의 원천).
@@ -211,7 +211,7 @@ violations 와 *중복 보고* 만 회피하는 정도로 이후 별도 ADR 에�
 3. `local-grid-bbox-derivation` 이 자식 bbox 가 격자 슬롯 도출값에서 8px 초과
    어긋난 케이스를 warning 으로 검출 (단, `local_cell=None` 자식은 제외).
 4. `local_grid=None` 인 기존 슬라이드는 신규 lint 가 모두 skip (조건부).
-5. 회귀: ADR-0011 의 21 개 Acceptance Criteria 가 모두 그대로 통과.
+5. 회귀: 0011 의 21 개 Acceptance Criteria 가 모두 그대로 통과.
 
 ## Consequences
 
@@ -228,7 +228,7 @@ violations 와 *중복 보고* 만 회피하는 정도로 이후 별도 ADR 에�
 - **schema 토큰 증가**: LayoutNode 에 3 필드 추가. ContentSlideSpecOutput
   토큰 ~5-8% 증가 추정.
 - **LLM 학습 부담**: 새 개념 1 개 (로컬 격자) 가 base prompt + examples 에
-  추가됨. 초기 슬라이드 품질이 일시적으로 떨어질 수 있음 (ADR-0011 도입 시와
+  추가됨. 초기 슬라이드 품질이 일시적으로 떨어질 수 있음 (0011 도입 시와
   같은 학습 곡선).
 - **자유 배치 손실 우려**: 다이어그램 화살표·라벨 같은 free-form element 는
   local_cell=None 처리가 필요. 프롬프트가 이를 충분히 가르치지 못하면 LLM 이
@@ -241,7 +241,7 @@ violations 와 *중복 보고* 만 회피하는 정도로 이후 별도 ADR 에�
 
 1. **`local_grid` 강제 vs 권장 → 옵션**: section/group 마다 자유 선택. 단순
    영역(자식 1-2 개 또는 다이어그램 free-form) 은 None 유지. graceful
-   fallback (ADR-0011 패턴) 과 일관.
+   fallback (0011 패턴) 과 일관.
 2. **렌더러가 local_grid 를 정답으로 쓸지 → 자식 bbox 필수 유지**: 자식의
    left/top/width/height 는 여전히 spec 에 박혀 있어야 한다 (렌더링은 자식
    bbox 가 진실). local_grid + local_cell 은 *검증·식별 메타* 로 한정. 렌더러/
@@ -253,5 +253,5 @@ violations 와 *중복 보고* 만 회피하는 정도로 이후 별도 ADR 에�
 
 ## References
 
-- [ADR-0011: 5단 디자인 스펙 계층 — Layout/Section/Content 책임 분리, GridPlan, 점진적 추상화 출력](./0011-five-layer-design-spec-hierarchy.md)
-- [ADR-0003 (modify): modify_component MCP 도구](../modify/0003-modify-component-mcp-tool.md)
+- [0011: 5단 디자인 스펙 계층 — Layout/Section/Content 책임 분리, GridPlan, 점진적 추상화 출력](./0011-five-layer-design-spec-hierarchy.md)
+- [modify/0003 (modify): modify_component MCP 도구](../modify/0003-modify-component-mcp-tool.md)

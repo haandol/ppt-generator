@@ -1,6 +1,6 @@
 # 5단 디자인 스펙 계층 — Project / Slide / Layout / Section / Content
 
-Date: 2026-05-26 (rolled up: ADR-0044/0045/0046 흡수; 데이터 무결성·lint 정책·autofit 기본값은 ADR-0013/0054/0055 로 분리)
+Date: 2026-05-26 (rolled up earlier grid-first + progressive abstraction ADRs; 데이터 무결성·lint 정책·autofit 기본값은 design/0013, lint/0005, design/0014 로 분리)
 
 ## Status
 
@@ -100,7 +100,7 @@ overflow
 
 - 기존 generated 슬라이드는 design_doc=None / component_id=None 으로 그대로 동작 (graceful fallback).
 - HTML / PPTX 렌더러는 design_doc / component_id 를 무시하므로 시각 출력 무영향.
-- imported PPTX 는 design_doc=None 으로 들어감 (lazy backfill 은 ADR-0004 (modify)).
+- imported PPTX 는 design_doc=None 으로 들어감 (lazy backfill 은 modify/0004).
 
 ## Consequences
 
@@ -120,18 +120,18 @@ overflow
 
 ## Out of Scope (다른 ADR 에서 다룸)
 
-- 5단 계층 *데이터 무결성* (PptxSlideSpec 재구성 필드 보존, element 부분 교체 시 비-design 메타 보존) — **ADR-0013**
-- 5단 계층 *lint 정책* (단계적 lint, cross-layer link 검증, layout-tree severity 격상 등) — **ADR-0005 (lint)**
-- shape autofit 기본값 변경 — **ADR-0014**
+- 5단 계층 *데이터 무결성* (PptxSlideSpec 재구성 필드 보존, element 부분 교체 시 비-design 메타 보존) — **0013**
+- 5단 계층 *lint 정책* (단계적 lint, cross-layer link 검증, layout-tree severity 격상 등) — **lint/0005**
+- shape autofit 기본값 변경 — **0014**
 - 다단 LLM 호출 분리 (비용/지연 영향 큼)
-- imported PPTX lazy design_doc backfill — ADR-0004 (modify)
+- imported PPTX lazy design_doc backfill — modify/0004
 
 ## References
 
-- [ADR-0002 (project): 점진적 구체화 파이프라인 설계](../project/0002-progressive-refinement-pipeline.md)
-- [ADR-0004 (outline): Layout Planning Phase](../outline/0004-layout-planning-phase.md)
-- [ADR-0003 (modify): modify_component MCP 도구 — Section 단위 부분 수정](../modify/0003-modify-component-mcp-tool.md)
-- [ADR-0004 (modify): Imported 슬라이드 design_doc lazy backfill](../modify/0004-imported-slide-lazy-backfill.md)
-- [ADR-0013: 5단 계층 데이터 무결성](./0013-five-layer-data-integrity.md)
-- [ADR-0005 (lint): 5단 계층 lint 정책 — cross-layer 검증 + 단계적 실행](../lint/0005-five-layer-lint-policy.md)
-- [ADR-0014: PptxShape autofit 기본값 — shrink_text](./0014-shape-autofit-shrink-text.md)
+- [project/0002 (project): 점진적 구체화 파이프라인 설계](../project/0002-progressive-refinement-pipeline.md)
+- [outline/0004 (outline): Layout Planning Phase](../outline/0004-layout-planning-phase.md)
+- [modify/0003 (modify): modify_component MCP 도구 — Section 단위 부분 수정](../modify/0003-modify-component-mcp-tool.md)
+- [modify/0004 (modify): Imported 슬라이드 design_doc lazy backfill](../modify/0004-imported-slide-lazy-backfill.md)
+- [0013: 5단 계층 데이터 무결성](./0013-five-layer-data-integrity.md)
+- [lint/0005 (lint): 5단 계층 lint 정책 — cross-layer 검증 + 단계적 실행](../lint/0005-five-layer-lint-policy.md)
+- [0014: PptxShape autofit 기본값 — shrink_text](./0014-shape-autofit-shrink-text.md)

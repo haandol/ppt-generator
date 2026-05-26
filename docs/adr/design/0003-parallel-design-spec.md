@@ -87,7 +87,7 @@ Bedrock `CacheConfig` 와 Anthropic ephemeral cache_control 을 사용하지 않
 
 ## References
 
-- [ADR-0003 (project)](../project/0003-token-usage-cost-estimation.md) — 토큰/비용 측정으로 캐시 효과를 실측한 근거
+- [project/0003](../project/0003-token-usage-cost-estimation.md) — 토큰/비용 측정으로 캐시 효과를 실측한 근거
 - [project/0004](../project/0004-progress-reporting-and-logging.md) — 병렬 실행 진행률 보고
-- [ADR-0005 (project)](../project/0005-mcp-server-stability.md) — ThreadPoolExecutor + future timeout 안정성
-- [ADR-0011](./0011-five-layer-design-spec-hierarchy.md) — 단일 LLM 호출 유지 결정 (점진적 추상화 + Section 계층)
+- [project/0005](../project/0005-mcp-server-stability.md) — ThreadPoolExecutor + future timeout 안정성
+- [0011](./0011-five-layer-design-spec-hierarchy.md) — 단일 LLM 호출 유지 결정 (점진적 추상화 + Section 계층)

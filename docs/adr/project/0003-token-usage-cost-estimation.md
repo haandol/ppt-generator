@@ -47,5 +47,5 @@ Accepted
 
 ## Related
 
-- [ADR-0003 (design): 병렬 디자인 스펙 생성 및 프롬프트 캐싱](../design/0003-parallel-design-spec.md)
-- [ADR-0003 (design): 디자인 스펙 병렬 생성, 프롬프트 캐싱 및 Adaptive Effort](../design/0003-parallel-design-spec.md) (복잡도 기반 스케줄링 및 Adaptive Thinking Effort 포함)
+- [design/0003 (design): 병렬 디자인 스펙 생성 및 프롬프트 캐싱](../design/0003-parallel-design-spec.md)
+- [design/0003 (design): 디자인 스펙 병렬 생성, 프롬프트 캐싱 및 Adaptive Effort](../design/0003-parallel-design-spec.md) (복잡도 기반 스케줄링 및 Adaptive Thinking Effort 포함)

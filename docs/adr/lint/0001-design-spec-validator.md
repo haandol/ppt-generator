@@ -4,6 +4,6 @@ Date: 2026-02-26
 
 ## Status
 
-Superseded by [ADR-0003: 디자인 스펙 Lint](./0003-validator-to-lint.md)
+Superseded by [0003: 디자인 스펙 Lint](./0003-validator-to-lint.md)
 
-이 ADR의 모든 내용은 ADR-0041로 통합되었다.
+이 ADR 의 모든 내용은 [lint/0003](./0003-validator-to-lint.md) 으로 통합되었다.

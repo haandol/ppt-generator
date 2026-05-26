@@ -35,8 +35,8 @@ LLM 은 절대 좌표(left/top/width/height) 와 스타일을 가진 PptxSlideSp
 
 ### MCP 도구 분리
 
-- `generate_slides_design_spec` — 전체/선택적 슬라이드 디자인 스펙 병렬 생성 (ADR-0003).
-- `modify_design_spec` — 개별 슬라이드 추가/수정/삭제 (ADR-0001 (modify)).
+- `generate_slides_design_spec` — 전체/선택적 슬라이드 디자인 스펙 병렬 생성 (0003).
+- `modify_design_spec` — 개별 슬라이드 추가/수정/삭제 (modify/0001).
 - `load_design_spec` — 저장된 디자인 스펙 로드.
 - `export_html` / `export_pptx` — design_spec 을 받아 결정론적 변환.
 
@@ -69,12 +69,12 @@ LLM 은 절대 좌표(left/top/width/height) 와 스타일을 가진 PptxSlideSp
 
 ## References
 
-- [ADR-0001 (project): 파이프라인 결과물 저장/로드](../project/0001-pipeline-artifact-persistence.md)
-- [ADR-0002 (project): 점진적 구체화 파이프라인](../project/0002-progressive-refinement-pipeline.md)
-- [ADR-0001 (modify): 파일 기반 통신 + 슬라이드 단위 CRUD](../modify/0001-file-based-communication-and-per-slide-crud.md)
-- [ADR-0001 (slides): 슬라이드별 HTML iframe](../slides/0001-per-slide-html-iframe.md)
-- [ADR-0002: 폰트 메트릭 기반 텍스트 오버플로우 방지](./0002-font-metric-text-overflow.md)
-- [ADR-0003: 디자인 스펙 병렬 생성](./0003-parallel-design-spec.md)
-- [ADR-0004: 슬라이드 타입별 시스템 프롬프트 분리](./0004-slide-type-specific-prompts.md)
-- [ADR-0003 (lint): Validator 를 Lint 로 전환](../lint/0003-validator-to-lint.md)
-- [ADR-0011: 5단 디자인 스펙 계층](./0011-five-layer-design-spec-hierarchy.md)
+- [project/0001 (project): 파이프라인 결과물 저장/로드](../project/0001-pipeline-artifact-persistence.md)
+- [project/0002 (project): 점진적 구체화 파이프라인](../project/0002-progressive-refinement-pipeline.md)
+- [modify/0001 (modify): 파일 기반 통신 + 슬라이드 단위 CRUD](../modify/0001-file-based-communication-and-per-slide-crud.md)
+- [slides/0001 (slides): 슬라이드별 HTML iframe](../slides/0001-per-slide-html-iframe.md)
+- [0002: 폰트 메트릭 기반 텍스트 오버플로우 방지](./0002-font-metric-text-overflow.md)
+- [0003: 디자인 스펙 병렬 생성](./0003-parallel-design-spec.md)
+- [0004: 슬라이드 타입별 시스템 프롬프트 분리](./0004-slide-type-specific-prompts.md)
+- [lint/0003 (lint): Validator 를 Lint 로 전환](../lint/0003-validator-to-lint.md)
+- [0011: 5단 디자인 스펙 계층](./0011-five-layer-design-spec-hierarchy.md)

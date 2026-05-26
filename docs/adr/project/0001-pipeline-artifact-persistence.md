@@ -40,16 +40,16 @@ Accepted
     slide_01.json      # 슬라이드 스크립트 (slide_index, speaker_notes 포함)
     slide_02.json
     ...
-  design_spec/         # 디자인 스펙 출력 (슬라이드별 개별 파일, ADR-0001 (modify))
+  design_spec/         # 디자인 스펙 출력 (슬라이드별 개별 파일, modify/0001)
     slide_01.json      # 단일 PptxSlideSpec (wrapper 없음)
     slide_02.json
     ...
     design_summary.json # 디자인 테마 요약
-  slides/              # HTML 슬라이드 출력 (슬라이드별 개별 파일, ADR-0001 (slides))
+  slides/              # HTML 슬라이드 출력 (슬라이드별 개별 파일, slides/0001)
     slide_01.html      # 슬라이드별 완전한 HTML 문서
     slide_02.html
     ...
-  slides.html          # iframe 컨테이너 (ADR-0001 (slides))
+  slides.html          # iframe 컨테이너 (slides/0001)
   slides_meta.json     # 세션 메타 (session_id)
   presentation.pptx    # PPTX 출력 (직접 생성)
 ```

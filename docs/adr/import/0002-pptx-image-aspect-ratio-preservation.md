@@ -77,4 +77,4 @@ offset_y = (spec_height - fit_height) / 2
 
 - `src/ppt_generator/tools/pptx/slide_builder.py` — `_add_image_from_spec()`
 - `src/ppt_generator/tools/slides/html_renderer.py` — `image_to_html()` (object-fit: contain)
-- [ADR-0007 (design)](0030-image-path-and-corner-radius-support.md) — 이미지 image_path 지원
+- [0030 (design)](0030-image-path-and-corner-radius-support.md) — 이미지 image_path 지원

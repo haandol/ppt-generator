@@ -85,5 +85,5 @@ Accepted
 
 ## Related
 
-- [ADR-0003 (design): 디자인 스펙 병렬 생성, 프롬프트 캐싱 및 Adaptive Effort](../design/0003-parallel-design-spec.md)
-- [ADR-0003: 토큰 사용량 추적 및 비용 추정](./0003-token-usage-cost-estimation.md)
+- [design/0003 (design): 디자인 스펙 병렬 생성, 프롬프트 캐싱 및 Adaptive Effort](../design/0003-parallel-design-spec.md)
+- [0003: 토큰 사용량 추적 및 비용 추정](./0003-token-usage-cost-estimation.md)

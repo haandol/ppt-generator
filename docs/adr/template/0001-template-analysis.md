@@ -6,7 +6,7 @@ Date: 2026-02-11
 
 Proposed
 
-> **Note (2026-02-11)**: AWS 기본 템플릿에 대해서는 정적 추출을 적용했고, 기존 `build_layout_skeleton()` / `LAYOUT_REGIONS` 기반 접근은 ADR-0001 (design)(디자인 스펙 파이프라인) 으로 대체되어 제거됐다. 동적 `analyze_template` 도구 구현은 추후 진행 예정.
+> **Note (2026-02-11)**: AWS 기본 템플릿에 대해서는 정적 추출을 적용했고, 기존 `build_layout_skeleton()` / `LAYOUT_REGIONS` 기반 접근은 design/0001(디자인 스펙 파이프라인) 으로 대체되어 제거됐다. 동적 `analyze_template` 도구 구현은 추후 진행 예정.
 
 ## Context
 
@@ -66,5 +66,5 @@ placeholder 타입과 레이아웃 이름 패턴으로 `title` / `text_image` / 
 
 ## References
 
-- [ADR-0001 (design): 디자인 스펙 기반 슬라이드 생성 파이프라인](../design/0001-design-spec-pipeline.md)
-- [ADR-0001 (import): PPTX 임포트 → 디자인 스펙](../import/0001-pptx-import-to-design-spec.md) — 외부 PPTX 를 spec 으로 변환하는 별도 경로 (본 ADR 은 *디자인 가이드만* 추출하는 보조 경로)
+- [design/0001 (design): 디자인 스펙 기반 슬라이드 생성 파이프라인](../design/0001-design-spec-pipeline.md)
+- [import/0001 (import): PPTX 임포트 → 디자인 스펙](../import/0001-pptx-import-to-design-spec.md) — 외부 PPTX 를 spec 으로 변환하는 별도 경로 (본 ADR 은 *디자인 가이드만* 추출하는 보조 경로)

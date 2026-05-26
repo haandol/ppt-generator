@@ -12,7 +12,7 @@ Accepted
 
 근본 원인은 세 가지가 복합적으로 작용:
 
-1. **validator의 height 강제 리셋**: `_fix_title_closing_main_position()`이 `_validate_textboxes()` 이후에 호출되면서, 텍스트 줄바꿈에 맞게 확장된 height를 다시 80px로 강제 리셋 (validator 상세: [ADR-0001 (lint)](../lint/0001-design-spec-validator.md))
+1. **validator의 height 강제 리셋**: `_fix_title_closing_main_position()`이 `_validate_textboxes()` 이후에 호출되면서, 텍스트 줄바꿈에 맞게 확장된 height를 다시 80px로 강제 리셋 (validator 상세: [lint/0001](../lint/0001-design-spec-validator.md))
 2. **HTML 렌더러의 CSS 조합**: `overflow:hidden` + `justify-content:center`가 80px 박스 안에서 2줄 텍스트(~94px)를 중앙 정렬하려 하면서 상단을 잘라냄
 3. **프롬프트의 고정 height**: 대제목 height=80을 하드 제약으로 고정하여 LLM이 2줄 제목에 대응할 수 없음
 

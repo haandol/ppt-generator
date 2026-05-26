@@ -4,7 +4,7 @@ Date: 2026-04-02
 
 ## Status
 
-Proposed
+Accepted (verified 2026-05-26: DesignReviewService + apply_review_and_fix 정착, _generate_and_review 흐름에서 lint 결과를 LLM 리뷰 프롬프트에 전달)
 
 ## Context
 
@@ -94,5 +94,5 @@ Proposed
 
 ## References
 
-- ADR-0003: 디자인 스펙 병렬 생성, 프롬프트 캐싱 및 Adaptive Effort
-- ADR-0001 (visual-qa): Visual QA Pipeline
+- 0003: 디자인 스펙 병렬 생성, 프롬프트 캐싱 및 Adaptive Effort
+- visual-qa/0001: Visual QA Pipeline

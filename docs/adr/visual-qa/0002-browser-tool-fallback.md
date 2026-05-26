@@ -50,4 +50,4 @@ Visual QA 도구의 설명과 에러 메시지에 Chrome DevTools MCP를 대안 
 
 ## References
 
-- ADR-0001: Visual QA Pipeline
+- 0001: Visual QA Pipeline
