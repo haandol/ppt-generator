@@ -28,17 +28,26 @@ You MUST honor the outline's layout_plan:
 </coordinate_system>
 
 <progressive_abstraction_principle>
-**Progressive Abstraction (MANDATORY)**: This response follows a strict descent from macro to micro. Output the stages in declared order; do NOT skip ahead, and do NOT revise upstream stages once you start a downstream stage.
+**Five-Layer Hierarchy (MANDATORY, ADR-0049)**: A presentation deck is structured as five conceptual layers, each answering one kind of question:
 
 ```
-Stage 1 (input)         outline                — WHAT and HOW (already decided upstream)
-Stage 2 (output)        grid_layout            — regions + content_columns + content_rows
-Stage 3 (output)        cell_assignment.cells  — each cell's row/col/span/region/role
-Stage 3.5 (output)      design_doc             — topic + layout_summary + sections[components]
-Stage 4 (output)        textboxes / shapes     — coordinates + style, each refers to a cell + component_id
+Project   = the whole deck                     — what is this presentation about?
+  └ Slide  = one page, one topic                — what is this page about? what will the speaker say?
+      └ Layout = grid (regions + columns/rows)  — how is this slide partitioned into a grid?
+          └ Section = meaningful regions + bbox — what meaning lives in each region? what bbox does it occupy?
+              └ Content = textboxes / shapes    — how is each component drawn (pixels, text, color)?
 ```
 
-**Stage 2 — grid_layout** (decide the slide's macro layout):
+Within a single slide response, this maps to a strict descent from macro to micro. Output in declared order; do NOT skip ahead, and do NOT revise upstream layers once you start a downstream layer.
+
+```
+Layer (input)           outline                — WHAT and HOW (already decided upstream by Project layer)
+Layer Layout (output)   grid_layout + cell_assignment    — Layout: regions/columns/rows + cell ids
+Layer Section (output)  design_doc             — Section: topic + layout_summary + layout tree (sections/groups/components, each with bbox)
+Layer Content (output)  textboxes / shapes     — Content: pixels/style, each references a cell (grid_cell) AND a component node (component_id)
+```
+
+**Layout layer — grid_layout** (decide the slide's macro layout):
 1. Choose `regions`: include `"header"` (recommended for content slides), `"content"` (REQUIRED), and `"footer"` only when the slide truly needs a footnote/source line.
 2. Choose `content_columns` (1..4) and `content_rows` (1..N) based on `outline.layout_plan` and `component_hint`.
    - `bullets`, `agenda` (single column) → 1 column
@@ -48,15 +57,15 @@ Stage 4 (output)        textboxes / shapes     — coordinates + style, each ref
 
 DO NOT think about individual cells in this stage. Only decide the overall regions and how content is divided.
 
-**Stage 3 — cell_assignment.cells** (assign each cell on top of the layout above):
+**Layout layer — cell_assignment.cells** (assign each cell on top of the macro layout):
 1. Enumerate every visible slot the slide needs. Title goes in a header cell; each card/diagram block in a content cell; footer text in a footer cell.
 2. For each cell give `id`, `region`, `row`, `col`, `row_span`, `col_span`, `role`.
 3. Use `row_span`/`col_span` when an element spans multiple rows/columns (e.g., a tall left description that spans 2 rows in a 2x2 layout).
-4. All cells you intend to use MUST be declared here BEFORE Stage 4. No element may reference a cell that was not declared.
+4. All cells you intend to use MUST be declared here BEFORE the Content layer. No element may reference a cell that was not declared.
 
 **Cell ID convention**: short, slide-local labels like `"h1"` (header row 1), `"c1"`/`"c2"` (content cells in declaration order), `"f1"` (footer). The `role` field is free text describing what the cell holds (e.g., `"title"`, `"step1_card"`, `"left_diagram"`).
 
-**Stage 3.5 — design_doc** (the slide's *meaning* tree, separate from `speaker_notes`) — **REQUIRED for content slides**. Title/closing slides MAY omit this field, but content slides MUST output a complete `design_doc` with `topic`, `layout_summary`, and a `layout` list covering all visible foreground elements.
+**Section layer — design_doc** (the slide's *meaning* tree, separate from `speaker_notes`) — **REQUIRED for content slides**. Title/closing slides MAY omit this field, but content slides MUST output a complete `design_doc` with `topic`, `layout_summary`, and a `layout` list covering all visible foreground elements.
 1. `topic`: one-sentence subject of the slide.
 2. `layout_summary`: a single paragraph summarizing the macro layout you just decided (e.g., "Left c1 region holds three vertically stacked explanation cards; right c2 region holds a 4-node relationship diagram with the LLM in the center").
 3. `layout`: a tree of `LayoutNode`s describing the slide's meaningful structure.
@@ -73,7 +82,7 @@ DO NOT think about individual cells in this stage. Only decide the overall regio
 **bbox-first principle (IMPORTANT)**:
 - Every node carries a bounding box (`left_px`, `top_px`, `width_px`, `height_px`) describing the *space it occupies on the canvas*.
 - Decide bbox top-down: the section bbox first (usually equals the linked grid cell's pixel rectangle), then groups, then components. Each child's bbox MUST fit entirely inside its parent's bbox.
-- This means **before** you start picking pixel coordinates for individual textbox/shape elements in Stage 4, the layout tree already partitions the canvas into nested rectangles. Stage 4 then only fills in styling within those rectangles — collision is avoided structurally.
+- This means **before** you start picking pixel coordinates for individual textbox/shape elements in the Content layer, the layout tree already partitions the canvas into nested rectangles. The Content layer then only fills in styling within those rectangles — collision is avoided structurally.
 - For a diagram-heavy section (e.g., `right_diagram`), declare the section's bbox covering the whole diagram, then declare each diagram component (LLM box, function cards, arrows) with bboxes inside it.
 - For a leaf `component`, its bbox MUST equal the corresponding textbox/shape's bbox (they describe the same rectangle from different perspectives).
 
@@ -83,16 +92,16 @@ DO NOT think about individual cells in this stage. Only decide the overall regio
 
 **role** is a free string describing what the node is, e.g., `llm_box`, `context_bus`, `function_card`, `arrow_label`, `card_title`, `axis_label`, `step_number`. Use the same role string consistently across slides for the same kind of element.
 
-**Linkage rule**: Every textbox and content-bearing shape in Stage 4 MUST set its `component_id` to a leaf node's `id` from this tree. Pure decorative connectors (thin lines without text) and background fills MAY leave `component_id: null`.
+**Linkage rule**: Every textbox and content-bearing shape in the Content layer MUST set its `component_id` to a leaf node's `id` from this tree. Pure decorative connectors (thin lines without text) and background fills MAY leave `component_id: null`.
 
 **Why design_doc tree**: future modification requests like "swap the order of the third and fourth function cards" or "make the LLM box red" need to refer to elements by *meaning*, not by index. The `component_id` link + tree path make that possible. Keep ids stable, lower_snake_case, and human-readable.
 
-**Stage 4 — textboxes / shapes** (concretize each cell into pixels, **after layout tree is fully decided**):
-- The layout tree from Stage 3.5 already partitions the canvas into nested rectangles with bboxes. Stage 4 is now mostly mechanical: each leaf component in the tree maps to exactly one textbox or shape, and that element's bbox MUST equal its component node's bbox.
+**Content layer — textboxes / shapes** (concretize each cell into pixels, **after the Section layer tree is fully decided**):
+- The Section layer tree already partitions the canvas into nested rectangles with bboxes. The Content layer is now mostly mechanical: each leaf component in the tree maps to exactly one textbox or shape, and that element's bbox MUST equal its component node's bbox.
 - Map every textbox/shape/image to a cell via `grid_cell` field.
 - Map every meaningful textbox/shape to a component via `component_id` field (matches a leaf node id in `design_doc.layout`).
 - Decorative-only elements (connecting arrows without text, dividers) MAY use `grid_cell: null` and `component_id: null` and need not appear in the layout tree.
-- **Do not invent new positions in Stage 4**: if a leaf component's bbox needs adjustment, that is a sign the layout tree itself is wrong — stop and rethink Stage 3.5 instead of overriding bboxes here. The lint rules `layout-tree-sibling-overlap`, `layout-tree-containment`, `layout-tree-bbox-missing`, `layout-tree-canvas-overflow` enforce the tree's structural validity; if any of those would fail, fix the tree first.
+- **Do not invent new positions in the Content layer**: if a leaf component's bbox needs adjustment, that is a sign the Section layer tree itself is wrong — stop and rethink the Section layer instead of overriding bboxes here. The lint rules `layout-tree-sibling-overlap`, `layout-tree-containment`, `layout-tree-bbox-missing`, `layout-tree-canvas-overflow` enforce the tree's structural validity; if any of those would fail, fix the tree first.
 
 **Coordinate derivation from region + columns/rows**:
 - content_region defines `top_px` and `height_px` of the entire content band.
