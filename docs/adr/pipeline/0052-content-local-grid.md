@@ -69,7 +69,7 @@ shape)** 는 자유 픽셀로 배치된다. Section(design_doc.layout) 은 그 �
    영역 복잡도가 올라갈수록 자유 배치의 *충돌 확률* 이 기하급수적으로 증가
    하고, 사후 lint 만으로는 LLM 을 안정적으로 가이드하기 어렵다.
 
-ADR-0046 의 GridPlan 이 *전역* 격자를 도입해 슬라이드 거시 분할을 구조화한
+ADR-0049 의 GridPlan 이 *전역* 격자를 도입해 슬라이드 거시 분할을 구조화한
 것처럼, 본 ADR 은 **컨텐츠가 복잡한 Section 영역 내부** 에 **로컬 그리드**
 를 도입해 그 안의 component 배치를 *구조적으로* 다룬다. 단순 영역은
 local_grid=None 으로 두고 자유 배치를 유지하므로, 본 결정은 *복잡도가
@@ -253,8 +253,5 @@ violations 와 *중복 보고* 만 회피하는 정도로 이후 별도 ADR 에�
 
 ## References
 
-- [ADR-0044: grid-first design spec](./0044-grid-first-design-spec.md) — 전역
-  GridPlan 의 효과 평가
-- [ADR-0046: 점진적 추상화 디자인 출력](./0046-progressive-abstraction-design-output.md)
-- [ADR-0049: 5단 디자인 스펙 계층](./0049-five-layer-design-spec-hierarchy.md)
+- [ADR-0049: 5단 디자인 스펙 계층 — Layout/Section/Content 책임 분리, GridPlan, 점진적 추상화 출력](./0049-five-layer-design-spec-hierarchy.md)
 - [ADR-0050: modify_component MCP 도구](./0050-modify-component-mcp-tool.md)

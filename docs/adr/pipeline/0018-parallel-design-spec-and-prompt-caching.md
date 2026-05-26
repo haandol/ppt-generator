@@ -1,146 +1,93 @@
-# 18. 디자인 스펙 병렬 생성, 프롬프트 캐싱 및 Adaptive Effort
+# 18. 디자인 스펙 병렬 생성 — Worker 스케줄링 + Thinking Budget
 
-Date: 2026-02-21
+Date: 2026-05-26
 
 ## Status
 
-Partially superseded by [ADR-0039](./0039-remove-prompt-cache-and-warmup-full-parallel.md).
-
-프롬프트 캐싱(섹션 6), 캐시 워밍업(섹션 7), 복잡도 기반 Adaptive Thinking Effort(섹션 5) 는 실측에서 `cacheRead=0` 재현으로 인해 제거됨. ThreadPoolExecutor 기반 병렬 생성(섹션 1~3) 과 결정론적 복잡도 추정(섹션 4) 의 로깅 목적은 그대로 유효.
+Accepted
 
 ## Context
 
-디자인 스펙 생성은 슬라이드당 1회 LLM 호출(Claude Sonnet 4.6)이 필요하며, 10장 기준 순차 처리 시 수 분이 소요된다. 또한 모든 슬라이드가 동일한 시스템 프롬프트를 사용하므로 반복 전송에 따른 토큰 비용이 발생한다.
+디자인 스펙 생성은 슬라이드당 1 회 LLM 호출(Claude Sonnet 4.6) 이 필요하다. 10 장 기준 순차 처리는 수 분이 걸려 사용자 대기 시간이 크다. 또한 LLM 호출에는 다음 두 가지 제약이 동시에 작용한다.
 
-추가로 슬라이드를 순차 인덱스 순서로 thread pool에 제출하면, `arch_diagram` 같은 복잡한 슬라이드가 뒤에 제출되어 마지막 워커가 혼자 오래 걸리는 작업을 처리하면서 다른 워커들은 idle 상태가 된다. 단순한 슬라이드에도 `high` thinking effort를 사용하면 불필요한 토큰 소비 및 지연이 발생한다.
+1. **각 호출의 토큰 예산** — Strands 의 structured_output (tool use 기반) 은 JSON tool call 생성 도중 `max_tokens` 에 도달하면 tool call 이 잘려 복구 불가 상태(MaxTokensReachedException) 가 된다. thinking 토큰을 *예측 가능*하게 둬야 JSON 출력 공간이 보장된다.
+2. **호출 간 wall time** — 단순 슬라이드(`bullets`/`agenda`/`title`/`closing`) 와 복잡 슬라이드(`arch_diagram`/`process_flow`) 의 처리 시간이 크게 차이 나, 짧은 작업이 먼저 끝난 워커가 idle 로 남으면 전체 makespan 이 늘어난다.
+
+과거에는 prompt 캐싱(Bedrock `CacheConfig(strategy="auto")` + Anthropic ephemeral cache_control) 과 캐시 워밍업(slide_type 별 첫 호출을 순차 선행) 으로 wall time 단축을 시도했으나, 운영 실측에서 `cacheWriteInputTokens` 만 발생하고 `cacheRead = 0` 이 일관되게 재현됐다 (Sonnet 4.6 이후 cache key 가 `additionalModelRequestFields` 전체를 반영). 쓰기 비용(input 단가의 1.25×) + 워밍업의 순차 대기 비용만 누적돼 실효 손해. 또 thinking 을 `adaptive` 로 두니 JSON 출력 공간이 들쭉날쭉해 MaxTokensReached 가 반복 발생.
 
 ## Decision
 
-### 1. ThreadPoolExecutor 기반 병렬 생성
+**전체 슬라이드를 첫 호출부터 병렬 실행**하고, 워커 스케줄링은 **결정론적 복잡도 추정 + LPT** 로, thinking 은 **고정 budget** 으로 둔다. prompt 캐싱과 워밍업은 사용하지 않는다.
 
-`generate_slides_design_spec` 도구에서 `concurrent.futures.ThreadPoolExecutor`를 사용하여 슬라이드를 병렬 생성한다.
+### 1. ThreadPoolExecutor 기반 전체 병렬 생성
 
-```
-generate_slides_design_spec(project_id, total_slides=10)
-    ├── Step 1: design_summary 사전 생성 (순차, 1회)
-    ├── Step 2: ThreadPoolExecutor(max_workers=DESIGN_SPEC_PARALLEL)
-    │     ├── worker[0]: slide_00 생성 + HTML 렌더링 + 파일 저장
-    │     ├── worker[1]: slide_01 생성 + HTML 렌더링 + 파일 저장
-    │     └── ...
-    └── Step 3: slides.html 컨테이너 생성 (순차)
-```
-
-- **환경변수**: `DESIGN_SPEC_PARALLEL` (기본값: 8)로 최대 동시 워커 수 제어
-- **실제 워커 수**: `min(DESIGN_SPEC_PARALLEL, 대상 슬라이드 수)`
-- **부분 실패 허용**: 일부 슬라이드 실패 시 나머지는 정상 저장. 실패 슬라이드는 `slide_indices` 파라미터로 재시도 가능
+`generate_slides_design_spec` 도구가 슬라이드 전체 인덱스를 첫 요청부터 ThreadPoolExecutor 에 한 번에 제출한다. 환경변수 `DESIGN_SPEC_PARALLEL` (기본 8) 로 동시 워커 수를 조절하고, 실제 워커 수는 `min(DESIGN_SPEC_PARALLEL, 대상 슬라이드 수)`. 부분 실패 허용 — 일부 슬라이드가 실패해도 나머지는 정상 저장되며, 실패 슬라이드는 `slide_indices` 파라미터로 재시도.
 
 ### 2. 워커별 독립 Agent 인스턴스
 
-strands `Agent`는 내부에 대화 히스토리 등 상태를 가지므로 스레드 간 공유가 안전하지 않다.
+Strands `Agent` 는 내부에 대화 히스토리 등 상태를 가져 스레드 간 공유가 안전하지 않다. DI 컨테이너의 design_service 팩토리가 호출될 때마다 새 `Agent` + `DesignService` 인스턴스를 생성하고, 각 워커가 호출하여 독립 인스턴스를 사용한다.
 
-- `DIContainer.create_design_service()` 팩토리 메서드가 호출될 때마다 새 `Agent` + `DesignService` 인스턴스를 생성
-- `design_service_factory` 콜백을 `register_design_tools()`에 주입
-- 각 워커가 `design_service_factory()`를 호출하여 독립 인스턴스 사용
+### 3. 메타데이터 동시 쓰기 보호
 
-### 3. 메타데이터 파일 동시 쓰기 보호
+프로젝트 메타데이터(`project.json`) 는 read-modify-write 패턴이라 `threading.Lock` 으로 보호한다. 슬라이드 spec 파일은 슬라이드 인덱스별로 독립이라 별도 Lock 불필요.
 
-`ProjectService.update_step()`은 `project.json` 파일을 읽고-수정-쓰기하므로 `threading.Lock`으로 보호한다. 디자인 스펙 슬라이드 파일(`slide_NN.json`)은 슬라이드 인덱스별로 독립 파일이므로 별도 Lock 없이 안전하다.
+### 4. 결정론적 복잡도 추정 + Longest-Job-First (LPT)
 
-### 4. 결정론적 복잡도 추정 및 Longest-Job-First 스케줄링
+`component_hint` + `content_summary` 길이로 복잡도 점수를 산출 (제목·closing 슬라이드는 항상 1 점). `arch_diagram`/`process_flow`/`pipeline` 같은 다이어그램 류가 가장 높고, `bullets`/`quote` 가 가장 낮다. content_summary 길이로 200 자당 +1 보너스 (최대 +3).
 
-`component_hint` + `content_summary` 길이로 복잡도 점수를 결정론적으로 산출하여 LPT(Longest Processing Time first) 전략을 적용한다.
+LPT 전략: ThreadPool 에 제출할 때 복잡도 내림차순으로 정렬해 makespan 을 줄인다. `arch_diagram` 같은 무거운 작업이 먼저 picked-up 되어 마지막 워커가 혼자 늦게 끝나는 케이스를 방지.
 
-```python
-COMPONENT_HINT_COMPLEXITY: dict[str, int] = {
-    "arch_diagram": 10,  "process_flow": 9,   "pipeline": 8,
-    "concept_list": 8,   "quote_code": 7,     "vs_comparison": 7,
-    "summary_grid": 7,   "step_cards": 6,     "info_cards": 6,
-    "code_block": 5,     "two_column": 5,     "feature_list": 4,
-    "agenda": 3,         "cta": 3,            "bullets": 2,
-    "quote": 1,
-}
+### 5. Thinking 고정 Budget (complexity 차등)
 
-def estimate_slide_complexity(slide: SlideOutline) -> int:
-    if slide.slide_type in ("title", "closing"):
-        return 1
-    base = COMPONENT_HINT_COMPLEXITY.get(slide.component_hint, 2)
-    content_bonus = min(len(slide.content_summary) // 200, 3)
-    return base + content_bonus  # 범위: 1~13
-```
+`thinking: {type: "enabled", budget_tokens: N}` 을 사용한다 (adaptive 미사용). N 은 complexity 에 차등:
 
-Thread pool에 슬라이드를 제출할 때 복잡도 내림차순으로 정렬하여 makespan을 최소화한다.
+| Complexity | budget_tokens | JSON 여유 (max_tokens 64K 기준) |
+|---|---|---|
+| Low (1~2) — title/closing/agenda | 4,096 | ~60K |
+| Medium (3~4) — 일반 content | 8,192 | ~56K |
+| High (5+) — 복잡한 다이어그램/차트 | 12,288 | ~52K |
 
-### 5. 복잡도 기반 Adaptive Thinking Effort
+Outline 생성도 structured output 을 쓰므로 같은 문제가 발생 — 고정 8K. Visual QA fix 는 max_tokens 가 작아 고정 2K.
 
-복잡도 점수에 따라 LLM의 thinking effort를 동적으로 조절한다.
+### 6. Prompt 캐싱·워밍업 미사용
 
-| 복잡도 범위 | thinking_effort | 대상 |
-|------------|-----------------|------|
-| 9~13 (high) | `high` | arch_diagram, process_flow 등 |
-| 4~8 (medium) | `medium` | pipeline, concept_list, step_cards, code_block 등 |
-| 1~3 (low) | `low` | title, closing, bullets, quote, agenda 등 |
+Bedrock `CacheConfig` 와 Anthropic ephemeral cache_control 을 사용하지 않는다. 운영 실측에서 cacheRead 가 일관되게 0 으로 찍혀 쓰기 비용만 누적됐기 때문 (cache key 산정 정책의 문제로 추정 — Sonnet 4.6 의 `additionalModelRequestFields` 전체가 키에 포함됨). 워밍업도 마찬가지로 효과 없는 순차 대기였다.
 
-`DIContainer.create_design_service(thinking_effort, slide_type)` 팩토리가 effort와 slide_type을 인자로 받아 해당 설정의 Agent를 생성한다.
+### 재도입 조건 (캐싱)
 
-### 6. 프롬프트 캐싱
+다음 중 하나가 재현 가능하게 관측되면 prompt 캐싱 재도입을 검토한다.
 
-| 프로바이더 | 캐싱 방식 | 구현 |
-|-----------|----------|------|
-| **Bedrock** | `SystemContentBlock`에 `cachePoint` 직접 포함 + `CacheConfig(strategy="auto")`로 assistant 메시지 캐싱 | `_with_cache_point()` 헬퍼 + `BedrockModel` 파라미터 |
-| **Anthropic** | `CachingAnthropicModel` — `format_request()` 오버라이드로 system 필드에 `cache_control: {"type": "ephemeral"}` 적용 | `AnthropicModel` 서브클래스 |
+- 같은 프로젝트 내 반복 호출에서 동일 system prompt 로 cacheRead > 0 가 일관되게 찍힘.
+- Strands / Bedrock SDK 업데이트로 cache key 가 system prompt + model_id 만으로 좁혀짐.
+- Sonnet 4.6 이상에서 adaptive thinking + prompt cache 가 함께 동작하는 공식 가이드/샘플 제공.
 
-Bedrock의 `cache_prompt` 파라미터는 deprecated이므로, Agent 생성 시 `system_prompt`를 `[{"text": "..."}, {"cachePoint": {"type": "default"}}]` 형태의 `SystemContentBlock` 리스트로 전달한다.
+## 대안 검토
 
-### 7. 캐시 워밍업 (Cache Warmup)
-
-Bedrock prompt caching은 동일 계정·모델·prefix 기준으로 서버 측에서 캐시되지만, **첫 번째 요청의 응답이 완료된 후**에야 캐시가 생성된다. 모든 슬라이드를 동시에 병렬 시작하면 첫 완료 전에 나머지도 이미 처리 중이므로 전부 `cache_write`만 발생하고 `cache_read`가 없다.
-
-또한 Bedrock의 캐시 키는 `additionalModelRequestFields`를 포함하므로, **thinking effort가 다르면 동일한 시스템 프롬프트라도 별도의 캐시로 취급**된다. 따라서 content 슬라이드를 effort별로 그룹핑하여 각 그룹에서 1개씩 워밍업해야 cache hit를 극대화할 수 있다.
-
-```
-generate_slides_design_spec(project_id, total_slides=10)
-    ├── Step 1: design_summary 사전 생성 (순차, 1회)
-    ├── Step 2: cache warmup — content 슬라이드를 effort별로 1개씩 순차 생성
-    │     ├── effort=low 워밍업 (해당 그룹 2개 이상일 때)
-    │     ├── effort=medium 워밍업 (해당 그룹 2개 이상일 때)
-    │     └── effort=high 워밍업 (해당 그룹 2개 이상일 때)
-    ├── Step 3: ThreadPoolExecutor — 나머지 슬라이드 병렬 생성 (effort별 cache_read 활용)
-    └── Step 4: slides.html 컨테이너 생성 (순차)
-```
-
-- content system prompt가 ~12,852 토큰으로 가장 크므로 content를 워밍업 대상으로 선택
-- title/closing은 system prompt가 다르므로(~4,400 토큰) content 캐시와 무관
-- 각 effort 그룹에 슬라이드가 1개만 있으면 워밍업 스킵 (캐시를 읽을 후속 슬라이드가 없으므로)
-- content 슬라이드가 1개 이하면 워밍업 없이 즉시 병렬 처리
+| 대안 | 채택하지 않은 이유 |
+|---|---|
+| Adaptive thinking 유지 | structured_output 과 결합 시 토큰 소비 예측 불가 → MaxTokensReachedException 빈발 |
+| Prompt 캐싱 + 워밍업 유지 | 실측에서 cacheRead=0 재현, 쓰기 비용 + 워밍업 순차 대기만 추가 |
+| 슬라이드 인덱스 순서 그대로 제출 (FIFO) | 무거운 슬라이드가 뒤에 와 마지막 워커가 혼자 오래 걸려 makespan 비효율 |
+| 슬라이드 1 회 LLM 호출을 다단으로 분할 | 토큰 호출 수 증가, 지연 증가, 단일 호출의 self-conditioning 효과 손실 (점진적 추상화 출력 정책과 충돌) |
 
 ## Consequences
 
 ### Positive
 
-- **처리 시간 단축**: 10장 기준 순차 ~5분 → 병렬 ~1분 (워커 8개 기준)
-- **Wall-clock time 최적화**: 복잡한 슬라이드가 먼저 시작되어 워커 idle time 감소
-- **토큰 비용 절감**: 시스템 프롬프트 캐싱 + 캐시 워밍업으로 cache_read 극대화 + 단순 슬라이드에 `low` effort 사용
-- **품질 유지**: 복잡한 슬라이드는 여전히 `high` effort로 충분한 추론 수행
-- **부분 실패 복구**: 실패 슬라이드만 `slide_indices`로 재시도 가능
-- **스레드 안전**: Agent 인스턴스 격리 + 메타데이터 Lock으로 race condition 방지
+- 첫 호출부터 전체 병렬 실행으로 워밍업 순차 대기 제거 → wall time 단축.
+- LPT 로 makespan 균형 — 무거운 슬라이드 먼저 시작.
+- 캐시 쓰기 비용 0 — Sonnet 기준 호출당 약 $0.4 절감 사례 측정.
+- Thinking 토큰 예측 가능 → JSON 출력 공간 보장 → MaxTokensReached 차단.
 
-### Negative
+### Negative / Risks
 
-- **메모리 사용량 증가**: 워커당 독립 Agent/boto3 클라이언트 인스턴스 생성
-- **API 쓰로틀링 위험**: 동시 요청 수가 많으면 rate limit에 도달 가능 (`DESIGN_SPEC_PARALLEL`로 제어)
-- **복잡도 추정 오차**: `component_hint` 기반 정적 매핑이므로 실제 내용에 따라 난이도가 다를 수 있음
-- **캐시 최소 토큰 요건**: Anthropic prompt caching은 시스템 프롬프트가 최소 1,024 토큰 이상이어야 활성화됨
-- **캐시 워밍업 지연**: effort별 content 슬라이드를 순차 생성하므로 전체 wall-clock time이 워밍업 슬라이드 수만큼 증가 (최대 3개, 각 effort 그룹에서 가장 단순한 슬라이드 선택으로 최소화)
+- 이론적 캐시 재사용 기회 포기 (현재 워크로드에서는 실효 손해 없음 — 위 재도입 조건 참조).
+- Adaptive thinking 대비 복잡 슬라이드의 thinking 품질이 약간 저하 가능 (12K budget 으로 충분 검증).
+- Anthropic 직접 API 에서 ephemeral 캐시 재활성화가 필요해지면 caching 모델 래퍼를 다시 추가해야 함 (git history 에서 복원).
 
 ## References
 
-- 병렬 생성 구현: `src/ppt_generator/tools/design/controller.py` — `generate_slides_design_spec()`
-- 병렬 러너: `src/ppt_generator/tools/design/parallel_runner.py`
-- 팩토리 메서드: `src/ppt_generator/di/container.py` — `create_design_service(thinking_effort, slide_type)`
-- Bedrock 캐싱: `src/ppt_generator/di/container.py` — `_create_bedrock_model()` (`cache_config`)
-- Anthropic 캐싱: `src/ppt_generator/di/container.py` — `CachingAnthropicModel`
-- 메타데이터 Lock: `src/ppt_generator/tools/project/service.py` — `_metadata_lock`
-- 복잡도 매핑: `src/ppt_generator/interfaces/constants.py` — `COMPONENT_HINT_COMPLEXITY`, `DESIGN_SPEC_PARALLEL`
-- 복잡도 추정/변환 함수: `src/ppt_generator/interfaces/utils.py` — `estimate_slide_complexity()`, `complexity_to_thinking_effort()`
-- 테스트: `tests/test_complexity.py`
-- 관련 ADR: [0013-design-spec-pipeline](./0013-design-spec-pipeline.md), [0014-file-based-communication-and-per-slide-crud](./0014-file-based-communication-and-per-slide-crud.md), [0020-token-usage-tracking-and-cost-estimation](./0020-token-usage-tracking-and-cost-estimation.md)
+- [ADR-0020](./0020-token-usage-tracking-and-cost-estimation.md) — 토큰/비용 측정으로 캐시 효과를 실측한 근거
+- [ADR-0036](./0036-pipeline-progress-reporting-and-logging.md) — 병렬 실행 진행률 보고
+- [ADR-0039](./0039-mcp-server-stability-improvements.md) — ThreadPoolExecutor + future timeout 안정성
+- [ADR-0049](./0049-five-layer-design-spec-hierarchy.md) — 단일 LLM 호출 유지 결정 (점진적 추상화 + Section 계층)

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastSyncedAt": "2026-05-26T15:00:00Z",
+  "lastSyncedAt": "2026-05-26T16:00:00Z",
   "categories": {
     "pipeline": {
       "codePaths": [
@@ -42,15 +42,9 @@
     "pipeline/0037-visual-qa-two-phase-model-split.md",
     "pipeline/0038-diagram-label-line-overlap-prevention.md",
     "pipeline/0039-mcp-server-stability-improvements.md",
-    "pipeline/0039-remove-prompt-cache-and-warmup-full-parallel.md",
     "pipeline/0040-layout-planning-phase.md",
     "pipeline/0041-validator-to-lint.md",
     "pipeline/0042-load-outline-include-content.md",
-    "pipeline/0043-design-spec-fixed-thinking-budget.md",
-    "pipeline/0044-grid-first-design-spec.md",
-    "pipeline/0045-grid-plan-required-by-slide-type.md",
-    "pipeline/0046-progressive-abstraction-design-output.md",
-    "pipeline/0047-nowrap-overflow-prevention.md",
     "pipeline/0048-arrow-and-label-attachment-lint.md",
     "pipeline/0049-five-layer-design-spec-hierarchy.md",
     "pipeline/0050-modify-component-mcp-tool.md",

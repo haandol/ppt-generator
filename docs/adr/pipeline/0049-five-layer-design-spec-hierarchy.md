@@ -1,19 +1,19 @@
 # ADR-0049: 5단 디자인 스펙 계층 — Project / Slide / Layout / Section / Content
 
-Date: 2026-05-26 (updated 2026-05-26: 데이터 무결성·layer 매핑·프롬프트 정합 보강; z_index 보존·cross-layer lint 추가)
+Date: 2026-05-26 (rolled up 2026-05-26: ADR-0044/0045/0046 흡수)
 
 ## Status
 
-Accepted (supersedes ADR-0046 in scope: 4단 점진적 추상화 → 5단으로 확장)
+Accepted
 
 ## Context
 
-ADR-0044 ~ 0046은 디자인 스펙을 grid-first 4단(outline → grid_layout → cell_assignment → textboxes/shapes)으로 정의했다. 이 4단은 LLM 자기-조건화에는 효과적이었지만 다음 두 가지를 해결하지 못했다.
+초기에는 디자인 스펙을 grid-first 4단(outline → grid_layout → cell_assignment → textboxes/shapes)으로 두었다. 이 4단은 LLM 자기-조건화에는 효과적이었지만 다음 두 가지를 해결하지 못했다.
 
 1. **사용자 부분 수정의 식별성**: "좌측 두 번째 카드 색을 빨강으로", "다이어그램 영역을 우측으로" 같은 의미 단위 명령에서 LLM이 어떤 textbox/shape을 가리키는지 추정해야 했다. cell의 `role`이 라벨로 쓰였지만 단일 라벨이라 카드/보조 라벨/장식이 한 cell에 섞이면 모호했다.
 2. **공간 충돌의 구조적 차단**: 픽셀 좌표가 stage 4에서야 결정되면서 형제 도형 간 겹침, 컨테이너 외부 침범 같은 문제가 stage 4 이후 lint에서야 드러났다. 거시 단계에서 이미 캔버스를 nested 사각형으로 분할해두면 충돌이 *구조적으로* 발생하지 않는다.
 
-본 ADR은 ADR-0046의 4단 사이에 **Section** 계층을 끼워 5단 계층으로 확장하고, Section 계층을 **의미 + bbox** 양쪽 책임을 가진 트리로 정의해 부분 수정 식별성과 공간 충돌 차단을 동시에 해결한다.
+본 ADR은 그 4단 사이에 **Section** 계층을 끼워 5단 계층으로 확장하고, Section 계층을 **의미 + bbox** 양쪽 책임을 가진 트리로 정의해 부분 수정 식별성과 공간 충돌 차단을 동시에 해결한다.
 
 ## Decision
 
@@ -320,12 +320,6 @@ LLM 출력 모델 (`ShapeOutput.autofit_mode`) 의 default 도 동일하게 정�
   `autofit_mode="expand_height"` 를 명시 부여해 보존하는 옵션을 검토
   (현 ADR 범위 밖, 향후 회귀 발견 시 별도 조치).
 
-## ADR-0046과의 관계
-
-ADR-0046은 4단(outline → grid_layout → cell_assignment → textboxes/shapes)을 정의했다. 본 ADR은 그 사이 Stage 3.5에 Section 계층을 추가해 5단으로 확장한다. ADR-0046의 모든 결정(grid_layout/cell_assignment 분리, content 슬라이드 Required, 단일 LLM 호출 유지)은 그대로 유효하며, 본 ADR이 그 위에 새 Section 계층을 더한다.
-
-ADR-0046 자체는 deprecated 가 아니다. 0046의 격자 계층 결정은 Layout(=GridPlan) 계층의 정의로 그대로 살아있다. 본 ADR은 Section 계층을 추가하면서 0046의 cell.role이 짊어지던 *의미 결정* 책임을 Section으로 이동시킨다.
-
 ## Technical Details
 
 ### 영향 범위
@@ -408,6 +402,3 @@ ADR-0046 자체는 deprecated 가 아니다. 0046의 격자 계층 결정은 Lay
 
 - [ADR-0011: 점진적 구체화 파이프라인 설계](./0011-progressive-refinement-pipeline.md)
 - [ADR-0040: Layout Planning Phase](./0040-layout-planning-phase.md)
-- [ADR-0044: Grid-First Design Spec](./0044-grid-first-design-spec.md)
-- [ADR-0045: Grid Plan Required by Slide Type](./0045-grid-plan-required-by-slide-type.md)
-- [ADR-0046: Progressive Abstraction in Design Output](./0046-progressive-abstraction-design-output.md)
