@@ -8,271 +8,100 @@ Accepted
 
 ## Context
 
-현재 파이프라인은 "생성 전용" 단방향 흐름만 지원한다:
-
-```
-Outline → Script → Design Spec → HTML / PPTX
-```
-
-사용자가 기존에 보유한 PPTX 파일을 시스템에 가져와서 수정하거나, HTML 미리보기로 확인하거나, 디자인 스펙 기반 도구(`modify_design_spec`, `visual_qa`)를 활용하려면 **PPTX → DesignSpec 역변환** 경로가 필요하다.
+기존 파이프라인은 *생성 전용* 단방향 흐름(Outline → Script → Design Spec → HTML / PPTX) 만 지원했다. 사용자가 보유한 외부 PPTX 를 시스템에 가져와 수정하거나, HTML 미리보기로 확인하거나, 디자인 스펙 기반 도구(`modify_design_spec`, `visual_qa`) 를 활용하려면 **PPTX → DesignSpec 역변환** 경로가 필요하다.
 
 핵심 요구사항:
 
-1. **디자인 요소 최대 보존**: 위치, 크기, 색상, 폰트, 정렬, 패딩, 불릿, 도형 스타일 등 시각적 속성을 최대한 유지
-2. **전체 슬라이드 임포트**: 일부가 아닌 전체 프레젠테이션을 한 번에 변환
-3. **기존 파이프라인 통합**: 임포트 결과가 DesignSpec으로 저장되어 기존 도구(`export_html`, `export_pptx`, `modify_design_spec`, `visual_qa`)와 즉시 호환
-
-색상 대비와 요소 간 간격은 validator가 아닌 디자인 서머리의 테마/색상 팔레트와 프롬프트를 통해 LLM이 올바르게 출력하도록 가이드한다.
+1. **디자인 요소 최대 보존** — 위치, 크기, 색상, 폰트, 정렬, 패딩, 불릿, 도형 스타일 등 시각적 속성을 최대한 유지.
+2. **전체 슬라이드 임포트** — 일부가 아닌 전체 프레젠테이션을 한 번에 변환.
+3. **기존 파이프라인 통합** — 임포트 결과가 DesignSpec 으로 저장되어 기존 도구들과 즉시 호환.
 
 ## Decision
 
-### 1. PPTX → DesignSpec 변환기
+**python-pptx 오브젝트 모델 기반의 결정론적 변환기** 를 구현한다. LLM 호출 없이 순수 파싱 로직으로 변환하며, 새 MCP 도구 `import_pptx` 를 통해 노출한다. 변환은 기존 PPTX 내보내기(SlideBuilder) 의 정확한 역변환으로 설계해 라운드트립(Import → 수정 → Export) 정확도를 높인다.
 
-**python-pptx 오브젝트 모델 기반의 결정론적 변환기**를 구현한다. LLM 호출 없이 순수 파싱 로직으로 변환하며, 새 MCP tool `import_pptx`를 통해 노출한다.
+### 슬라이드 크기 정규화
 
-#### 변환 방향
+외부 PPTX 의 슬라이드 크기가 1280×720px 이 아닌 경우 좌표를 비례 스케일링해 캔버스에 맞춘다.
 
-기존 PPTX 내보내기(SlideBuilder)의 정확한 역변환을 구현한다:
+### 요소별 보존 전략
 
-```
-PPTX Export:  PptxSlideSpec  ──→  python-pptx objects  ──→  .pptx file
-PPTX Import:  .pptx file    ──→  python-pptx objects  ──→  PptxSlideSpec
-```
+**배경(Background)** — solid fill 은 hex 색상으로, blipFill(이미지 배경) 은 슬라이드 단위 이미지 필드로 보존한다. blipFill 을 도형/이미지 배열로 평탄화하지 않는 이유: OOXML 의미상 배경은 슬라이드 속성이지 도형이 아니다. 도형 배열에 섞으면 z-index/레이아웃에 의도치 않은 영향을 준다. 탐색 우선순위는 slide → slide_layout → slide_master 로, 최초 발견한 blipFill 의 이미지 파트를 사용한다. background_color 와 공존 가능하며 렌더 시 *이미지가 우선*, 색상은 이미지 로드 실패 시 폴백.
 
-#### 단위 변환 (EMU → px)
+**텍스트박스 / 도형 / 선** — 위치/크기는 EMU↔px 단위 변환으로 추출. 도형은 22 종 shape_type 매핑(Basic / Arrows / Polygons / Stars / Flowchart / Line) 후 미매핑은 `rectangle` 폴백. 커스텀 freeform(custGeom) 은 OOXML path 명령을 SVG path data 로 변환해 보존하고, 렌더 시 HTML 은 `<svg><path>`, PPTX export 는 역변환해 custGeom 으로 복원.
 
-| 방향 | 변환식 |
-|------|--------|
-| Export: px → inches | `px * (13.333 / 1280)` (X축), `px * (7.5 / 720)` (Y축) |
-| Export: px → EMU | `px * 9525` (패딩) |
-| **Import: inches → px** | `inches * 96` |
-| **Import: EMU → px** | `EMU / 9525` |
+**텍스트 서식 상속** — placeholder 의 run 에 font_size/color/bold 가 직접 지정되지 않은 경우 OOXML 상속 체인(run rPr → para defRPr → layout defRPr → master style defRPr) 을 순회해 resolve. 마스터의 txStyle 은 placeholder type 에 따라 titleStyle / bodyStyle / otherStyle 분기. 테마 색상(`a:clrScheme`) 은 별도 캐시로 추출. 마스터/레이아웃 스타일도 미리 캐시해 상속 조회 비용 절감.
 
-#### 슬라이드 크기 정규화
+**이미지 라운드트립** — 이미지 데이터를 파일로 저장하고 상대경로(`src`) 를 spec 에 기록. JSON 직렬화 시 바이너리 제거되지만 export 시 src 경로에서 바이너리 복원해 PPTX 에 포함.
 
-외부 PPTX의 슬라이드 크기가 1280×720px이 아닌 경우, 좌표를 비례 스케일링하여 캔버스에 맞춘다.
+**slide_type 추론** — 외부 PPTX 에는 slide_type 이 없으므로 휴리스틱: 첫 슬라이드 + 텍스트 ≤3 + 대형 폰트(≥32pt) → title, 마지막 슬라이드 + "감사"/"Thank"/"Q&A" 키워드 → closing, 그 외 → content.
 
-#### 요소별 추출 전략
+**color_theme 자동 판별** — design_summary 의 background_color 휘도 분석으로 dark/light 결정. 후속 modify/export 호출이 동일 테마를 사용.
 
-##### 1. 배경 (Background)
+### 미지원 요소 graceful degradation
 
-| PPTX 속성 | DesignSpec 필드 |
-|-----------|-----------------|
-| Solid fill | `background_color` (단색 hex) |
-| blipFill (이미지 배경) | `background_image_*` (슬라이드 단위 이미지) |
-| Gradient fill | Dominant color를 추출하여 `background_color`로 단색 근사 |
-
-**blipFill 처리 원칙**
-
-PPTX의 슬라이드 배경 이미지는 **`shapes`/`images`로 평탄화하지 않는다**. 두 가지 이유가 있다:
-
-1. OOXML 의미상 `<p:bg>`는 슬라이드 속성이지 도형이 아니다. 도형 추출 루프에 섞으면 `z_index`/그리드 레이아웃에 의도치 않은 영향을 준다.
-2. 슬라이드별로 단 하나만 존재하고, HTML/PPTX 양쪽 모두 슬라이드 단위 배경 API(`background-image` CSS, `<p:bg>/blipFill`)가 따로 있어 자연스럽게 매핑된다.
-
-대신 PptxSlideSpec에 슬라이드 단위 배경 이미지 필드를 추가하여 보존한다. 메모리 전용 바이너리와 직렬화용 상대경로가 분리되어 있고, 임포트 시 별도 PNG 파일로 저장된다. 탐색 우선순위는 `slide → slide_layout → slide_master`로, 최초로 발견한 blipFill의 이미지 파트를 사용한다. `background_color`와 공존할 수 있으며 **HTML/PPTX 렌더 시 이미지가 우선**, 색상은 이미지 로드 실패 시 폴백으로 노출된다.
-
-**라운드트립 무결성:** 임포트 시 추출·저장한 배경 이미지는 export 파이프라인이 다시 슬라이드 `<p:bg>`로 복원한다. 기존 title/closing 자동 배경 로직은 spec에 명시 배경이 없을 때만 적용되도록 폴백 우선순위를 정리했다.
-
-**회귀 방지:** 슬라이드 배경이 이미지인 외부 PPTX(예: 섹션 디바이더 슬라이드)에서 이전에는 solid color 폴백만 추출되어 흰색으로 누락되었다. 라운드트립 회귀 테스트와 HTML 렌더 회귀 테스트로 차단한다.
-
-##### 2. 텍스트박스 (TextBox)
-
-위치/크기(EMU → px 변환), 문단/런 목록, line_spacing, vertical_alignment, 패딩(EMU → px 변환)을 추출한다.
-
-##### 3. 도형 (Shape)
-
-Non-textbox 도형에서 shape_type, fill/border 색상, 선 두께, 텍스트, 패딩, 정렬 등을 추출한다.
-
-**지원 shape_type (22종):**
-
-| 카테고리 | shape_type 값 |
-|----------|--------------|
-| Basic | `rectangle`, `rounded_rectangle`, `ellipse` |
-| Arrows | `up_arrow`, `down_arrow`, `left_arrow`, `right_arrow`, `chevron` |
-| Polygons | `triangle`, `diamond`, `pentagon`, `hexagon`, `trapezoid`, `parallelogram`, `cross` |
-| Stars | `star_4`, `star_5`, `heart` |
-| Flowchart | `flowchart_process`, `flowchart_decision`, `flowchart_terminator` |
-| Line | `line` |
-
-매핑되지 않은 도형은 `rectangle`로 폴백된다.
-
-##### 3-1. 커스텀 Freeform 도형 (Custom SVG Path)
-
-`FREEFORM` + `custGeom`(Custom Geometry) 도형은 OOXML path 명령을 SVG path data로 변환하여 보존한다.
-
-**svg_path 형식**: `"{viewBox_width} {viewBox_height} {SVG_path_data}"` — viewBox 크기와 SVG path `d` 속성을 공백으로 구분.
-
-**변환 매핑 (OOXML → SVG)**:
-
-| OOXML 명령 | SVG 명령 |
-|-----------|----------|
-| `a:moveTo` | `M x y` |
-| `a:lnTo` | `L x y` |
-| `a:cubicBezTo` (3점) | `C x1 y1 x2 y2 x3 y3` |
-| `a:close` | `Z` |
-
-**렌더링**: HTML에서는 `<svg>` + `<path>`, PPTX export에서는 SVG path를 역변환하여 `custGeom`으로 복원.
-
-##### 4. 커넥터/선 (Line)
-
-시작점/끝점에서 위치/크기를 계산하고, 선 색상/두께/화살표 유무/대시 스타일을 추출한다. 화살표 감지는 OOXML `a:ln`의 `tailEnd`/`headEnd` 속성을 파싱한다.
-
-##### 5. 이미지 (Image)
-
-위치/크기와 이미지 바이너리를 추출한다.
-
-**이미지 파일 경로 보존 (Import → Export 라운드트립):**
-
-이미지 데이터를 파일로 저장하고 상대경로(`src`)를 JSON에 보존한다. JSON 직렬화 시 바이너리는 제거되지만, export 시 `src` 경로에서 바이너리를 복원하여 PPTX에 포함한다.
-
-```
-Import:  PPTX → image_bytes → save file → set src → save JSON (src 포함, bytes 제거)
-Export:  load JSON (src 포함) → read file → restore image_bytes → build PPTX
-```
-
-##### 6. 텍스트 런/문단 추출 (OOXML 서식 상속 포함)
-
-플레이스홀더(제목, 본문 등)의 run에 font_size/color/bold가 직접 지정되지 않은 경우, OOXML 상속 체인을 순회하여 resolve한다:
-
-```
-font_size: run rPr → para defRPr → layout defRPr → master style defRPr
-color:     run rPr solidFill → para defRPr → layout defRPr → master style defRPr
-bold:      run rPr.b → para defRPr.b → layout defRPr.b → master style defRPr.b
-```
-
-placeholder type → master txStyle 매핑:
-- TITLE, CENTER_TITLE → `titleStyle`
-- BODY, OBJECT, SUBTITLE → `bodyStyle`
-- 기타 placeholder 및 비-placeholder → `otherStyle` (PowerPoint는 placeholder가 아닌 일반 TextBox에서도 master의 `otherStyle`에서 상속)
-
-**테마 색상 맵**: 프레젠테이션 테마(`a:clrScheme`)에서 실제 색상을 추출·캐시. tx1→dk1, tx2→dk2, bg1→lt1, bg2→lt2 별칭 매핑 포함. 테마가 없는 경우 Office 기본 팔레트를 폴백으로 사용.
-
-**마스터/레이아웃 스타일 캐시**: 슬라이드 레이아웃 및 마스터의 레벨별 기본 서식을 미리 추출하여 상속 조회에 사용.
-
-불릿 레벨은 `pPr` XML의 `lvl` 속성과 `buChar`/`buAutoNum` 존재 여부로 판단한다.
-
-##### 7. 발표자 노트
-
-노트 슬라이드가 존재하면 텍스트를 추출하여 `speaker_notes`로 저장.
-
-##### 8. slide_type 추론
-
-외부 PPTX에는 `slide_type` 필드가 없으므로 휴리스틱으로 추론:
-
-| 조건 | slide_type |
-|------|------------|
-| 첫 번째 슬라이드 + 텍스트 요소 ≤ 3개 + 대형 폰트(≥ 32pt) | `"title"` |
-| 마지막 슬라이드 + "감사", "Thank", "Q&A" 등 키워드 포함 | `"closing"` |
-| 그 외 | `"content"` |
-
-#### 새 MCP Tool
-
-```
-import_pptx(file_path: str) -> { project_id, num_slides, slides_html_path }
-```
-
-내부 동작:
-1. python-pptx로 PPTX 로드
-2. 슬라이드별 PptxSlideSpec 추출
-3. DesignSpec 구성 및 저장
-4. 디자인 요약 추출·저장 (대표 content 슬라이드 기반 테마 색상)
-5. `color_theme` 자동 판별 — design_summary의 `background_color`에서 상대 휘도 분석으로 `"dark"` / `"light"` 결정 후 design_summary에 저장 (후속 `modify_design_spec` 호출 시 LLM에 올바른 color_theme 전달, title/closing 슬라이드의 배경 이미지 선택에도 사용)
-6. ProjectMetadata 생성 (`steps_completed`에 `"import"` 포함)
-7. HTML 미리보기 자동 생성 (`color_theme`에 맞는 배경 이미지 적용)
-
-#### 지원하지 않는 요소 처리 (Graceful Degradation)
-
-| 미지원 요소 | 처리 방식 |
-|-------------|----------|
-| 그룹 도형 (GroupShape) | 평탄화(flatten)하여 개별 요소로 추출. 그룹 좌표계에서 슬라이드 절대 좌표로 변환 |
-| 표 (Table) | 셀별 텍스트를 포함한 격자형 Shape 배열로 변환 |
-| 차트 (Chart) | 이미지로 래스터화 |
-| 비디오/오디오 | 무시 (경고 로그) |
-| SmartArt | 내부 shape 분해 시도, 실패 시 무시 (경고 로그) |
-| 슬라이드 마스터/레이아웃 배경 | 슬라이드에 직접 적용된 것처럼 병합 |
-| 애니메이션/전환 효과 | 무시 (정적 스냅샷만 추출) |
-
-#### 폰트 매핑
-
-- 임포트 시 원본 폰트명을 `font_family` 필드에 보존
-- 내보내기/렌더링 시 시스템 폰트로 자동 대체
-- 모노스페이스 폰트 감지: `Consolas`, `Courier`, `Monaco` 등 알려진 폰트명 매칭
-
-### 2. 임포트 시 autofit 비활성화
-
-임포트된 PPTX는 원본에서 레이아웃이 확정된 상태이므로, validator의 autofit(텍스트 오버플로우 방지) 로직을 적용하면 텍스트 크기가 원본보다 축소되는 문제가 발생한다.
-
-**원인:** `line_spacing_pt`가 `None`이면 줄 높이를 `font_size × 2.0`으로 과대 추정 → 필요 높이가 박스 높이를 초과 → 폰트 축소.
-
-**해결:** 임포트 경로에서 autofit을 비활성화하여 폰트 스케일링을 스킵한다.
-
-| 파이프라인 단계 | autofit |
+| 미지원 요소 | 처리 |
 |---|---|
-| `import_pptx` → HTML 미리보기 생성 | `False` |
-| `export_pptx` (임포트된 프로젝트) | `False` |
-| `export_pptx` (LLM 생성 프로젝트) | `True` (기본값) |
+| 그룹 도형(GroupShape) | 평탄화 — 그룹 좌표계를 슬라이드 절대 좌표로 변환 |
+| 표(Table) | 셀별 텍스트 격자형 Shape 배열로 변환 |
+| 차트(Chart) | 이미지로 래스터화 |
+| 비디오/오디오 | 무시 (경고 로그) |
+| SmartArt | 내부 shape 분해 시도, 실패 시 무시 |
+| 마스터/레이아웃 배경 | 슬라이드에 직접 적용된 것처럼 병합 |
+| 애니메이션/전환 효과 | 무시 (정적 스냅샷만) |
 
-임포트된 프로젝트 판별은 `ProjectMetadata.steps_completed`에 `"import"` 키가 있는지로 수행한다.
+### 임포트 시 autofit 비활성화
 
-#### 보정 대상이 아닌 항목
+임포트된 PPTX 는 원본에서 레이아웃이 확정된 상태이므로 텍스트 측정 기반 autofit 을 적용하면 폰트가 원본보다 축소된다(특히 line_spacing_pt=None 이면 줄 높이 과대 추정). 임포트 경로에선 autofit 을 비활성화해 원본 텍스트 크기를 보존한다. 임포트 프로젝트 판별은 ProjectMetadata.steps_completed 에 `"import"` 키 존재 여부.
 
-- **Inconsistent Font Size** — 컨텍스트 의존적, LLM(Visual QA)에 위임
-- **Misalignment** — 정렬 기준점 판단 복잡, LLM에 위임
-- **Inconsistent Spacing** — 간격 불일치 판단 컨텍스트 의존적, LLM에 위임
+### 색상 대비·정렬은 LLM 영역으로 분리
 
-### Alternatives Considered
+색상 대비 부족, 폰트 사이즈 불일치, 정렬 불일치 같은 *컨텍스트 의존적* 결함은 임포트 변환기가 보정하지 않는다 — Visual QA(LLM) 가 사용자 요청 시 처리. 변환기는 *시각 속성을 그대로 옮기는* 책임만 진다.
 
-| 대안 | 설명 | 판단 |
-|------|------|------|
-| A. python-pptx 오브젝트 모델 직접 파싱 | 라이브러리 API로 shape/textbox/paragraph 순회 | **채택** — 안정적이고 유지보수 용이 |
-| B. OOXML(ZIP) 직접 파싱 | .pptx를 unzip하여 XML 직접 파싱 | 탈락 — python-pptx가 이미 추상화 제공 |
-| C. LLM 기반 변환 | 슬라이드 스크린샷을 LLM에 전달하여 디자인 스펙 생성 | 탈락 — 비용 높음, 좌표 정확도 낮음, 텍스트 내용 손실 가능 |
-| D. LibreOffice headless 활용 | PPTX → 중간 포맷 → 파싱 | 탈락 — 추가 외부 의존성, 변환 과정의 정보 손실 |
+## 대안 검토
 
-### Acceptance Criteria
+| 대안 | 채택하지 않은 이유 |
+|---|---|
+| OOXML(ZIP) 직접 파싱 | python-pptx 가 이미 안정적 추상화 제공 — 직접 XML 파싱은 유지보수 부담 |
+| LLM 기반 변환 (스크린샷 → 디자인 스펙) | 비용 높음, 좌표 정확도 낮음, 텍스트 내용 손실 가능 |
+| LibreOffice headless 중간 포맷 | 추가 외부 의존성 + 변환 정보 손실 |
 
-1. PPTX 파일을 `import_pptx`로 로드하면 DesignSpec이 생성되어 프로젝트에 저장된다
-2. 임포트된 DesignSpec으로 `export_html`이 정상 동작하여 브라우저에서 미리보기할 수 있다
-3. 임포트된 DesignSpec으로 `export_pptx`가 정상 동작하여 원본과 시각적으로 유사한 PPTX가 생성된다
-4. 텍스트 내용(text content)이 100% 보존된다
-5. 위치/크기 좌표가 ±2px 이내 오차로 변환된다
-6. 색상(배경, 텍스트, 도형 fill/border)이 정확히 보존된다
-7. 발표자 노트가 보존된다
-8. `modify_design_spec`으로 임포트된 슬라이드를 수정할 수 있으며, 기존 images가 보존된다
-9. 미지원 요소(차트, 비디오 등) 발견 시 경고 메시지가 반환된다
-10. Import → Export 라운드트립 시 이미지가 PPTX에 포함된다
-11. 임포트된 PPTX의 원본 텍스트 크기가 보존된다 (autofit 비활성화)
-12. 슬라이드 배경의 `blipFill`(이미지 배경)이 임포트 시 PNG로 저장되고, HTML 렌더 및 PPTX export에서 동일 이미지로 복원된다 — solid color 폴백으로 누락되지 않는다
+## 하위 호환성
 
-### Out of Scope
-
-- PPT (레거시 .ppt 포맷) 지원 — python-pptx는 .pptx만 지원
-- PPTX 내 매크로(VBA) 보존
-- 슬라이드 마스터/레이아웃 테마 자체의 임포트 (적용 결과만 추출)
-- 애니메이션/전환 효과 보존
-- ODP(LibreOffice) 포맷 지원
-- 임포트 후 원본 PPTX와의 pixel-perfect 일치 보장 (최대한 유사하게 변환하되, DesignSpec 스키마의 표현 한계 내에서)
+- 기존 generated 슬라이드는 영향 없음 (변환기는 새 경로).
+- 임포트된 슬라이드는 grid_plan/design_doc=None 으로 들어옴 — 5단 계층 가치(부분 수정 식별성) 는 ADR-0051 의 lazy backfill 로 후속 활용.
 
 ## Consequences
 
 ### Positive
 
-- **양방향 파이프라인**: 기존 PPTX를 시스템에 가져와 수정·내보내기가 가능해짐
-- **기존 도구 재활용**: `modify_design_spec`, `visual_qa`, `export_html`, `export_pptx` 모두 즉시 사용 가능
-- **LLM 비용 없음**: 순수 파싱 기반이므로 추가 LLM 호출 비용이 없음
-- **결정론적 변환**: 같은 입력에 항상 같은 결과 — 테스트 용이
-- **역변환 일관성**: Export와 Import가 서로의 역변환으로 설계되어 라운드트립 정확도 높음
-- **이미지 라운드트립**: 이미지 파일 경로를 보존하여 Import → Export 시 이미지 누락 방지
-- **원본 텍스트 크기 보존**: 임포트 시 autofit 비활성화로 원본 폰트 크기 유지
+- 양방향 파이프라인 — 기존 PPTX 를 시스템에 가져와 수정/재내보내기 가능.
+- 기존 도구 재활용 — modify_design_spec / visual_qa / export_html / export_pptx 즉시 호환.
+- 변환에 LLM 호출 0 — 비용·결정성 모두 좋음.
+- Export 와 Import 가 서로의 역변환으로 설계되어 라운드트립 정확도 높음.
+- 이미지 src 보존으로 라운드트립 시 누락 없음.
+- 임포트 시 autofit 비활성화로 원본 텍스트 크기 보존.
 
-### Negative
+### Negative / Risks
 
-- **DesignSpec 표현 한계**: 그라디언트, 텍스처, 3D 효과 등 스키마에 없는 속성은 손실됨
-- **복잡한 레이아웃 손실 가능**: 그룹 도형 평탄화, 표 → 도형 변환 시 편집 편의성 저하
-- **외부 PPTX 다양성**: 다양한 PPTX 생성 도구(PowerPoint, Google Slides, Keynote 등)의 비표준 요소 처리에 엣지 케이스 발생 가능
-- **이미지 용량**: 차트 래스터화, 배경 이미지 등으로 프로젝트 크기 증가 가능
-- **색상 대비 미검증**: validator에서 색상 대비를 보정하지 않으므로, 원본에 대비 부족이 있으면 그대로 유지됨 (Visual QA로 확인 가능)
+- DesignSpec 스키마에 없는 속성(그라디언트, 텍스처, 3D, 애니메이션 등) 은 손실.
+- 그룹 도형 평탄화/표→도형 변환은 편집 편의성을 일부 떨어뜨림.
+- PowerPoint/Google Slides/Keynote 등 다양한 생성 도구의 비표준 요소에서 엣지 케이스 발생 가능.
+- 차트 래스터화·배경 이미지로 프로젝트 디스크 사용량 증가 가능.
+
+## Out of Scope
+
+- PPT(레거시 .ppt 포맷) — python-pptx 는 .pptx 만 지원.
+- PPTX 매크로(VBA) 보존.
+- 슬라이드 마스터/레이아웃 테마 자체의 임포트 (적용 결과만 추출).
+- 애니메이션/전환 효과 보존.
+- ODP(LibreOffice) 포맷.
+- 원본 PPTX 와의 pixel-perfect 일치 보장 (DesignSpec 스키마 표현 한계 내에서 최대한 유사).
 
 ## References
 
-- 관련 ADR: [0013-design-spec-pipeline](./0013-design-spec-pipeline.md), [0014-file-based-communication-and-per-slide-crud](./0014-file-based-communication-and-per-slide-crud.md), [0023-design-spec-validator](./0023-design-spec-validator.md), [0026-visual-qa-pipeline](./0026-visual-qa-pipeline.md)
+- [ADR-0013: 디자인 스펙 기반 슬라이드 생성 파이프라인](./0013-design-spec-pipeline.md)
+- [ADR-0014: 파일 기반 통신 + 슬라이드별 CRUD](./0014-file-based-communication-and-per-slide-crud.md)
+- [ADR-0026: Visual QA 파이프라인](./0026-visual-qa-pipeline.md)
+- [ADR-0041: Validator 를 Lint 로 전환](./0041-validator-to-lint.md)
+- [ADR-0051: Imported 슬라이드 design_doc lazy backfill](./0051-imported-slide-lazy-design-doc-backfill.md)
