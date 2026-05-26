@@ -18,7 +18,7 @@ from ppt_generator.interfaces.schemas import (
 from ppt_generator.tools.design.controller import register_design_tools
 from ppt_generator.tools.project.service import ProjectService
 
-from conftest import make_slide_spec as _make_slide_spec
+from _helpers import make_slide_spec as _make_slide_spec
 
 
 def _register_tools(project_service: ProjectService) -> dict:

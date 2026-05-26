@@ -25,7 +25,7 @@ from ppt_generator.interfaces.schemas import (
 )
 from ppt_generator.tools.visual_qa.service import VisualQAResult, VisualQAService
 
-from conftest import make_slide_spec as _make_spec
+from _helpers import make_slide_spec as _make_spec
 
 
 def _make_qa_output(

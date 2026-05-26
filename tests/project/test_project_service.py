@@ -11,8 +11,8 @@ from ppt_generator.interfaces.schemas import (
 )
 from ppt_generator.tools.project.service import ProjectService
 
-from conftest import make_design_spec as _make_design_spec
-from conftest import make_slide_spec as _make_slide_spec
+from _helpers import make_design_spec as _make_design_spec
+from _helpers import make_slide_spec as _make_slide_spec
 
 
 @pytest.fixture()

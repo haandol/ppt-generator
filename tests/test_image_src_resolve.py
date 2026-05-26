@@ -21,7 +21,7 @@ from ppt_generator.interfaces.schemas import (
 from ppt_generator.tools.project.image_store import ImageStore
 from ppt_generator.tools.project.service import ProjectService
 
-from conftest import make_slide_spec as _make_slide_spec
+from _helpers import make_slide_spec as _make_slide_spec
 
 
 def _setup_project(

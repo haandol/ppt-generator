@@ -18,7 +18,7 @@ from ppt_generator.tools.project.html_store import HtmlStore
 from ppt_generator.tools.project.jsonl_store import JsonlStore
 from ppt_generator.tools.project.service import ProjectService
 
-from conftest import make_slide_spec as _make_slide_spec
+from _helpers import make_slide_spec as _make_slide_spec
 
 
 def _setup_project(tmp_path: Path, num_slides: int) -> tuple[ProjectService, Path]:
@@ -709,3 +709,198 @@ class TestMoveSlideEdgeCases:
 
         after_count = len(list(spec_dir.glob("slide_*.json")))
         assert before_count == after_count == 16
+
+
+# ===========================================================================
+# MCP 도구 단위 테스트 — register_design_tools 가 등록한 move_slide 도구
+# ===========================================================================
+
+
+class TestMoveSlideTool:
+    """move_slide MCP 도구 — outline + design_spec + HTML 동기화."""
+
+    @staticmethod
+    def _setup_project(
+        mcp_tools: dict,
+        tmp_path: Path,
+        monkeypatch,
+        num_slides: int = 5,
+    ) -> tuple[str, Path]:
+        import ppt_generator.tools.project.service as svc_module
+
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        project_service = mcp_tools["_project_service"]
+        project_id = "move-test-proj"
+        project_dir = tmp_path / project_id
+        project_dir.mkdir()
+
+        meta = {"topic": "테스트", "num_slides": num_slides, "steps_completed": {}}
+        (project_dir / "project.json").write_text(
+            json.dumps(meta, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        outline_data = json.dumps(
+            {
+                "slides": [
+                    {
+                        "title": f"슬라이드 {i + 1}",
+                        "content_summary": f"내용 {i + 1}",
+                        "component_hint": "bullets",
+                        "speaker_notes": "",
+                        "slide_type": "content",
+                    }
+                    for i in range(num_slides)
+                ]
+            },
+            ensure_ascii=False,
+        )
+        project_service.save_outline(project_dir, outline_data)
+
+        spec = DesignSpec(
+            slides=[_make_slide_spec(f"슬라이드 {i + 1}") for i in range(num_slides)]
+        )
+        project_service.save_design_spec(project_dir, spec)
+        project_service.save_design_summary(
+            project_dir,
+            {
+                "background_color": "#1a1a2e",
+                "text_colors": ["#ffffff"],
+                "title_font_pt": 32,
+                "body_font_pt": 18,
+                "card_fills": [],
+                "card_borders": [],
+            },
+        )
+
+        slides_dir = project_dir / "slides"
+        slides_dir.mkdir(exist_ok=True)
+        for i in range(num_slides):
+            (slides_dir / f"slide_{i + 1:02d}.html").write_text(
+                f"<div>slide {i + 1}</div>",
+                encoding="utf-8",
+            )
+
+        return project_id, project_dir
+
+    def test_move_forward(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        """슬라이드를 앞으로 이동 (1 → 3, 1-based)."""
+        project_id, project_dir = self._setup_project(
+            mcp_tools, tmp_path, monkeypatch, 5
+        )
+        project_service = mcp_tools["_project_service"]
+
+        result = json.loads(
+            mcp_tools["move_slide"](
+                project_id=project_id,
+                from_index=1,
+                to_index=3,
+            )
+        )
+        assert result["slide_count"] == 5
+        assert result["from_index"] == 1
+        assert result["to_index"] == 3
+
+        outline = json.loads(project_service.load_outline(project_dir))
+        assert outline["slides"][0]["title"] == "슬라이드 2"
+        assert outline["slides"][1]["title"] == "슬라이드 3"
+        assert outline["slides"][2]["title"] == "슬라이드 1"
+        assert outline["slides"][3]["title"] == "슬라이드 4"
+        assert outline["slides"][4]["title"] == "슬라이드 5"
+
+    def test_move_backward(self, mcp_tools: dict, tmp_path: Path, monkeypatch) -> None:
+        """슬라이드를 뒤로 이동 (4 → 2, 1-based)."""
+        project_id, project_dir = self._setup_project(
+            mcp_tools, tmp_path, monkeypatch, 5
+        )
+        project_service = mcp_tools["_project_service"]
+
+        result = json.loads(
+            mcp_tools["move_slide"](
+                project_id=project_id,
+                from_index=4,
+                to_index=2,
+            )
+        )
+        assert result["slide_count"] == 5
+
+        outline = json.loads(project_service.load_outline(project_dir))
+        assert outline["slides"][0]["title"] == "슬라이드 1"
+        assert outline["slides"][1]["title"] == "슬라이드 4"
+        assert outline["slides"][2]["title"] == "슬라이드 2"
+        assert outline["slides"][3]["title"] == "슬라이드 3"
+        assert outline["slides"][4]["title"] == "슬라이드 5"
+
+    def test_move_same_position(
+        self, mcp_tools: dict, tmp_path: Path, monkeypatch
+    ) -> None:
+        project_id, _ = self._setup_project(mcp_tools, tmp_path, monkeypatch, 3)
+
+        result = json.loads(
+            mcp_tools["move_slide"](
+                project_id=project_id,
+                from_index=2,
+                to_index=2,
+            )
+        )
+        assert "No move needed" in result["message"]
+
+    def test_move_invalid_from_index(
+        self, mcp_tools: dict, tmp_path: Path, monkeypatch
+    ) -> None:
+        project_id, _ = self._setup_project(mcp_tools, tmp_path, monkeypatch, 3)
+        with pytest.raises(ValueError, match="Invalid from_index"):
+            mcp_tools["move_slide"](project_id=project_id, from_index=10, to_index=1)
+
+    def test_move_invalid_to_index(
+        self, mcp_tools: dict, tmp_path: Path, monkeypatch
+    ) -> None:
+        project_id, _ = self._setup_project(mcp_tools, tmp_path, monkeypatch, 3)
+        with pytest.raises(ValueError, match="Invalid to_index"):
+            mcp_tools["move_slide"](project_id=project_id, from_index=1, to_index=10)
+
+    def test_move_syncs_all_stores(
+        self, mcp_tools: dict, tmp_path: Path, monkeypatch
+    ) -> None:
+        project_id, project_dir = self._setup_project(
+            mcp_tools, tmp_path, monkeypatch, 3
+        )
+        project_service = mcp_tools["_project_service"]
+
+        mcp_tools["move_slide"](project_id=project_id, from_index=3, to_index=1)
+
+        outline = json.loads(project_service.load_outline(project_dir))
+        assert outline["slides"][0]["title"] == "슬라이드 3"
+        assert outline["slides"][1]["title"] == "슬라이드 1"
+        assert outline["slides"][2]["title"] == "슬라이드 2"
+
+        spec = project_service.load_design_spec(project_dir)
+        assert spec.slides[0].textboxes[0].paragraphs[0].runs[0].text == "슬라이드 3"
+        assert spec.slides[1].textboxes[0].paragraphs[0].runs[0].text == "슬라이드 1"
+        assert spec.slides[2].textboxes[0].paragraphs[0].runs[0].text == "슬라이드 2"
+
+        slides_dir = project_dir / "slides"
+        assert (slides_dir / "slide_01.html").read_text(
+            encoding="utf-8"
+        ) == "<div>slide 3</div>"
+        assert (slides_dir / "slide_02.html").read_text(
+            encoding="utf-8"
+        ) == "<div>slide 1</div>"
+        assert (slides_dir / "slide_03.html").read_text(
+            encoding="utf-8"
+        ) == "<div>slide 2</div>"
+
+    def test_move_preserves_slide_count(
+        self, mcp_tools: dict, tmp_path: Path, monkeypatch
+    ) -> None:
+        project_id, project_dir = self._setup_project(
+            mcp_tools, tmp_path, monkeypatch, 5
+        )
+        project_service = mcp_tools["_project_service"]
+
+        mcp_tools["move_slide"](project_id=project_id, from_index=5, to_index=1)
+
+        assert project_service.get_design_spec_slide_count(project_dir) == 5
+        outline = json.loads(project_service.load_outline(project_dir))
+        assert len(outline["slides"]) == 5

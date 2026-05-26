@@ -15,7 +15,7 @@ from ppt_generator.interfaces.spec_utils import (
 from ppt_generator.tools.pptx.controller import register_pptx_tools
 from ppt_generator.tools.project.service import ProjectService
 
-from conftest import make_design_spec as _make_design_spec
+from _helpers import make_design_spec as _make_design_spec
 
 
 @pytest.fixture()
