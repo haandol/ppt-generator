@@ -453,22 +453,26 @@ class _BaseSlideSpecOutput(BaseModel):
 class ContentSlideSpecOutput(_BaseSlideSpecOutput):
     """content 슬라이드용 LLM 응답 모델 (ADR-0045 / ADR-0046).
 
-    Stage 2(grid_layout) 와 Stage 3(cell_assignment) 모두 Required.
-    LLM 이 거시 → 중간 → 미시 순으로 점진적 추상화 하강을 따르도록 강제한다.
+    Stage 2(grid_layout), Stage 3(cell_assignment), Stage 3.5(design_doc) 모두
+    Required. LLM 이 거시 → 중간 → 미시 순으로 점진적 추상화 하강을 따르도록
+    강제하며, design_doc 의 layout 트리 + bbox 가 채워져야 layout-tree-bbox lint
+    가 충돌을 사전 차단할 수 있다.
     """
 
     grid_layout: GridLayoutOutput
     cell_assignment: GridCellAssignmentOutput
+    design_doc: DesignDocOutput
 
 
 class SimpleSlideSpecOutput(_BaseSlideSpecOutput):
     """title/closing 등 fixed special layout 슬라이드용 LLM 응답 모델.
 
-    ADR-0044 결정 2: title/closing 슬라이드는 grid 단계 omit 가능.
+    ADR-0044 결정 2: title/closing 슬라이드는 grid/design_doc 단계 omit 가능.
     """
 
     grid_layout: GridLayoutOutput | None = None
     cell_assignment: GridCellAssignmentOutput | None = None
+    design_doc: DesignDocOutput | None = None
 
 
 # --- Design Review models ---

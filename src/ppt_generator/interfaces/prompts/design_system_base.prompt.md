@@ -56,7 +56,7 @@ DO NOT think about individual cells in this stage. Only decide the overall regio
 
 **Cell ID convention**: short, slide-local labels like `"h1"` (header row 1), `"c1"`/`"c2"` (content cells in declaration order), `"f1"` (footer). The `role` field is free text describing what the cell holds (e.g., `"title"`, `"step1_card"`, `"left_diagram"`).
 
-**Stage 3.5 — design_doc** (the slide's *meaning* tree, separate from `speaker_notes`):
+**Stage 3.5 — design_doc** (the slide's *meaning* tree, separate from `speaker_notes`) — **REQUIRED for content slides**. Title/closing slides MAY omit this field, but content slides MUST output a complete `design_doc` with `topic`, `layout_summary`, and a `layout` list covering all visible foreground elements.
 1. `topic`: one-sentence subject of the slide.
 2. `layout_summary`: a single paragraph summarizing the macro layout you just decided (e.g., "Left c1 region holds three vertically stacked explanation cards; right c2 region holds a 4-node relationship diagram with the LLM in the center").
 3. `layout`: a tree of `LayoutNode`s describing the slide's meaningful structure.

@@ -12,9 +12,11 @@ from pydantic import ValidationError
 
 from ppt_generator.interfaces.llm_output_models import (
     ContentSlideSpecOutput,
+    DesignDocOutput,
     GridCellAssignmentOutput,
     GridCellOutput,
     GridLayoutOutput,
+    LayoutNodeOutput,
     SimpleSlideSpecOutput,
 )
 
@@ -32,6 +34,23 @@ def _cell_assignment() -> GridCellAssignmentOutput:
         cells=[
             GridCellOutput(id="c1", region="header", row=1, col=1),
             GridCellOutput(id="c2", region="content", row=1, col=1),
+        ],
+    )
+
+
+def _design_doc() -> DesignDocOutput:
+    return DesignDocOutput(
+        topic="t",
+        layout_summary="ls",
+        layout=[
+            LayoutNodeOutput(
+                id="root",
+                kind="section",
+                left_px=64,
+                top_px=148,
+                width_px=1152,
+                height_px=510,
+            )
         ],
     )
 
@@ -57,6 +76,16 @@ class TestContentSlideSpecOutput:
                 shapes=[],
             )
 
+    def test_validation_fails_when_design_doc_missing(self) -> None:
+        """ContentSlideSpec 은 design_doc 도 Required."""
+        with pytest.raises(ValidationError):
+            ContentSlideSpecOutput(
+                grid_layout=_grid_layout(),
+                cell_assignment=_cell_assignment(),
+                textboxes=[],
+                shapes=[],
+            )
+
     def test_validation_fails_when_either_null(self) -> None:
         with pytest.raises(ValidationError):
             ContentSlideSpecOutput(
@@ -77,6 +106,7 @@ class TestContentSlideSpecOutput:
         output = ContentSlideSpecOutput(
             grid_layout=_grid_layout(),
             cell_assignment=_cell_assignment(),
+            design_doc=_design_doc(),
             textboxes=[],
             shapes=[],
         )
@@ -87,6 +117,7 @@ class TestContentSlideSpecOutput:
         output = ContentSlideSpecOutput(
             grid_layout=_grid_layout(),
             cell_assignment=_cell_assignment(),
+            design_doc=_design_doc(),
             textboxes=[],
             shapes=[],
         )
