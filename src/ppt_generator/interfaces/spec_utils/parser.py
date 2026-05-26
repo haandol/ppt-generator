@@ -8,9 +8,11 @@ from __future__ import annotations
 import json
 
 from ppt_generator.interfaces.schemas import (
+    DesignDoc,
     DesignSpec,
     GridCell,
     GridPlan,
+    LayoutNode,
     PptxImage,
     PptxParagraph,
     PptxShape,
@@ -40,6 +42,31 @@ def _parse_grid_plan(data: dict | None) -> GridPlan | None:
         content_columns=data.get("content_columns", 1),
         content_rows=data.get("content_rows", 1),
         cells=cells,
+    )
+
+
+def _parse_layout_node(data: dict) -> LayoutNode:
+    return LayoutNode(
+        id=data.get("id", ""),
+        kind=data.get("kind", "component"),
+        role=data.get("role", ""),
+        description=data.get("description", ""),
+        cell_id=data.get("cell_id", ""),
+        left_px=data.get("left_px"),
+        top_px=data.get("top_px"),
+        width_px=data.get("width_px"),
+        height_px=data.get("height_px"),
+        children=[_parse_layout_node(c) for c in data.get("children", [])],
+    )
+
+
+def _parse_design_doc(data: dict | None) -> DesignDoc | None:
+    if not data:
+        return None
+    return DesignDoc(
+        topic=data.get("topic", ""),
+        layout_summary=data.get("layout_summary", ""),
+        layout=[_parse_layout_node(n) for n in data.get("layout", [])],
     )
 
 
@@ -84,6 +111,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
                 padding_bottom_px=tb.get("padding_bottom_px"),
                 z_index=tb.get("z_index"),
                 grid_cell=tb.get("grid_cell"),
+                component_id=tb.get("component_id"),
             )
         )
 
@@ -140,6 +168,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
                 autofit_mode=s.get("autofit_mode", "expand_height"),
                 z_index=s.get("z_index"),
                 grid_cell=s.get("grid_cell"),
+                component_id=s.get("component_id"),
             )
         )
 
@@ -167,6 +196,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
         speaker_notes=data.get("speaker_notes", ""),
         slide_type=data.get("slide_type", "content"),
         grid_plan=_parse_grid_plan(data.get("grid_plan")),
+        design_doc=_parse_design_doc(data.get("design_doc")),
     )
 
 

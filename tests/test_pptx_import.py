@@ -694,6 +694,42 @@ class TestSpecialElements:
         assert round(line.height_px) == 80
         assert line.end_arrow is True
 
+    def test_component_id_preserved(self, export_service, import_service, tmp_path):
+        """spec 의 component_id 가 export → import 라운드트립에서 보존되는지.
+
+        design_doc 자체는 PPTX 에 직렬화하지 않으므로 import 결과는 None 일 수 있지만,
+        textbox/shape 의 component_id 는 PPTX shape name 에 보존되거나 누락된다.
+        현재 구현은 PPTX 에 component_id 를 별도 저장하지 않으므로 import 후
+        component_id 는 None 으로 fallback 된다. 이 테스트는 *export 가 component_id
+        를 갖고도 정상 동작* 하는지만 확인한다.
+        """
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    textboxes=[
+                        PptxTextBox(
+                            left_px=100,
+                            top_px=100,
+                            width_px=200,
+                            height_px=50,
+                            paragraphs=[
+                                PptxParagraph(
+                                    runs=[PptxTextRun(text="hello", font_size_pt=18)]
+                                )
+                            ],
+                            component_id="left.title",
+                        )
+                    ],
+                )
+            ]
+        )
+        # export 가 component_id 가 있어도 깨지지 않아야 함
+        response = export_service.export_from_design_spec(spec, output_dir=tmp_path)
+        imported, _ = import_service.import_from_file(response.pptx_path)
+        # 텍스트는 보존됨
+        tb = imported.slides[0].textboxes[0]
+        assert tb.paragraphs[0].runs[0].text == "hello"
+
     def test_dash_style_preserved(self, export_service, import_service, tmp_path):
         """dash_style이 보존되는지 검증."""
         spec = DesignSpec(

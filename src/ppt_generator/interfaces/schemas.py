@@ -109,6 +109,9 @@ class PptxTextBox:
     padding_bottom_px: float | None = None
     z_index: int | None = None  # rendering order (lower = behind, higher = front)
     grid_cell: str | None = None  # GridPlan cell id this element belongs to
+    component_id: str | None = (
+        None  # DesignDoc.sections[].components[].id 참조. 의미 단위 부분 수정 시 사용
+    )
 
 
 @dataclass(frozen=True)
@@ -154,6 +157,7 @@ class PptxShape:
     autofit_mode: str = "expand_height"  # "expand_height" (default) | "shrink_text" (keep height, shrink font)
     z_index: int | None = None  # rendering order (lower = behind, higher = front)
     grid_cell: str | None = None  # GridPlan cell id this element belongs to
+    component_id: str | None = None  # DesignDoc.sections[].components[].id 참조
 
 
 @dataclass(frozen=True)
@@ -208,6 +212,54 @@ class GridPlan:
 
 
 @dataclass(frozen=True)
+class LayoutNode:
+    """슬라이드 레이아웃 트리의 노드. 임의 깊이의 의미 단위 묶음을 표현한다.
+
+    kind 별 의미:
+      - "section": 슬라이드의 큰 의미 영역 (보통 1개 이상의 grid cell 과 매핑)
+      - "group":  section 안의 중간 묶음 (예: 다이어그램 안의 LLM 서브시스템)
+      - "component": 리프. 실제 textbox/shape 가 component_id 로 참조하는 노드
+
+    id 는 트리 path 형태 (e.g. "right_diagram", "right_diagram.llm_box",
+    "right_diagram.functions.web_search"). lower_snake_case + dot 구분.
+    role 은 자유 라벨 ("card_title", "axis_label", "llm_box", ...).
+    cell_id 는 연결된 GridPlan cell id (없으면 빈 문자열).
+    children 는 비어 있으면 leaf (component).
+
+    좌표 필드 (left_px/top_px/width_px/height_px) 는 노드의 bounding box 를
+    명시한다. section/group 은 자식들이 차지하는 영역 전체, component 는 해당
+    textbox/shape 와 동일한 bbox 가 들어간다. 자식 bbox 의 합집합은 부모 bbox
+    안에 들어가야 한다 (lint 로 검증 가능). LLM 부분 수정 시 "이 노드 영역만
+    이동/리사이즈" 가 자연스럽게 가능해진다.
+    """
+
+    id: str
+    kind: str = "component"  # "section" | "group" | "component"
+    role: str = ""
+    description: str = ""
+    cell_id: str = ""
+    left_px: float | None = None
+    top_px: float | None = None
+    width_px: float | None = None
+    height_px: float | None = None
+    children: list["LayoutNode"] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class DesignDoc:
+    """슬라이드의 구조/의도 메타데이터.
+
+    `speaker_notes` 와 분리되어 발표 narrative 가 아닌 *디자인 의도* 만 담는다.
+    `layout` 은 슬라이드 레이아웃 트리이며 (section → group → component) LLM
+    부분 수정 시 의미 단위 path 로 요소를 지칭하기 위한 인덱스 역할이다.
+    """
+
+    topic: str = ""
+    layout_summary: str = ""
+    layout: list[LayoutNode] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class PptxSlideSpec:
     """Full slide spec: background color, textbox list, shape list, image list."""
 
@@ -220,6 +272,7 @@ class PptxSlideSpec:
     speaker_notes: str = ""
     slide_type: str = "content"
     grid_plan: GridPlan | None = None
+    design_doc: DesignDoc | None = None
 
 
 # --- Design spec schema ---

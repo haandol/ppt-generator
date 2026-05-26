@@ -11,8 +11,10 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from ppt_generator.interfaces.schemas import (
+    DesignDoc,
     GridCell,
     GridPlan,
+    LayoutNode,
     PptxParagraph,
     PptxShape,
     PptxSlideSpec,
@@ -56,6 +58,7 @@ class TextBoxOutput(BaseModel):
     padding_top_px: float | None = None
     padding_bottom_px: float | None = None
     grid_cell: str | None = None
+    component_id: str | None = None  # design_doc.sections[].components[].id 참조
 
 
 class ShapeOutput(BaseModel):
@@ -89,6 +92,7 @@ class ShapeOutput(BaseModel):
     svg_path: str | None = None
     autofit_mode: Literal["expand_height", "shrink_text"] = "expand_height"
     grid_cell: str | None = None
+    component_id: str | None = None  # design_doc.sections[].components[].id 참조
 
 
 class GridCellOutput(BaseModel):
@@ -123,6 +127,55 @@ class GridCellAssignmentOutput(BaseModel):
     """
 
     cells: list[GridCellOutput] = Field(default_factory=list)
+
+
+# --- DesignDoc (의미 단위 레이아웃 트리) ---
+
+
+class LayoutNodeOutput(BaseModel):
+    """슬라이드 레이아웃 트리 노드. 임의 깊이의 의미 단위 묶음 + bounding box.
+
+    kind:
+      - "section": 큰 의미 영역 (보통 grid cell 과 매핑)
+      - "group":   section 안의 중간 묶음 (옵션, 깊이 2 이상)
+      - "component": 리프. textbox/shape 가 component_id 로 참조
+
+    id 는 path 형태 (lower_snake_case + dot 구분):
+      "right_diagram", "right_diagram.llm_box",
+      "right_diagram.functions.web_search"
+
+    좌표 필드는 이 노드의 점유 영역 (bounding box). section/group 은 자식 전체
+    bbox, component 는 해당 textbox/shape 와 동일. 점진적 하강의 핵심 메커니즘:
+    부모 bbox 가 먼저 결정되면 자식은 그 안에서만 좌표를 잡으므로 시각적 충돌
+    이 구조적으로 차단된다. 다이어그램 그룹에서 특히 효과적.
+    """
+
+    id: str
+    kind: Literal["section", "group", "component"] = "component"
+    role: str = ""  # "llm_box" | "context_bus" | "function_card" | "card_title" | ...
+    description: str = ""  # 1-2 문장 의미 설명
+    cell_id: str = ""  # GridPlan.cells[].id (없으면 "")
+    left_px: float | None = None
+    top_px: float | None = None
+    width_px: float | None = None
+    height_px: float | None = None
+    children: list["LayoutNodeOutput"] = Field(default_factory=list)
+
+
+# Pydantic v2 forward reference resolve
+LayoutNodeOutput.model_rebuild()
+
+
+class DesignDocOutput(BaseModel):
+    """슬라이드의 구조/의도 메타데이터.
+
+    `speaker_notes` 와 분리해 *디자인 의도* 만 담는다. LLM 부분 수정 요청 시
+    트리 path 로 요소를 지칭하기 위한 인덱스 역할.
+    """
+
+    topic: str = ""  # 슬라이드 한 줄 주제
+    layout_summary: str = ""  # "좌 c1=설명 카드 3개, 우 c2=다이어그램" 식의 한 문단
+    layout: list[LayoutNodeOutput] = Field(default_factory=list)
 
 
 # --- Visual QA models ---
@@ -162,6 +215,22 @@ class VisualQAOutput(BaseModel):
     has_issues: bool
     issues: list[VisualQAIssue] = Field(default_factory=list)
     overall_quality: Literal["good", "needs_improvement", "poor"]
+
+
+def _convert_layout_node(node: "LayoutNodeOutput") -> LayoutNode:
+    """LayoutNodeOutput 을 LayoutNode dataclass 로 재귀 변환."""
+    return LayoutNode(
+        id=node.id,
+        kind=node.kind,
+        role=node.role,
+        description=node.description,
+        cell_id=node.cell_id,
+        left_px=node.left_px,
+        top_px=node.top_px,
+        width_px=node.width_px,
+        height_px=node.height_px,
+        children=[_convert_layout_node(c) for c in node.children],
+    )
 
 
 def _convert_paragraphs(paragraphs: list[ParagraphOutput]) -> list[PptxParagraph]:
@@ -205,7 +274,8 @@ class _BaseSlideSpecOutput(BaseModel):
     ADR-0046: 점진적 추상화 하강을 schema 에 박는다.
         Stage 2: grid_layout       (regions/columns/rows)
         Stage 3: cell_assignment   (cells)
-        Stage 4: textboxes/shapes  (cell_id 참조)
+        Stage 3.5: design_doc      (sections/components, 의미 단위)
+        Stage 4: textboxes/shapes  (cell_id + component_id 참조)
 
     하위 클래스(`ContentSlideSpecOutput`, `SimpleSlideSpecOutput`)가 grid_layout/
     cell_assignment 의 Required/Optional 여부만 분기해서 재선언한다 (ADR-0045).
@@ -216,6 +286,7 @@ class _BaseSlideSpecOutput(BaseModel):
 
     grid_layout: GridLayoutOutput | None
     cell_assignment: GridCellAssignmentOutput | None
+    design_doc: DesignDocOutput | None = None
     background_color: str | None = None
     speaker_notes: str = ""
     textboxes: list[TextBoxOutput] = Field(default_factory=list)
@@ -238,6 +309,7 @@ class _BaseSlideSpecOutput(BaseModel):
                 padding_top_px=tb.padding_top_px,
                 padding_bottom_px=tb.padding_bottom_px,
                 grid_cell=tb.grid_cell,
+                component_id=tb.component_id,
             )
             for tb in self.textboxes
         ]
@@ -269,6 +341,7 @@ class _BaseSlideSpecOutput(BaseModel):
                 svg_path=s.svg_path,
                 autofit_mode=s.autofit_mode,
                 grid_cell=s.grid_cell,
+                component_id=s.component_id,
             )
             for s in self.shapes
         ]
@@ -294,6 +367,13 @@ class _BaseSlideSpecOutput(BaseModel):
                     for c in cells_src
                 ],
             )
+        design_doc: DesignDoc | None = None
+        if self.design_doc is not None:
+            design_doc = DesignDoc(
+                topic=self.design_doc.topic,
+                layout_summary=self.design_doc.layout_summary,
+                layout=[_convert_layout_node(n) for n in self.design_doc.layout],
+            )
         return PptxSlideSpec(
             background_color=self.background_color,
             textboxes=textboxes,
@@ -301,6 +381,7 @@ class _BaseSlideSpecOutput(BaseModel):
             images=[],
             speaker_notes=self.speaker_notes,
             grid_plan=grid_plan,
+            design_doc=design_doc,
         )
 
 

@@ -11,8 +11,10 @@ lint는 디자인 규칙 위반을 감지하되 수정하지 않는다:
 from __future__ import annotations
 
 from ppt_generator.interfaces.schemas import (
+    DesignDoc,
     GridCell,
     GridPlan,
+    LayoutNode,
     PptxParagraph,
     PptxShape,
     PptxSlideSpec,
@@ -1763,4 +1765,126 @@ class TestTextboxTextboxOverlap:
         )
         result = lint_slide_spec(_slide(textboxes=[a, empty]))
         v = [x for x in result.violations if x.rule == "textbox-textbox-overlap"]
+        assert len(v) == 0
+
+
+# ---------------------------------------------------------------------------
+# layout-tree-bbox 규칙
+# ---------------------------------------------------------------------------
+
+
+def _slide_with_design_doc(layout: list[LayoutNode]) -> PptxSlideSpec:
+    return PptxSlideSpec(
+        background_color="#1a1a2e",
+        slide_type="content",
+        design_doc=DesignDoc(topic="t", layout_summary="ls", layout=layout),
+    )
+
+
+class TestLayoutTreeBbox:
+    """design_doc.layout 트리의 bbox 검증."""
+
+    def test_sibling_overlap_detected(self) -> None:
+        """같은 depth 의 두 형제 section 이 겹치면 fail."""
+        layout = [
+            LayoutNode(
+                id="a",
+                kind="section",
+                left_px=64,
+                top_px=148,
+                width_px=540,
+                height_px=510,
+            ),
+            LayoutNode(
+                id="b",
+                kind="section",
+                left_px=400,
+                top_px=148,
+                width_px=540,
+                height_px=510,
+            ),
+        ]
+        result = lint_slide_spec(_slide_with_design_doc(layout))
+        v = [x for x in result.violations if x.rule == "layout-tree-sibling-overlap"]
+        assert len(v) == 1
+
+    def test_non_overlapping_siblings_pass(self) -> None:
+        """겹치지 않는 형제는 pass."""
+        layout = [
+            LayoutNode(
+                id="a",
+                kind="section",
+                left_px=64,
+                top_px=148,
+                width_px=540,
+                height_px=510,
+            ),
+            LayoutNode(
+                id="b",
+                kind="section",
+                left_px=624,
+                top_px=148,
+                width_px=592,
+                height_px=510,
+            ),
+        ]
+        result = lint_slide_spec(_slide_with_design_doc(layout))
+        v = [x for x in result.violations if x.rule == "layout-tree-sibling-overlap"]
+        assert len(v) == 0
+
+    def test_child_outside_parent_detected(self) -> None:
+        """자식 bbox 가 부모 밖으로 나가면 fail."""
+        layout = [
+            LayoutNode(
+                id="parent",
+                kind="section",
+                left_px=64,
+                top_px=148,
+                width_px=540,
+                height_px=200,
+                children=[
+                    LayoutNode(
+                        id="parent.child",
+                        kind="component",
+                        left_px=64,
+                        top_px=148,
+                        width_px=700,  # 부모(540) 폭 초과
+                        height_px=100,
+                    ),
+                ],
+            ),
+        ]
+        result = lint_slide_spec(_slide_with_design_doc(layout))
+        v = [x for x in result.violations if x.rule == "layout-tree-containment"]
+        assert len(v) == 1
+
+    def test_section_without_bbox_flagged(self) -> None:
+        """section 노드에 bbox 가 없으면 fail."""
+        layout = [LayoutNode(id="s", kind="section")]
+        result = lint_slide_spec(_slide_with_design_doc(layout))
+        v = [x for x in result.violations if x.rule == "layout-tree-bbox-missing"]
+        assert len(v) == 1
+
+    def test_canvas_overflow_detected(self) -> None:
+        """bbox 가 캔버스 밖이면 fail."""
+        layout = [
+            LayoutNode(
+                id="s",
+                kind="section",
+                left_px=64,
+                top_px=148,
+                width_px=2000,
+                height_px=510,
+            ),
+        ]
+        result = lint_slide_spec(_slide_with_design_doc(layout))
+        v = [x for x in result.violations if x.rule == "layout-tree-canvas-overflow"]
+        assert len(v) == 1
+
+    def test_no_design_doc_skipped(self) -> None:
+        """design_doc 없으면 검사 스킵."""
+        result = lint_slide_spec(
+            PptxSlideSpec(background_color="#000", slide_type="content")
+        )
+        v = [x for x in result.violations if x.rule.startswith("layout-tree")]
         assert len(v) == 0

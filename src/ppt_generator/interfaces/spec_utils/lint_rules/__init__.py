@@ -30,6 +30,9 @@ from ppt_generator.interfaces.spec_utils.lint_rules.hidden_decorative_strip impo
 from ppt_generator.interfaces.spec_utils.lint_rules.label_orphan import (
     check_label_orphan,
 )
+from ppt_generator.interfaces.spec_utils.lint_rules.layout_tree_bbox import (
+    check_layout_tree_bbox,
+)
 from ppt_generator.interfaces.spec_utils.lint_rules.nowrap_overflow import (
     check_nowrap_overflow,
 )
@@ -72,6 +75,7 @@ ALL_RULES = [
     check_nowrap_overflow,
     check_arrow_endpoint_attachment,
     check_label_orphan,
+    check_layout_tree_bbox,
     check_textbox_shape_intrusion,
     check_textbox_textbox_overlap,
     check_decoration_shape_overlap,
