@@ -10,7 +10,11 @@ from ppt_generator.interfaces.protocols import (
 )
 from ppt_generator.tools.design.handlers.deps import DesignDeps
 from ppt_generator.tools.design.handlers.generation import handle_generate
-from ppt_generator.tools.design.handlers.modification import handle_modify, handle_move
+from ppt_generator.tools.design.handlers.modification import (
+    handle_modify,
+    handle_modify_component,
+    handle_move,
+)
 from ppt_generator.tools.design.handlers.review import handle_review
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
@@ -160,6 +164,61 @@ def register_design_tools(
             component_hint=component_hint,
             slide_type=slide_type,
             speaker_notes=speaker_notes,
+            color_theme=color_theme,
+        )
+
+    @mcp.tool()
+    def modify_component(
+        project_id: str,
+        slide_index: int,
+        component_id: str,
+        instruction: str,
+        color_theme: str = "dark",
+    ) -> str:
+        """Modifies exactly ONE component on a content slide via natural-language instruction (ADR-0050).
+
+        Use this for *narrow* changes like "make the LLM box red", "rename the second
+        function card to db_query", "shift the diagram block 24px to the right".
+        The LLM only edits the textbox/shape whose `component_id` matches; everything
+        else on the slide (other elements, grid_plan, background, speaker_notes,
+        design_doc tree structure) stays byte-equal.
+
+        For broader changes (replace 3 cards at once, change overall topic, restructure
+        layout), use `modify_design_spec(action="update")` instead.
+
+        **Imported slides (ADR-0051)**: Imported PPTX slides start with `design_doc=None`.
+        On the first call to this tool, design_doc is auto-backfilled (LLM infers the
+        section tree + component_id linkage from existing textbox/shape positions).
+        If the requested `component_id` is not in the backfilled tree, the response
+        returns `status="backfilled"` with `available_components` — pick one and call
+        again. The second call uses the saved design_doc directly (no re-backfill).
+        Title/closing slides still require `modify_design_spec(action="update")`.
+
+        Args:
+            project_id: Target project ID (required).
+            slide_index: Slide position (1-based).
+            component_id: Target component id from `design_doc.layout` leaf (e.g.
+                "right_diagram.llm_box"). Look it up via `load_design_spec`.
+            instruction: Natural-language description of the change. Be specific
+                about color/text/size — vague instructions get vague edits.
+            color_theme: Color theme ("dark" or "light", default: "dark").
+
+        Returns:
+            JSON string containing project_id, slide_index, component_id,
+            modified_element (type+index), slide_html_path, optional lint result,
+            and token_usage.
+
+        **IMPORTANT — Required follow-up action:**
+        After this call succeeds, share the returned `slide_html_path` with the user
+        (it is the rendered HTML for just this one slide). Call `export_html` if
+        the user wants to refresh the deck-wide HTML.
+        """
+        return handle_modify_component(
+            deps,
+            project_id=project_id,
+            slide_index=slide_index,
+            component_id=component_id,
+            instruction=instruction,
             color_theme=color_theme,
         )
 

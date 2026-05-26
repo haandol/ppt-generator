@@ -37,6 +37,14 @@ VISUAL_QA_FIX_SYSTEM_PROMPT = _load("visual_qa_fix.prompt.md")
 
 DESIGN_REVIEW_SYSTEM_PROMPT = _load("design_review.prompt.md")
 
+# ADR-0050: component-level partial modification
+COMPONENT_MODIFY_SYSTEM_PROMPT = _load("component_modify_system.prompt.md")
+COMPONENT_MODIFY_USER_PROMPT_TEMPLATE = _load("component_modify_user.prompt.md")
+
+# ADR-0051: imported slide design_doc lazy backfill
+BACKFILL_DESIGN_DOC_SYSTEM_PROMPT = _load("backfill_design_doc_system.prompt.md")
+BACKFILL_DESIGN_DOC_USER_PROMPT_TEMPLATE = _load("backfill_design_doc_user.prompt.md")
+
 __all__ = [
     "DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE",
     "DESIGN_SPEC_SYSTEM_PROMPT",
@@ -48,4 +56,8 @@ __all__ = [
     "VISUAL_QA_ANALYSIS_SYSTEM_PROMPT",
     "VISUAL_QA_FIX_SYSTEM_PROMPT",
     "DESIGN_REVIEW_SYSTEM_PROMPT",
+    "COMPONENT_MODIFY_SYSTEM_PROMPT",
+    "COMPONENT_MODIFY_USER_PROMPT_TEMPLATE",
+    "BACKFILL_DESIGN_DOC_SYSTEM_PROMPT",
+    "BACKFILL_DESIGN_DOC_USER_PROMPT_TEMPLATE",
 ]

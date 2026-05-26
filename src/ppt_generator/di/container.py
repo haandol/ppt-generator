@@ -16,6 +16,7 @@ from ppt_generator.di.model_factory import (
     create_bedrock_visual_qa_model,
 )
 from ppt_generator.interfaces.constants import (
+    BACKFILL_DESIGN_DOC_SYSTEM_PROMPT,
     BEDROCK_OUTLINE_MAX_TOKENS,
     DESIGN_REVIEW_SYSTEM_PROMPT,
     DESIGN_SPEC_SYSTEM_PROMPTS,
@@ -143,6 +144,17 @@ class DIContainer:
 
         return DesignReviewService(agent=self._create_review_agent())
 
+    def _create_backfill_agent(self) -> Agent:
+        """ADR-0051: imported 슬라이드의 design_doc 추론용 agent (review 모델 재사용)."""
+        model = (
+            create_anthropic_review_model
+            if self._provider == "anthropic"
+            else create_bedrock_review_model
+        )()
+        return self._create_agent(
+            model=model, prompt_text=BACKFILL_DESIGN_DOC_SYSTEM_PROMPT
+        )
+
     def create_design_service(
         self, slide_type: str = "content", budget_tokens: int = 8192
     ) -> DesignService:
@@ -150,7 +162,8 @@ class DIContainer:
         return DesignService(
             agent=self._create_design_agent(
                 slide_type=slide_type, budget_tokens=budget_tokens
-            )
+            ),
+            backfill_agent=self._create_backfill_agent(),
         )
 
     def create_visual_qa_service(self) -> "VisualQAService":

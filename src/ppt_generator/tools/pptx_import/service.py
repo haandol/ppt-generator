@@ -77,5 +77,13 @@ class ImportService:
             )
 
         design_spec = DesignSpec(slides=slides)
+        if warnings:
+            logger.warning(
+                "PPTX import produced %d warning(s) across %d slides",
+                len(warnings),
+                total_slides,
+            )
+            for w in warnings:
+                logger.warning("PPTX import warning: %s", w)
         logger.info("PPTX 임포트 완료: %d 슬라이드", total_slides)
         return design_spec, warnings

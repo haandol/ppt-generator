@@ -1,0 +1,46 @@
+{
+  "_comment": "ADR-0049 5단 계층 데모. content slide 의 grid_layout/cell_assignment/design_doc/textboxes/shapes 가 모두 채워져 있고, design_doc.layout 트리의 leaf id 가 textbox/shape 의 component_id 와 매칭된다.",
+  "grid_layout": {
+    "regions": ["header", "content"],
+    "content_columns": 2,
+    "content_rows": 1
+  },
+  "cell_assignment": {
+    "cells": [
+      {"id": "h1", "region": "header", "row": 1, "col": 1, "row_span": 1, "col_span": 1, "role": "title"},
+      {"id": "c1", "region": "content", "row": 1, "col": 1, "row_span": 1, "col_span": 1, "role": "left_explanation"},
+      {"id": "c2", "region": "content", "row": 1, "col": 2, "row_span": 1, "col_span": 1, "role": "right_diagram"}
+    ]
+  },
+  "design_doc": {
+    "topic": "LLM 기반 에이전트는 외부 도구를 통해 환경과 상호작용한다.",
+    "layout_summary": "좌측 c1 영역에는 상단부터 'Observation', 'Limitation' 두 개의 설명 카드가 세로로 쌓여 있고, 우측 c2 영역에는 중앙 LLM 박스를 중심으로 우측에 web_search/db_query 두 함수 카드가 있는 4-노드 다이어그램이 있다.",
+    "layout": [
+      {"id": "header", "parent_id": "", "kind": "section", "role": "title_bar", "description": "슬라이드 제목 영역", "cell_id": "h1", "left_px": 64, "top_px": 72, "width_px": 1152, "height_px": 48},
+      {"id": "header.title", "parent_id": "header", "kind": "component", "role": "slide_title", "description": "슬라이드 제목 텍스트", "left_px": 64, "top_px": 72, "width_px": 1152, "height_px": 48},
+
+      {"id": "left_explanation", "parent_id": "", "kind": "section", "role": "explanation_cards", "description": "좌측 설명 카드 2개", "cell_id": "c1", "left_px": 64, "top_px": 148, "width_px": 560, "height_px": 508},
+      {"id": "left_explanation.card_observation", "parent_id": "left_explanation", "kind": "component", "role": "card", "description": "Observation 카드", "left_px": 64, "top_px": 148, "width_px": 560, "height_px": 240},
+      {"id": "left_explanation.card_limitation", "parent_id": "left_explanation", "kind": "component", "role": "card", "description": "Limitation 카드", "left_px": 64, "top_px": 416, "width_px": 560, "height_px": 240},
+
+      {"id": "right_diagram", "parent_id": "", "kind": "section", "role": "relationship_diagram", "description": "LLM 중심 4-노드 다이어그램", "cell_id": "c2", "left_px": 656, "top_px": 148, "width_px": 560, "height_px": 508},
+      {"id": "right_diagram.llm_box", "parent_id": "right_diagram", "kind": "component", "role": "llm_box", "description": "중앙 LLM 박스", "left_px": 700, "top_px": 348, "width_px": 200, "height_px": 108},
+      {"id": "right_diagram.functions", "parent_id": "right_diagram", "kind": "group", "role": "function_cluster", "description": "외부 함수 클러스터", "left_px": 988, "top_px": 312, "width_px": 196, "height_px": 180},
+      {"id": "right_diagram.functions.web_search", "parent_id": "right_diagram.functions", "kind": "component", "role": "function_card", "description": "web_search() 함수", "left_px": 988, "top_px": 312, "width_px": 196, "height_px": 80},
+      {"id": "right_diagram.functions.db_query", "parent_id": "right_diagram.functions", "kind": "component", "role": "function_card", "description": "db_query() 함수", "left_px": 988, "top_px": 412, "width_px": 196, "height_px": 80}
+    ]
+  },
+  "background_color": "#0F172A",
+  "speaker_notes": "LLM 단독으로는 학습 시점 이후의 정보를 알 수 없습니다. 그래서 우리는 검색이나 데이터베이스 같은 외부 도구를 LLM에 연결해서, 모델이 필요할 때마다 함수를 호출해 정보를 가져올 수 있도록 합니다. 오늘은 이 구조의 장단점을 함께 살펴보겠습니다.",
+  "textboxes": [
+    {"grid_cell": "h1", "component_id": "header.title", "left_px": 64, "top_px": 72, "width_px": 1152, "height_px": 48, "vertical_alignment": "middle", "paragraphs": [{"runs": [{"text": "LLM과 외부 도구 연결", "font_size_pt": 32, "color": "#FFFFFF", "bold": true}], "bullet_level": -1, "alignment": "left"}]}
+  ],
+  "shapes": [
+    {"grid_cell": "c1", "component_id": "left_explanation.card_observation", "left_px": 64, "top_px": 148, "width_px": 560, "height_px": 240, "shape_type": "rounded_rectangle", "fill_color": "#1E293B", "corner_radius_px": 12, "vertical_alignment": "top", "padding_left_px": 24, "padding_right_px": 24, "padding_top_px": 20, "padding_bottom_px": 20, "paragraphs": [{"runs": [{"text": "Observation", "font_size_pt": 22, "color": "#10B981", "bold": true}], "bullet_level": -1, "alignment": "left"}, {"runs": [{"text": "LLM은 학습 시점 이후의 데이터를 모른다.", "font_size_pt": 18, "color": "#E2E8F0"}], "bullet_level": -1, "alignment": "left"}]},
+    {"grid_cell": "c1", "component_id": "left_explanation.card_limitation", "left_px": 64, "top_px": 416, "width_px": 560, "height_px": 240, "shape_type": "rounded_rectangle", "fill_color": "#1E293B", "corner_radius_px": 12, "vertical_alignment": "top", "padding_left_px": 24, "padding_right_px": 24, "padding_top_px": 20, "padding_bottom_px": 20, "paragraphs": [{"runs": [{"text": "Limitation", "font_size_pt": 22, "color": "#F59E0B", "bold": true}], "bullet_level": -1, "alignment": "left"}, {"runs": [{"text": "도구 호출 비용·지연으로 모든 질문에 적용 불가.", "font_size_pt": 18, "color": "#E2E8F0"}], "bullet_level": -1, "alignment": "left"}]},
+    {"grid_cell": "c2", "component_id": "right_diagram.llm_box", "left_px": 700, "top_px": 348, "width_px": 200, "height_px": 108, "shape_type": "rounded_rectangle", "fill_color": "#3B82F6", "corner_radius_px": 12, "vertical_alignment": "middle", "text": "LLM", "text_color": "#FFFFFF", "text_size_pt": 24, "text_bold": true},
+    {"grid_cell": "c2", "component_id": "right_diagram.functions.web_search", "left_px": 988, "top_px": 312, "width_px": 196, "height_px": 80, "shape_type": "rounded_rectangle", "fill_color": "#10B981", "corner_radius_px": 10, "vertical_alignment": "middle", "text": "web_search()", "text_color": "#FFFFFF", "text_size_pt": 18, "text_bold": true},
+    {"grid_cell": "c2", "component_id": "right_diagram.functions.db_query", "left_px": 988, "top_px": 412, "width_px": 196, "height_px": 80, "shape_type": "rounded_rectangle", "fill_color": "#10B981", "corner_radius_px": 10, "vertical_alignment": "middle", "text": "db_query()", "text_color": "#FFFFFF", "text_size_pt": 18, "text_bold": true},
+    {"grid_cell": null, "component_id": null, "left_px": 900, "top_px": 376, "width_px": 88, "height_px": 0, "shape_type": "line", "border_color": "#3B82F6", "border_width_pt": 2, "end_arrow": true, "vertical_alignment": "top"}
+  ]
+}
