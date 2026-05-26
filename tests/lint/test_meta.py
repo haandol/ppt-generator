@@ -1,4 +1,4 @@
-"""ADR-0049 lint 메타 동작 테스트.
+"""lint 메타 동작 테스트.
 
 - clean_slide_spec (빈 textbox 제거 + 5단 계층 무손실 보존)
 - lint 가 spec 을 수정하지 않는지 (No modification)
@@ -50,7 +50,7 @@ class TestCleanSpec:
             top_px=64,
             width_px=500,
             height_px=50,
-            paragraphs=[PptxParagraph(runs=[PptxTextRun(text="   ")])],
+            paragraphs=[PptxParagraph(runs=[PptxTextRun(text=" ")])],
         )
         result = clean_slide_spec(slide(textboxes=[ws_tb]))
         assert len(result.textboxes) == 0
@@ -217,7 +217,7 @@ class TestCleanedSpecsReturned:
 
 
 class TestLayerFiltering:
-    """ADR-0049 5단 계층 단계적 lint 호출 시 layer 별 위반만 반환."""
+    """5단 계층 단계적 lint 호출 시 layer 별 위반만 반환."""
 
     def _spec(self) -> PptxSlideSpec:
         # title font 16pt < 24pt → content 위반
@@ -243,7 +243,7 @@ class TestLayerFiltering:
 
 
 # ---------------------------------------------------------------------------
-# ADR-0049 결정 7 — clean_slide_spec 5단 계층 무손실
+# 결정 7 — clean_slide_spec 5단 계층 무손실
 # ---------------------------------------------------------------------------
 
 
@@ -334,7 +334,7 @@ class TestCleanSpecPreservesFiveLayer:
                     top_px=0,
                     width_px=10,
                     height_px=10,
-                    paragraphs=[PptxParagraph(runs=[PptxTextRun(text="   ")])],
+                    paragraphs=[PptxParagraph(runs=[PptxTextRun(text=" ")])],
                 ),
             ],
             shapes=[],
@@ -349,7 +349,7 @@ class TestCleanSpecPreservesFiveLayer:
 
 
 # ---------------------------------------------------------------------------
-# ADR-0049 결정 8 — RULE_LAYER_MAP 전수 분류
+# 결정 8 — RULE_LAYER_MAP 전수 분류
 # ---------------------------------------------------------------------------
 
 
@@ -379,7 +379,7 @@ class TestRuleLayerMapCoverage:
         unmapped = rule_ids - set(RULE_LAYER_MAP.keys())
         assert not unmapped, (
             f"RULE_LAYER_MAP 에 등록 안 된 lint rule: {sorted(unmapped)} — "
-            "ADR-0049 결정 8 위반. lint_types.RULE_LAYER_MAP 에 분류 추가 필요."
+            "결정 8 위반. lint_types.RULE_LAYER_MAP 에 분류 추가 필요."
         )
 
     def test_layer_values_are_valid(self) -> None:

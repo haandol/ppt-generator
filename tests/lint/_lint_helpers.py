@@ -1,9 +1,9 @@
 """tests/lint/ 공용 데이터 빌더.
 
-ADR-0049 5단 계층(layout/section/content/cross/meta)으로 분리된 lint
+ 5단 계층(layout/section/content/cross/meta)으로 분리된 lint
 테스트들이 공유한다. fixture 가 아닌 일반 함수로 두고 각 테스트 파일에서
 직접 import 한다 (`tests/` 는 pytest rootdir 에 의해 sys.path 에 들어와
-있어 `from lint._lint_helpers import ...` 가능).
+있어 `from lint._lint_helpers import...` 가능).
 """
 
 from __future__ import annotations

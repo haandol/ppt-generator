@@ -1,4 +1,4 @@
-"""modify_component (ADR-0050) 테스트.
+"""modify_component 테스트.
 
 DesignService.modify_component 와 handle_modify_component 핸들러를
 검증한다. LLM 호출은 MagicMock 으로 대체.
@@ -503,7 +503,7 @@ class TestModifyComponentTool:
                 project_id=project_id,
                 slide_index=1,
                 component_id="right.box",
-                instruction="   ",
+                instruction=" ",
             )
 
     def test_design_doc_none_slide_raises(self, tmp_path: Path, monkeypatch) -> None:
@@ -558,7 +558,7 @@ class TestModifyComponentTool:
 
 
 # ---------------------------------------------------------------------------
-# ADR-0049 결정 11: z_index / grid_cell 보존
+# 결정 11: z_index / grid_cell 보존
 # ---------------------------------------------------------------------------
 
 

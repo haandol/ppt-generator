@@ -1,4 +1,4 @@
-"""ADR-0049 Layout layer lint 테스트.
+"""Layout layer lint 테스트.
 
 grid_plan(거시 격자) 단계의 lint:
 - grid-plan-required, grid-cell-coverage, grid-cell-uniformity, region-stacking
@@ -88,7 +88,7 @@ class TestLintDesignSpec:
 
 
 class TestLayoutLayerFilter:
-    """ADR-0049 layer 필터로 layout 위반만 추출."""
+    """layer 필터로 layout 위반만 추출."""
 
     def _slide_with_layout_and_content_violations(self) -> PptxSlideSpec:
         # title font 16pt < 24pt → content / grid_plan=None & content slide → layout

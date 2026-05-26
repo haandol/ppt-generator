@@ -1,6 +1,6 @@
 """렌더러의 paragraph 단위 nowrap 보정 회귀 테스트.
 
-ADR-0017 §4 (렌더링 단계 nowrap 보정) 회귀 방지.
+ §4 (렌더링 단계 nowrap 보정) 회귀 방지.
 
 PPT는 시스템 폰트(맑은 고딕/Consolas) 메트릭으로 폭을 측정하지만 브라우저는
 웹 폰트(Noto Sans KR/Source Code Pro) 메트릭으로 렌더링하기 때문에, 박스 폭에
@@ -49,7 +49,7 @@ class TestShapeMultiParagraphNowrap:
                 ),
                 _para(
                     PptxTextRun(
-                        text='{"tool": "web_search", ...}',
+                        text='{"tool": "web_search",...}',
                         font_size_pt=12,
                         font_family="monospace",
                     )

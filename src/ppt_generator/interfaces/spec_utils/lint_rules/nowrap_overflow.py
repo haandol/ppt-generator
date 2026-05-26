@@ -1,11 +1,11 @@
 """nowrap-overflow: nowrap 으로 렌더될 paragraph 의 추정 폭이 가용 폭을 초과하는지 검사.
 
-ADR-0017 의 nowrap 게이트 (`should_apply_nowrap_to_paragraph`) 는 PPT↔브라우저 폰트
+ 의 nowrap 게이트 (`should_apply_nowrap_to_paragraph`) 는 PPT↔브라우저 폰트
 메트릭 차이로 인한 wrap 회귀를 막기 위해 짧은 한 줄 paragraph 에 `white-space:nowrap`
 을 강제 적용한다. 이 규칙은 nowrap 이 적용될 paragraph 의 추정 폭이 박스 가용 폭을
 실제로 초과하는 경우, 브라우저에서 박스 좌우로 텍스트가 넘칠 수 있음을 사전에 잡는다.
 
-ADR-0047 에서 tolerance 가 0.95 로 보수화되었으므로 정상 경로에서는 위반이 발생하지
+ 에서 tolerance 가 0.95 로 보수화되었으므로 정상 경로에서는 위반이 발생하지
 않아야 한다. 본 규칙은 향후 tolerance 가 다시 느슨해지거나, 다른 경로로 nowrap 이
 적용되는 경우의 회귀 감지가 목적이다.
 
@@ -59,7 +59,7 @@ def _check_paragraphs(
         return
     for p_idx, para in enumerate(paragraphs):
         if para.bullet_level >= 0:
-            # bullet 항목은 렌더러에서 nowrap 을 적용하지 않음 (ADR-0017 §4)
+            # bullet 항목은 렌더러에서 nowrap 을 적용하지 않음 ( §4)
             continue
         if not should_apply_nowrap_to_paragraph(para, usable_width_px):
             continue

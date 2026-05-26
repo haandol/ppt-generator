@@ -90,7 +90,7 @@ class ShapeOutput(BaseModel):
     start_arrow: bool = False
     dash_style: Literal["solid", "dash", "dot"] | None = None
     svg_path: str | None = None
-    # ADR-0049 결정 14: 기본 shrink_text (높이 고정, 폰트 자동 축소)
+    # 결정 14: 기본 shrink_text (높이 고정, 폰트 자동 축소)
     autofit_mode: Literal["expand_height", "shrink_text"] = "shrink_text"
     grid_cell: str | None = None
     component_id: str | None = None  # design_doc.sections[].components[].id 참조
@@ -109,7 +109,7 @@ class GridCellOutput(BaseModel):
 
 
 class GridLayoutOutput(BaseModel):
-    """Stage 2: 슬라이드의 거시 레이아웃 결정 (ADR-0046).
+    """Stage 2: 슬라이드의 거시 레이아웃 결정.
 
     어떤 region 을 쓸지, content 를 몇 행/열로 나눌지의 최상위 결정.
     이 결정 후 cell_assignment 단계에서 cell 정의로 내려간다.
@@ -121,7 +121,7 @@ class GridLayoutOutput(BaseModel):
 
 
 class GridCellAssignmentOutput(BaseModel):
-    """Stage 3: grid_layout 위에서 각 cell 의 위치/span/region/role 할당 (ADR-0046).
+    """Stage 3: grid_layout 위에서 각 cell 의 위치/span/region/role 할당.
 
     Stage 2 의 layout 을 받아 실제 cell 목록을 정의한다. 이 단계 후 element 단계에서
     각 textbox/shape 가 cell id 를 참조해 좌표·스타일을 채운다.
@@ -143,7 +143,7 @@ class LayoutNodeOutput(BaseModel):
 
     kind:
       - "section": 큰 의미 영역 (보통 grid cell 과 매핑, parent_id 없음)
-      - "group":   section 안의 중간 묶음 (옵션)
+      - "group": section 안의 중간 묶음 (옵션)
       - "component": 리프. textbox/shape 가 component_id 로 참조
 
     좌표 필드는 노드의 점유 영역 (bounding box). 부모 bbox 안에 자식 bbox 가
@@ -154,7 +154,7 @@ class LayoutNodeOutput(BaseModel):
     parent_id: str | None = ""  # 부모 노드 id (빈 문자열 또는 null 이면 root section)
     kind: Literal["section", "group", "component"] = "component"
     role: str | None = (
-        ""  # "llm_box" | "context_bus" | "function_card" | "card_title" | ...
+        ""  # "llm_box" | "context_bus" | "function_card" | "card_title" |...
     )
     description: str | None = ""  # 1-2 문장 의미 설명
     cell_id: str | None = ""  # GridPlan.cells[].id (없거나 null 가능)
@@ -337,14 +337,14 @@ class OverflowContent(BaseModel):
 class _BaseSlideSpecOutput(BaseModel):
     """슬라이드 스펙 LLM 출력의 공통 필드/변환 로직.
 
-    ADR-0046: 점진적 추상화 하강을 schema 에 박는다.
-        Stage 2: grid_layout       (regions/columns/rows)
-        Stage 3: cell_assignment   (cells)
-        Stage 3.5: design_doc      (sections/components, 의미 단위)
-        Stage 4: textboxes/shapes  (cell_id + component_id 참조)
+    점진적 추상화 하강을 schema 에 박는다.
+        Stage 2: grid_layout (regions/columns/rows)
+        Stage 3: cell_assignment (cells)
+        Stage 3.5: design_doc (sections/components, 의미 단위)
+        Stage 4: textboxes/shapes (cell_id + component_id 참조)
 
     하위 클래스(`ContentSlideSpecOutput`, `SimpleSlideSpecOutput`)가 grid_layout/
-    cell_assignment 의 Required/Optional 여부만 분기해서 재선언한다 (ADR-0045).
+    cell_assignment 의 Required/Optional 여부만 분기해서 재선언한다.
 
     Pydantic 필드 선언 순서가 LLM 출력 순서를 유도하므로 거시 → 중간 → 미시 순으로
     배치한다.
@@ -452,7 +452,7 @@ class _BaseSlideSpecOutput(BaseModel):
 
 
 class ContentSlideSpecOutput(_BaseSlideSpecOutput):
-    """content 슬라이드용 LLM 응답 모델 (ADR-0045 / ADR-0046).
+    """content 슬라이드용 LLM 응답 모델.
 
     Stage 2(grid_layout), Stage 3(cell_assignment), Stage 3.5(design_doc) 모두
     Required. LLM 이 거시 → 중간 → 미시 순으로 점진적 추상화 하강을 따르도록
@@ -468,7 +468,7 @@ class ContentSlideSpecOutput(_BaseSlideSpecOutput):
 class SimpleSlideSpecOutput(_BaseSlideSpecOutput):
     """title/closing 등 fixed special layout 슬라이드용 LLM 응답 모델.
 
-    ADR-0044 결정 2: title/closing 슬라이드는 grid/design_doc 단계 omit 가능.
+    결정 2: title/closing 슬라이드는 grid/design_doc 단계 omit 가능.
     """
 
     grid_layout: GridLayoutOutput | None = None
@@ -502,11 +502,11 @@ class DesignReviewOutput(BaseModel):
     issues: list[DesignReviewIssue] = Field(default_factory=list)
 
 
-# --- ADR-0050: Component-level partial modification ---
+# --- Component-level partial modification ---
 
 
 class ComponentModifyOutput(BaseModel):
-    """단일 component 부분 수정 응답 (ADR-0050).
+    """단일 component 부분 수정 응답.
 
     `element_kind` 가 "textbox" 면 `textbox` 가 채워지고, "shape" 면 `shape` 가
     채워진다. 다른 한쪽은 None. `bbox_changed=True` 면 호출자가 design_doc.layout
@@ -546,7 +546,7 @@ class BackfillNode(BaseModel):
 
 
 class BackfillDesignDocOutput(BaseModel):
-    """imported 슬라이드에 design_doc 트리를 백필하기 위한 LLM 응답 (ADR-0051).
+    """imported 슬라이드에 design_doc 트리를 백필하기 위한 LLM 응답.
 
     `topic`/`layout_summary` 는 슬라이드 콘텐츠 요약. `nodes` 는 design_doc.layout
     의 flat 트리 (parent_id 참조). 모든 textbox 와 모든 shape 가 정확히 1 개의

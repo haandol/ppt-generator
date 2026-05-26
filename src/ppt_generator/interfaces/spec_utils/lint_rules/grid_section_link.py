@@ -1,6 +1,6 @@
 """grid-section-link: Layout(GridPlan) ↔ Section(design_doc.layout) link 정합성.
 
-ADR-0049 결정 13c (cross-layer rule):
+결정 13c (cross-layer rule):
   - grid-section-link-orphan-cell: design_doc.layout 트리의 어느 노드 cell_id 가
     GridPlan.cells.id 집합에 존재하지 않음.
 
@@ -10,7 +10,7 @@ design_doc.layout 의 `cell_id` 는 Section 영역이 어느 격자 cell 위에 
 역추적하지 못한다.
 
 design_doc 또는 grid_plan 이 None 인 슬라이드 (title/closing/imported 미-backfill)
-는 검사 대상 제외 (조건부 lint, ADR-0049 결정 5 와 일관). cell_id 가 None 인
+는 검사 대상 제외 (조건부 lint, 결정 5 와 일관). cell_id 가 None 인
 노드는 정상 (전역 영역, root 등) — 검사는 cell_id 가 설정된 노드에 한정.
 """
 

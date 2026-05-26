@@ -1,10 +1,10 @@
 """region-stacking: footer 사용 시 content 영역 침범 검사.
 
-ADR-0044: footer region 이 grid_plan.regions 에 포함된 슬라이드에서, content
+footer region 이 grid_plan.regions 에 포함된 슬라이드에서, content
 cell 에 매핑된 element 의 bottom 이 footer region top 을 침범하면 안 된다.
 
 design_summary 의 region 픽셀 범위는 dict 로 관리되어 lint 시점에 직접 접근이
-어렵기 때문에, ADR-0044 의 기본값(footer top=664)을 기준으로 검사한다. 향후
+어렵기 때문에, 의 기본값(footer top=664)을 기준으로 검사한다. 향후
 lint 호출 측에서 design_summary 의 footer_region 을 주입하면 그 값을 우선
 사용하도록 확장 가능.
 """

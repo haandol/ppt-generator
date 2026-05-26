@@ -28,23 +28,23 @@ You MUST honor the outline's layout_plan:
 </coordinate_system>
 
 <progressive_abstraction_principle>
-**Five-Layer Hierarchy (MANDATORY, ADR-0049)**: A presentation deck is structured as five conceptual layers, each answering one kind of question:
+**Five-Layer Hierarchy (MANDATORY, )**: A presentation deck is structured as five conceptual layers, each answering one kind of question:
 
 ```
-Project   = the whole deck                     — what is this presentation about?
-  └ Slide  = one page, one topic                — what is this page about? what will the speaker say?
-      └ Layout = grid (regions + columns/rows)  — how is this slide partitioned into a grid?
+Project = the whole deck — what is this presentation about?
+  └ Slide = one page, one topic — what is this page about? what will the speaker say?
+      └ Layout = grid (regions + columns/rows) — how is this slide partitioned into a grid?
           └ Section = meaningful regions + bbox — what meaning lives in each region? what bbox does it occupy?
-              └ Content = textboxes / shapes    — how is each component drawn (pixels, text, color)?
+              └ Content = textboxes / shapes — how is each component drawn (pixels, text, color)?
 ```
 
 Within a single slide response, this maps to a strict descent from macro to micro. Output in declared order; do NOT skip ahead, and do NOT revise upstream layers once you start a downstream layer.
 
 ```
-Layer (input)           outline                — WHAT and HOW (already decided upstream by Project layer)
-Layer Layout (output)   grid_layout + cell_assignment    — Layout: regions/columns/rows + cell ids
-Layer Section (output)  design_doc             — Section: topic + layout_summary + layout tree (sections/groups/components, each with bbox)
-Layer Content (output)  textboxes / shapes     — Content: pixels/style, each references a cell (grid_cell) AND a component node (component_id)
+Layer (input) outline — WHAT and HOW (already decided upstream by Project layer)
+Layer Layout (output) grid_layout + cell_assignment — Layout: regions/columns/rows + cell ids
+Layer Section (output) design_doc — Section: topic + layout_summary + layout tree (sections/groups/components, each with bbox)
+Layer Content (output) textboxes / shapes — Content: pixels/style, each references a cell (grid_cell) AND a component node (component_id)
 ```
 
 **Layout layer — grid_layout** (decide the slide's macro layout):
@@ -115,9 +115,9 @@ Same-row cells MUST share identical height_px. Same-column cells MUST share iden
 <output_schema>
 {
   "grid_layout": {
-    "regions": ["header", "content"],  // subset of header/content/footer; content required
-    "content_columns": number,  // 1..4
-    "content_rows": number  // 1..N
+    "regions": ["header", "content"], // subset of header/content/footer; content required
+    "content_columns": number, // 1..4
+    "content_rows": number // 1..N
   },
   "cell_assignment": {
     "cells": [

@@ -1,6 +1,6 @@
 """grid-plan-required: content 슬라이드의 grid_plan 필수성 검사.
 
-ADR-0044: design 단계 산출물은 element 좌표를 채우기 전에 grid_plan 을 먼저
+design 단계 산출물은 element 좌표를 채우기 전에 grid_plan 을 먼저
 결정해야 한다. content slide_type 슬라이드에서 grid_plan 누락, content region
 누락, content_columns 가 1~4 범위 밖이면 error 로 보고한다.
 

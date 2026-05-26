@@ -1,6 +1,6 @@
 """section-grid-containment: 섹션·cell 영역을 벗어나는 element 검출.
 
-ADR-0049 결정 13g (cross layer rule):
+결정 13g (cross layer rule):
 
 각 element (textbox/shape) 는 자신이 속한 의미 영역(Section / Layout cell) 을
 벗어나는 좌표를 가져선 안 된다. design_doc.layout 트리에서 element 의
@@ -10,7 +10,7 @@ component_id 를 leaf 로 잡고, 그 leaf 의 *조상* section/group 노드의 
 또한 element 의 grid_cell 이 GridPlan.cells 의 어떤 cell 을 가리킨다면,
 그 cell 의 bbox 영역(region+row+col 으로 추정) 안에 element 가 들어와야 한다.
 
-설계 원칙: ADR-0049 결정 3 ("Section/group 노드는 자식보다 *먼저* bbox 결정,
+설계 원칙: 결정 3 ("Section/group 노드는 자식보다 *먼저* bbox 결정,
 자식 bbox 는 부모 bbox 안에 완전히 포함") 을 *Content* 차원까지 확장.
 section-element-bbox-mismatch 는 leaf↔element 1:1 동기화를 검사하지만,
 이 규칙은 *조상 section* 까지 거슬러 올라가 "내가 속한 의미 영역" 을 element

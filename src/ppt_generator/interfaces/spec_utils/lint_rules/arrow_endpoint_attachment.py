@@ -1,6 +1,6 @@
 """arrow-endpoint-attachment: 화살표 끝점이 박스 변에 부착되어 있는지 검사.
 
-ADR-0048. `end_arrow=True` 또는 `start_arrow=True` 인 line shape 의 화살표 끝점이
+. `end_arrow=True` 또는 `start_arrow=True` 인 line shape 의 화살표 끝점이
 어떤 non-decorative shape 의 외곽 변에서 LINT_ARROW_ATTACH_TOLERANCE_PX 이내에
 위치하지 않으면 경고. 박스 위치를 옮긴 뒤 연결선 좌표를 갱신하지 않아 화살표가
 허공에서 끝나는 회귀를 좌표 기반으로 사전 차단한다.

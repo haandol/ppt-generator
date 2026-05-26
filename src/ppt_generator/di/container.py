@@ -145,7 +145,7 @@ class DIContainer:
         return DesignReviewService(agent=self._create_review_agent())
 
     def _create_backfill_agent(self) -> Agent:
-        """ADR-0051: imported 슬라이드의 design_doc 추론용 agent (review 모델 재사용)."""
+        """imported 슬라이드의 design_doc 추론용 agent (review 모델 재사용)."""
         model = (
             create_anthropic_review_model
             if self._provider == "anthropic"

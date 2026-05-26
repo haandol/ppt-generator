@@ -1,6 +1,6 @@
 """grid-cell-coverage: 선언된 cell 의 미사용/중복 매핑 검사.
 
-ADR-0044: 모든 textbox/shape 는 grid_cell 로 선언된 cell 을 참조해야 한다
+모든 textbox/shape 는 grid_cell 로 선언된 cell 을 참조해야 한다
 (decorative element 는 명시적으로 null). 선언만 되고 어느 element 도 참조하지
 않는 cell, 그리고 동일 cell 에 여러 element 가 매핑되어 의도치 않은 중첩이
 발생하는 경우를 잡는다.

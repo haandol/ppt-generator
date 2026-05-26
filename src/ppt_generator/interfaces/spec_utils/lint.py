@@ -5,7 +5,7 @@
 
 규칙 구현은 lint_rules/ 패키지에 규칙별 파일로 분리되어 있다.
 
-ADR-0049 결정 13b — `lint_slide_spec(stop_on_layer_error=True)` 가 layer 별
+결정 13b — `lint_slide_spec(stop_on_layer_error=True)` 가 layer 별
 단계적 검증을 수행한다. layout → section → cross → content 순으로 검사하다가
 어느 layer 에 severity="error" 위반이 나오면 그 다음 layer 검사를 중단한다.
 거시 위반의 신호가 미시 노이즈에 가려지지 않게 한다.
@@ -27,7 +27,7 @@ from ppt_generator.interfaces.spec_utils.lint_types import (
 
 logger = logging.getLogger(__name__)
 
-# 단계적 lint 진행 순서. ADR-0049 결정 13a — 거시(Layout) → 의미(Section) →
+# 단계적 lint 진행 순서. 결정 13a — 거시(Layout) → 의미(Section) →
 # 계층 간 link(Cross) → 미시 픽셀(Content).
 _LAYER_ORDER: tuple[str, ...] = ("layout", "section", "cross", "content")
 
@@ -62,12 +62,12 @@ def lint_slide_spec(
     Args:
         spec: 검사할 슬라이드
         slide_index: 슬라이드 번호 (1-based)
-        layers: ADR-0049 5단 계층 중 검사할 layer 목록 (예: ["layout"], ["section"]).
+        layers: 5단 계층 중 검사할 layer 목록 (예: ["layout"], ["section"]).
             None 이면 모든 layer 검사. layer 별 단계적 lint 호출 시 사용.
         stop_on_layer_error: True 면 layout → section → cross → content 순으로
             layer 별 검사를 진행하다가 어느 layer 에 severity="error" 위반이
             발견되면 다음 layer 검사를 중단한다. 거시 위반이 미시 노이즈에
-            가려지지 않게 한다 (ADR-0049 결정 13b). 기본 False — 모든 규칙을
+            가려지지 않게 한다. 기본 False — 모든 규칙을
             한 번에 실행 (기존 동작).
     """
     result = SlideLintResult(slide_index=slide_index)
@@ -146,7 +146,7 @@ def clean_slide_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
 def _clean_spec(spec: PptxSlideSpec) -> PptxSlideSpec:
     """빈 텍스트박스를 제거한다.
 
-    ADR-0049 결정 7: 정리 의도가 들어간 필드(textboxes)만 변경하고 5단 계층 필드
+    결정 7: 정리 의도가 들어간 필드(textboxes)만 변경하고 5단 계층 필드
     (grid_plan, design_doc 등) 는 무손실로 통과시킨다. 새 필드 추가 시 누락
     위험이 없도록 dataclass.replace() 를 사용한다.
     """

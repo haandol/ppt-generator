@@ -18,7 +18,7 @@ Color theme: {color_theme}
 </input>
 
 <output_requirements>
-If this is a content slide, follow the five-layer hierarchy strictly (ADR-0049):
+If this is a content slide, follow the five-layer hierarchy strictly:
 1. **Layout** — output `grid_layout` (regions / content_columns / content_rows) FIRST, then `cell_assignment.cells` (id / region / row / col / span / role). Declare every cell BEFORE any element.
 2. **Section** — output `design_doc` with `topic`, `layout_summary`, and `layout` (flat list of LayoutNode with `parent_id` references). Each section/group/component carries its bbox (`left_px`, `top_px`, `width_px`, `height_px`). Sibling bboxes must not overlap; child bboxes must fit inside parent.
 3. **Content** — output `textboxes` / `shapes`, each referencing a cell via `grid_cell` AND a leaf component node via `component_id`.

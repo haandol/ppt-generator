@@ -1,10 +1,10 @@
 """section-element-bbox-mismatch: design_doc leaf bbox ↔ element bbox 동기화.
 
-ADR-0049 결정 13d (cross-layer rule):
+결정 13d (cross-layer rule):
   - section-element-bbox-mismatch: component leaf 의 bbox 와 그 leaf 를
     component_id 로 참조하는 textbox/shape 의 bbox 가 임계값 초과로 어긋남.
 
-ADR-0049 결정 3 ("Section bbox 가 Content bbox 보다 *먼저* 결정된다") 의
+결정 3 ("Section bbox 가 Content bbox 보다 *먼저* 결정된다") 의
 약속을 lint 차원에서 검증한다. 두 bbox 가 어긋나면 modify_component 가 동기화
 시점에 의존하게 되고, 시각 결과가 사용자가 design_doc 트리에서 인지한 영역과
 달라진다.
@@ -25,7 +25,7 @@ from ppt_generator.interfaces.spec_utils.lint_types import (
     SlideLintResult,
 )
 
-# 8px = ADR-0049 결정 13d. Section bbox 는 의미 영역의 *외곽*, element bbox 는
+# 8px = 결정 13d. Section bbox 는 의미 영역의 *외곽*, element bbox 는
 # 실제 그려지는 픽셀이라 미세한 오차는 허용한다. 단, 한 변이라도 8px 초과로
 # 어긋나면 사용자가 인지하는 영역과 시각 결과가 달라진다.
 _BBOX_TOLERANCE_PX = 8.0

@@ -1,6 +1,6 @@
 """Lint 규칙 모음. 각 규칙은 (spec, result) → None 시그니처의 함수.
 
-ADR-0049 결정 13a — `ALL_RULES` 는 layer 그룹으로 정렬되어 있다 (layout →
+결정 13a — `ALL_RULES` 는 layer 그룹으로 정렬되어 있다 (layout →
 section → cross → content). lint_slide_spec(stop_on_layer_error=True) 가
 layer 별 단계적 검증을 수행할 수 있도록 `RULES_BY_LAYER` 도 함께 노출한다.
 """
@@ -87,7 +87,7 @@ from ppt_generator.interfaces.spec_utils.lint_rules.zero_size_shape import (
     check_zero_size_shape,
 )
 
-# ADR-0049 결정 13a — layer 그룹 순서로 정렬. layer 별 단계적 lint 호출 시
+# 결정 13a — layer 그룹 순서로 정렬. layer 별 단계적 lint 호출 시
 # fail-stop 가 의미 있도록 layout(거시) → section → cross → content(미시) 순.
 RULES_BY_LAYER: dict[str, list] = {
     "layout": [

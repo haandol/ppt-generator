@@ -189,7 +189,7 @@ def handle_modify(
             (slide_index - 1) if 1 <= slide_index <= new_count else new_count - 1
         )
         spec = project_service.load_design_spec_slide(project_dir, target_idx)
-        # ADR-0049 결정 13b — 단계적 lint: 거시 위반 발견 시 다음 layer 스킵.
+        # 결정 13b — 단계적 lint: 거시 위반 발견 시 다음 layer 스킵.
         slide_lint = lint_slide_spec(
             spec, slide_index=target_idx + 1, stop_on_layer_error=True
         )
@@ -236,7 +236,7 @@ def _generate_and_review(
             from ppt_generator.interfaces.spec_utils import lint_slide_spec
             from ppt_generator.tools.design.review_service import apply_review_and_fix
 
-            # ADR-0049 결정 13b — review LLM 에 layer 별 단계적 lint 결과 전달.
+            # 결정 13b — review LLM 에 layer 별 단계적 lint 결과 전달.
             lint_result = lint_slide_spec(spec, stop_on_layer_error=True)
 
             def _regenerate(feedback: str) -> tuple:
@@ -467,7 +467,7 @@ def handle_modify_component(
     instruction: str,
     color_theme: str,
 ) -> str:
-    """ADR-0050: 단일 component 부분 수정.
+    """단일 component 부분 수정.
 
     슬라이드 전체 spec 을 LLM 에 컨텍스트로 주고 대상 component_id 의 element 만
     수정한다. 트리 구조 변경, 다른 element/grid_plan/배경/speaker_notes 변경은
@@ -518,7 +518,7 @@ def handle_modify_component(
     backfilled = False
 
     if spec.design_doc is None:
-        # ADR-0051: imported 슬라이드는 lazy backfill
+        # imported 슬라이드는 lazy backfill
         if spec.slide_type not in ("content", ""):
             _raise_validation(
                 "modify_component",
@@ -614,7 +614,7 @@ def handle_modify_component(
     if slide_html_path:
         result["slide_html_path"] = slide_html_path
 
-    # ADR-0049 결정 13b — modify_component 후에도 단계적 검증.
+    # 결정 13b — modify_component 후에도 단계적 검증.
     slide_lint = lint_slide_spec(
         new_spec, slide_index=slide_index, stop_on_layer_error=True
     )

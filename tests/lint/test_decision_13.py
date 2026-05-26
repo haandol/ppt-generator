@@ -1,4 +1,4 @@
-"""ADR-0049 결정 13 — 단계적 lint, grid-section-link, section-element-bbox,
+"""결정 13 — 단계적 lint, grid-section-link, section-element-bbox,
 section-grid-containment, edge-alignment 신규 규칙 테스트.
 """
 

@@ -1,6 +1,6 @@
 """sibling-grid-uniformity / grid-cell-uniformity: 같은 row/column cell 의 크기 균일성 검사.
 
-ADR-0044 이후 두 가지 모드로 동작한다.
+ 이후 두 가지 모드로 동작한다.
 
 1) grid_plan 있는 경우 (grid-cell-uniformity 모드):
    grid_plan.cells 의 (row, col, row_span, col_span) 을 신뢰하여, 같은 row 의

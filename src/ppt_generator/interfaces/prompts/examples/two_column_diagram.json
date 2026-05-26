@@ -1,5 +1,5 @@
 {
-  "_comment": "ADR-0049 5단 계층 데모. content slide 의 grid_layout/cell_assignment/design_doc/textboxes/shapes 가 모두 채워져 있고, design_doc.layout 트리의 leaf id 가 textbox/shape 의 component_id 와 매칭된다.",
+  "_comment": " 5단 계층 데모. content slide 의 grid_layout/cell_assignment/design_doc/textboxes/shapes 가 모두 채워져 있고, design_doc.layout 트리의 leaf id 가 textbox/shape 의 component_id 와 매칭된다.",
   "grid_layout": {
     "regions": ["header", "content"],
     "content_columns": 2,

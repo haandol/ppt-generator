@@ -1,4 +1,4 @@
-"""component-id-link: Section ↔ Content 계층 link 정합성 검사 (ADR-0049 결정 12).
+"""component-id-link: Section ↔ Content 계층 link 정합성 검사.
 
 Cross-layer rule:
   - component-id-link-orphan-element: textbox/shape 의 component_id 가 design_doc.layout
@@ -9,7 +9,7 @@ Cross-layer rule:
     (textbox-shape 양쪽 또는 같은 collection 내 중복)
 
 design_doc 자체가 None 인 슬라이드 (title/closing/imported 미-backfill) 는 검사 대상
-제외 — None 은 정상 graceful fallback (ADR-0049 결정 5).
+제외 — None 은 정상 graceful fallback.
 component_id 가 None 인 element 는 정상 (장식 connector 등). 검사는 component_id 가
 설정된 element 에 한정한다.
 """

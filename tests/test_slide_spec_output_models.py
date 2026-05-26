@@ -1,4 +1,4 @@
-"""ADR-0045 / ADR-0046: 점진적 추상화 하강 응답 모델 테스트.
+"""/ 점진적 추상화 하강 응답 모델 테스트.
 
 ContentSlideSpecOutput 은 grid_layout (Stage 2) 와 cell_assignment (Stage 3) 모두
 Pydantic Required 로 강제한다. SimpleSlideSpecOutput 은 title/closing 슬라이드용으로

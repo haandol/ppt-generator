@@ -158,7 +158,7 @@ class DesignService:
             raise
         raw_text = str(result)
 
-        # Extract JSON block (```json ... ``` or raw JSON)
+        # Extract JSON block (```json... ``` or raw JSON)
         json_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", raw_text, re.DOTALL)
         if json_match:
             raw_text = json_match.group(1)
@@ -228,7 +228,7 @@ class DesignService:
     ) -> PptxSlideSpec:
         """Imported 슬라이드(design_doc=None)에 design_doc 트리를 LLM 으로 backfill한다.
 
-        ADR-0051: textbox/shape 의 좌표/스타일/텍스트는 변경하지 않고, design_doc.layout
+        textbox/shape 의 좌표/스타일/텍스트는 변경하지 않고, design_doc.layout
         트리 + 각 element 의 component_id 만 채운다. grid_plan 은 None 유지.
         bbox 는 코드에서 element bbox 합집합으로 계산.
 
@@ -275,7 +275,7 @@ class DesignService:
         slide_index: int = 1,
         color_theme: str = "dark",
     ) -> PptxSlideSpec:
-        """Applies a surgical modification to a single component (ADR-0050).
+        """Applies a surgical modification to a single component.
 
         Returns a new PptxSlideSpec with exactly one textbox/shape replaced
         (and its design_doc.layout node bbox synced if bbox changed).
@@ -314,7 +314,7 @@ class DesignService:
                 f"component_id={component_id} is a {kind}. Modification rejected."
             )
 
-        # ADR-0049 결정 11: LLM schema 에 없는 비-design 메타 필드는 기존 element
+        # 결정 11: LLM schema 에 없는 비-design 메타 필드는 기존 element
         # 에서 보존한다. component_id 는 입력값을 그대로 유지.
         if kind == "textbox":
             if output.textbox is None:
@@ -387,7 +387,7 @@ class DesignService:
     ) -> PptxSlideSpec:
         """Generates and validates slide spec via strands structured_output.
 
-        ADR-0045: slide_type 에 따라 응답 모델을 분기해 content 슬라이드는
+        slide_type 에 따라 응답 모델을 분기해 content 슬라이드는
         grid_plan 을 Pydantic Required 로 강제한다. title/closing 은 옵셔널.
         """
         model: type[_BaseSlideSpecOutput] = (
@@ -483,7 +483,7 @@ class DesignService:
 
 
 # ---------------------------------------------------------------------------
-# ADR-0050: helpers for modify_component
+# helpers for modify_component
 # ---------------------------------------------------------------------------
 
 
@@ -497,7 +497,7 @@ def _find_element_by_component_id(
 
     Raises:
         ValueError: component_id 가 어디에도 없거나 (정상 케이스), 두 곳 이상에서
-            중복 매칭 (ambiguous link, ADR-0049 결정 12).
+            중복 매칭 (ambiguous link, 결정 12).
     """
     matches: list[tuple[str, int, PptxTextBox | PptxShape]] = []
     for i, tb in enumerate(spec.textboxes):
@@ -562,7 +562,7 @@ def _replace_node_bbox(
 
 
 # ---------------------------------------------------------------------------
-# ADR-0051: helpers for backfill_design_doc
+# helpers for backfill_design_doc
 # ---------------------------------------------------------------------------
 
 

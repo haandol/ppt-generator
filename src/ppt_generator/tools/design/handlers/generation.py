@@ -134,7 +134,7 @@ async def handle_generate(
         )
 
     # --- Step 4: Lint design spec ---
-    # ADR-0049 결정 13b — 단계적 검증: layout(거시)부터 차례로 검사하다가 어느
+    # 결정 13b — 단계적 검증: layout(거시)부터 차례로 검사하다가 어느
     # layer 에 error 가 나면 다음 layer 검사를 스킵해 거시 위반을 미시 노이즈로
     # 가리지 않는다.
     lint_result_dict: dict | None = None
@@ -144,7 +144,7 @@ async def handle_generate(
         lint_result = lint_design_spec(design_spec.slides, stop_on_layer_error=True)
         if lint_result.has_violations:
             lint_result_dict = lint_result.to_dict()
-        # ADR-0049 결정 13e — cross-layer error 는 응답에 명시적으로 노출.
+        # 결정 13e — cross-layer error 는 응답에 명시적으로 노출.
         for slide_result in lint_result.slides:
             for v in slide_result.violations:
                 if v.severity == "error" and v.layer == "cross":

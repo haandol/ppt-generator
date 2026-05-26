@@ -1,4 +1,4 @@
-"""ADR-0044 grid-first design spec lint 규칙 테스트.
+"""grid-first design spec lint 규칙 테스트.
 
 신규/변경 규칙:
 - grid-plan-required: content 슬라이드에 grid_plan 필수 (error)

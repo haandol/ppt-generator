@@ -1,6 +1,6 @@
 """modify_design_spec 도구 테스트 (add / update / delete).
 
-ADR-0050 의 modify_component 와 별개로, modify_design_spec 은 슬라이드
+ 의 modify_component 와 별개로, modify_design_spec 은 슬라이드
 단위(전체 재생성 또는 add/delete) 변경을 다룬다. HTML 동기화 동작은
 TestModifyDesignSpecHtmlSync 에서 별도 검증.
 """

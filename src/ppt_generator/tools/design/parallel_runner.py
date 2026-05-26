@@ -157,7 +157,7 @@ def run_parallel_generation(
                     # 기계적 린트를 먼저 돌려 LLM 리뷰에 힌트로 전달.
                     # LLM 은 이미 잡힌 위반을 중복 보고하지 않고 시각/의미
                     # 레벨 이슈만 찾는 데 집중하게 된다.
-                    # ADR-0049 결정 13b — 단계적 검증.
+                    # 결정 13b — 단계적 검증.
                     lint_result = lint_slide_spec(spec, stop_on_layer_error=True)
 
                     def _regenerate(feedback: str) -> tuple:

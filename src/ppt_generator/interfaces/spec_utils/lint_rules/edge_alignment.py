@@ -1,6 +1,6 @@
 """edge-alignment: 슬라이드 외곽 element 들의 좌/우/상/하 변 정렬 검사.
 
-ADR-0049 결정 13f (content layer rule):
+결정 13f (content layer rule):
 
 같은 슬라이드 안에 배치된 element 들 중 좌측 외곽에 가까운 element 들(left
 값이 슬라이드 최소 left 와 cluster_threshold 안)은 left 값이 일치해야 한다.

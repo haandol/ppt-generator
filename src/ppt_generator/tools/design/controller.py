@@ -175,7 +175,7 @@ def register_design_tools(
         instruction: str,
         color_theme: str = "dark",
     ) -> str:
-        """Modifies exactly ONE component on a content slide via natural-language instruction (ADR-0050).
+        """Modifies exactly ONE component on a content slide via natural-language instruction.
 
         Use this for *narrow* changes like "make the LLM box red", "rename the second
         function card to db_query", "shift the diagram block 24px to the right".
@@ -186,7 +186,7 @@ def register_design_tools(
         For broader changes (replace 3 cards at once, change overall topic, restructure
         layout), use `modify_design_spec(action="update")` instead.
 
-        **Imported slides (ADR-0051)**: Imported PPTX slides start with `design_doc=None`.
+        **Imported slides**: Imported PPTX slides start with `design_doc=None`.
         On the first call to this tool, design_doc is auto-backfilled (LLM infers the
         section tree + component_id linkage from existing textbox/shape positions).
         If the requested `component_id` is not in the backfilled tree, the response

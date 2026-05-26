@@ -1,4 +1,4 @@
-"""ADR-0049 Content layer lint 테스트.
+"""Content layer lint 테스트.
 
 단일 textbox/shape 의 텍스트·픽셀·스타일 위반:
 - title-font-min, font-range, canvas-overflow,
@@ -680,7 +680,7 @@ class TestZeroSizeShape:
 
 
 # ---------------------------------------------------------------------------
-# nowrap-overflow (ADR-0047)
+# nowrap-overflow
 # ---------------------------------------------------------------------------
 
 
@@ -768,7 +768,7 @@ class TestNowrapOverflow:
 
 
 class TestContentLayerFilter:
-    """ADR-0049 layer 필터 — content layer 만 추출."""
+    """layer 필터 — content layer 만 추출."""
 
     def _slide(self) -> PptxSlideSpec:
         return PptxSlideSpec(
@@ -785,7 +785,7 @@ class TestContentLayerFilter:
 
 
 # ---------------------------------------------------------------------------
-# ADR-0049 결정 14: PptxShape autofit_mode 기본값
+# 결정 14: PptxShape autofit_mode 기본값
 # ---------------------------------------------------------------------------
 
 

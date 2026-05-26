@@ -1,7 +1,7 @@
 <slide_type_title>
 Title slide (slide_type: "title") design rules:
 
-- Title slides have a fixed special layout (main title + divider + subtitle + presenter info), so `grid_layout`, `cell_assignment`, and `design_doc` MAY all be omitted (output `null` or skip the fields). Element-level `grid_cell` and `component_id` should also be omitted/null. (ADR-0049 결정 9: title/closing 슬라이드는 5단 계층 중 Layout/Section 단계 생략 허용.)
+- Title slides have a fixed special layout (main title + divider + subtitle + presenter info), so `grid_layout`, `cell_assignment`, and `design_doc` MAY all be omitted (output `null` or skip the fields). Element-level `grid_cell` and `component_id` should also be omitted/null. (결정 9: title/closing 슬라이드는 5단 계층 중 Layout/Section 단계 생략 허용.)
 - The first slide of the presentation. Contains topic name, subtitle, and presenter information
 - Set background_color to null (background image will be auto-inserted)
 - Do not place elements in the bottom-right area (left_px > 1080, top_px > 600) (logo auto-insertion area)
@@ -34,7 +34,7 @@ Title slide (slide_type: "title") design rules:
         "vertical_alignment": "top",
         "paragraphs": [
           {"runs": [{"text": "Subtitle or presentation description", "font_size_pt": 16, "color": "#CBD5E1", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"},
-          {"runs": [{"text": "Audience: Engineers  |  Internal Tech Sharing", "font_size_pt": 14, "color": "#CBD5E1", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
+          {"runs": [{"text": "Audience: Engineers | Internal Tech Sharing", "font_size_pt": 14, "color": "#CBD5E1", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
         ]
       },
       {

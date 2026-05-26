@@ -1,6 +1,6 @@
 # Design Spec Examples
 
-ADR-0049 5단 계층(Project / Slide / Layout / Section / Content)을 충실히 따르는
+ 5단 계층(Project / Slide / Layout / Section / Content)을 충실히 따르는
 슬라이드 design spec 예시 모음. 현재는 인-컨텍스트 학습용 reference 자료이며
 프롬프트 빌더가 자동 주입하지 않는다 (base prompt 가 inline `<examples>` 블록을
 유지). 향후 동적 예시 주입이 필요해지면 이 폴더를 loader 가 읽는다.

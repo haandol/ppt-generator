@@ -1,4 +1,4 @@
-"""ADR-0049 Cross layer lint 테스트.
+"""Cross layer lint 테스트.
 
 요소 간 관계 / 계층 간 link 위반:
 - arrow-endpoint-attachment, label-orphan,
@@ -152,7 +152,7 @@ class TestSiblingGridUniformity:
 
 
 # ---------------------------------------------------------------------------
-# arrow-endpoint-attachment (ADR-0048)
+# arrow-endpoint-attachment
 # ---------------------------------------------------------------------------
 
 
@@ -235,7 +235,7 @@ class TestArrowEndpointAttachment:
 
 
 # ---------------------------------------------------------------------------
-# label-orphan (ADR-0048)
+# label-orphan
 # ---------------------------------------------------------------------------
 
 
@@ -550,7 +550,7 @@ class TestTextboxTextboxOverlap:
 
 
 # ---------------------------------------------------------------------------
-# component-id-link (ADR-0049 결정 12)
+# component-id-link
 # ---------------------------------------------------------------------------
 
 

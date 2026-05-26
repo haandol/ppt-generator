@@ -154,7 +154,7 @@ class PptxShape:
     svg_path: str | None = (
         None  # SVG path data for custom freeform shapes (shape_type="custom")
     )
-    # ADR-0049 결정 14: shape autofit 기본은 "shrink_text" (높이 고정, 폰트 자동 축소).
+    # 결정 14: shape autofit 기본은 "shrink_text" (높이 고정, 폰트 자동 축소).
     # expand_height 는 height 가 늘어나며 sibling 과 충돌하기 쉬워 grid 균일성을 깬다.
     # shrink_text 는 카드 높이 통일을 보장하고, 폰트가 작아져도 font-range lint 가
     # 10pt 미만은 잡아준다. 시각적 잘림을 피하는 대신 폰트 크기를 양보하는 정책.
@@ -221,12 +221,12 @@ class LayoutNode:
 
     kind 별 의미:
       - "section": 슬라이드의 큰 의미 영역 (보통 1개 이상의 grid cell 과 매핑)
-      - "group":  section 안의 중간 묶음 (예: 다이어그램 안의 LLM 서브시스템)
+      - "group": section 안의 중간 묶음 (예: 다이어그램 안의 LLM 서브시스템)
       - "component": 리프. 실제 textbox/shape 가 component_id 로 참조하는 노드
 
     id 는 트리 path 형태 (e.g. "right_diagram", "right_diagram.llm_box",
     "right_diagram.functions.web_search"). lower_snake_case + dot 구분.
-    role 은 자유 라벨 ("card_title", "axis_label", "llm_box", ...).
+    role 은 자유 라벨 ("card_title", "axis_label", "llm_box",...).
     cell_id 는 연결된 GridPlan cell id (없으면 빈 문자열).
     children 는 비어 있으면 leaf (component).
 

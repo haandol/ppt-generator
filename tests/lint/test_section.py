@@ -1,4 +1,4 @@
-"""ADR-0049 Section layer lint 테스트.
+"""Section layer lint 테스트.
 
 design_doc.layout 트리(섹션/그룹/컴포넌트)의 bbox·구조 검증:
 - layout-tree-sibling-overlap, layout-tree-containment,

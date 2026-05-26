@@ -1,4 +1,4 @@
-"""ADR-0051: imported 슬라이드 design_doc lazy backfill 테스트.
+"""imported 슬라이드 design_doc lazy backfill 테스트.
 
 DesignService.backfill_design_doc + _apply_backfill_output + handle_modify_component
 의 backfill 분기를 검증.

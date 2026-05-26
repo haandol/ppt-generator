@@ -1,7 +1,7 @@
 <slide_type_closing>
 Thank You slide (slide_type: "closing") design rules:
 
-- Closing slides have a fixed special layout (thank-you + divider + Q&A + contact), so `grid_layout`, `cell_assignment`, and `design_doc` MAY all be omitted (output `null` or skip the fields). Element-level `grid_cell` and `component_id` should also be omitted/null. (ADR-0049 결정 9: title/closing 슬라이드는 5단 계층 중 Layout/Section 단계 생략 허용.)
+- Closing slides have a fixed special layout (thank-you + divider + Q&A + contact), so `grid_layout`, `cell_assignment`, and `design_doc` MAY all be omitted (output `null` or skip the fields). Element-level `grid_cell` and `component_id` should also be omitted/null. (결정 9: title/closing 슬라이드는 5단 계층 중 Layout/Section 단계 생략 허용.)
 - The last slide of the presentation. Contains thank you message, contact information, Q&A guidance
 - Set background_color to null (background image will be auto-inserted)
 - Do not place elements in the bottom-right area (left_px > 1080, top_px > 600) (logo auto-insertion area)
@@ -37,7 +37,7 @@ Thank You slide (slide_type: "closing") design rules:
         "left_px": 64, "top_px": 450, "width_px": 1000, "height_px": 120,
         "vertical_alignment": "top",
         "paragraphs": [
-          {"runs": [{"text": "References  ", "font_size_pt": 14, "color": "#3B82F6", "bold": true, "italic": false}, {"text": "Official Documentation  |  Guide Link", "font_size_pt": 14, "color": "#CBD5E1", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
+          {"runs": [{"text": "References ", "font_size_pt": 14, "color": "#3B82F6", "bold": true, "italic": false}, {"text": "Official Documentation | Guide Link", "font_size_pt": 14, "color": "#CBD5E1", "bold": false, "italic": false}], "bullet_level": -1, "alignment": "left"}
         ]
       }
     ],
