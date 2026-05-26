@@ -1,6 +1,7 @@
 <task>
-Build a `design_doc` tree for this imported slide. Do not modify any element —
-only group them into sections/components.
+Build a `design_doc` tree AND a `grid_plan` for this imported slide. Do not
+modify any element — only group them into sections/components and infer the
+underlying grid.
 </task>
 
 <context>
@@ -19,4 +20,7 @@ Slide index: {slide_index}
 - Keep ids stable, lower_snake_case, semantic.
 - Use depth 2 by default; depth 3 only when a section has many components or a
   clear sub-system.
+- Also emit `grid_layout` (regions / content_columns / content_rows) and
+  `cell_assignment` (list of cells with id/region/row/col/spans/role) that
+  approximately matches the slide's visible layout. content_columns is 1..4.
 </reminders>

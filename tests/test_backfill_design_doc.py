@@ -17,6 +17,9 @@ from ppt_generator.interfaces.llm_output_models import (
     BackfillDesignDocOutput,
     BackfillElementRef,
     BackfillNode,
+    GridCellAssignmentOutput,
+    GridCellOutput,
+    GridLayoutOutput,
 )
 from ppt_generator.interfaces.schemas import (
     DesignDoc,
@@ -303,6 +306,56 @@ class TestApplyBackfillOutput:
         )
         with pytest.raises(ValueError, match="duplicate node id"):
             _apply_backfill_output(spec, output)
+
+    def test_grid_plan_backfilled(self) -> None:
+        """LLM 이 grid_layout/cell_assignment 를 출력하면 grid_plan 이 채워진다."""
+        spec = _imported_slide()
+        output = _backfill_output_for_imported()
+        output.grid_layout = GridLayoutOutput(
+            regions=["header", "content"],
+            content_columns=2,
+            content_rows=1,
+        )
+        output.cell_assignment = GridCellAssignmentOutput(
+            cells=[
+                GridCellOutput(
+                    id="header_main",
+                    region="header",
+                    row=1,
+                    col=1,
+                    role="title_bar",
+                ),
+                GridCellOutput(
+                    id="left_col",
+                    region="content",
+                    row=1,
+                    col=1,
+                    role="explanation",
+                ),
+                GridCellOutput(
+                    id="right_col",
+                    region="content",
+                    row=1,
+                    col=2,
+                    role="diagram",
+                ),
+            ],
+        )
+        new_spec = _apply_backfill_output(spec, output)
+        assert new_spec.grid_plan is not None
+        gp = new_spec.grid_plan
+        assert gp.regions == ["header", "content"]
+        assert gp.content_columns == 2
+        assert gp.content_rows == 1
+        assert {c.id for c in gp.cells} == {"header_main", "left_col", "right_col"}
+
+    def test_grid_plan_omitted_keeps_none(self) -> None:
+        """grid_layout 이 없으면 grid_plan 은 기존 값(None) 유지."""
+        spec = _imported_slide()
+        output = _backfill_output_for_imported()
+        # grid_layout / cell_assignment 모두 None
+        new_spec = _apply_backfill_output(spec, output)
+        assert new_spec.grid_plan is None
 
     def test_already_has_design_doc_skipped(self) -> None:
         """이미 design_doc 있으면 backfill_design_doc 은 그대로 반환."""

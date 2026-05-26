@@ -7,6 +7,7 @@ from mcp.server.fastmcp import Context, FastMCP
 from ppt_generator.interfaces.spec_utils import (
     parse_design_spec_json,
 )  # inline parameter용
+from ppt_generator.interfaces.spec_utils.lint import lint_design_spec
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
 
@@ -92,12 +93,26 @@ def register_slides_tools(
         if ctx is not None:
             await ctx.report_progress(1, 1, "HTML 내보내기 완료")
 
-        return json.dumps(
-            {
-                "session_id": response.session_id,
-                "slides_html_path": str(project_dir / "slides.html"),
-                "slide_count": len(response.slide_htmls),
-                "project_id": project_id,
-            },
-            ensure_ascii=False,
+        # export 시점 lint — 사용자가 design_spec JSON 을 직접 편집한 뒤
+        # export_html 만 호출하는 경로에서도 위반이 드러나도록 한다.
+        # 단계적 검증 (layout → section → cross → content) 으로 거시
+        # 위반이 미시 노이즈에 가려지지 않게 한다.
+        lint_result = lint_design_spec(
+            list(design_spec.slides), stop_on_layer_error=True
         )
+
+        result: dict = {
+            "session_id": response.session_id,
+            "slides_html_path": str(project_dir / "slides.html"),
+            "slide_count": len(response.slide_htmls),
+            "project_id": project_id,
+        }
+        if lint_result.has_violations:
+            result["lint"] = lint_result.to_dict()
+            result["lint_suggestion"] = (
+                f"{lint_result.to_dict()['failed_slides']}개 슬라이드에서 "
+                f"총 {lint_result.total_violations}건의 lint 위반이 발견되었습니다. "
+                "위반 내용을 확인하고 수정 여부를 결정하세요."
+            )
+
+        return json.dumps(result, ensure_ascii=False)

@@ -33,6 +33,8 @@ from ppt_generator.interfaces.llm_output_models import (
 )
 from ppt_generator.interfaces.schemas import (
     DesignDoc,
+    GridCell,
+    GridPlan,
     LayoutNode,
     OutlineResponse,
     PptxShape,
@@ -226,11 +228,14 @@ class DesignService:
         spec: PptxSlideSpec,
         slide_index: int = 1,
     ) -> PptxSlideSpec:
-        """Imported 슬라이드(design_doc=None)에 design_doc 트리를 LLM 으로 backfill한다.
+        """Imported 슬라이드(design_doc=None)에 design_doc 트리 + grid_plan 을
+        LLM 으로 backfill한다.
 
         textbox/shape 의 좌표/스타일/텍스트는 변경하지 않고, design_doc.layout
-        트리 + 각 element 의 component_id 만 채운다. grid_plan 은 None 유지.
-        bbox 는 코드에서 element bbox 합집합으로 계산.
+        트리 + 각 element 의 component_id, 그리고 grid_plan(regions/columns/
+        rows/cells) 을 채운다. design_doc.layout bbox 는 코드에서 element
+        bbox 합집합으로 계산. grid_plan 은 LLM 이 grid_layout/cell_assignment
+        를 함께 출력하므로 lint 의 `grid-plan-required` 규칙을 만족시킨다.
 
         Returns:
             새 PptxSlideSpec — design_doc 채워지고 textbox/shape 의 component_id 도 링크됨.
@@ -847,9 +852,36 @@ def _apply_backfill_output(
         replace(s, component_id=sh_to_component.get(i))
         for i, s in enumerate(spec.shapes)
     ]
+
+    # 6) grid_plan 백필 — LLM 이 grid_layout/cell_assignment 를 출력했을
+    # 때만 채운다. 그렇지 않으면 기존 spec.grid_plan 유지 (보통 None).
+    new_grid_plan: GridPlan | None = spec.grid_plan
+    if output.grid_layout is not None:
+        cells_src = (
+            output.cell_assignment.cells if output.cell_assignment is not None else []
+        )
+        new_grid_plan = GridPlan(
+            regions=list(output.grid_layout.regions),
+            content_columns=output.grid_layout.content_columns,
+            content_rows=output.grid_layout.content_rows,
+            cells=[
+                GridCell(
+                    id=c.id,
+                    region=c.region,
+                    row=c.row,
+                    col=c.col,
+                    row_span=c.row_span,
+                    col_span=c.col_span,
+                    role=c.role,
+                )
+                for c in cells_src
+            ],
+        )
+
     return replace(
         spec,
         textboxes=new_textboxes,
         shapes=new_shapes,
         design_doc=new_design_doc,
+        grid_plan=new_grid_plan,
     )

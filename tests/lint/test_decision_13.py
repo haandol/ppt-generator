@@ -280,6 +280,51 @@ class TestEdgeAlignment:
             r for r in result.violations if r.rule.startswith("slide-edge-alignment")
         ]
 
+    def test_decoration_stripe_misaligned_with_body_detected(self) -> None:
+        # 본문 카드들은 left=64 로 정렬되어 있는데 좌측 장식 stripe 만
+        # left=72 로 어긋나 cluster (64±16) 안에 들어옴 → 위반 검출.
+        a = self._shape(64, 148)
+        b = self._shape(64, 320)
+        # decoration: 텍스트 없는 6px 폭 stripe
+        deco = PptxShape(
+            left_px=72,
+            top_px=148,
+            width_px=6,
+            height_px=300,
+            shape_type="rectangle",
+            fill_color="#FF9900",
+        )
+        result = lint_slide_spec(slide(shapes=[a, b, deco]))
+        v = [r for r in result.violations if r.rule == "slide-edge-alignment-left"]
+        assert len(v) == 1
+        assert v[0].severity == "warning"
+
+    def test_decoration_stripe_alone_no_violation(self) -> None:
+        # 본문 element 가 없는 외곽 디바이더는 정렬 검사 대상 아님
+        # (본문 element 2 개 미만이면 skip).
+        deco_l = PptxShape(
+            left_px=40,
+            top_px=148,
+            width_px=6,
+            height_px=300,
+            shape_type="rectangle",
+            fill_color="#FF9900",
+        )
+        deco_r = PptxShape(
+            left_px=1234,
+            top_px=148,
+            width_px=6,
+            height_px=300,
+            shape_type="rectangle",
+            fill_color="#FF9900",
+        )
+        body = self._shape(64, 148)
+        result = lint_slide_spec(slide(shapes=[deco_l, deco_r, body]))
+        # body 가 1 개뿐 → 본문 cluster 정렬 검사 skip
+        assert not [
+            r for r in result.violations if r.rule.startswith("slide-edge-alignment")
+        ]
+
 
 # ---------------------------------------------------------------------------
 # 결정 13e' — layout-tree sibling/containment/canvas-overflow severity

@@ -546,16 +546,22 @@ class BackfillNode(BaseModel):
 
 
 class BackfillDesignDocOutput(BaseModel):
-    """imported 슬라이드에 design_doc 트리를 백필하기 위한 LLM 응답.
+    """imported 슬라이드에 design_doc 트리 + grid_plan 을 백필하기 위한 LLM 응답.
 
     `topic`/`layout_summary` 는 슬라이드 콘텐츠 요약. `nodes` 는 design_doc.layout
     의 flat 트리 (parent_id 참조). 모든 textbox 와 모든 shape 가 정확히 1 개의
     component leaf 와 매칭되어야 한다 (코드가 검증).
+
+    `grid_layout` / `cell_assignment` 는 grid_plan 백필용. None 이면 grid_plan
+    은 비어있는 채로 유지된다 (단순 슬라이드용 fallback). content slide 에서는
+    lint 의 `grid-plan-required` 를 만족하기 위해 채워져야 한다.
     """
 
     topic: str = ""
     layout_summary: str = ""
     nodes: list[BackfillNode] = Field(default_factory=list)
+    grid_layout: GridLayoutOutput | None = None
+    cell_assignment: GridCellAssignmentOutput | None = None
 
 
 def textbox_output_to_dataclass(tb: TextBoxOutput) -> PptxTextBox:
