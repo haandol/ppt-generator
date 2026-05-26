@@ -61,12 +61,14 @@ DO NOT think about individual cells in this stage. Only decide the overall regio
 2. `layout_summary`: a single paragraph summarizing the macro layout you just decided (e.g., "Left c1 region holds three vertically stacked explanation cards; right c2 region holds a 4-node relationship diagram with the LLM in the center").
 3. `layout`: a tree of `LayoutNode`s describing the slide's meaningful structure.
 
-**LayoutNode tree shape**:
-- Each node has `id`, `kind` ("section" | "group" | "component"), `role`, `description`, `cell_id`, **bounding box** (`left_px`, `top_px`, `width_px`, `height_px`), and `children`.
-- Top-level nodes are **sections** (one per macro region — usually one per grid cell). Section `id` is a short snake_case label (e.g., `left_explanation`, `right_diagram`, `footer_cta`).
-- A section's `children` may be **components** (leaf nodes representing one textbox/shape) or **groups** (intermediate clusters when a section is complex enough to warrant sub-structure, e.g., a diagram with a sub-system).
+**LayoutNode flat list (with parent_id)**:
+- `layout` is a **flat list** of nodes, but they form a tree via `parent_id` references (not nested children — JSON schema limitation).
+- Each node has: `id`, `parent_id` (empty string for root section), `kind` ("section" | "group" | "component"), `role`, `description`, `cell_id`, **bounding box** (`left_px`, `top_px`, `width_px`, `height_px`).
+- Top-level nodes are **sections** (one per macro region — usually one per grid cell). Section `id` is a short snake_case label (e.g., `left_explanation`, `right_diagram`, `footer_cta`). Section's `parent_id` is empty string.
+- A section may contain **components** (leaf nodes representing one textbox/shape) or **groups** (intermediate clusters when a section is complex enough to warrant sub-structure, e.g., a diagram with a sub-system).
 - A `component` is the leaf — exactly one textbox/shape will reference it via `component_id`.
-- Node `id` follows the tree path (dot-joined, lower_snake_case): `right_diagram` → `right_diagram.llm_box` → `right_diagram.functions.web_search`.
+- Node `id` follows the tree path (dot-joined, lower_snake_case): `right_diagram` → `right_diagram.llm_box` → `right_diagram.functions.web_search`. The `parent_id` of `right_diagram.llm_box` is `right_diagram`.
+- Order matters: declare parents before their children in the list.
 
 **bbox-first principle (IMPORTANT)**:
 - Every node carries a bounding box (`left_px`, `top_px`, `width_px`, `height_px`) describing the *space it occupies on the canvas*.
@@ -118,45 +120,31 @@ Same-row cells MUST share identical height_px. Same-column cells MUST share iden
     "topic": "Single-sentence slide subject",
     "layout_summary": "One paragraph summary of macro layout: which region holds what",
     "layout": [
-      {
-        "id": "left_explanation",
-        "kind": "section",
-        "role": "explanation_cards",
-        "description": "Stacked explanation cards on the left",
-        "cell_id": "c1",
-        "left_px": 64, "top_px": 148, "width_px": 540, "height_px": 510,
-        "children": [
-          {"id": "left_explanation.card_observation", "kind": "component", "role": "card",
-           "description": "Observation card", "left_px": 64, "top_px": 148, "width_px": 540, "height_px": 158},
-          {"id": "left_explanation.card_limitation", "kind": "component", "role": "card",
-           "description": "Limitation card", "left_px": 64, "top_px": 322, "width_px": 540, "height_px": 158}
-        ]
-      },
-      {
-        "id": "right_diagram",
-        "kind": "section",
-        "role": "relationship_diagram",
-        "description": "4-node relationship diagram",
-        "cell_id": "c2",
-        "left_px": 624, "top_px": 148, "width_px": 592, "height_px": 510,
-        "children": [
-          {"id": "right_diagram.llm_box", "kind": "component", "role": "llm_box",
-           "description": "Center LLM", "left_px": 668, "top_px": 348, "width_px": 160, "height_px": 170},
-          {
-            "id": "right_diagram.functions",
-            "kind": "group",
-            "role": "function_cluster",
-            "description": "App functions group",
-            "left_px": 988, "top_px": 408, "width_px": 196, "height_px": 168,
-            "children": [
-              {"id": "right_diagram.functions.web_search", "kind": "component", "role": "function_card",
-               "description": "web_search()", "left_px": 988, "top_px": 408, "width_px": 196, "height_px": 50},
-              {"id": "right_diagram.functions.db_query", "kind": "component", "role": "function_card",
-               "description": "db_query()", "left_px": 988, "top_px": 466, "width_px": 196, "height_px": 50}
-            ]
-          }
-        ]
-      }
+      {"id": "left_explanation", "parent_id": "", "kind": "section", "role": "explanation_cards",
+       "description": "Stacked explanation cards on the left", "cell_id": "c1",
+       "left_px": 64, "top_px": 148, "width_px": 540, "height_px": 510},
+      {"id": "left_explanation.card_observation", "parent_id": "left_explanation", "kind": "component",
+       "role": "card", "description": "Observation card",
+       "left_px": 64, "top_px": 148, "width_px": 540, "height_px": 158},
+      {"id": "left_explanation.card_limitation", "parent_id": "left_explanation", "kind": "component",
+       "role": "card", "description": "Limitation card",
+       "left_px": 64, "top_px": 322, "width_px": 540, "height_px": 158},
+
+      {"id": "right_diagram", "parent_id": "", "kind": "section", "role": "relationship_diagram",
+       "description": "4-node relationship diagram", "cell_id": "c2",
+       "left_px": 624, "top_px": 148, "width_px": 592, "height_px": 510},
+      {"id": "right_diagram.llm_box", "parent_id": "right_diagram", "kind": "component",
+       "role": "llm_box", "description": "Center LLM",
+       "left_px": 668, "top_px": 348, "width_px": 160, "height_px": 170},
+      {"id": "right_diagram.functions", "parent_id": "right_diagram", "kind": "group",
+       "role": "function_cluster", "description": "App functions group",
+       "left_px": 988, "top_px": 408, "width_px": 196, "height_px": 168},
+      {"id": "right_diagram.functions.web_search", "parent_id": "right_diagram.functions",
+       "kind": "component", "role": "function_card", "description": "web_search()",
+       "left_px": 988, "top_px": 408, "width_px": 196, "height_px": 50},
+      {"id": "right_diagram.functions.db_query", "parent_id": "right_diagram.functions",
+       "kind": "component", "role": "function_card", "description": "db_query()",
+       "left_px": 988, "top_px": 466, "width_px": 196, "height_px": 50}
     ]
   },
   "background_color": "#RRGGBB or null",
