@@ -41,16 +41,31 @@ adr/
 - [0027: PPTX 임포트 → 디자인 스펙 변환](./pipeline/0027-pptx-import-to-design-spec.md)
 - [0028: 개별 파일 기반 outline/script 저장 및 save_outline_slide 도구](./pipeline/0028-modify-design-spec-inline-outline.md)
 - [0029: 텍스트 런 하이퍼링크 지원](./pipeline/0029-text-run-hyperlink-support.md)
+- [0030: 이미지 image_path 및 corner_radius_px 지원](./pipeline/0030-image-path-and-corner-radius-support.md)
+- [0031: PPTX 이미지 종횡비 보존 (contain 방식)](./pipeline/0031-pptx-image-aspect-ratio-preservation.md)
+- [0032: 차트 및 데이터 시각화 지원](./pipeline/0032-chart-data-visualization.md) — _Proposed_
 - [0033: Design Spec Post-Generation LLM Review](./pipeline/0033-design-spec-post-generation-review.md)
 - [0034: 슬라이드 추가 시 기존 디자인 스펙 참조를 통한 일관성 향상](./pipeline/0034-add-slide-design-consistency.md)
 - [0035: Visual QA 브라우저 도구 안내 개선](./pipeline/0035-visual-qa-browser-tool-fallback.md)
+- [0036: 파이프라인 전체 진행률 보고 및 로깅 강화](./pipeline/0036-pipeline-progress-reporting-and-logging.md)
 - [0036: 기본 테마 색상 변경 및 다이어그램 활용 강화](./pipeline/0036-theme-color-change-and-diagram-preference.md)
+- [0037: Visual QA 2-Phase 모델 분리 (Haiku 분석 + Sonnet 수정)](./pipeline/0037-visual-qa-two-phase-model-split.md)
+- [0038: Diagram Label-Line Overlap Prevention](./pipeline/0038-diagram-label-line-overlap-prevention.md)
+- [0039: MCP Server Stability Improvements](./pipeline/0039-mcp-server-stability-improvements.md)
 - [0039: Prompt 캐시 제거 및 워밍업 없이 전체 병렬 실행](./pipeline/0039-remove-prompt-cache-and-warmup-full-parallel.md)
+- [0040: 레이아웃 계획 단계 추가 (Layout Planning Phase)](./pipeline/0040-layout-planning-phase.md)
 - [0041: Validator를 Lint로 전환](./pipeline/0041-validator-to-lint.md)
+- [0042: load_outline에 include_content 파라미터 추가](./pipeline/0042-load-outline-include-content.md)
 - [0043: 디자인 스펙 thinking을 adaptive에서 고정 budget으로 전환](./pipeline/0043-design-spec-fixed-thinking-budget.md)
-- [0044: Grid-First Design Spec — 그리드 우선 디자인 스펙](./pipeline/0044-grid-first-design-spec.md) — _Proposed_
-- [0047: nowrap 오버플로우 방지 — tolerance 보수화 + lint 추가](./pipeline/0047-nowrap-overflow-prevention.md) — _Proposed_
-- [0048: 화살표·라벨 부착 검증 lint](./pipeline/0048-arrow-and-label-attachment-lint.md) — _Proposed_
+- [0044: Grid-First Design Spec — 그리드 우선 디자인 스펙](./pipeline/0044-grid-first-design-spec.md)
+- [0045: Grid Plan Required by Slide Type — slide_type 분기 응답 스키마](./pipeline/0045-grid-plan-required-by-slide-type.md)
+- [0046: Progressive Abstraction in Design Output — 점진적 추상화 하강 출력](./pipeline/0046-progressive-abstraction-design-output.md) — _Section layer in scope superseded by 0049_
+- [0047: nowrap 오버플로우 방지 — tolerance 보수화 + lint 추가](./pipeline/0047-nowrap-overflow-prevention.md)
+- [0048: 화살표·라벨 부착 검증 lint](./pipeline/0048-arrow-and-label-attachment-lint.md)
+- [0049: 5단 디자인 스펙 계층 — Project / Slide / Layout / Section / Content](./pipeline/0049-five-layer-design-spec-hierarchy.md)
+- [0050: modify_component MCP 도구 — Section 단위 부분 수정](./pipeline/0050-modify-component-mcp-tool.md)
+- [0051: Imported 슬라이드 design_doc lazy backfill](./pipeline/0051-imported-slide-lazy-design-doc-backfill.md)
+- [0052: Content 로컬 그리드 — Section 컨텐츠 영역의 sub-grid 분할](./pipeline/0052-content-local-grid.md) — _Rejected_
 
 ## ADR 작성 가이드
 

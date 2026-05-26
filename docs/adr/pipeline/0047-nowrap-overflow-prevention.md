@@ -4,7 +4,7 @@ Date: 2026-05-25
 
 ## Status
 
-Proposed
+Accepted (verified 2026-05-26: nowrap_overflow lint rule + TEXT_MEASURE_NOWRAP_TOLERANCE_RATIO 정착)
 
 ## Context
 

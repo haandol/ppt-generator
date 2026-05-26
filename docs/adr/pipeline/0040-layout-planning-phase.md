@@ -4,7 +4,7 @@ Date: 2026-04-18
 
 ## Status
 
-Proposed
+Accepted (verified 2026-05-26: SlideOutline.layout_plan + outline_system prompt 의 layout_plan_schema 정착)
 
 ## Context
 

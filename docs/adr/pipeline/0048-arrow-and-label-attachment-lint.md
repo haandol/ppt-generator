@@ -4,7 +4,7 @@ Date: 2026-05-25
 
 ## Status
 
-Proposed
+Accepted (verified 2026-05-26: arrow_endpoint_attachment + label_orphan lint rule 정착)
 
 ## Context
 

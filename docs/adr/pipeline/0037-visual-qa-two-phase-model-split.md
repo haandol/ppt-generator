@@ -4,7 +4,7 @@ Date: 2026-04-15
 
 ## Status
 
-Proposed
+Accepted (verified 2026-05-26: BEDROCK_VISUAL_QA_ANALYSIS_MODEL_ID + analysis_agent_factory / fix_agent_factory 정착)
 
 ## Context
 

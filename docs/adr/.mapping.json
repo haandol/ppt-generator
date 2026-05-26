@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "lastSyncedAt": "2026-05-26T15:00:00Z",
+  "categories": {
+    "pipeline": {
+      "codePaths": [
+        "src/ppt_generator/**",
+        "tests/**"
+      ],
+      "description": "PPT generation pipeline — outline, design spec, slides, pptx, visual_qa, lint, modify, import 등 전 영역을 다루는 단일 카테고리"
+    }
+  },
+  "adrs": [
+    "pipeline/0001-outline-generation.md",
+    "pipeline/0002-script-generation.md",
+    "pipeline/0007-pipeline-artifact-persistence.md",
+    "pipeline/0008-template-analysis.md",
+    "pipeline/0011-progressive-refinement-pipeline.md",
+    "pipeline/0013-design-spec-pipeline.md",
+    "pipeline/0014-file-based-communication-and-per-slide-crud.md",
+    "pipeline/0016-per-slide-html-iframe.md",
+    "pipeline/0017-font-metric-text-overflow-prevention.md",
+    "pipeline/0018-parallel-design-spec-and-prompt-caching.md",
+    "pipeline/0020-token-usage-tracking-and-cost-estimation.md",
+    "pipeline/0021-slide-type-specific-system-prompts.md",
+    "pipeline/0022-title-slide-long-title-overflow-fix.md",
+    "pipeline/0023-design-spec-validator.md",
+    "pipeline/0024-agenda-optional-numbering.md",
+    "pipeline/0025-outline-thinking-medium.md",
+    "pipeline/0026-visual-qa-pipeline.md",
+    "pipeline/0027-pptx-import-to-design-spec.md",
+    "pipeline/0028-modify-design-spec-inline-outline.md",
+    "pipeline/0029-text-run-hyperlink-support.md",
+    "pipeline/0030-image-path-and-corner-radius-support.md",
+    "pipeline/0031-pptx-image-aspect-ratio-preservation.md",
+    "pipeline/0032-chart-data-visualization.md",
+    "pipeline/0033-design-spec-post-generation-review.md",
+    "pipeline/0034-add-slide-design-consistency.md",
+    "pipeline/0035-visual-qa-browser-tool-fallback.md",
+    "pipeline/0036-pipeline-progress-reporting-and-logging.md",
+    "pipeline/0036-theme-color-change-and-diagram-preference.md",
+    "pipeline/0037-visual-qa-two-phase-model-split.md",
+    "pipeline/0038-diagram-label-line-overlap-prevention.md",
+    "pipeline/0039-mcp-server-stability-improvements.md",
+    "pipeline/0039-remove-prompt-cache-and-warmup-full-parallel.md",
+    "pipeline/0040-layout-planning-phase.md",
+    "pipeline/0041-validator-to-lint.md",
+    "pipeline/0042-load-outline-include-content.md",
+    "pipeline/0043-design-spec-fixed-thinking-budget.md",
+    "pipeline/0044-grid-first-design-spec.md",
+    "pipeline/0045-grid-plan-required-by-slide-type.md",
+    "pipeline/0046-progressive-abstraction-design-output.md",
+    "pipeline/0047-nowrap-overflow-prevention.md",
+    "pipeline/0048-arrow-and-label-attachment-lint.md",
+    "pipeline/0049-five-layer-design-spec-hierarchy.md",
+    "pipeline/0050-modify-component-mcp-tool.md",
+    "pipeline/0051-imported-slide-lazy-design-doc-backfill.md",
+    "pipeline/0052-content-local-grid.md"
+  ]
+}

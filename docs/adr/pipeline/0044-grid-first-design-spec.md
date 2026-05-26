@@ -4,7 +4,7 @@ Date: 2026-05-19
 
 ## Status
 
-Proposed
+Accepted (verified 2026-05-26: GridPlan/GridLayoutOutput/GridCellAssignmentOutput 정착, ADR-0049 가 위에 Section 계층을 추가)
 
 ## Context
 

@@ -1,6 +1,6 @@
 # ADR-0039: MCP Server Stability Improvements
 
-**Status**: Proposed  
+**Status**: Accepted (verified 2026-05-26: _make_progress_reporter + ThreadPoolExecutor future.result(timeout=…) 정착)
 **Date**: 2026-04-15
 
 ## Context
