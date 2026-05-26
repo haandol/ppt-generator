@@ -84,7 +84,7 @@ def _walk(
                 result.violations.append(
                     LintViolation(
                         rule="layout-tree-sibling-overlap",
-                        severity="warning",
+                        severity="error",
                         message=(
                             f"depth {depth} sibling 노드 '{node_a.id}' 와 '{node_b.id}' "
                             f"bbox 가 겹침 (교집합 {inter:.0f}px²)"
@@ -113,7 +113,7 @@ def _walk(
             result.violations.append(
                 LintViolation(
                     rule="layout-tree-canvas-overflow",
-                    severity="warning",
+                    severity="error",
                     message=(
                         f"layout 노드 '{node.id}' bbox 가 캔버스 ({SLIDE_WIDTH}x{SLIDE_HEIGHT}) 밖"
                     ),
@@ -128,7 +128,7 @@ def _walk(
             result.violations.append(
                 LintViolation(
                     rule="layout-tree-containment",
-                    severity="warning",
+                    severity="error",
                     message=(
                         f"layout 노드 '{node.id}' bbox 가 부모 '{parent_path}' bbox 밖으로 나감"
                     ),

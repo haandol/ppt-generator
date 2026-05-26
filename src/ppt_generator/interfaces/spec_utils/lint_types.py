@@ -20,6 +20,7 @@ class LintViolation:
     # ADR-0049: 5단 계층 (Project / Slide / Layout / Section / Content / Cross).
     # "layout" = 격자 (grid_plan), "section" = design_doc.layout 트리 bbox/구조,
     # "content" = textbox/shape 의 텍스트·스타일·픽셀 충돌, "cross" = 계층 간 link.
+    # "layout" | "section" | "content" | "cross"
     layer: str = "content"
 
 
@@ -85,9 +86,18 @@ class LintResult:
 
 # ADR-0049: rule → layer 매핑. lint rule 파일 자체는 layer 모르고, 검사 결과를
 # 만들 때 이 표를 참조해 LintViolation.layer 를 결정한다.
+#
+# 결정 8 (전수 분류): lint_rules/ 의 모든 규칙을 명시적으로 분류한다. 신규 규칙
+# 추가 시 이 표에 entry 를 빠뜨리면 test_lint_layer_coverage 가 실패한다.
+#
+# 분류 가이드:
+# - "layout":  grid_plan(regions/columns/rows/cells) 위반
+# - "section": design_doc.layout 트리 bbox/구조 위반
+# - "content": 단일 textbox/shape 의 텍스트·픽셀·스타일 위반
+# - "cross":   계층 간 link 또는 복수 element 간 관계 위반 (component_id↔leaf,
+#              label↔arrow 부착 등)
 RULE_LAYER_MAP: dict[str, str] = {
     # Layout layer — grid_plan 격자
-    "title-font-min": "content",  # 격자 무관, 콘텐츠
     "grid-plan-required": "layout",
     "grid-cell-uniformity": "layout",
     "grid-cell-coverage": "layout",
@@ -97,8 +107,42 @@ RULE_LAYER_MAP: dict[str, str] = {
     "layout-tree-containment": "section",
     "layout-tree-bbox-missing": "section",
     "layout-tree-canvas-overflow": "section",
-    # Content layer — 모든 픽셀/텍스트 위반
-    # (명시 안 된 rule 은 default "content" 로 fallback)
+    # Cross layer — element 간 관계 / 계층 간 link
+    "arrow-endpoint-attachment": "cross",  # arrow 끝점 ↔ target shape 부착
+    "label-orphan": "cross",  # label textbox ↔ 인접 shape 매칭
+    "decoration-shape-overlap": "cross",  # 장식 ↔ 콘텐츠 shape 겹침
+    "textbox-shape-intrusion": "cross",  # textbox 가 다른 shape 를 침범
+    "textbox-textbox-overlap": "cross",  # textbox ↔ textbox 겹침
+    "sibling-gap-minimum": "cross",  # 형제 element 간 간격
+    "sibling-grid-uniformity": "cross",  # 형제 element 간 크기 균일성
+    # Cross layer — Section ↔ Content link 정합성 (ADR-0049 결정 12)
+    "component-id-link-orphan-element": "cross",
+    "component-id-link-orphan-leaf": "cross",
+    "component-id-link-ambiguous": "cross",
+    # Cross layer — Layout ↔ Section / Section ↔ Content (ADR-0049 결정 13)
+    "grid-section-link-orphan-cell": "cross",
+    "section-element-bbox-mismatch": "cross",
+    "element-out-of-section": "cross",  # 결정 13g
+    "element-out-of-grid-cell": "cross",  # 결정 13g
+    # Content layer — 슬라이드 외곽 정렬 (ADR-0049 결정 13f)
+    "slide-edge-alignment-left": "content",
+    "slide-edge-alignment-right": "content",
+    "slide-edge-alignment-top": "content",
+    "slide-edge-alignment-bottom": "content",
+    # Content layer — 단일 textbox/shape 의 텍스트·스타일·픽셀 위반
+    "title-font-min": "content",
+    "font-range": "content",
+    "text-overflow": "content",
+    "text-width-overflow": "content",
+    "nowrap-overflow": "content",
+    "expand-height-collision": "content",
+    "row-autofit-mismatch": "content",
+    "row-expand-height-unsafe": "content",
+    "spacer-paragraph": "content",
+    "decorative-no-rounding": "content",
+    "hidden-decorative-strip": "content",
+    "zero-size-shape": "content",
+    "canvas-overflow": "content",
 }
 
 

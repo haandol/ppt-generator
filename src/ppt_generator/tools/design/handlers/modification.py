@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NoReturn
 
 from ppt_generator.interfaces.constants import BEDROCK_DESIGN_MODEL_ID
 from ppt_generator.interfaces.spec_utils import lint_slide_spec
@@ -23,6 +23,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _raise_validation(tool: str, msg: str, **context) -> NoReturn:
+    """입력 검증 실패를 로깅하고 ValueError 를 raise.
+
+    `tool` — MCP 도구 이름 (디버깅용 prefix), `context` — 식별자 dict (project_id,
+    slide_index, component_id 등). 모든 검증 실패가 동일 형식으로 로그에 남도록
+    한다 (production 추적용).
+    """
+    ctx_str = " ".join(f"{k}={v!r}" for k, v in context.items() if v is not None)
+    logger.error("%s validation failed: %s | %s", tool, msg, ctx_str)
+    raise ValueError(msg)
+
+
 def handle_move(
     deps: DesignDeps,
     *,
@@ -36,11 +48,21 @@ def handle_move(
     slide_count = project_service.get_design_spec_slide_count(project_dir)
 
     if from_index < 1 or from_index > slide_count:
-        raise ValueError(
-            f"Invalid from_index: {from_index} (valid range: 1-{slide_count})"
+        _raise_validation(
+            "move_slide",
+            f"Invalid from_index: {from_index} (valid range: 1-{slide_count})",
+            project_id=project_id,
+            from_index=from_index,
+            slide_count=slide_count,
         )
     if to_index < 1 or to_index > slide_count:
-        raise ValueError(f"Invalid to_index: {to_index} (valid range: 1-{slide_count})")
+        _raise_validation(
+            "move_slide",
+            f"Invalid to_index: {to_index} (valid range: 1-{slide_count})",
+            project_id=project_id,
+            to_index=to_index,
+            slide_count=slide_count,
+        )
     if from_index == to_index:
         return json.dumps(
             {
@@ -90,7 +112,13 @@ def handle_modify(
 ) -> str:
     """슬라이드 add/update/delete를 수행한다."""
     if action not in ("add", "update", "delete"):
-        raise ValueError(f"action must be one of 'add', 'update', 'delete': {action}")
+        _raise_validation(
+            "modify_design_spec",
+            f"action must be one of 'add', 'update', 'delete': {action}",
+            project_id=project_id,
+            action=action,
+            slide_index=slide_index,
+        )
 
     project_service = deps.project_service
     _, project_dir = project_service.resolve_project_dir(project_id)
@@ -161,7 +189,10 @@ def handle_modify(
             (slide_index - 1) if 1 <= slide_index <= new_count else new_count - 1
         )
         spec = project_service.load_design_spec_slide(project_dir, target_idx)
-        slide_lint = lint_slide_spec(spec, slide_index=target_idx + 1)
+        # ADR-0049 결정 13b — 단계적 lint: 거시 위반 발견 시 다음 layer 스킵.
+        slide_lint = lint_slide_spec(
+            spec, slide_index=target_idx + 1, stop_on_layer_error=True
+        )
         if slide_lint.has_violations:
             result["lint"] = slide_lint.to_dict()
             result["lint_suggestion"] = (
@@ -205,7 +236,8 @@ def _generate_and_review(
             from ppt_generator.interfaces.spec_utils import lint_slide_spec
             from ppt_generator.tools.design.review_service import apply_review_and_fix
 
-            lint_result = lint_slide_spec(spec)
+            # ADR-0049 결정 13b — review LLM 에 layer 별 단계적 lint 결과 전달.
+            lint_result = lint_slide_spec(spec, stop_on_layer_error=True)
 
             def _regenerate(feedback: str) -> tuple:
                 svc_regen = deps.design_service_factory(
@@ -231,7 +263,12 @@ def _generate_and_review(
             )
             return rr.spec, rr.token_usage
         except Exception as exc:
-            logger.warning("slide[%d] review failed: %s", slide_index, exc)
+            logger.warning(
+                "slide[%d] review failed (proceeding with un-reviewed spec): %s",
+                slide_index,
+                exc,
+                exc_info=True,
+            )
 
     return spec, token_usage
 
@@ -255,7 +292,13 @@ def _add_slide(
 ):
     """슬라이드 추가."""
     if not title or not content_summary:
-        raise ValueError("title and content_summary are required for add action")
+        _raise_validation(
+            "modify_design_spec.add",
+            "title and content_summary are required for add action",
+            slide_index=slide_index,
+            title=title,
+            content_summary_len=len(content_summary or ""),
+        )
 
     project_service = deps.project_service
     insert_idx = (
@@ -289,16 +332,24 @@ def _add_slide(
             raw = project_service.load_outline_slide(project_dir, insert_idx - 1)
             prev_outline = parse_outline_json(raw).slides[0]
         except Exception:
-            logger.debug(
-                "인접 슬라이드 로드 실패 (prev, idx=%d)", insert_idx - 1, exc_info=True
+            logger.warning(
+                "modify_design_spec.add: prev adjacent slide load failed "
+                "(prev_idx=%d, insert_idx=%d) — continuing without context",
+                insert_idx - 1,
+                insert_idx,
+                exc_info=True,
             )
     if insert_idx + 1 < new_count:
         try:
             raw = project_service.load_outline_slide(project_dir, insert_idx + 1)
             next_outline = parse_outline_json(raw).slides[0]
         except Exception:
-            logger.debug(
-                "인접 슬라이드 로드 실패 (next, idx=%d)", insert_idx + 1, exc_info=True
+            logger.warning(
+                "modify_design_spec.add: next adjacent slide load failed "
+                "(next_idx=%d, insert_idx=%d) — continuing without context",
+                insert_idx + 1,
+                insert_idx,
+                exc_info=True,
             )
 
     new_spec, token_usage = _generate_and_review(
@@ -343,8 +394,11 @@ def _update_slide(
 ):
     """슬라이드 수정."""
     if slide_index < 1 or slide_index > slide_count:
-        raise ValueError(
-            f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})"
+        _raise_validation(
+            "modify_design_spec.update",
+            f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})",
+            slide_index=slide_index,
+            slide_count=slide_count,
         )
 
     project_service = deps.project_service
@@ -352,9 +406,12 @@ def _update_slide(
 
     metadata = project_service.load_metadata(project_dir)
     if metadata.source == "imported" and (not title or not content_summary):
-        raise ValueError(
+        _raise_validation(
+            "modify_design_spec.update",
             "title and content_summary are required for update action "
-            "on imported projects (no outline available)"
+            "on imported projects (no outline available)",
+            slide_index=slide_index,
+            source=metadata.source,
         )
 
     project_service.sync_outline_to_design_spec_count(project_dir)
@@ -401,11 +458,247 @@ def _update_slide(
     return slide_html_path, token_usage
 
 
+def handle_modify_component(
+    deps: DesignDeps,
+    *,
+    project_id: str,
+    slide_index: int,
+    component_id: str,
+    instruction: str,
+    color_theme: str,
+) -> str:
+    """ADR-0050: 단일 component 부분 수정.
+
+    슬라이드 전체 spec 을 LLM 에 컨텍스트로 주고 대상 component_id 의 element 만
+    수정한다. 트리 구조 변경, 다른 element/grid_plan/배경/speaker_notes 변경은
+    하지 않는다.
+    """
+    if not project_id:
+        _raise_validation("modify_component", "project_id is required")
+    if slide_index < 1:
+        _raise_validation(
+            "modify_component",
+            f"slide_index must be >= 1: {slide_index}",
+            project_id=project_id,
+            slide_index=slide_index,
+        )
+    if not component_id:
+        _raise_validation(
+            "modify_component",
+            "component_id is required",
+            project_id=project_id,
+            slide_index=slide_index,
+        )
+    if not instruction or not instruction.strip():
+        _raise_validation(
+            "modify_component",
+            "instruction is required",
+            project_id=project_id,
+            slide_index=slide_index,
+            component_id=component_id,
+        )
+
+    project_service = deps.project_service
+    _, project_dir = project_service.resolve_project_dir(project_id)
+    slide_count = project_service.get_design_spec_slide_count(project_dir)
+    if slide_index > slide_count:
+        _raise_validation(
+            "modify_component",
+            f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})",
+            project_id=project_id,
+            slide_index=slide_index,
+            slide_count=slide_count,
+        )
+
+    idx = slide_index - 1
+    spec = project_service.load_design_spec_slide(project_dir, idx)
+
+    svc = deps.design_service_factory("content", budget_tokens=8192)
+    backfill_token_usage: dict[str, int] = {}
+    backfilled = False
+
+    if spec.design_doc is None:
+        # ADR-0051: imported 슬라이드는 lazy backfill
+        if spec.slide_type not in ("content", ""):
+            _raise_validation(
+                "modify_component",
+                f"Slide {slide_index} has no design_doc and slide_type="
+                f"{spec.slide_type!r}. modify_component supports content slides only. "
+                "Use modify_design_spec(action='update') instead.",
+                project_id=project_id,
+                slide_index=slide_index,
+                slide_type=spec.slide_type,
+            )
+        logger.info(
+            "modify_component: starting design_doc backfill | "
+            "project_id=%r slide_index=%d component_id=%r",
+            project_id,
+            slide_index,
+            component_id,
+        )
+        try:
+            spec = svc.backfill_design_doc(spec, slide_index=slide_index)
+        except Exception as exc:
+            logger.error(
+                "modify_component backfill failed | "
+                "project_id=%r slide_index=%d component_id=%r error=%s",
+                project_id,
+                slide_index,
+                component_id,
+                exc,
+                exc_info=True,
+            )
+            raise ValueError(
+                f"design_doc backfill failed for slide {slide_index}: {exc}. "
+                "Use modify_design_spec(action='update') for this slide instead."
+            ) from exc
+        backfilled = True
+        backfill_token_usage = dict(svc.last_token_usage)
+        # backfill 결과 영구 저장 — 다음 호출은 backfill 우회
+        project_service.save_design_spec_slide(project_dir, idx, spec)
+
+        if not _has_component(spec, component_id):
+            available = _list_available_components(spec)
+            project_service.update_step(project_dir, "design_spec_modified")
+            response: dict = {
+                "project_id": project_id,
+                "slide_index": slide_index,
+                "status": "backfilled",
+                "message": (
+                    "design_doc 가 backfill 되었습니다. 요청한 component_id "
+                    f"{component_id!r} 를 트리에서 찾지 못했습니다. "
+                    "available_components 를 확인하고 다시 호출해주세요."
+                ),
+                "requested_component_id": component_id,
+                "available_components": available,
+            }
+            if backfill_token_usage:
+                response["token_usage"] = format_token_usage(backfill_token_usage)
+                response["estimated_cost"] = estimate_cost(
+                    backfill_token_usage, BEDROCK_DESIGN_MODEL_ID
+                )
+            return json.dumps(response, ensure_ascii=False)
+
+    new_spec = svc.modify_component(
+        spec=spec,
+        component_id=component_id,
+        instruction=instruction,
+        slide_index=slide_index,
+        color_theme=color_theme,
+    )
+    token_usage = svc.last_token_usage
+
+    if spec.images:
+        new_spec = replace(new_spec, images=spec.images)
+
+    project_service.save_design_spec_slide(project_dir, idx, new_spec)
+    project_service.renumber_design_spec_image_srcs(project_dir)
+    project_service.update_step(project_dir, "design_spec_modified")
+
+    kind, elem_idx, _ = _find_modified_element(new_spec, component_id)
+
+    slide_html_path: str | None = None
+    if deps.slides_service is not None:
+        html = deps.slides_service.render_single_slide_html(
+            idx, new_spec, color_theme=color_theme
+        )
+        html_path = project_service.save_single_slide_html(project_dir, idx, html)
+        slide_html_path = str(html_path)
+
+    result: dict = {
+        "project_id": project_id,
+        "slide_index": slide_index,
+        "component_id": component_id,
+        "modified_element": {"type": kind, "index": elem_idx},
+    }
+    if slide_html_path:
+        result["slide_html_path"] = slide_html_path
+
+    # ADR-0049 결정 13b — modify_component 후에도 단계적 검증.
+    slide_lint = lint_slide_spec(
+        new_spec, slide_index=slide_index, stop_on_layer_error=True
+    )
+    if slide_lint.has_violations:
+        result["lint"] = slide_lint.to_dict()
+        result["lint_suggestion"] = (
+            f"슬라이드 {slide_index}에서 "
+            f"{len(slide_lint.violations)}건의 lint 위반이 발견되었습니다. "
+            "추가 수정이 필요한지 확인하세요."
+        )
+
+    combined_usage = _merge_token_usage(backfill_token_usage, token_usage)
+    if combined_usage:
+        result["token_usage"] = format_token_usage(combined_usage)
+        result["estimated_cost"] = estimate_cost(
+            combined_usage, BEDROCK_DESIGN_MODEL_ID
+        )
+    if backfilled:
+        result["backfilled"] = True
+
+    return json.dumps(result, ensure_ascii=False)
+
+
+def _has_component(spec, component_id: str) -> bool:
+    for tb in spec.textboxes:
+        if tb.component_id == component_id:
+            return True
+    for s in spec.shapes:
+        if s.component_id == component_id:
+            return True
+    return False
+
+
+def _list_available_components(spec) -> list[dict]:
+    """backfilled spec 의 component leaf 목록을 사용자 응답용으로 평탄화한다."""
+    items: list[dict] = []
+
+    def _walk(node, path):
+        new_path = path + [node.id] if path else [node.id]
+        if not node.children:
+            items.append(
+                {
+                    "id": node.id,
+                    "role": node.role,
+                    "description": node.description,
+                    "path": ".".join(new_path),
+                }
+            )
+            return
+        for child in node.children:
+            _walk(child, new_path)
+
+    if spec.design_doc is not None:
+        for root in spec.design_doc.layout:
+            _walk(root, [])
+    return items
+
+
+def _merge_token_usage(a: dict[str, int], b: dict[str, int]) -> dict[str, int]:
+    out: dict[str, int] = dict(a)
+    for k, v in (b or {}).items():
+        out[k] = out.get(k, 0) + v
+    return out
+
+
+def _find_modified_element(spec, component_id: str) -> tuple[str, int, object]:
+    """수정된 element 위치를 응답용으로 찾는다."""
+    for i, tb in enumerate(spec.textboxes):
+        if tb.component_id == component_id:
+            return ("textbox", i, tb)
+    for i, s in enumerate(spec.shapes):
+        if s.component_id == component_id:
+            return ("shape", i, s)
+    raise ValueError(f"component_id missing after modification: {component_id}")
+
+
 def _delete_slide(deps, *, project_dir, slide_count, slide_index):
     """슬라이드 삭제."""
     if slide_index < 1 or slide_index > slide_count:
-        raise ValueError(
-            f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})"
+        _raise_validation(
+            "modify_design_spec.delete",
+            f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})",
+            slide_index=slide_index,
+            slide_count=slide_count,
         )
 
     project_service = deps.project_service

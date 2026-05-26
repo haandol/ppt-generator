@@ -134,12 +134,27 @@ async def handle_generate(
         )
 
     # --- Step 4: Lint design spec ---
+    # ADR-0049 결정 13b — 단계적 검증: layout(거시)부터 차례로 검사하다가 어느
+    # layer 에 error 가 나면 다음 layer 검사를 스킵해 거시 위반을 미시 노이즈로
+    # 가리지 않는다.
     lint_result_dict: dict | None = None
+    cross_layer_errors: list[dict] = []
     if slide_count > 0:
         design_spec = project_service.load_design_spec(project_dir)
-        lint_result = lint_design_spec(design_spec.slides)
+        lint_result = lint_design_spec(design_spec.slides, stop_on_layer_error=True)
         if lint_result.has_violations:
             lint_result_dict = lint_result.to_dict()
+        # ADR-0049 결정 13e — cross-layer error 는 응답에 명시적으로 노출.
+        for slide_result in lint_result.slides:
+            for v in slide_result.violations:
+                if v.severity == "error" and v.layer == "cross":
+                    cross_layer_errors.append(
+                        {
+                            "slide_index": slide_result.slide_index,
+                            "rule": v.rule,
+                            "message": v.message,
+                        }
+                    )
 
     resp: dict = {
         "design_spec_dir": str(project_dir / "design_spec"),
@@ -160,6 +175,15 @@ async def handle_generate(
             f"디자인 lint에서 {lint_result_dict['total_violations']}건의 위반이 발견되었습니다. "
             "위반 내용을 확인하고, 수정이 필요하면 해당 슬라이드를 "
             "modify_design_spec(action='update')로 수정하세요."
+        )
+    if cross_layer_errors:
+        resp["cross_layer_errors"] = cross_layer_errors
+        resp["cross_layer_errors_suggestion"] = (
+            f"{len(cross_layer_errors)}건의 cross-layer error 가 발견되었습니다 "
+            "(component_id 매칭 실패, GridPlan↔design_doc cell_id 불일치 등). "
+            "modify_component 또는 modify_design_spec(action='update') 호출 전에 "
+            "확인이 필요합니다 — 현재 상태에서 modify_component 가 "
+            "ValueError 로 실패할 수 있습니다."
         )
     if all_overflow:
         resp["overflow_suggestion"] = (
@@ -190,23 +214,42 @@ def _load_outline(deps: DesignDeps, *, project_id: str, outline_json: str):
         _, proj_dir = deps.project_service.resolve_project_dir(project_id)
         raw = deps.project_service.load_outline(proj_dir)
         return parse_outline_json(raw)
+    logger.error(
+        "generate_slides_design_spec validation failed: "
+        "Either outline_json or project_id must be provided."
+    )
     raise ValueError("Either outline_json or project_id must be provided.")
 
 
 def _parse_slide_indices(outline, total_slides: int, slide_indices: str) -> list[int]:
     """slide_indices 문자열을 파싱하여 0-based 인덱스 리스트로 반환한다."""
     if not slide_indices and len(outline.slides) != total_slides:
-        raise ValueError(
+        msg = (
             f"Number of slides in outline ({len(outline.slides)}) does not match "
             f"total_slides ({total_slides})."
         )
+        logger.error("generate_slides_design_spec validation failed: %s", msg)
+        raise ValueError(msg)
     if slide_indices:
-        raw_indices = sorted(set(int(x.strip()) for x in slide_indices.split(",")))
+        try:
+            raw_indices = sorted(set(int(x.strip()) for x in slide_indices.split(",")))
+        except ValueError as exc:
+            logger.error(
+                "slide_indices parse failed: input=%r, error=%s",
+                slide_indices,
+                exc,
+            )
+            raise ValueError(
+                f"Invalid slide_indices format: {slide_indices!r} "
+                "(expected comma-separated integers)"
+            ) from exc
         for idx in raw_indices:
             if idx < 1 or idx > len(outline.slides):
-                raise ValueError(
+                msg = (
                     f"Invalid slide_index: {idx} (valid range: 1-{len(outline.slides)})"
                 )
+                logger.error("slide_indices validation failed: %s", msg)
+                raise ValueError(msg)
         return [i - 1 for i in raw_indices]
     return list(range(total_slides))
 

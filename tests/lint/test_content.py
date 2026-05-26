@@ -29,8 +29,9 @@ class TestTitleFontMin:
     def test_content_slide_title_below_24pt(self) -> None:
         result = lint_slide_spec(slide(textboxes=[tb("제목 텍스트", font=16)]))
         assert result.has_violations
-        v = result.violations[0]
-        assert v.rule == "title-font-min"
+        title_violations = [v for v in result.violations if v.rule == "title-font-min"]
+        assert len(title_violations) == 1
+        v = title_violations[0]
         assert v.severity == "error"
         assert v.current_value == 16
 
@@ -781,3 +782,73 @@ class TestContentLayerFilter:
     def test_filter_content_only(self) -> None:
         result = lint_slide_spec(self._slide(), layers=["content"])
         assert {v.layer for v in result.violations} == {"content"}
+
+
+# ---------------------------------------------------------------------------
+# ADR-0049 결정 14: PptxShape autofit_mode 기본값
+# ---------------------------------------------------------------------------
+
+
+class TestShapeAutofitDefault:
+    """기본값이 'shrink_text' 인지 + LLM output model 도 정렬되어 있는지."""
+
+    def test_pptx_shape_default_is_shrink_text(self) -> None:
+        from ppt_generator.interfaces.schemas import PptxShape as _Shape
+
+        s = _Shape(left_px=0, top_px=0, width_px=10, height_px=10)
+        assert s.autofit_mode == "shrink_text"
+
+    def test_shape_output_default_is_shrink_text(self) -> None:
+        from ppt_generator.interfaces.llm_output_models import ShapeOutput
+
+        s = ShapeOutput(left_px=0, top_px=0, width_px=10, height_px=10)
+        assert s.autofit_mode == "shrink_text"
+
+
+class TestTextOverflowSkipShrinkText:
+    """text-overflow rule 이 shrink_text shape 의 height 검사를 스킵하는지."""
+
+    def _long_card(self, autofit_mode: str) -> PptxShape:
+        return PptxShape(
+            left_px=64,
+            top_px=148,
+            width_px=520,
+            height_px=80,  # 의도적으로 작게
+            shape_type="rounded_rectangle",
+            fill_color="#1E293B",
+            paragraphs=[
+                PptxParagraph(
+                    runs=[
+                        PptxTextRun(
+                            text="매우 긴 텍스트 " * 30,
+                            font_size_pt=18,
+                        )
+                    ]
+                )
+            ],
+            autofit_mode=autofit_mode,
+        )
+
+    def test_shrink_text_shape_no_overflow_warning(self) -> None:
+        spec = PptxSlideSpec(
+            background_color="#000",
+            slide_type="content",
+            shapes=[self._long_card("shrink_text")],
+        )
+        result = lint_slide_spec(spec)
+        overflows = [v for v in result.violations if v.rule == "text-overflow"]
+        assert overflows == []
+
+    def test_expand_height_shape_still_flags(self) -> None:
+        spec = PptxSlideSpec(
+            background_color="#000",
+            slide_type="content",
+            shapes=[self._long_card("expand_height")],
+        )
+        result = lint_slide_spec(spec)
+        overflows = [
+            v
+            for v in result.violations
+            if v.rule == "text-overflow" and v.element_type == "shape"
+        ]
+        assert overflows, "expand_height shape 의 text-overflow 는 그대로 검출되어야 함"
