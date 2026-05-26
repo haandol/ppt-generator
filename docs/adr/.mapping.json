@@ -1,57 +1,125 @@
 {
-  "version": 1,
-  "lastSyncedAt": "2026-05-26T17:00:00Z",
+  "version": 2,
+  "lastSyncedAt": "2026-05-26T18:00:00Z",
   "categories": {
-    "pipeline": {
+    "outline": {
       "codePaths": [
-        "src/ppt_generator/**",
-        "tests/**"
+        "src/ppt_generator/tools/outline/**",
+        "src/ppt_generator/interfaces/prompts/outline_*",
+        "tests/outline/**",
+        "tests/test_outline_*.py"
       ],
-      "description": "PPT generation pipeline — outline, design spec, slides, pptx, visual_qa, lint, modify, import 등 전 영역을 다루는 단일 카테고리"
+      "description": "슬라이드 outline 생성 — 토픽/audience/시간 입력으로 슬라이드 단위 구조와 layout_plan 만든다."
+    },
+    "design": {
+      "codePaths": [
+        "src/ppt_generator/tools/design/**",
+        "src/ppt_generator/interfaces/prompts/design_*",
+        "src/ppt_generator/interfaces/prompts/component_modify_*",
+        "src/ppt_generator/interfaces/prompts/backfill_design_doc_*",
+        "src/ppt_generator/interfaces/prompts/examples/**",
+        "src/ppt_generator/interfaces/llm_output_models.py",
+        "src/ppt_generator/interfaces/schemas.py",
+        "src/ppt_generator/interfaces/spec_utils/parser.py",
+        "src/ppt_generator/interfaces/spec_utils/serializer.py",
+        "src/ppt_generator/interfaces/text_measurement.py",
+        "tests/design/**",
+        "tests/test_slide_spec_output_models.py",
+        "tests/test_design_*.py",
+        "tests/test_text_measurement.py",
+        "tests/test_render_nowrap.py",
+        "tests/test_complexity.py",
+        "tests/test_token_logging.py"
+      ],
+      "description": "design spec 생성 + 5단 계층 (Layout/Section/Content) + 폰트 메트릭 + 병렬 생성 + 점진적 추상화 출력. 핵심 도메인."
+    },
+    "lint": {
+      "codePaths": [
+        "src/ppt_generator/interfaces/spec_utils/lint*",
+        "src/ppt_generator/interfaces/spec_utils/lint_rules/**",
+        "tests/lint/**",
+        "tests/test_grid_lint.py"
+      ],
+      "description": "디자인 스펙 lint — 위반 감지 + layer 별 단계적 검증, cross-layer link 정합성."
+    },
+    "modify": {
+      "codePaths": [
+        "src/ppt_generator/tools/design/handlers/modification.py",
+        "src/ppt_generator/tools/design/controller.py",
+        "tests/test_modify_component.py",
+        "tests/test_backfill_design_doc.py",
+        "tests/test_cross_scenario_chain.py",
+        "tests/test_move_slide.py",
+        "tests/test_outline_design_spec_sync.py"
+      ],
+      "description": "슬라이드/component 부분 수정 — modify_design_spec(add/update/delete) + modify_component + imported lazy backfill."
+    },
+    "slides": {
+      "codePaths": [
+        "src/ppt_generator/tools/slides/**",
+        "src/ppt_generator/templates/**",
+        "tests/test_slides_*.py",
+        "tests/test_html_renderer.py",
+        "tests/test_shape_builders.py",
+        "tests/test_layout_mapping.py",
+        "tests/test_image_src_resolve.py",
+        "tests/test_slide_image_sync.py",
+        "tests/test_bg_image_utils.py"
+      ],
+      "description": "슬라이드 HTML 미리보기 — design spec → HTML 결정론적 변환 + iframe 컨테이너."
+    },
+    "pptx-export": {
+      "codePaths": [
+        "src/ppt_generator/tools/pptx/**",
+        "tests/test_pptx_*.py"
+      ],
+      "description": "PPTX 내보내기 — design spec → .pptx 결정론적 변환 (SlideBuilder 직접)."
+    },
+    "import": {
+      "codePaths": [
+        "src/ppt_generator/tools/pptx_import/**",
+        "tests/test_pptx_import.py"
+      ],
+      "description": "PPTX 임포트 — 외부 .pptx → DesignSpec 결정론적 역변환."
+    },
+    "visual-qa": {
+      "codePaths": [
+        "src/ppt_generator/tools/visual_qa/**",
+        "src/ppt_generator/interfaces/prompts/visual_qa_*",
+        "tests/test_visual_qa_*.py"
+      ],
+      "description": "스크린샷 기반 자동 QA — Haiku 분석 + Sonnet 수정 2-phase."
+    },
+    "project": {
+      "codePaths": [
+        "src/ppt_generator/tools/project/**",
+        "src/ppt_generator/server.py",
+        "src/ppt_generator/di/**",
+        "src/ppt_generator/interfaces/utils.py",
+        "src/ppt_generator/interfaces/constants.py",
+        "src/ppt_generator/interfaces/protocols.py",
+        "tests/test_project_*.py",
+        "tests/test_agent_hang_diagnosis.py"
+      ],
+      "description": "파이프라인 인프라 — 결과물 저장, 토큰/비용 추적, 진행률 보고, MCP 서버 안정성, DI 컨테이너."
+    },
+    "script": {
+      "codePaths": [
+        "src/ppt_generator/tools/script/**"
+      ],
+      "description": "발표 스크립트 생성 (deprecated) — 현재 파이프라인은 design_doc 의 speaker_notes 로 대체."
+    },
+    "template": {
+      "codePaths": [
+        "src/ppt_generator/tools/template/**"
+      ],
+      "description": "PPTX 템플릿 분석 (Proposed, 미구현) — 사용자 PPTX 의 색상/폰트/레이아웃을 읽어 동적 적용."
+    },
+    "chart": {
+      "codePaths": [
+        "src/ppt_generator/tools/chart/**"
+      ],
+      "description": "차트/데이터 시각화 (Proposed, 미구현) — 슬라이드 안의 차트를 데이터로부터 생성."
     }
-  },
-  "adrs": [
-    "pipeline/0001-outline-generation.md",
-    "pipeline/0002-script-generation.md",
-    "pipeline/0007-pipeline-artifact-persistence.md",
-    "pipeline/0008-template-analysis.md",
-    "pipeline/0011-progressive-refinement-pipeline.md",
-    "pipeline/0013-design-spec-pipeline.md",
-    "pipeline/0014-file-based-communication-and-per-slide-crud.md",
-    "pipeline/0016-per-slide-html-iframe.md",
-    "pipeline/0017-font-metric-text-overflow-prevention.md",
-    "pipeline/0018-parallel-design-spec-and-prompt-caching.md",
-    "pipeline/0020-token-usage-tracking-and-cost-estimation.md",
-    "pipeline/0021-slide-type-specific-system-prompts.md",
-    "pipeline/0022-title-slide-long-title-overflow-fix.md",
-    "pipeline/0023-design-spec-validator.md",
-    "pipeline/0024-agenda-optional-numbering.md",
-    "pipeline/0025-outline-thinking-medium.md",
-    "pipeline/0026-visual-qa-pipeline.md",
-    "pipeline/0027-pptx-import-to-design-spec.md",
-    "pipeline/0028-modify-design-spec-inline-outline.md",
-    "pipeline/0029-text-run-hyperlink-support.md",
-    "pipeline/0030-image-path-and-corner-radius-support.md",
-    "pipeline/0031-pptx-image-aspect-ratio-preservation.md",
-    "pipeline/0032-chart-data-visualization.md",
-    "pipeline/0033-design-spec-post-generation-review.md",
-    "pipeline/0034-add-slide-design-consistency.md",
-    "pipeline/0035-visual-qa-browser-tool-fallback.md",
-    "pipeline/0036-pipeline-progress-reporting-and-logging.md",
-    "pipeline/0036-theme-color-change-and-diagram-preference.md",
-    "pipeline/0037-visual-qa-two-phase-model-split.md",
-    "pipeline/0038-diagram-label-line-overlap-prevention.md",
-    "pipeline/0039-mcp-server-stability-improvements.md",
-    "pipeline/0040-layout-planning-phase.md",
-    "pipeline/0041-validator-to-lint.md",
-    "pipeline/0042-load-outline-include-content.md",
-    "pipeline/0048-arrow-and-label-attachment-lint.md",
-    "pipeline/0049-five-layer-design-spec-hierarchy.md",
-    "pipeline/0050-modify-component-mcp-tool.md",
-    "pipeline/0051-imported-slide-lazy-design-doc-backfill.md",
-    "pipeline/0052-content-local-grid.md",
-    "pipeline/0053-five-layer-data-integrity.md",
-    "pipeline/0054-five-layer-lint-policy.md",
-    "pipeline/0055-shape-autofit-default-shrink-text.md"
-  ]
+  }
 }

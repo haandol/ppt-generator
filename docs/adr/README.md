@@ -1,120 +1,132 @@
 # Architecture Decision Records (ADR)
 
-이 디렉토리는 PPT Generator 프로젝트의 주요 아키텍처 결정을 문서화합니다.
+이 디렉토리는 PPT Generator 프로젝트의 주요 아키텍처 결정을 카테고리별로 모아 둔다.
 
-## ADR이란?
+## ADR 이란?
 
-Architecture Decision Record (ADR)는 소프트웨어 개발 과정에서 내린 중요한 아키텍처 결정을 기록하는 문서입니다. 각 ADR은 다음을 포함합니다:
+소프트웨어 개발 과정에서 내린 중요한 아키텍처 결정의 *왜* 와 *무엇* 을 기록한다. 각 ADR 은:
 
-- **Context**: 결정이 필요했던 배경과 문제
-- **Decision**: 내린 결정과 그 이유
-- **Consequences**: 결정의 긍정적/부정적 영향
+- **Context** — 결정이 필요했던 배경/문제
+- **Decision** — 내린 결정과 그 이유
+- **Consequences** — 긍정/부정 영향
 
-## 디렉토리 구조
+## 카테고리 구조
+
+피쳐 단위 vertical slice 와 정렬한다. 각 카테고리는 코드의 특정 영역에 1:1 또는 close-to-1 로 매핑된다 — `docs/adr/.mapping.json` 의 `codePaths` 가 PreToolUse hook 과 `/adr-sync` 가 사용하는 단일 소스다.
 
 ```
-adr/
-└── pipeline/         # 파이프라인 피쳐별 결정
+docs/adr/
+├── outline/    슬라이드 outline 생성 — tools/outline/, prompts/outline_*
+├── design/     design spec 생성 + 5단 계층 — tools/design/, llm_output_models, schemas
+├── lint/       lint rule + validator → lint 전환 — interfaces/spec_utils/lint*
+├── modify/     슬라이드/component 부분 수정 — tools/design/handlers/modification.py
+├── slides/     슬라이드 HTML 미리보기 — tools/slides/
+├── import/     PPTX 임포트 — tools/pptx_import/
+├── visual-qa/  스크린샷 기반 자동 QA — tools/visual_qa/
+├── project/    파이프라인 인프라 (저장, 토큰/비용, 진행률, 안정성) — tools/project/, infra
+├── script/     발표 스크립트 생성 (deprecated, ADR 1 개) — tools/script/
+├── template/   PPTX 템플릿 분석 (proposed) — 미구현
+└── chart/      차트/데이터 시각화 (proposed) — 미구현
 ```
 
-## 카테고리별 ADR 목록
+## ADRs
 
-### Pipeline — Active
+### outline — 슬라이드 outline 생성
 
-- [0001: 슬라이드 아웃라인 생성 (F1)](./pipeline/0001-outline-generation.md)
-- [0002: 발표 스크립트 생성 (F2)](./pipeline/0002-script-generation.md)
-- [0007: 파이프라인 결과물 저장/로드 및 프로젝트 디렉토리 통합](./pipeline/0007-pipeline-artifact-persistence.md)
-- [0008: 템플릿 분석](./pipeline/0008-template-analysis.md) — _Proposed_
-- [0011: 점진적 구체화 파이프라인 설계](./pipeline/0011-progressive-refinement-pipeline.md)
-- [0013: 디자인 스펙 기반 슬라이드 생성 파이프라인](./pipeline/0013-design-spec-pipeline.md)
-- [0014: 파일 기반 통신, 슬라이드 단위 CRUD 및 파일 분리](./pipeline/0014-file-based-communication-and-per-slide-crud.md)
-- [0016: 슬라이드별 HTML 파일 분리 및 iframe 컨테이너](./pipeline/0016-per-slide-html-iframe.md)
-- [0017: 폰트 메트릭 기반 텍스트 오버플로우 방지](./pipeline/0017-font-metric-text-overflow-prevention.md)
-- [0018: 디자인 스펙 병렬 생성 — Worker 스케줄링 + Thinking Budget](./pipeline/0018-parallel-design-spec-and-prompt-caching.md)
-- [0020: 토큰 사용량 추적 및 비용 추정](./pipeline/0020-token-usage-tracking-and-cost-estimation.md)
-- [0021: 슬라이드 타입별 시스템 프롬프트 분리](./pipeline/0021-slide-type-specific-system-prompts.md)
-- [0022: 타이틀 슬라이드 긴 제목 텍스트 잘림 수정](./pipeline/0022-title-slide-long-title-overflow-fix.md)
-- [0023: 디자인 스펙 Validator](./pipeline/0023-design-spec-validator.md) — _Superseded by 0041_
-- [0024: Agenda Slide Optional Numbering](./pipeline/0024-agenda-optional-numbering.md)
-- [0025: Enable Medium Thinking for Outline Generation](./pipeline/0025-outline-thinking-medium.md)
-- [0026: Visual QA Pipeline](./pipeline/0026-visual-qa-pipeline.md)
-- [0027: PPTX 임포트 → 디자인 스펙 변환](./pipeline/0027-pptx-import-to-design-spec.md)
-- [0028: 개별 파일 기반 outline/script 저장 및 save_outline_slide 도구](./pipeline/0028-modify-design-spec-inline-outline.md)
-- [0029: 텍스트 런 하이퍼링크 지원](./pipeline/0029-text-run-hyperlink-support.md)
-- [0030: 이미지 image_path 및 corner_radius_px 지원](./pipeline/0030-image-path-and-corner-radius-support.md)
-- [0031: PPTX 이미지 종횡비 보존 (contain 방식)](./pipeline/0031-pptx-image-aspect-ratio-preservation.md)
-- [0032: 차트 및 데이터 시각화 지원](./pipeline/0032-chart-data-visualization.md) — _Proposed_
-- [0033: Design Spec Post-Generation LLM Review](./pipeline/0033-design-spec-post-generation-review.md)
-- [0034: 슬라이드 추가 시 기존 디자인 스펙 참조를 통한 일관성 향상](./pipeline/0034-add-slide-design-consistency.md)
-- [0035: Visual QA 브라우저 도구 안내 개선](./pipeline/0035-visual-qa-browser-tool-fallback.md)
-- [0036: 파이프라인 전체 진행률 보고 및 로깅 강화](./pipeline/0036-pipeline-progress-reporting-and-logging.md)
-- [0036: 기본 테마 색상 변경 및 다이어그램 활용 강화](./pipeline/0036-theme-color-change-and-diagram-preference.md)
-- [0037: Visual QA 2-Phase 모델 분리 (Haiku 분석 + Sonnet 수정)](./pipeline/0037-visual-qa-two-phase-model-split.md)
-- [0038: Diagram Label-Line Overlap Prevention](./pipeline/0038-diagram-label-line-overlap-prevention.md)
-- [0039: MCP Server Stability Improvements](./pipeline/0039-mcp-server-stability-improvements.md)
-- [0040: 레이아웃 계획 단계 추가 (Layout Planning Phase)](./pipeline/0040-layout-planning-phase.md)
-- [0041: Validator를 Lint로 전환](./pipeline/0041-validator-to-lint.md)
-- [0042: load_outline에 include_content 파라미터 추가](./pipeline/0042-load-outline-include-content.md)
-- [0048: 화살표·라벨 부착 검증 lint](./pipeline/0048-arrow-and-label-attachment-lint.md)
-- [0049: 5단 디자인 스펙 계층 — Project / Slide / Layout / Section / Content](./pipeline/0049-five-layer-design-spec-hierarchy.md)
-- [0050: modify_component MCP 도구 — Section 단위 부분 수정](./pipeline/0050-modify-component-mcp-tool.md)
-- [0051: Imported 슬라이드 design_doc lazy backfill](./pipeline/0051-imported-slide-lazy-design-doc-backfill.md)
-- [0052: Content 로컬 그리드 — Section 컨텐츠 영역의 sub-grid 분할](./pipeline/0052-content-local-grid.md) — _Rejected_
-- [0053: 5단 디자인 스펙 계층 — 데이터 무결성](./pipeline/0053-five-layer-data-integrity.md)
-- [0054: 5단 디자인 스펙 계층 — Lint 정책 (cross-layer + 단계적 실행)](./pipeline/0054-five-layer-lint-policy.md)
-- [0055: PptxShape autofit 기본값 — shrink_text](./pipeline/0055-shape-autofit-default-shrink-text.md)
+- [0001 슬라이드 아웃라인 생성 (F1)](./outline/0001-outline-generation.md)
+- [0002 Agenda Slide Optional Numbering](./outline/0002-agenda-optional-numbering.md)
+- [0003 Outline 생성에 Medium Thinking 활성화](./outline/0003-outline-thinking-medium.md)
+- [0004 레이아웃 계획 단계 추가 (Layout Planning Phase)](./outline/0004-layout-planning-phase.md)
+- [0005 load_outline 에 include_content 파라미터 추가](./outline/0005-load-outline-include-content.md)
 
-## ADR 작성 가이드
+### design — 디자인 스펙 생성 + 5단 계층
 
-새로운 ADR을 작성할 때는 다음 템플릿을 사용하세요:
+- [0001 디자인 스펙 기반 슬라이드 생성 파이프라인](./design/0001-design-spec-pipeline.md)
+- [0002 폰트 메트릭 기반 텍스트 오버플로우 방지](./design/0002-font-metric-text-overflow.md)
+- [0003 디자인 스펙 병렬 생성 — Worker 스케줄링 + Thinking Budget](./design/0003-parallel-design-spec.md)
+- [0004 슬라이드 타입별 시스템 프롬프트 분리](./design/0004-slide-type-specific-prompts.md)
+- [0005 타이틀 슬라이드 긴 제목 텍스트 잘림 수정](./design/0005-title-long-title-overflow-fix.md)
+- [0006 텍스트 런 하이퍼링크 지원](./design/0006-text-run-hyperlink.md)
+- [0007 이미지 image_path 및 corner_radius_px 지원](./design/0007-image-path-corner-radius.md)
+- [0008 Design Spec Post-Generation LLM Review](./design/0008-design-spec-post-generation-review.md) — _Proposed_
+- [0009 슬라이드 추가 시 기존 디자인 스펙 참조 일관성](./design/0009-add-slide-design-consistency.md) — _Superseded by design/0010_
+- [0010 기본 테마 색상 변경 + 다이어그램 활용 강화](./design/0010-theme-color-change.md)
+- [0011 5단 디자인 스펙 계층 — Project / Slide / Layout / Section / Content](./design/0011-five-layer-design-spec-hierarchy.md)
+- [0012 Content 로컬 그리드 — Section 내부 sub-grid](./design/0012-content-local-grid.md) — _Rejected_
+- [0013 5단 계층 데이터 무결성](./design/0013-five-layer-data-integrity.md)
+- [0014 PptxShape autofit 기본값 — shrink_text](./design/0014-shape-autofit-shrink-text.md)
 
-```markdown
-# N. [제목]
+### lint — 디자인 스펙 lint
 
-Date: YYYY-MM-DD
+- [0001 디자인 스펙 Validator](./lint/0001-design-spec-validator.md) — _Superseded by lint/0003_
+- [0002 Diagram Label-Line Overlap Prevention](./lint/0002-diagram-label-line-overlap-prevention.md)
+- [0003 Validator 를 Lint 로 전환](./lint/0003-validator-to-lint.md)
+- [0004 화살표·라벨 부착 검증 lint](./lint/0004-arrow-label-attachment-lint.md)
+- [0005 5단 계층 Lint 정책 — cross-layer + 단계적 실행](./lint/0005-five-layer-lint-policy.md)
 
-## Status
+### modify — 슬라이드/component 부분 수정
 
-[Proposed | Accepted | Deprecated | Superseded | Merged into XXXX]
+- [0001 파일 기반 통신, 슬라이드 단위 CRUD 및 파일 분리](./modify/0001-file-based-communication-and-per-slide-crud.md)
+- [0002 개별 파일 기반 outline/script 저장 및 save_outline_slide 도구](./modify/0002-modify-design-spec-inline-outline.md)
+- [0003 modify_component MCP 도구 — Section 단위 부분 수정](./modify/0003-modify-component-mcp-tool.md)
+- [0004 Imported 슬라이드 design_doc lazy backfill](./modify/0004-imported-slide-lazy-backfill.md)
 
-## Context
+### slides — HTML 미리보기
 
-[결정이 필요한 배경과 문제 설명]
+- [0001 슬라이드별 HTML 파일 분리 + iframe 컨테이너](./slides/0001-per-slide-html-iframe.md)
 
-## Decision
+### import — PPTX 임포트
 
-[내린 결정과 그 이유]
+- [0001 PPTX 임포트 → 디자인 스펙 변환](./import/0001-pptx-import-to-design-spec.md)
+- [0002 PPTX 이미지 종횡비 보존 (contain 방식)](./import/0002-pptx-image-aspect-ratio-preservation.md)
 
-### Technical Details
+### visual-qa — 스크린샷 기반 자동 QA
 
-### Alternatives Considered
+- [0001 Visual QA Pipeline](./visual-qa/0001-visual-qa-pipeline.md)
+- [0002 Visual QA 브라우저 도구 안내 개선](./visual-qa/0002-browser-tool-fallback.md) — _Proposed_
+- [0003 Visual QA 2-Phase 모델 분리 (Haiku 분석 + Sonnet 수정)](./visual-qa/0003-two-phase-model-split.md)
 
-### Acceptance Criteria
+### project — 파이프라인 인프라
 
-### Out of Scope
+- [0001 파이프라인 결과물 저장/로드 + 프로젝트 디렉토리 통합](./project/0001-pipeline-artifact-persistence.md)
+- [0002 점진적 구체화 파이프라인 설계](./project/0002-progressive-refinement-pipeline.md)
+- [0003 토큰 사용량 추적 및 비용 추정](./project/0003-token-usage-cost-estimation.md)
+- [0004 파이프라인 전체 진행률 보고 및 로깅 강화](./project/0004-progress-reporting-and-logging.md)
+- [0005 MCP Server Stability Improvements](./project/0005-mcp-server-stability.md)
 
-## Consequences
+### script — 발표 스크립트 생성 (deprecated)
 
-[긍정적/부정적 영향, 리스크]
+- [0001 발표 스크립트 생성 (F2)](./script/0001-script-generation.md)
 
-## References
+### template — PPTX 템플릿 분석 (proposed)
 
-[관련 파일, ADR 링크]
-```
+- [0001 PPTX 템플릿 분석 및 동적 디자인 반영 (F8)](./template/0001-template-analysis.md) — _Proposed_
+
+### chart — 차트/데이터 시각화 (proposed)
+
+- [0001 차트 및 데이터 시각화 지원](./chart/0001-chart-data-visualization.md) — _Proposed_
 
 ## 작성 규칙
 
-- ADR에 **구현 코드 스니펫이나 파일 경로를 포함하지 않는다.** ADR은 아키텍처 결정(Context, Decision, Consequences)을 기록하는 문서이며, 코드가 변경될 때마다 ADR을 수정해야 하는 상황을 방지하기 위해 "왜(why)"와 "무엇(what)" 수준의 설계 결정만 기록하고 "어떻게(how)"의 구현 디테일은 코드에 맡긴다.
-- 기존 ADR 중 코드 스니펫이나 파일 경로가 포함된 것은 해당 ADR이 업데이트될 때 점진적으로 제거한다.
+- ADR 에 **구현 코드 스니펫이나 파일 경로(폴더 이하) 를 포함하지 않는다.** 코드가 변경될 때마다 ADR 을 수정해야 하는 상황을 방지하려고, "왜(why)" 와 "무엇(what)" 수준의 설계 결정만 기록하고 "어떻게(how)" 의 구현 디테일은 코드와 docstring 으로 위임한다.
+- 기존 ADR 중 코드 스니펫이나 파일 경로가 포함된 것은 해당 ADR 이 업데이트될 때 점진적으로 제거한다.
+- ADR 번호 인용은 카테고리 prefix 와 함께 — `lint/0003`, `modify/0003` 처럼.
 
 ## 명명 규칙
 
-- 파일명: `XXXX-kebab-case-title.md`
-- 번호는 카테고리 내에서 순차적으로 증가
-- 제목은 명확하고 간결하게
+- 파일명: `<카테고리>/XXXX-kebab-case-title.md`
+- 번호는 카테고리 내에서 순차적으로 증가 (split·삭제 시 결번 허용, renumber 금지)
+- 카테고리는 코드 vertical slice 와 정렬
+
+## 새 카테고리 추가 시
+
+1. `docs/adr/<new-category>/` 디렉토리 생성 + 첫 ADR `0001-...md` 작성
+2. `docs/adr/.mapping.json` 의 `categories` 에 카테고리 entry + `codePaths` glob 추가
+3. 본 README 의 카테고리 트리·ADRs 섹션에 한 줄 추가
+4. PreToolUse hook 이 codePaths 를 자동으로 인식
 
 ## 참고
 
-- [Architecture](../architecture.md)
+- [Architecture](../harness/architecture.md)
 - [ALPS 설계 문서](../ppt-generator.alps.md)
 - [ADR GitHub](https://adr.github.io/)

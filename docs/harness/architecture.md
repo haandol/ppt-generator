@@ -105,7 +105,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 
 ## Concurrency
 
-디자인 스펙 생성은 슬라이드별 독립 LLM 호출이므로 병렬 처리를 적용합니다. ([ADR-0018](adr/pipeline/0018-parallel-design-spec-and-prompt-caching.md))
+디자인 스펙 생성은 슬라이드별 독립 LLM 호출이므로 병렬 처리를 적용합니다. ([design/0003](../adr/design/0003-parallel-design-spec.md))
 
 **병렬 생성** (`tools/design/parallel_runner.py`):
 - `generate_slides_design_spec`에서 `run_parallel_generation()`을 호출하여 `ThreadPoolExecutor`로 슬라이드를 병렬 생성
@@ -116,7 +116,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 - 토큰 사용량을 워커별로 수집하여 합산 (`ParallelResult` 반환)
 
 **Thinking Budget (전체 Sonnet 모델):**
-- Sonnet + structured_output (tool use/json_schema 기반) 조합에서 adaptive thinking은 출력 토큰을 예측 불가능하게 소비하여 `MaxTokensReachedException` 유발 → 고정 budget 필수 (ADR-0018)
+- Sonnet + structured_output (tool use/json_schema 기반) 조합에서 adaptive thinking은 출력 토큰을 예측 불가능하게 소비하여 `MaxTokensReachedException` 유발 → 고정 budget 필수 (design/0003)
 - 디자인 스펙: `{"thinking": {"type": "enabled", "budget_tokens": N}}` — complexity에 따라 4K/8K/12K 차등 적용
 - 아웃라인: 고정 8K budget
 - Visual QA fix: 고정 2K budget
@@ -125,7 +125,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 **Prompt Caching — 현재 미사용:**
 - Sonnet 4.6 + adaptive thinking 조합에서 `cacheWriteInputTokens` 만 발생하고 `cacheReadInputTokens=0` 이 재현되어 제거됨
 - `CacheConfig(strategy="auto")`, Anthropic 쪽 `cache_control: ephemeral` 래퍼 모두 미적용
-- 상세 근거 및 재도입 조건은 [ADR-0018](adr/pipeline/0018-parallel-design-spec-and-prompt-caching.md) 의 "재도입 조건 (캐싱)" 절 참조
+- 상세 근거 및 재도입 조건은 [design/0003](../adr/design/0003-parallel-design-spec.md) 의 "재도입 조건 (캐싱)" 절 참조
 
 ## Token Usage Tracking & Cost Estimation
 
@@ -170,7 +170,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 - **슬라이드 크기 정규화**: 외부 PPTX의 크기가 1280×720px이 아닌 경우 비례 스케일링
 - 임포트 후 `modify_design_spec`, `visual_qa`, `export_html`, `export_pptx` 모두 즉시 사용 가능
 
-> 상세 설계: [ADR-0027](adr/pipeline/0027-pptx-import-to-design-spec.md)
+> 상세 설계: [import/0001](../adr/import/0001-pptx-import-to-design-spec.md)
 
 #### 디자인 스펙 병렬 생성
 
