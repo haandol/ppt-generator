@@ -1,10 +1,44 @@
 # ADR-0052: Content 로컬 그리드 — Section 컨텐츠 영역의 sub-grid 분할
 
-Date: 2026-05-26
+Date: 2026-05-26 (updated 2026-05-26: 구현 진입 직전 Rejected)
 
 ## Status
 
-Proposed
+**Rejected** (구현 시작 후 표현력 trade-off 재평가로 폐기)
+
+## Rejection Rationale
+
+구현을 시작하면서 "복잡한 다이어그램에서 local_grid 가 과연 도움이 되는가" 를
+재검토한 결과, *카드 그리드 vs 자유형 다이어그램* 의 두 케이스에서 답이 갈라
+지는데 자유형 쪽이 본 프로젝트의 주된 사용 패턴임을 확인했다.
+
+- **로컬 그리드가 유리한 경우** (정형 슬롯): 3×3 매트릭스, 5×1 파이프라인,
+  2×3 카드 그리드, 4×2 테이블형 다이어그램. 자식이 *균일 슬롯* 에 떨어지고
+  슬롯 위치 자체가 의미를 가질 때.
+- **자유 배치가 유리한 경우** (자유형 다이어그램): LLM 중심 + 함수 호출 다
+  이어그램, 트리 다이어그램, 흐름도(분기/조건문), 네트워크 토폴로지. 자식
+  위치가 의미적으로 비대칭이거나 화살표·라벨이 격자 사이를 가로지를 때.
+
+본 프로젝트가 LLM·에이전트 · 아키텍처 다이어그램 등 *비대칭 자유형* 을 자주
+다루기에, local_grid 도입은 자유형 케이스에서 표현력을 *제약* 하는 비용이 카드
+그리드 케이스의 충돌 차단 이득보다 크다.
+
+또한 카드 그리드 케이스의 충돌은 이미 다음 lint 가 충분히 강제한다:
+- `sibling-grid-uniformity` (cross/warning)
+- `sibling-gap-minimum` (cross/warning)
+- `layout-tree-sibling-overlap` (section/error)
+- `layout-tree-containment` (section/error)
+
+→ 추가 schema 필드(LocalGrid + 4 개 LayoutNode 필드) 와 신규 lint 2 종 (`local-
+grid-cell-collision`, `local-grid-bbox-derivation`) 의 가치 대비 LLM 학습 부담·
+schema 토큰·자유형 표현력 손실이 크다. **컨텐츠 영역(section 내부) 은 자유 배치
+유지** 가 결론.
+
+## Decision (Withdrawn)
+
+이하 5 개 결정은 *제안* 단계에서 종합 평가 후 채택하지 않는다. 코드 변경 없음.
+
+(원본 결정 기록은 학습 가치가 있어 아래 그대로 보존한다.)
 
 ## Context
 
@@ -200,20 +234,22 @@ violations 와 *중복 보고* 만 회피하는 정도로 이후 별도 ADR 에�
   local_cell=None 처리가 필요. 프롬프트가 이를 충분히 가르치지 못하면 LLM 이
   모든 자식을 강제로 grid 에 끼워 넣어 표현력이 줄 수 있음.
 
-## Open Questions (구현 PR 진입 전 결론 필요)
+## Resolved Questions (Rejected 직전, 학습 기록용)
 
-1. **`local_grid` 강제 vs 권장**: section/group 마다 local_grid 를 *반드시*
-   채우게 할지(자유 배치 폐지) 옵션으로 둘지. 강제 시 LLM 학습 부담 큼,
-   옵션 시 효과 약함. 본 ADR 은 *옵션* 으로 가정.
-2. **렌더러가 local_grid 를 정답으로 쓸지**: 현재는 자식 bbox 픽셀이 진실.
-   향후 자식 bbox 를 *생략하고* local_cell 만 출력 → 렌더 시점에 도출하는
-   안 가능. 표현력/구현 단순성 trade-off.
-3. **modify_component 와의 관계**: 부분 수정이 자식의 local_cell 을 변경할
-   수 있게 할지. 현재 modify_component 는 element 1 개 교체. local_cell 변경
-   시 grid 재정렬을 자동으로 할지, 사용자 책임으로 둘지.
+본 ADR 이 Accepted 였을 때 결정된 답들. Rejected 후에는 구현되지 않으나, 향후
+유사 결정에 참고하기 위해 보존한다.
 
-이 3 개는 다음 세션 시작 시 결정하고 본 ADR 의 결정 1~5 를 확정한 뒤 구현
-PR 으로 진입한다.
+1. **`local_grid` 강제 vs 권장 → 옵션**: section/group 마다 자유 선택. 단순
+   영역(자식 1-2 개 또는 다이어그램 free-form) 은 None 유지. graceful
+   fallback (ADR-0049 패턴) 과 일관.
+2. **렌더러가 local_grid 를 정답으로 쓸지 → 자식 bbox 필수 유지**: 자식의
+   left/top/width/height 는 여전히 spec 에 박혀 있어야 한다 (렌더링은 자식
+   bbox 가 진실). local_grid + local_cell 은 *검증·식별 메타* 로 한정. 렌더러/
+   parser/serializer/HTML/PPTX 변경 최소화.
+3. **modify_component 와의 관계 → 본 ADR 범위 밖**: modify_component 는
+   기존대로 element 1 개 교체에 한정. local_cell 변경은 향후 별도 도구
+   (modify_grid_slot 등) 에서 검토. 현재는 LLM 이 update 호출로 슬라이드
+   재생성 시 새 local_cell 도 함께 출력하는 구조.
 
 ## References
 
