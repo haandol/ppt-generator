@@ -1058,7 +1058,7 @@ wheels = [
 
 [[package]]
 name = "ppt-generator"
-version = "0.6.3"
+version = "0.6.4"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },

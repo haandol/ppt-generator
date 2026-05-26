@@ -1888,3 +1888,84 @@ class TestLayoutTreeBbox:
         )
         v = [x for x in result.violations if x.rule.startswith("layout-tree")]
         assert len(v) == 0
+
+
+# ---------------------------------------------------------------------------
+# layer 필터링 (ADR-0049 5단 계층 단계적 lint)
+# ---------------------------------------------------------------------------
+
+
+class TestLayerFiltering:
+    """lint_slide_spec(spec, layers=[...]) 가 layer 별 위반만 반환하는지 검증."""
+
+    def _slide_with_both_violations(self) -> PptxSlideSpec:
+        """layout 계층 (grid 미지정) + content 계층 (제목 폰트 부족) 위반 동시 발생."""
+        # title font 16pt < 24pt → content 계층 title-font-min
+        # grid_plan=None & content slide → layout 계층 grid-plan-required
+        return PptxSlideSpec(
+            background_color="#1a1a2e",
+            slide_type="content",
+            textboxes=[_tb("제목", font=16)],
+            shapes=[],
+            grid_plan=None,
+        )
+
+    def test_default_returns_all_layers(self) -> None:
+        spec = self._slide_with_both_violations()
+        result = lint_slide_spec(spec)
+        layers = {v.layer for v in result.violations}
+        assert "content" in layers
+        assert "layout" in layers
+
+    def test_filter_layout_only(self) -> None:
+        spec = self._slide_with_both_violations()
+        result = lint_slide_spec(spec, layers=["layout"])
+        layers = {v.layer for v in result.violations}
+        assert layers == {"layout"}
+        # content 위반은 빠져야 함
+        assert all(v.layer != "content" for v in result.violations)
+
+    def test_filter_content_only(self) -> None:
+        spec = self._slide_with_both_violations()
+        result = lint_slide_spec(spec, layers=["content"])
+        layers = {v.layer for v in result.violations}
+        assert layers == {"content"}
+
+    def test_filter_section_layer(self) -> None:
+        """layout-tree 위반은 section layer 로 분류."""
+        layout = [
+            LayoutNode(
+                id="a",
+                kind="section",
+                left_px=64,
+                top_px=148,
+                width_px=540,
+                height_px=510,
+            ),
+            LayoutNode(
+                id="b",
+                kind="section",
+                left_px=400,
+                top_px=148,
+                width_px=540,
+                height_px=510,
+            ),
+        ]
+        spec = PptxSlideSpec(
+            background_color="#1a1a2e",
+            slide_type="content",
+            design_doc=DesignDoc(topic="t", layout_summary="ls", layout=layout),
+        )
+        result = lint_slide_spec(spec, layers=["section"])
+        rules = {v.rule for v in result.violations}
+        assert "layout-tree-sibling-overlap" in rules
+        layers = {v.layer for v in result.violations}
+        assert layers == {"section"}
+
+    def test_to_dict_contains_by_layer(self) -> None:
+        spec = self._slide_with_both_violations()
+        result = lint_slide_spec(spec)
+        d = result.to_dict()
+        assert "by_layer" in d
+        assert d["by_layer"].get("layout", 0) >= 1
+        assert d["by_layer"].get("content", 0) >= 1

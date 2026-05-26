@@ -8,32 +8,60 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from ppt_generator.interfaces.schemas import PptxSlideSpec, PptxTextBox
 from ppt_generator.interfaces.spec_utils.lint_rules import ALL_RULES
 from ppt_generator.interfaces.spec_utils.lint_types import (
     LintResult,
     LintViolation,
     SlideLintResult,
+    layer_for_rule,
 )
 
 
-def lint_slide_spec(spec: PptxSlideSpec, slide_index: int = 1) -> SlideLintResult:
-    """단일 슬라이드를 lint한다. 위반을 감지하되 수정하지 않는다."""
+def lint_slide_spec(
+    spec: PptxSlideSpec,
+    slide_index: int = 1,
+    layers: list[str] | None = None,
+) -> SlideLintResult:
+    """단일 슬라이드를 lint한다. 위반을 감지하되 수정하지 않는다.
+
+    Args:
+        spec: 검사할 슬라이드
+        slide_index: 슬라이드 번호 (1-based)
+        layers: ADR-0049 5단 계층 중 검사할 layer 목록 (예: ["layout"], ["section"]).
+            None 이면 모든 layer 검사. layer 별 단계적 lint 호출 시 사용.
+    """
     result = SlideLintResult(slide_index=slide_index)
     for rule in ALL_RULES:
         rule(spec, result)
+    # rule 결과에 layer 메타 자동 부여 (rule 파일 자체는 layer 모름).
+    annotated: list[LintViolation] = [
+        replace(v, layer=layer_for_rule(v.rule)) for v in result.violations
+    ]
+    if layers:
+        annotated = [v for v in annotated if v.layer in layers]
+    result.violations[:] = annotated
     return result
 
 
-def lint_design_spec(specs: list[PptxSlideSpec]) -> LintResult:
+def lint_design_spec(
+    specs: list[PptxSlideSpec],
+    layers: list[str] | None = None,
+) -> LintResult:
     """전체 슬라이드에 대해 lint를 실행한다.
+
+    Args:
+        specs: 슬라이드 spec 리스트
+        layers: layer 필터 (lint_slide_spec 와 동일)
 
     Returns:
         LintResult: 슬라이드별 위반 리포트 + 기계적 정리가 적용된 spec 리스트
     """
     result = LintResult()
     for idx, spec in enumerate(specs):
-        slide_result = lint_slide_spec(spec, slide_index=idx + 1)
+        slide_result = lint_slide_spec(spec, slide_index=idx + 1, layers=layers)
         result.slides.append(slide_result)
         result.cleaned_specs.append(_clean_spec(spec))
     return result
