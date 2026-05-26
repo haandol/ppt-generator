@@ -154,7 +154,11 @@ class PptxShape:
     svg_path: str | None = (
         None  # SVG path data for custom freeform shapes (shape_type="custom")
     )
-    autofit_mode: str = "expand_height"  # "expand_height" (default) | "shrink_text" (keep height, shrink font)
+    # ADR-0049 결정 14: shape autofit 기본은 "shrink_text" (높이 고정, 폰트 자동 축소).
+    # expand_height 는 height 가 늘어나며 sibling 과 충돌하기 쉬워 grid 균일성을 깬다.
+    # shrink_text 는 카드 높이 통일을 보장하고, 폰트가 작아져도 font-range lint 가
+    # 10pt 미만은 잡아준다. 시각적 잘림을 피하는 대신 폰트 크기를 양보하는 정책.
+    autofit_mode: str = "shrink_text"  # "shrink_text" (default) | "expand_height"
     z_index: int | None = None  # rendering order (lower = behind, higher = front)
     grid_cell: str | None = None  # GridPlan cell id this element belongs to
     component_id: str | None = None  # DesignDoc.sections[].components[].id 참조

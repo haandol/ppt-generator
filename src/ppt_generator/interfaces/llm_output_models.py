@@ -90,7 +90,8 @@ class ShapeOutput(BaseModel):
     start_arrow: bool = False
     dash_style: Literal["solid", "dash", "dot"] | None = None
     svg_path: str | None = None
-    autofit_mode: Literal["expand_height", "shrink_text"] = "expand_height"
+    # ADR-0049 결정 14: 기본 shrink_text (높이 고정, 폰트 자동 축소)
+    autofit_mode: Literal["expand_height", "shrink_text"] = "shrink_text"
     grid_cell: str | None = None
     component_id: str | None = None  # design_doc.sections[].components[].id 참조
 
@@ -499,3 +500,111 @@ class DesignReviewOutput(BaseModel):
 
     has_high_severity: bool
     issues: list[DesignReviewIssue] = Field(default_factory=list)
+
+
+# --- ADR-0050: Component-level partial modification ---
+
+
+class ComponentModifyOutput(BaseModel):
+    """단일 component 부분 수정 응답 (ADR-0050).
+
+    `element_kind` 가 "textbox" 면 `textbox` 가 채워지고, "shape" 면 `shape` 가
+    채워진다. 다른 한쪽은 None. `bbox_changed=True` 면 호출자가 design_doc.layout
+    트리의 동일 component_id 노드의 bbox 도 element bbox 와 동기화한다.
+    """
+
+    element_kind: Literal["textbox", "shape"]
+    textbox: TextBoxOutput | None = None
+    shape: ShapeOutput | None = None
+    bbox_changed: bool = False
+
+
+class BackfillElementRef(BaseModel):
+    """backfill 시 component leaf 가 가리키는 element 의 위치 참조.
+
+    LLM 은 (kind, index) 만 출력하고, 코드는 이를 참고해 textbox/shape 의
+    component_id 필드를 채우고 leaf bbox 를 element bbox 로 동기화한다.
+    """
+
+    kind: Literal["textbox", "shape"]
+    index: int = Field(ge=0)
+
+
+class BackfillNode(BaseModel):
+    """backfill 시 LLM 이 출력하는 LayoutNode (flat, parent_id 참조).
+
+    bbox 좌표는 LLM 이 직접 출력하지 않는다. 코드가 element bbox 합집합으로 계산.
+    `element_ref` 는 kind=='component' 일 때만 채워진다.
+    """
+
+    id: str
+    parent_id: str | None = ""
+    kind: Literal["section", "group", "component"] = "component"
+    role: str | None = ""
+    description: str | None = ""
+    element_ref: BackfillElementRef | None = None
+
+
+class BackfillDesignDocOutput(BaseModel):
+    """imported 슬라이드에 design_doc 트리를 백필하기 위한 LLM 응답 (ADR-0051).
+
+    `topic`/`layout_summary` 는 슬라이드 콘텐츠 요약. `nodes` 는 design_doc.layout
+    의 flat 트리 (parent_id 참조). 모든 textbox 와 모든 shape 가 정확히 1 개의
+    component leaf 와 매칭되어야 한다 (코드가 검증).
+    """
+
+    topic: str = ""
+    layout_summary: str = ""
+    nodes: list[BackfillNode] = Field(default_factory=list)
+
+
+def textbox_output_to_dataclass(tb: TextBoxOutput) -> PptxTextBox:
+    """TextBoxOutput → PptxTextBox 변환 (component_id 보존)."""
+    return PptxTextBox(
+        left_px=tb.left_px,
+        top_px=tb.top_px,
+        width_px=tb.width_px,
+        height_px=tb.height_px,
+        paragraphs=_convert_paragraphs(tb.paragraphs),
+        line_spacing_pt=tb.line_spacing_pt,
+        vertical_alignment=tb.vertical_alignment,
+        padding_left_px=tb.padding_left_px,
+        padding_right_px=tb.padding_right_px,
+        padding_top_px=tb.padding_top_px,
+        padding_bottom_px=tb.padding_bottom_px,
+        grid_cell=tb.grid_cell,
+        component_id=tb.component_id,
+    )
+
+
+def shape_output_to_dataclass(s: ShapeOutput) -> PptxShape:
+    """ShapeOutput → PptxShape 변환 (component_id 보존)."""
+    return PptxShape(
+        left_px=s.left_px,
+        top_px=s.top_px,
+        width_px=s.width_px,
+        height_px=s.height_px,
+        shape_type=s.shape_type,
+        fill_color=s.fill_color,
+        border_color=s.border_color,
+        border_width_pt=s.border_width_pt,
+        corner_radius_px=s.corner_radius_px,
+        text=s.text,
+        text_color=s.text_color,
+        text_size_pt=s.text_size_pt,
+        text_bold=s.text_bold,
+        paragraphs=_convert_paragraphs(s.paragraphs),
+        line_spacing_pt=s.line_spacing_pt,
+        padding_left_px=s.padding_left_px,
+        padding_right_px=s.padding_right_px,
+        padding_top_px=s.padding_top_px,
+        padding_bottom_px=s.padding_bottom_px,
+        vertical_alignment=s.vertical_alignment,
+        end_arrow=s.end_arrow,
+        start_arrow=s.start_arrow,
+        dash_style=s.dash_style,
+        svg_path=s.svg_path,
+        autofit_mode=s.autofit_mode,
+        grid_cell=s.grid_cell,
+        component_id=s.component_id,
+    )

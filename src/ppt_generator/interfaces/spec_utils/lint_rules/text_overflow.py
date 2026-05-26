@@ -70,6 +70,13 @@ def _check_shapes(spec: PptxSlideSpec, result: SlideLintResult) -> None:
         if is_decorative(shape):
             continue
 
+        # autofit_mode="shrink_text" 인 shape 는 폰트가 자동 축소되어 높이 초과가
+        # 시각적으로 발생하지 않는다. 의도된 동작이므로 height 검사 스킵.
+        # (단어 폭 검사 _check_shapes_width_overflow 는 별개로 유지 — 단일 단어가
+        # 너무 길면 shrink_text 도 살리지 못하는 케이스가 있다.)
+        if shape.autofit_mode == "shrink_text":
+            continue
+
         has_paragraphs = any(
             run.text.strip() for para in shape.paragraphs for run in para.runs
         )

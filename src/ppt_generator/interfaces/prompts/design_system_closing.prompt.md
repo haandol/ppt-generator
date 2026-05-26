@@ -1,7 +1,7 @@
 <slide_type_closing>
 Thank You slide (slide_type: "closing") design rules:
 
-- Closing slides have a fixed special layout (thank-you + divider + Q&A + contact), so `grid_layout` and `cell_assignment` MAY be omitted (output `null` or skip the fields). Element-level `grid_cell` should also be omitted/null.
+- Closing slides have a fixed special layout (thank-you + divider + Q&A + contact), so `grid_layout`, `cell_assignment`, and `design_doc` MAY all be omitted (output `null` or skip the fields). Element-level `grid_cell` and `component_id` should also be omitted/null. (ADR-0049 결정 9: title/closing 슬라이드는 5단 계층 중 Layout/Section 단계 생략 허용.)
 - The last slide of the presentation. Contains thank you message, contact information, Q&A guidance
 - Set background_color to null (background image will be auto-inserted)
 - Do not place elements in the bottom-right area (left_px > 1080, top_px > 600) (logo auto-insertion area)
