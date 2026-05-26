@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastSyncedAt": "2026-05-26T16:00:00Z",
+  "lastSyncedAt": "2026-05-26T17:00:00Z",
   "categories": {
     "pipeline": {
       "codePaths": [
@@ -49,6 +49,9 @@
     "pipeline/0049-five-layer-design-spec-hierarchy.md",
     "pipeline/0050-modify-component-mcp-tool.md",
     "pipeline/0051-imported-slide-lazy-design-doc-backfill.md",
-    "pipeline/0052-content-local-grid.md"
+    "pipeline/0052-content-local-grid.md",
+    "pipeline/0053-five-layer-data-integrity.md",
+    "pipeline/0054-five-layer-lint-policy.md",
+    "pipeline/0055-shape-autofit-default-shrink-text.md"
   ]
 }

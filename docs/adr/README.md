@@ -60,6 +60,9 @@ adr/
 - [0050: modify_component MCP 도구 — Section 단위 부분 수정](./pipeline/0050-modify-component-mcp-tool.md)
 - [0051: Imported 슬라이드 design_doc lazy backfill](./pipeline/0051-imported-slide-lazy-design-doc-backfill.md)
 - [0052: Content 로컬 그리드 — Section 컨텐츠 영역의 sub-grid 분할](./pipeline/0052-content-local-grid.md) — _Rejected_
+- [0053: 5단 디자인 스펙 계층 — 데이터 무결성](./pipeline/0053-five-layer-data-integrity.md)
+- [0054: 5단 디자인 스펙 계층 — Lint 정책 (cross-layer + 단계적 실행)](./pipeline/0054-five-layer-lint-policy.md)
+- [0055: PptxShape autofit 기본값 — shrink_text](./pipeline/0055-shape-autofit-default-shrink-text.md)
 
 ## ADR 작성 가이드
 
