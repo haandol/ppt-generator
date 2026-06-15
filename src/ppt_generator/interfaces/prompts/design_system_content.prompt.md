@@ -335,8 +335,18 @@ Vertical M-row even distribution (safe area 508px = 148~656, gap=28px):
 Arrow coordinates:
 - Horizontal (A→B): left=A.left+A.width, top=A.top+A.height/2, width=B.left-A.right, height=0
 - Vertical (A→B): left=A.left+A.width/2, top=A.top+A.height, width=0, height=B.top-A.bottom
-- All diagram arrows: end_arrow=true. Min gap between blocks: 28px (arrowhead size=14px).
+- The arrowhead marks the flow DESTINATION (the target node), not a fixed coordinate corner. For a forward edge A→B drawn small→large coordinates, use end_arrow=true. Min gap between blocks: 28px (arrowhead size=14px).
 - Endpoints must touch block edges exactly — no gap, no penetration.
+
+Cyclic / loop diagrams (ReAct loops, feedback loops, A→B→C→A):
+  The arrowhead must sit on the edge of the TARGET node (the next node in the flow), regardless of coordinate direction.
+  A back-edge (e.g. the return arrow C→A that goes from a lower/right node up to an earlier node) may run high→low coordinates — do NOT force the bbox to go small→large. Use a negative width/height bbox so its endpoints land on the right edges, and place the arrowhead (start_arrow OR end_arrow) on the target node's edge.
+  Mark the cycle: give the layout-tree group node that holds the cycle nodes role="cycle_diagram" in design_doc.layout. Its direct children are the cycle's participating nodes. This lets the cycle be validated for single-direction consistency.
+  Example — 3-node triangle ReAct loop (Think top-center, Act bottom-right, Observe bottom-left), flow Think→Act→Observe→Think:
+    · Think→Act: from Think bottom-right toward Act top-left, end_arrow=true (head on Act).
+    · Act→Observe: horizontal from Act left edge to Observe right edge, head on Observe.
+    · Observe→Think: back-edge from Observe top going up to Think bottom-left, head on Think.
+  Every arrowhead points to the node that comes NEXT in the loop — so the three arrows circulate consistently in one rotational direction.
 
 Fan-out / Fan-in arrows (one block → multiple targets, or vice versa):
   Do NOT draw separate diagonal/vertical arrows from source center to each target center.

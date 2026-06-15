@@ -74,12 +74,22 @@ def _point_near_box_edge(
 
 
 def _arrow_endpoints(line: PptxShape) -> list[tuple[float, float, str]]:
-    """end_arrow / start_arrow 가 켜진 끝점들의 좌표를 반환."""
+    """end_arrow / start_arrow 가 켜진 끝점들의 좌표를 반환.
+
+    line bbox convention 은 렌더러/PPTX 익스포터와 동일하다: height_px<0(↗ flipV)
+    이면 박스가 (left, top+|h|)~(left+w, top) 으로 뒤집혀, 시작점=(left, top+|h|),
+    끝점=(left+w, top) 이다. h>=0 이면 시작=(left, top), 끝=(left+w, top+h).
+    이 flip 을 반영하지 않으면 음수 height 라인의 끝점이 실제 렌더 위치와 최대
+    |h|px 어긋나 부착 검사가 잘못된 좌표로 판정된다.
+    """
     endpoints: list[tuple[float, float, str]] = []
-    start_x = line.left_px
-    start_y = line.top_px
-    end_x = line.left_px + line.width_px
-    end_y = line.top_px + line.height_px
+    h = line.height_px
+    if h < 0:
+        start_x, start_y = line.left_px, line.top_px + abs(h)
+        end_x, end_y = line.left_px + line.width_px, line.top_px
+    else:
+        start_x, start_y = line.left_px, line.top_px
+        end_x, end_y = line.left_px + line.width_px, line.top_px + h
     if line.start_arrow:
         endpoints.append((start_x, start_y, "start"))
     if line.end_arrow:

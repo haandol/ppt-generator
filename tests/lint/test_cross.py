@@ -233,6 +233,37 @@ class TestArrowEndpointAttachment:
             x for x in result.violations if x.rule == "arrow-endpoint-attachment"
         ]
 
+    # 음수 height(↗ flipV) — 끝점 flip 을 반영해야 렌더 위치와 일치한다.
+    # 이 케이스들은 flip 미반영 시 |h|px 어긋나 오판한다.
+
+    def test_negative_height_end_touches_box_passes(self) -> None:
+        # 박스 top edge y=300, x[200..300]. ↗ 화살표 end(flip)=(250,300) 으로 부착.
+        # flip 미반영(버그) 시 end=(250,220) 으로 80px 떠 잘못된 위반이 떴었다.
+        box = self._box(200, 300)
+        arrow = self._arrow(200, 300, 50, -80, end_arrow=True)
+        result = lint_slide_spec(slide(shapes=[box, arrow]))
+        assert not [
+            x for x in result.violations if x.rule == "arrow-endpoint-attachment"
+        ]
+
+    def test_negative_height_end_floating_fails(self) -> None:
+        # flip 반영 end=(250,300) 이 어떤 박스에도 안 닿는 진짜 floating 케이스.
+        box = self._box(600, 100)
+        arrow = self._arrow(200, 300, 50, -80, end_arrow=True)
+        result = lint_slide_spec(slide(shapes=[box, arrow]))
+        v = [x for x in result.violations if x.rule == "arrow-endpoint-attachment"]
+        assert len(v) == 1
+        assert v[0].current_value["endpoint"] == "end"
+
+    def test_negative_height_start_touches_box_passes(self) -> None:
+        # ↗ 화살표 start(flip)=(left, top+|h|)=(200,380). 박스 top edge y=380 에 부착.
+        box = self._box(150, 380)
+        arrow = self._arrow(200, 300, 50, -80, end_arrow=False, start_arrow=True)
+        result = lint_slide_spec(slide(shapes=[box, arrow]))
+        assert not [
+            x for x in result.violations if x.rule == "arrow-endpoint-attachment"
+        ]
+
 
 # ---------------------------------------------------------------------------
 # label-orphan

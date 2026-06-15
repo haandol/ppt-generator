@@ -14,6 +14,9 @@ from ppt_generator.interfaces.spec_utils.lint_rules.canvas_overflow import (
 from ppt_generator.interfaces.spec_utils.lint_rules.component_id_link import (
     check_component_id_link,
 )
+from ppt_generator.interfaces.spec_utils.lint_rules.cycle_topology import (
+    check_cycle_topology,
+)
 from ppt_generator.interfaces.spec_utils.lint_rules.decoration_shape_overlap import (
     check_decoration_shape_overlap,
 )
@@ -104,6 +107,7 @@ RULES_BY_LAYER: dict[str, list] = {
         check_section_element_bbox,
         check_section_grid_containment,
         check_arrow_endpoint_attachment,
+        check_cycle_topology,
         check_label_orphan,
         check_textbox_shape_intrusion,
         check_textbox_textbox_overlap,

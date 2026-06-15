@@ -55,6 +55,9 @@ docs/adr/
 - [0012 Content 로컬 그리드 — Section 내부 sub-grid](./design/0012-content-local-grid.md) — _Rejected_
 - [0013 5단 계층 데이터 무결성](./design/0013-five-layer-data-integrity.md)
 - [0014 PptxShape autofit 기본값 — shrink_text](./design/0014-shape-autofit-shrink-text.md)
+- [0015 DESIGN.md — 사람이 편집하는 디자인 의도 단일 소스](./design/0015-design-md-source-of-truth.md)
+- [0016 DESIGN.md 가 배경 이미지 자동 주입을 제어한다](./design/0016-design-md-background-policy.md)
+- [0017 순환 다이어그램 마킹 + 화살표 방향 규칙](./design/0017-cycle-diagram-marking.md)
 
 ### lint — 디자인 스펙 lint
 
@@ -63,6 +66,7 @@ docs/adr/
 - [0003 Validator 를 Lint 로 전환](./lint/0003-validator-to-lint.md)
 - [0004 화살표·라벨 부착 검증 lint](./lint/0004-arrow-label-attachment-lint.md)
 - [0005 5단 계층 Lint 정책 — cross-layer + 단계적 실행](./lint/0005-five-layer-lint-policy.md)
+- [0006 순환 다이어그램 위상 일관성 lint — 선언 기반 사이클 마킹](./lint/0006-cycle-diagram-topology-lint.md)
 
 ### modify — 슬라이드/component 부분 수정
 
