@@ -30,6 +30,7 @@ class SlidesService:
         slide_image_srcs: list[list[str]] | None = None,
         skip_autofit: bool = False,
         color_theme: str = "dark",
+        bg_image_policy: str = "gradient",
     ) -> SlidesResponse:
         """DesignSpec(PptxSlideSpec 리스트)을 슬라이드별 HTML + iframe 컨테이너로 변환한다.
 
@@ -39,6 +40,8 @@ class SlidesService:
         Args:
             slide_image_srcs: 슬라이드별 이미지 상대경로 리스트. None이면 플레이스홀더.
             color_theme: 배경 이미지 선택에 사용할 테마 ("dark" 또는 "light")
+            bg_image_policy: title/closing 배경 자동 주입 정책. "gradient"(기본,
+                테마 배경 PNG 주입) 또는 "none"(주입 끔, 단색 배경). DESIGN.md 에서 파생.
         """
         if not design_spec.slides:
             raise ValueError("디자인 스펙에 슬라이드가 없습니다.")
@@ -49,7 +52,7 @@ class SlidesService:
         for idx, raw_spec in enumerate(design_spec.slides):
             spec = clean_slide_spec(raw_spec)
             bg_b64: str | None = None
-            if spec.slide_type in ("title", "closing"):
+            if spec.slide_type in ("title", "closing") and bg_image_policy != "none":
                 bg_b64 = bg_image_utils.get_bg_image_base64(color_theme)
             img_srcs = (
                 slide_image_srcs[idx]
@@ -88,15 +91,17 @@ class SlidesService:
         image_srcs: list[str] | None = None,
         skip_autofit: bool = False,
         color_theme: str = "dark",
+        bg_image_policy: str = "gradient",
     ) -> str:
         """단일 PptxSlideSpec을 완전한 HTML 문서로 변환한다 (외부 호출용).
 
-        title/closing 슬라이드의 배경 이미지를 자동 처리한다.
+        title/closing 슬라이드의 배경 이미지를 자동 처리한다. bg_image_policy 가
+        "none" 이면 자동 주입을 생략한다 (DESIGN.md 에서 파생).
         """
         bg_image_utils.reset_cache()
         validated = clean_slide_spec(spec)
         bg_b64: str | None = None
-        if validated.slide_type in ("title", "closing"):
+        if validated.slide_type in ("title", "closing") and bg_image_policy != "none":
             bg_b64 = bg_image_utils.get_bg_image_base64(color_theme)
         return SlidesService._spec_to_html_document(
             slide_index,

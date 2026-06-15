@@ -590,6 +590,41 @@ class TestSaveAndLoadDesignSummary:
         assert project_service.get_design_spec_slide_count(project_dir) == 0
 
 
+class TestLoadBgImagePolicy:
+    """title/closing 배경 자동 주입 정책 로드 (design/0016)."""
+
+    def test_default_gradient_when_no_design_doc(
+        self, project_service: ProjectService, project_dir: Path
+    ) -> None:
+        assert project_service.load_bg_image_policy(project_dir) == "gradient"
+
+    def test_none_from_design_md(
+        self, project_service: ProjectService, project_dir: Path
+    ) -> None:
+        project_service.save_design_doc_md(
+            project_dir,
+            "## 전역 디자인 시스템\n- background_image: none\n",
+        )
+        assert project_service.load_bg_image_policy(project_dir) == "none"
+
+    def test_gradient_from_design_md(
+        self, project_service: ProjectService, project_dir: Path
+    ) -> None:
+        project_service.save_design_doc_md(
+            project_dir,
+            "## 전역 디자인 시스템\n- background_image: gradient\n",
+        )
+        assert project_service.load_bg_image_policy(project_dir) == "gradient"
+
+    def test_summary_fallback_when_no_design_md(
+        self, project_service: ProjectService, project_dir: Path
+    ) -> None:
+        project_service.save_design_summary(
+            project_dir, {"color_theme": "dark", "background_image": "none"}
+        )
+        assert project_service.load_bg_image_policy(project_dir) == "none"
+
+
 class TestLoadNonexistentRaises:
     def test_outline(self, project_service: ProjectService, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):

@@ -50,22 +50,28 @@ async def handle_generate(
     project_id, project_dir = project_service.resolve_project_dir(project_id)
     target_count = len(indices)
 
-    # --- Step 1: Pre-generate design_summary ---
-    existing_summary = project_service.load_design_summary(project_dir)
-    if existing_summary is None:
+    # --- Step 1: Pre-generate DESIGN.md draft (design intent source of truth) ---
+    # DESIGN.md 가 없으면 outline 기반으로 초안을 자동 생성한다 (기존 머신
+    # 디자인 요약을 LLM 으로 만들던 자리를 대체). 사용자가 이후 DESIGN.md 를
+    # 편집해 톤·페이지별 요청을 반영할 수 있다.
+    if not project_service.design_doc_md_exists(project_dir):
         if ctx is not None:
             await ctx.report_progress(0, target_count, "디자인 테마 생성 중...")
-        logger.info("Starting design_summary pre-generation (LLM call)")
+        logger.info("Starting DESIGN.md draft generation (LLM call)")
         summary_svc = deps.design_service_factory("content")
         summary = summary_svc.generate_design_summary(outline, color_theme)
         summary["color_theme"] = color_theme
-        project_service.save_design_summary(project_dir, summary)
-        logger.info("design_summary pre-generation completed")
+        from ppt_generator.tools.design.design_doc_md import render_design_doc_md
+
+        project_service.save_design_doc_md(project_dir, render_design_doc_md(summary))
+        logger.info("DESIGN.md draft generation completed")
         if ctx is not None:
             await ctx.report_progress(0, target_count, "디자인 테마 생성 완료")
 
     # --- Step 2: Parallel generation ---
+    design_doc = project_service.load_design_doc_md(project_dir)
     design_summary = project_service.load_design_summary(project_dir)
+    bg_image_policy = project_service.load_bg_image_policy(project_dir)
     sync_report = _make_progress_reporter(ctx, target_count)
 
     parallel_result = await _run_with_heartbeat(
@@ -82,6 +88,8 @@ async def handle_generate(
             slides_service=slides_service,
             report_progress=sync_report,
             review_service_factory=deps.review_service_factory,
+            design_doc=design_doc,
+            bg_image_policy=bg_image_policy,
         ),
         ctx=ctx,
         target_count=target_count,
@@ -158,6 +166,7 @@ async def handle_generate(
 
     resp: dict = {
         "design_spec_dir": str(project_dir / "design_spec"),
+        "design_doc_path": str(project_dir / "DESIGN.md"),
         "slide_count": slide_count,
         "total_slides": total_slides,
         "project_id": project_id,
@@ -167,6 +176,11 @@ async def handle_generate(
         "visual_qa_suggestion": (
             "Visual QA를 실행하면 시각적 결함(줄바꿈, 겹침, 잘림 등)을 자동 감지하고 수정합니다. "
             f"실행하려면 visual_qa(project_id='{project_id}') 를 호출하세요."
+        ),
+        "design_doc_suggestion": (
+            "디자인 의도(전역 톤, 페이지별 특별 요청)는 DESIGN.md 에서 관리합니다. "
+            "DESIGN.md 를 편집한 뒤 generate_slides_design_spec 또는 "
+            "modify_design_spec 을 다시 호출하면 변경된 의도가 반영됩니다."
         ),
     }
     if lint_result_dict:

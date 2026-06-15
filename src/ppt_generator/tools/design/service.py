@@ -68,6 +68,7 @@ class DesignService:
         prev_outline: SlideOutline | None = None,
         next_outline: SlideOutline | None = None,
         review_feedback: str = "",
+        design_directives: str = "",
     ) -> PptxSlideSpec:
         """Generates the design spec for a single slide.
 
@@ -79,6 +80,9 @@ class DesignService:
             color_theme: Color theme ("dark" or "light", default: "dark")
             prev_outline: Previous slide outline (None for first slide)
             next_outline: Next slide outline (None for last slide)
+            review_feedback: Optional lint/review feedback appended to the prompt
+            design_directives: Optional human design intent (global tone + per-slide
+                request) derived from DESIGN.md, appended to the prompt
 
         Returns:
             Generated PptxSlideSpec
@@ -107,6 +111,9 @@ class DesignService:
                 adjacent_context=adjacent_context,
                 slide_type_instruction=slide_type_instruction,
             )
+
+        if design_directives:
+            prompt = prompt + "\n\n" + design_directives
 
         if review_feedback:
             prompt = prompt + "\n\n" + review_feedback

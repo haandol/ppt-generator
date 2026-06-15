@@ -264,7 +264,43 @@ class ProjectService:
         self.design_spec_store.save_design_summary(project_dir, summary)
 
     def load_design_summary(self, project_dir: Path) -> dict | None:
+        """디자인 요약을 로드한다.
+
+        DESIGN.md 가 있으면 거기서 파생한 design_summary 가 정본이다
+        (사람이 편집한 의도가 우선). 없으면 design_summary.json 으로 폴백한다.
+        """
+        doc = self.load_design_doc_md(project_dir)
+        if doc is not None and doc.design_summary:
+            return doc.design_summary
         return self.design_spec_store.load_design_summary(project_dir)
+
+    # --- DESIGN.md (사람이 편집하는 디자인 의도 단일 소스) ---
+
+    def save_design_doc_md(self, project_dir: Path, text: str) -> None:
+        self._ensure_dir(project_dir)
+        self.design_spec_store.save_design_doc_md(project_dir, text)
+
+    def load_design_doc_md(self, project_dir: Path):
+        """DESIGN.md 를 파싱해 DesignDocMd 로 반환한다. 없으면 None."""
+        from ppt_generator.tools.design.design_doc_md import parse_design_doc_md
+
+        raw = self.design_spec_store.load_design_doc_md(project_dir)
+        if raw is None:
+            return None
+        return parse_design_doc_md(raw)
+
+    def design_doc_md_exists(self, project_dir: Path) -> bool:
+        return self.design_spec_store.design_doc_md_exists(project_dir)
+
+    def load_bg_image_policy(self, project_dir: Path) -> str:
+        """title/closing 배경 자동 주입 정책을 반환한다 ("gradient" | "none").
+
+        DESIGN.md(또는 머신 요약)의 background_image 키에서 파생한다. 값이
+        없으면 하위 호환을 위해 "gradient"(자동 주입 켜짐)가 기본이다.
+        """
+        summary = self.load_design_summary(project_dir)
+        policy = (summary or {}).get("background_image")
+        return policy if policy in ("gradient", "none") else "gradient"
 
     def get_design_spec_slide_count(self, project_dir: Path) -> int:
         return self.design_spec_store.get_design_spec_slide_count(project_dir)

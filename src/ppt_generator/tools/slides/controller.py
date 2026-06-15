@@ -69,6 +69,7 @@ def register_slides_tools(
         # design_summary에서 color_theme 로드
         design_summary = project_service.load_design_summary(project_dir)
         color_theme = (design_summary or {}).get("color_theme", "dark")
+        bg_image_policy = project_service.load_bg_image_policy(project_dir)
 
         slide_count = len(design_spec.slides)
         if ctx is not None:
@@ -80,6 +81,7 @@ def register_slides_tools(
             slide_image_srcs=slide_image_srcs,
             skip_autofit=is_imported,
             color_theme=color_theme,
+            bg_image_policy=bg_image_policy,
         )
         project_service.save_slides_html(
             project_dir,

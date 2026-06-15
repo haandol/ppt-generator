@@ -37,10 +37,14 @@ class ExportService:
         *,
         skip_autofit: bool = False,
         color_theme: str = "dark",
+        bg_image_policy: str = "gradient",
     ) -> ExportPptxResponse:
         """DesignSpec → PPTX 직접 변환.
 
         DesignSpec.slides를 순회하여 SlideBuilder.build_slide_from_spec()으로 직접 생성.
+
+        bg_image_policy 가 "none" 이면 title/closing 기본 배경 이미지 자동 폴백을
+        생략한다 (명시 배경은 그대로 우선). DESIGN.md 에서 파생.
         """
         if not design_spec.slides:
             raise ValueError("디자인 스펙에 슬라이드가 없습니다.")
@@ -67,7 +71,10 @@ class ExportService:
                     self._builder.set_slide_background_image(
                         slide, spec.background_image_bytes
                     )
-                elif spec.slide_type in ("title", "closing"):
+                elif (
+                    spec.slide_type in ("title", "closing")
+                    and bg_image_policy != "none"
+                ):
                     bg_bytes = bg_image_utils.get_bg_image_bytes(color_theme)
                     if bg_bytes:
                         self._builder.set_slide_background_image(slide, bg_bytes)

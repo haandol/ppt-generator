@@ -53,6 +53,8 @@ def run_parallel_generation(
     slides_service: SlidesService | None = None,
     report_progress: Callable[[int, str], None] | None = None,
     review_service_factory: Callable | None = None,
+    design_doc=None,
+    bg_image_policy: str = "gradient",
 ) -> ParallelResult:
     """슬라이드를 병렬로 생성하고 결과를 반환한다.
 
@@ -98,6 +100,11 @@ def run_parallel_generation(
             peak_threads[0] = current
         slide_outline = outline.slides[idx]
         slide_type = slide_outline.slide_type or "content"
+        directives = (
+            design_doc.directives_for(idx + 1, slide_outline.title)
+            if design_doc is not None
+            else ""
+        )
         complexity = estimate_slide_complexity(slide_outline)
         budget_tokens = complexity_to_budget_tokens(complexity)
         logger.info(
@@ -125,10 +132,16 @@ def run_parallel_generation(
                 color_theme=color_theme,
                 prev_outline=prev_outline,
                 next_outline=next_outline,
+                design_directives=directives,
             )
+            # content 슬라이드는 항상 deck 배경색으로 통일한다. title/closing 은
+            # 평소 배경 이미지가 깔리므로 LLM 이 비워두지만, 배경 주입을 끈
+            # 경우(bg_image_policy="none")엔 이미지 폴백이 없어 deck 배경색으로
+            # 마감해야 한다 (design/0016).
+            _enforce_bg = spec.slide_type == "content" or bg_image_policy == "none"
             if (
                 design_summary
-                and spec.slide_type == "content"
+                and _enforce_bg
                 and design_summary.get("background_color")
                 and spec.background_color != design_summary["background_color"]
             ):
@@ -173,10 +186,14 @@ def run_parallel_generation(
                             prev_outline=prev_outline,
                             next_outline=next_outline,
                             review_feedback=feedback,
+                            design_directives=directives,
+                        )
+                        _enforce = (
+                            new.slide_type == "content" or bg_image_policy == "none"
                         )
                         if (
                             design_summary
-                            and new.slide_type == "content"
+                            and _enforce
                             and design_summary.get("background_color")
                             and new.background_color
                             != design_summary["background_color"]
@@ -207,7 +224,7 @@ def run_parallel_generation(
             html_path_str: str | None = None
             if slides_service is not None:
                 html = slides_service.render_single_slide_html(
-                    idx, spec, color_theme=color_theme
+                    idx, spec, color_theme=color_theme, bg_image_policy=bg_image_policy
                 )
                 hp = project_service.save_single_slide_html(project_dir, idx, html)
                 html_path_str = str(hp)

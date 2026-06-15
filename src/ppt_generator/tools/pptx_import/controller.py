@@ -101,12 +101,21 @@ def register_pptx_import_tools(
         )
         project_service.save_design_summary(project_dir, design_summary)
 
+        # DESIGN.md 초안 자동 생성 — imported 프로젝트도 디자인 의도를
+        # 사람이 편집할 수 있게 한다.
+        from ppt_generator.tools.design.design_doc_md import render_design_doc_md
+
+        project_service.save_design_doc_md(
+            project_dir, render_design_doc_md(design_summary)
+        )
+
         # HTML 미리보기 자동 생성
         response = slides_service.generate_from_design_spec(
             design_spec,
             slide_image_srcs=slide_image_srcs,
             skip_autofit=True,
             color_theme=design_summary["color_theme"],
+            bg_image_policy=project_service.load_bg_image_policy(project_dir),
         )
         project_service.save_slides_html(
             project_dir,

@@ -76,6 +76,7 @@ def register_visual_qa_tools(
         # design_summary에서 color_theme 로드
         design_summary = project_service.load_design_summary(project_dir)
         color_theme = (design_summary or {}).get("color_theme", "dark")
+        bg_image_policy = project_service.load_bg_image_policy(project_dir)
 
         if ctx is not None:
             await ctx.report_progress(0, max_iterations, "Visual QA 시작")
@@ -91,7 +92,7 @@ def register_visual_qa_tools(
             load_spec=project_service.load_design_spec_slide,
             save_spec=project_service.save_design_spec_slide,
             render_html=lambda idx, spec: SlidesService.render_single_slide_html(
-                idx, spec, color_theme=color_theme
+                idx, spec, color_theme=color_theme, bg_image_policy=bg_image_policy
             ),
             save_html=project_service.save_single_slide_html,
             report_progress=_report_progress,
@@ -129,6 +130,7 @@ def register_visual_qa_tools(
                     slide_image_srcs=slide_image_srcs,
                     skip_autofit=is_imported,
                     color_theme=color_theme,
+                    bg_image_policy=bg_image_policy,
                 )
                 project_service.save_slides_html(
                     project_dir,

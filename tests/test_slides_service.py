@@ -117,6 +117,55 @@ class TestGenerateFromDesignSpec:
         assert "#1a1a2e" in response.slide_htmls[0]
 
 
+class TestBgImagePolicy:
+    """title/closing 배경 자동 주입이 bg_image_policy 로 제어되는지 검증 (design/0016)."""
+
+    @staticmethod
+    def _title_spec() -> DesignSpec:
+        return DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    background_color=None,
+                    slide_type="title",
+                    textboxes=[
+                        PptxTextBox(
+                            left_px=64,
+                            top_px=260,
+                            width_px=1152,
+                            height_px=80,
+                            paragraphs=[
+                                PptxParagraph(
+                                    runs=[PptxTextRun(text="제목", font_size_pt=40)]
+                                )
+                            ],
+                        )
+                    ],
+                    speaker_notes="",
+                )
+            ]
+        )
+
+    def test_title_gets_bg_by_default(self, service):
+        resp = service.generate_from_design_spec(self._title_spec())
+        assert "data:image" in resp.slide_htmls[0]
+
+    def test_title_no_bg_when_policy_none(self, service):
+        resp = service.generate_from_design_spec(
+            self._title_spec(), bg_image_policy="none"
+        )
+        assert "data:image" not in resp.slide_htmls[0]
+
+    def test_single_render_respects_policy_none(self):
+        spec = self._title_spec().slides[0]
+        html = SlidesService.render_single_slide_html(0, spec, bg_image_policy="none")
+        assert "data:image" not in html
+
+    def test_single_render_bg_by_default(self):
+        spec = self._title_spec().slides[0]
+        html = SlidesService.render_single_slide_html(0, spec)
+        assert "data:image" in html
+
+
 class TestGetSessionHtml:
     def test_raises_on_invalid_session(self, service):
         with pytest.raises(KeyError, match="세션을 찾을 수 없습니다"):

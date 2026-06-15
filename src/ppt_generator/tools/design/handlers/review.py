@@ -55,6 +55,7 @@ def handle_review(
         indices = list(range(1, slide_count + 1))
 
     design_summary = project_service.load_design_summary(project_dir)
+    bg_image_policy = project_service.load_bg_image_policy(project_dir)
     results: list[dict] = []
     total_usage: dict[str, int] = {}
 
@@ -110,6 +111,7 @@ def handle_review(
                     idx,
                     new_spec,
                     color_theme=color_theme,
+                    bg_image_policy=bg_image_policy,
                 )
                 project_service.save_single_slide_html(project_dir, idx, html)
             regenerated = True

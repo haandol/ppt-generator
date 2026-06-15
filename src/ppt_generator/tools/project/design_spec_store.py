@@ -134,6 +134,27 @@ class DesignSpecStore:
             return None
         return json.loads(path.read_text(encoding="utf-8"))
 
+    # --- DESIGN.md (사람이 편집하는 디자인 의도 단일 소스) ---
+
+    @staticmethod
+    def _design_doc_md_path(project_dir: Path) -> Path:
+        return project_dir / "DESIGN.md"
+
+    def save_design_doc_md(self, project_dir: Path, text: str) -> None:
+        """DESIGN.md 를 프로젝트 루트에 저장한다 (덮어쓰기)."""
+        project_dir.mkdir(parents=True, exist_ok=True)
+        self._design_doc_md_path(project_dir).write_text(text, encoding="utf-8")
+
+    def load_design_doc_md(self, project_dir: Path) -> str | None:
+        """DESIGN.md 원문을 로드한다. 파일이 없으면 None."""
+        path = self._design_doc_md_path(project_dir)
+        if not path.exists():
+            return None
+        return path.read_text(encoding="utf-8")
+
+    def design_doc_md_exists(self, project_dir: Path) -> bool:
+        return self._design_doc_md_path(project_dir).exists()
+
     def get_design_spec_slide_count(self, project_dir: Path) -> int:
         """디자인 스펙의 슬라이드 수를 반환한다."""
         spec_dir = self._design_spec_dir(project_dir)

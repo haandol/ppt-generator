@@ -216,6 +216,7 @@ def _generate_and_review(
     color_theme,
     prev_outline=None,
     next_outline=None,
+    design_directives="",
 ):
     """슬라이드를 생성하고 리뷰 후 필요시 재생성한다."""
     slide_type = slide_outline.slide_type or "content"
@@ -225,9 +226,11 @@ def _generate_and_review(
     spec = svc.generate_single_slide(
         slide_outline,
         design_summary,
+        slide_index=slide_index,
         color_theme=color_theme,
         prev_outline=prev_outline,
         next_outline=next_outline,
+        design_directives=design_directives,
     )
     token_usage = svc.last_token_usage
 
@@ -246,10 +249,12 @@ def _generate_and_review(
                 new = svc_regen.generate_single_slide(
                     slide_outline,
                     design_summary,
+                    slide_index=slide_index,
                     color_theme=color_theme,
                     review_feedback=feedback,
                     prev_outline=prev_outline,
                     next_outline=next_outline,
+                    design_directives=design_directives,
                 )
                 return new, svc_regen.last_token_usage
 
@@ -271,6 +276,17 @@ def _generate_and_review(
             )
 
     return spec, token_usage
+
+
+def _directives_for(project_service, project_dir, slide_index: int, title: str) -> str:
+    """DESIGN.md 에서 해당 슬라이드의 디자인 지시(톤+페이지 요청)를 만든다.
+
+    DESIGN.md 가 없으면 빈 문자열.
+    """
+    design_doc = project_service.load_design_doc_md(project_dir)
+    if design_doc is None:
+        return ""
+    return design_doc.directives_for(slide_index, title)
 
 
 # --- action handlers ---
@@ -352,6 +368,7 @@ def _add_slide(
                 exc_info=True,
             )
 
+    directives = _directives_for(project_service, project_dir, insert_idx + 1, title)
     new_spec, token_usage = _generate_and_review(
         deps,
         slide_outline=slide_outline,
@@ -360,6 +377,7 @@ def _add_slide(
         color_theme=color_theme,
         prev_outline=prev_outline,
         next_outline=next_outline,
+        design_directives=directives,
     )
 
     project_service.insert_design_spec_slide(project_dir, insert_idx, new_spec)
@@ -368,7 +386,10 @@ def _add_slide(
     slide_html_path: str | None = None
     if deps.slides_service is not None:
         html = deps.slides_service.render_single_slide_html(
-            insert_idx, new_spec, color_theme=color_theme
+            insert_idx,
+            new_spec,
+            color_theme=color_theme,
+            bg_image_policy=project_service.load_bg_image_policy(project_dir),
         )
         html_path = project_service.save_single_slide_html(
             project_dir, insert_idx, html
@@ -433,12 +454,16 @@ def _update_slide(
     outline_raw = project_service.load_outline_slide(project_dir, idx)
     outline = parse_outline_json(outline_raw)
     slide_outline = outline.slides[0]
+    directives = _directives_for(
+        project_service, project_dir, slide_index, slide_outline.title
+    )
     new_spec, token_usage = _generate_and_review(
         deps,
         slide_outline=slide_outline,
         slide_index=slide_index,
         design_summary=design_summary,
         color_theme=color_theme,
+        design_directives=directives,
     )
 
     if existing_spec.images:
@@ -450,7 +475,10 @@ def _update_slide(
     slide_html_path: str | None = None
     if deps.slides_service is not None:
         html = deps.slides_service.render_single_slide_html(
-            idx, new_spec, color_theme=color_theme
+            idx,
+            new_spec,
+            color_theme=color_theme,
+            bg_image_policy=project_service.load_bg_image_policy(project_dir),
         )
         html_path = project_service.save_single_slide_html(project_dir, idx, html)
         slide_html_path = str(html_path)
@@ -600,7 +628,10 @@ def handle_modify_component(
     slide_html_path: str | None = None
     if deps.slides_service is not None:
         html = deps.slides_service.render_single_slide_html(
-            idx, new_spec, color_theme=color_theme
+            idx,
+            new_spec,
+            color_theme=color_theme,
+            bg_image_policy=project_service.load_bg_image_policy(project_dir),
         )
         html_path = project_service.save_single_slide_html(project_dir, idx, html)
         slide_html_path = str(html_path)

@@ -177,7 +177,7 @@ class TestGenerateSlidesDesignSpec:
             assert r["status"] == "success"
             assert r["slide_file"] == f"slide_{i + 1:02d}.json"
 
-    def test_batch_creates_design_summary(
+    def test_batch_creates_design_doc_md(
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
     ) -> None:
         project_id = self._setup_project(tmp_path, monkeypatch)
@@ -188,8 +188,48 @@ class TestGenerateSlidesDesignSpec:
                 project_id=project_id,
             )
         )
-        summary_path = tmp_path / project_id / "design_spec" / "design_summary.json"
-        assert summary_path.exists()
+        # DESIGN.md 가 디자인 의도의 단일 소스.
+        design_doc_path = tmp_path / project_id / "DESIGN.md"
+        assert design_doc_path.exists()
+
+    def test_existing_design_md_not_regenerated_and_directives_injected(
+        self, mcp_tools: dict, tmp_path: Path, monkeypatch
+    ) -> None:
+        """사람이 편집한 DESIGN.md 는 덮어쓰지 않고, 톤+페이지 요청이
+        generate_single_slide 프롬프트에 주입된다."""
+        project_id = self._setup_project(tmp_path, monkeypatch)
+        design_md = (
+            "# DESIGN\n\n"
+            "## 전역 디자인 시스템\n"
+            "- color_theme: dark\n"
+            "- background_color: #0F172A\n\n"
+            "## 톤 & 방향\n차분한 기업 톤.\n\n"
+            "## 페이지별 요청\n### 2. 슬라이드 2\n좌우 비교 레이아웃으로.\n"
+        )
+        (tmp_path / project_id / "DESIGN.md").write_text(design_md, encoding="utf-8")
+
+        design_service = mcp_tools["_design_service"]
+        _run(
+            mcp_tools["generate_slides_design_spec"](
+                outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+                total_slides=5,
+                project_id=project_id,
+            )
+        )
+
+        # 기존 DESIGN.md 를 덮어쓰지 않았으므로 draft 생성 LLM 호출 없음.
+        assert not design_service.generate_design_summary.called
+
+        # 슬라이드별 directives 주입 확인.
+        directives_by_index = {
+            call.kwargs["slide_index"]: call.kwargs.get("design_directives", "")
+            for call in design_service.generate_single_slide.call_args_list
+        }
+        # 전역 톤은 모든 슬라이드에.
+        assert "차분한 기업 톤." in directives_by_index[1]
+        # 페이지 요청은 슬라이드 2 에만.
+        assert "좌우 비교 레이아웃으로." in directives_by_index[2]
+        assert "좌우 비교 레이아웃으로." not in directives_by_index[1]
 
     def test_batch_mismatched_total_slides_raises(
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
@@ -438,8 +478,8 @@ class TestGenerateSlidesDesignSpec:
         assert len(result["results"]) == 3
         assert [r["slide_index"] for r in result["results"]] == [1, 3, 5]
 
-        summary_path = tmp_path / project_id / "design_spec" / "design_summary.json"
-        assert summary_path.exists()
+        design_doc_path = tmp_path / project_id / "DESIGN.md"
+        assert design_doc_path.exists()
         assert mcp_tools["_design_service"].generate_design_summary.called
 
     def test_batch_slide_indices_without_index_zero(
@@ -571,6 +611,61 @@ class TestGenerateSlidesDesignSpec:
         for i in range(5):
             saved_spec = project_service.load_design_spec_slide(proj_dir, i)
             assert saved_spec.background_color == "#1a1a2e"
+
+    def test_closing_bg_enforced_when_image_policy_none(
+        self, mcp_tools: dict, tmp_path: Path, monkeypatch
+    ) -> None:
+        """배경 주입을 끈 경우(background_image: none) title/closing 도 deck
+        배경색으로 결정론적으로 채워진다 (design/0016).
+
+        평소 title/closing 은 배경 이미지가 깔려 background_color=None 으로
+        생성되지만, 주입을 끄면 빈 배경이 되므로 deck 배경색으로 마감해야 한다.
+        """
+        project_id = self._setup_project(tmp_path, monkeypatch)
+        # DESIGN.md 로 배경 주입 끔 + deck 배경색 지정
+        proj_dir = tmp_path / project_id
+        project_service = mcp_tools["_project_service"]
+        project_service.save_design_doc_md(
+            proj_dir,
+            "## 전역 디자인 시스템\n"
+            "- background_color: #1A1815\n"
+            "- background_image: none\n",
+        )
+
+        # LLM 이 closing 을 background_color=None 으로 생성했다고 가정
+        design_service = mcp_tools["_design_service"]
+        closing_spec = PptxSlideSpec(
+            background_color=None,
+            textboxes=[
+                PptxTextBox(
+                    left_px=64,
+                    top_px=300,
+                    width_px=600,
+                    height_px=60,
+                    paragraphs=[
+                        PptxParagraph(
+                            runs=[PptxTextRun(text="감사합니다", font_size_pt=40)]
+                        )
+                    ],
+                )
+            ],
+            shapes=[],
+            images=[],
+            speaker_notes="",
+            slide_type="closing",
+        )
+        design_service.generate_single_slide.return_value = closing_spec
+
+        _run(
+            mcp_tools["generate_slides_design_spec"](
+                outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+                total_slides=5,
+                project_id=project_id,
+            )
+        )
+
+        saved = project_service.load_design_spec_slide(proj_dir, 0)
+        assert saved.background_color == "#1A1815"
 
 
 class TestGenerateSlidesDesignSpecWithSlidesService:
