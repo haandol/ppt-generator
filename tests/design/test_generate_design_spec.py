@@ -16,6 +16,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from ppt_generator.interfaces.schemas import (
+    OutlineResponse,
     PptxParagraph,
     PptxSlideSpec,
     PptxTextBox,
@@ -218,7 +219,7 @@ class TestGenerateSlidesDesignSpec:
         )
 
         # 기존 DESIGN.md 를 덮어쓰지 않았으므로 draft 생성 LLM 호출 없음.
-        assert not design_service.generate_design_summary.called
+        assert not design_service.generate_design_doc_draft.called
 
         # 슬라이드별 directives 주입 확인.
         directives_by_index = {
@@ -480,7 +481,7 @@ class TestGenerateSlidesDesignSpec:
 
         design_doc_path = tmp_path / project_id / "DESIGN.md"
         assert design_doc_path.exists()
-        assert mcp_tools["_design_service"].generate_design_summary.called
+        assert mcp_tools["_design_service"].generate_design_doc_draft.called
 
     def test_batch_slide_indices_without_index_zero(
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
@@ -496,7 +497,7 @@ class TestGenerateSlidesDesignSpec:
         )
 
         design_service = mcp_tools["_design_service"]
-        design_service.generate_design_summary.reset_mock()
+        design_service.generate_design_doc_draft.reset_mock()
 
         result = json.loads(
             _run(
@@ -511,7 +512,7 @@ class TestGenerateSlidesDesignSpec:
         assert result["success_count"] == 2
         assert result["error_count"] == 0
         assert len(result["results"]) == 2
-        assert not design_service.generate_design_summary.called
+        assert not design_service.generate_design_doc_draft.called
 
     def test_batch_single_index(
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
@@ -566,14 +567,18 @@ class TestGenerateSlidesDesignSpec:
         project_id = self._setup_project(tmp_path, monkeypatch)
 
         design_service = mcp_tools["_design_service"]
-        design_service.generate_design_summary.return_value = {
-            "background_color": "#1a1a2e",
-            "text_colors": ["#ffffff"],
-            "title_font_pt": 32,
-            "body_font_pt": 18,
-            "card_fills": [],
-            "card_borders": [],
-        }
+        design_service.generate_design_doc_draft.return_value = (
+            {
+                "background_color": "#1a1a2e",
+                "text_colors": ["#ffffff"],
+                "title_font_pt": 32,
+                "body_font_pt": 18,
+                "card_fills": [],
+                "card_borders": [],
+            },
+            "",
+            [],
+        )
         wrong_bg_spec = PptxSlideSpec(
             background_color="#ffffff",
             textboxes=[
@@ -705,7 +710,7 @@ class TestGenerateSlidesDesignSpecWithSlidesService:
         design_service.generate_single_slide.return_value = make_slide_spec("생성됨")
         design_service.last_token_usage = {}
         design_service.last_overflow = []
-        design_service.generate_design_summary.return_value = {
+        _summary = {
             "background_color": "#1a1a2e",
             "text_colors": ["#ffffff"],
             "title_font_pt": 32,
@@ -713,6 +718,8 @@ class TestGenerateSlidesDesignSpecWithSlidesService:
             "card_fills": [],
             "card_borders": [],
         }
+        design_service.generate_design_summary.return_value = _summary
+        design_service.generate_design_doc_draft.return_value = (_summary, "", [])
 
         from ppt_generator.tools.slides.service import SlidesService
 
@@ -838,3 +845,109 @@ class TestAdjacentContextSection:
         assert parsed["slide_type"] == "title"
         assert parsed["component_hint"] == "arch_diagram"
         assert "speaker_notes" not in parsed
+
+
+class TestGenerateDesignDocDraft:
+    """generate_design_doc_draft — 톤+선별적 페이지 요청까지 LLM 으로 생성하는
+    초안 단계 (design/0018). 응답 파싱 견고성 위주로 검증."""
+
+    @staticmethod
+    def _service_returning(text: str) -> DesignService:
+        agent_result = MagicMock()
+        agent_result.metrics.accumulated_usage = {}
+        agent_result.__str__ = lambda self: text
+        agent = MagicMock(return_value=agent_result)
+        return DesignService(agent=agent)
+
+    @staticmethod
+    def _outline():
+        return OutlineResponse(
+            slides=[
+                SlideOutline(title="표지", content_summary="제목", slide_type="title"),
+                SlideOutline(title="현황", content_summary="병렬 항목 3개"),
+                SlideOutline(title="제안", content_summary="핵심 전환점"),
+            ]
+        )
+
+    def test_parses_theme_tone_and_page_requests(self) -> None:
+        payload = json.dumps(
+            {
+                "theme": {
+                    "background_color": "#0B1020",
+                    "text_colors": ["#FFFFFF", "#A0AEC0"],
+                    "title_font_pt": 34,
+                    "body_font_pt": 18,
+                    "card_fills": ["#15203A"],
+                    "card_borders": [],
+                    "header_region": {"top_px": 64, "height_px": 64},
+                    "content_region": {"top_px": 148, "height_px": 508},
+                    "footer_region": {"top_px": 664, "height_px": 24},
+                },
+                "tone": "고객 대상, 여백을 넉넉히. 표지에서 크게 열고 제안에서 전환.",
+                "page_requests": [
+                    {
+                        "number": 3,
+                        "title": "제안",
+                        "request": "풀블리드 한 문장으로 전환점을 강조.",
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        )
+        svc = self._service_returning(payload)
+        summary, tone, page_requests = svc.generate_design_doc_draft(self._outline())
+
+        assert summary["background_color"] == "#0B1020"
+        assert summary["title_font_pt"] == 34
+        assert "전환" in tone
+        assert len(page_requests) == 1
+        assert page_requests[0].number == 3
+        assert page_requests[0].title == "제안"
+        assert "풀블리드" in page_requests[0].text
+
+    def test_handles_json_fence(self) -> None:
+        payload = (
+            "```json\n"
+            + json.dumps({"theme": {"background_color": "#111111"}, "tone": "x"})
+            + "\n```"
+        )
+        svc = self._service_returning(payload)
+        summary, tone, page_requests = svc.generate_design_doc_draft(self._outline())
+        assert summary["background_color"] == "#111111"
+        assert tone == "x"
+        assert page_requests == []
+
+    def test_empty_page_requests_is_valid(self) -> None:
+        payload = json.dumps(
+            {
+                "theme": {"background_color": "#222"},
+                "tone": "절제된 톤",
+                "page_requests": [],
+            }
+        )
+        svc = self._service_returning(payload)
+        _, _, page_requests = svc.generate_design_doc_draft(self._outline())
+        assert page_requests == []
+
+    def test_malformed_page_request_entries_skipped(self) -> None:
+        payload = json.dumps(
+            {
+                "theme": {"background_color": "#333"},
+                "tone": "",
+                "page_requests": [
+                    {"number": 2, "title": "현황", "request": ""},  # 빈 request → 스킵
+                    {
+                        "number": "nope",
+                        "title": "현황",
+                        "request": "유효",
+                    },  # 번호 비정수
+                    "garbage",  # dict 아님 → 스킵
+                ],
+            }
+        )
+        svc = self._service_returning(payload)
+        _, _, page_requests = svc.generate_design_doc_draft(self._outline())
+        # 빈 request 와 garbage 는 빠지고, 번호 비정수 1건만 number=None 으로 남는다.
+        assert len(page_requests) == 1
+        assert page_requests[0].number is None
+        assert page_requests[0].text == "유효"

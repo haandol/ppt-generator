@@ -76,7 +76,7 @@ def _build_design_service_mock() -> MagicMock:
     design_service.generate_single_slide.return_value = make_slide_spec("새로 생성됨")
     design_service.last_token_usage = {}
     design_service.last_overflow = []
-    design_service.generate_design_summary.return_value = {
+    _summary = {
         "background_color": "#1a1a2e",
         "text_colors": ["#ffffff"],
         "title_font_pt": 32,
@@ -84,6 +84,9 @@ def _build_design_service_mock() -> MagicMock:
         "card_fills": [],
         "card_borders": [],
     }
+    design_service.generate_design_summary.return_value = _summary
+    # DESIGN.md 초안 생성은 (summary, tone, page_requests) 튜플을 반환한다.
+    design_service.generate_design_doc_draft.return_value = (_summary, "", [])
     return design_service
 
 

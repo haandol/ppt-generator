@@ -21,6 +21,7 @@ docs/adr/
 ├── lint/       lint rule + validator → lint 전환 — interfaces/spec_utils/lint*
 ├── modify/     슬라이드/component 부분 수정 — tools/design/handlers/modification.py
 ├── slides/     슬라이드 HTML 미리보기 — tools/slides/
+├── pptx-export/ PPTX 내보내기 — tools/pptx/
 ├── import/     PPTX 임포트 — tools/pptx_import/
 ├── visual-qa/  스크린샷 기반 자동 QA — tools/visual_qa/
 ├── project/    파이프라인 인프라 (저장, 토큰/비용, 진행률, 안정성) — tools/project/, infra
@@ -58,6 +59,8 @@ docs/adr/
 - [0015 DESIGN.md — 사람이 편집하는 디자인 의도 단일 소스](./design/0015-design-md-source-of-truth.md)
 - [0016 DESIGN.md 가 배경 이미지 자동 주입을 제어한다](./design/0016-design-md-background-policy.md)
 - [0017 순환 다이어그램 마킹 + 화살표 방향 규칙](./design/0017-cycle-diagram-marking.md)
+- [0018 DESIGN.md 의 taste 레이어를 파이프라인 안에서 생성한다](./design/0018-design-md-taste-in-pipeline.md)
+- [0019 배경 이미지 선택을 프로젝트 단위로 결정론화](./design/0019-background-image-deterministic-per-project.md)
 
 ### lint — 디자인 스펙 lint
 
@@ -78,6 +81,10 @@ docs/adr/
 ### slides — HTML 미리보기
 
 - [0001 슬라이드별 HTML 파일 분리 + iframe 컨테이너](./slides/0001-per-slide-html-iframe.md)
+
+### pptx-export — PPTX 내보내기
+
+- [0001 작은 뱃지 도형의 텍스트는 PPTX 에서 줄바꿈하지 않는다](./pptx-export/0001-shape-text-no-wrap-for-compact-badges.md)
 
 ### import — PPTX 임포트
 

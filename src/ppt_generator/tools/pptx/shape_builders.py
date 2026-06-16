@@ -79,6 +79,52 @@ _SNAP_THRESHOLD = 12
 # rounded_rectangle 기본 라운딩 (corner_radius_px가 null일 때, HTML 렌더러와 동일)
 _ROUNDED_RECT_DEFAULT_RADIUS_PX = 8.0
 
+# 컴팩트 라벨 도형(번호 뱃지 등) 판별 임계.
+# 작은 도형 + 짧은 단일 텍스트는 한 줄 라벨이 의도다 — PPTX 의 자동 줄바꿈이
+# "01" 같은 번호를 세로로 쪼개지 않도록 word_wrap 을 끈다.
+_COMPACT_BADGE_MAX_PX = 64.0
+_COMPACT_BADGE_MAX_CHARS = 4
+
+
+def _is_compact_label(shape_spec: PptxShape, text: str) -> bool:
+    """작은 도형 안의 짧은 단일 라벨인지 — 줄바꿈을 끄는 게 맞는 케이스인지."""
+    if "\n" in text:
+        return False
+    if len(text.strip()) > _COMPACT_BADGE_MAX_CHARS:
+        return False
+    return (
+        abs(shape_spec.width_px) <= _COMPACT_BADGE_MAX_PX
+        and abs(shape_spec.height_px) <= _COMPACT_BADGE_MAX_PX
+    )
+
+
+def _apply_shape_margins(tf, shape_spec: PptxShape) -> None:
+    """도형 텍스트 프레임 내부 여백을 spec padding(없으면 기본값)으로 설정."""
+    if shape_spec.padding_left_px is not None:
+        tf.margin_left = Emu(int(shape_spec.padding_left_px * PX_TO_EMU))
+    else:
+        tf.margin_left = Emu(PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU)
+    if shape_spec.padding_right_px is not None:
+        tf.margin_right = Emu(int(shape_spec.padding_right_px * PX_TO_EMU))
+    else:
+        tf.margin_right = Emu(PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU)
+    if shape_spec.padding_top_px is not None:
+        tf.margin_top = Emu(int(shape_spec.padding_top_px * PX_TO_EMU))
+    else:
+        tf.margin_top = Emu(PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU)
+    if shape_spec.padding_bottom_px is not None:
+        tf.margin_bottom = Emu(int(shape_spec.padding_bottom_px * PX_TO_EMU))
+    else:
+        tf.margin_bottom = Emu(PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU)
+
+
+def _apply_compact_margins(tf) -> None:
+    """컴팩트 라벨 도형 — 내부 여백을 0으로 두어 짧은 텍스트가 한 줄에 들어가게."""
+    tf.margin_left = Emu(0)
+    tf.margin_right = Emu(0)
+    tf.margin_top = Emu(0)
+    tf.margin_bottom = Emu(0)
+
 
 def add_auto_shape_from_spec(slide, shape_spec: PptxShape) -> None:
     """일반 도형(AutoShape) + 텍스트를 슬라이드에 추가."""
@@ -133,25 +179,18 @@ def add_auto_shape_from_spec(slide, shape_spec: PptxShape) -> None:
 
     if shape_spec.paragraphs:
         tf = shape.text_frame
-        tf.word_wrap = True
+        para_text = "".join(
+            run.text for para in shape_spec.paragraphs for run in para.runs
+        )
+        # 컴팩트 라벨(번호 뱃지 등)은 줄바꿈을 끄고 내부 여백도 없애 한 줄 유지.
+        compact = _is_compact_label(shape_spec, para_text)
+        tf.word_wrap = not compact
         tf.auto_size = MSO_AUTO_SIZE.NONE
 
-        if shape_spec.padding_left_px is not None:
-            tf.margin_left = Emu(int(shape_spec.padding_left_px * PX_TO_EMU))
+        if compact:
+            _apply_compact_margins(tf)
         else:
-            tf.margin_left = Emu(PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU)
-        if shape_spec.padding_right_px is not None:
-            tf.margin_right = Emu(int(shape_spec.padding_right_px * PX_TO_EMU))
-        else:
-            tf.margin_right = Emu(PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU)
-        if shape_spec.padding_top_px is not None:
-            tf.margin_top = Emu(int(shape_spec.padding_top_px * PX_TO_EMU))
-        else:
-            tf.margin_top = Emu(PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU)
-        if shape_spec.padding_bottom_px is not None:
-            tf.margin_bottom = Emu(int(shape_spec.padding_bottom_px * PX_TO_EMU))
-        else:
-            tf.margin_bottom = Emu(PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU)
+            _apply_shape_margins(tf, shape_spec)
 
         format_paragraphs(tf, shape_spec.paragraphs)
 
@@ -162,25 +201,15 @@ def add_auto_shape_from_spec(slide, shape_spec: PptxShape) -> None:
 
     elif shape_spec.text:
         tf = shape.text_frame
-        tf.word_wrap = True
+        # 컴팩트 라벨(번호 뱃지 등)은 줄바꿈을 끄고 내부 여백도 없애 한 줄 유지.
+        compact = _is_compact_label(shape_spec, shape_spec.text)
+        tf.word_wrap = not compact
         tf.auto_size = MSO_AUTO_SIZE.NONE
 
-        if shape_spec.padding_left_px is not None:
-            tf.margin_left = Emu(int(shape_spec.padding_left_px * PX_TO_EMU))
+        if compact:
+            _apply_compact_margins(tf)
         else:
-            tf.margin_left = Emu(PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU)
-        if shape_spec.padding_right_px is not None:
-            tf.margin_right = Emu(int(shape_spec.padding_right_px * PX_TO_EMU))
-        else:
-            tf.margin_right = Emu(PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU)
-        if shape_spec.padding_top_px is not None:
-            tf.margin_top = Emu(int(shape_spec.padding_top_px * PX_TO_EMU))
-        else:
-            tf.margin_top = Emu(PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU)
-        if shape_spec.padding_bottom_px is not None:
-            tf.margin_bottom = Emu(int(shape_spec.padding_bottom_px * PX_TO_EMU))
-        else:
-            tf.margin_bottom = Emu(PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU)
+            _apply_shape_margins(tf, shape_spec)
 
         apply_vertical_alignment(tf, shape_spec.vertical_alignment or "top")
 

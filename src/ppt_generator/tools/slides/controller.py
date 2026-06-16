@@ -4,6 +4,7 @@ import time
 
 from mcp.server.fastmcp import Context, FastMCP
 
+from ppt_generator.interfaces import bg_image_utils
 from ppt_generator.interfaces.spec_utils import (
     parse_design_spec_json,
 )  # inline parameter용
@@ -45,6 +46,10 @@ def register_slides_tools(
             raise ValueError("Either design_spec_json or project_id must be provided.")
 
         project_id, project_dir = project_service.resolve_project_dir(project_id)
+
+        # 배경 이미지 선택을 프로젝트 단위로 고정 — PPTX export 와 같은 시드를
+        # 써서 미리보기(HTML)와 최종본(PPTX)의 title/closing 배경이 일치한다.
+        bg_image_utils.set_project_seed(project_id)
 
         # image_path → slides/images/ 동기화
         design_spec = project_service.sync_image_paths(project_dir, design_spec)

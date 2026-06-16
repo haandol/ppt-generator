@@ -124,6 +124,11 @@ def handle_modify(
     _, project_dir = project_service.resolve_project_dir(project_id)
     slide_count = project_service.get_design_spec_slide_count(project_dir)
 
+    # 배경 이미지 선택을 프로젝트 단위로 고정 (미리보기 재생성 시 일관성).
+    from ppt_generator.interfaces import bg_image_utils
+
+    bg_image_utils.set_project_seed(project_id)
+
     design_summary: dict | None = None
     if action in ("add", "update"):
         design_summary = project_service.load_design_summary(project_dir)
@@ -528,6 +533,12 @@ def handle_modify_component(
 
     project_service = deps.project_service
     _, project_dir = project_service.resolve_project_dir(project_id)
+
+    # 배경 이미지 선택을 프로젝트 단위로 고정 (미리보기 재생성 시 일관성).
+    from ppt_generator.interfaces import bg_image_utils
+
+    bg_image_utils.set_project_seed(project_id)
+
     slide_count = project_service.get_design_spec_slide_count(project_dir)
     if slide_index > slide_count:
         _raise_validation(

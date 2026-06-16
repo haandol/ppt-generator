@@ -484,7 +484,7 @@ class TestMoveSlideToolWith16Pages:
         )
         design_service.last_token_usage = {}
         design_service.last_overflow = []
-        design_service.generate_design_summary.return_value = {
+        _summary = {
             "background_color": "#1a1a2e",
             "text_colors": ["#ffffff"],
             "title_font_pt": 32,
@@ -492,6 +492,8 @@ class TestMoveSlideToolWith16Pages:
             "card_fills": [],
             "card_borders": [],
         }
+        design_service.generate_design_summary.return_value = _summary
+        design_service.generate_design_doc_draft.return_value = (_summary, "", [])
         design_service_factory = lambda slide_type="content", budget_tokens=8192: (
             design_service
         )  # noqa: E731

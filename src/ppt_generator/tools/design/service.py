@@ -18,6 +18,7 @@ from strands.types.exceptions import ModelThrottledException
 from ppt_generator.interfaces.constants import (
     BACKFILL_DESIGN_DOC_USER_PROMPT_TEMPLATE,
     COMPONENT_MODIFY_USER_PROMPT_TEMPLATE,
+    DESIGN_DOC_DRAFT_USER_PROMPT_TEMPLATE,
     DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE,
     DESIGN_SPEC_USER_PROMPT_TEMPLATE,
     DESIGN_SUMMARY_USER_PROMPT_TEMPLATE,
@@ -175,6 +176,87 @@ class DesignService:
         summary = json.loads(raw_text.strip())
         logger.info("design_summary LLM generation completed: %s", summary)
         return summary
+
+    def generate_design_doc_draft(
+        self,
+        outline: OutlineResponse,
+        color_theme: str = "dark",
+    ) -> tuple[dict, str, list]:
+        """Pre-generates the full DESIGN.md draft intent via LLM.
+
+        Unlike generate_design_summary (numeric theme only), this also produces
+        the prose taste layer — the global tone & direction and a selective set
+        of per-slide deviation requests — so the deck does not default to AI
+        slop (uniform card trios, no narrative arc). The taste guidance lives in
+        the prompt; the model grounds it in this deck's outline.
+
+        Returns:
+            (design_summary, tone, page_requests) where design_summary is the
+            same numeric dict shape as generate_design_summary, tone is prose,
+            and page_requests is a list of PageRequest. On a malformed/partial
+            LLM response, falls back to whatever could be parsed (numeric theme
+            at minimum), keeping draft generation robust.
+        """
+        from ppt_generator.tools.design.design_doc_md import PageRequest
+
+        outline_json = json.dumps(
+            [
+                {
+                    "title": s.title,
+                    "content_summary": s.content_summary,
+                    "component_hint": s.component_hint,
+                    "slide_type": s.slide_type,
+                }
+                for s in outline.slides
+            ],
+            ensure_ascii=False,
+            indent=2,
+        )
+
+        prompt = DESIGN_DOC_DRAFT_USER_PROMPT_TEMPLATE.format(
+            total_slides=len(outline.slides),
+            color_theme=color_theme,
+            outline_json=outline_json,
+        )
+
+        try:
+            result = self._agent(prompt)
+            log_token_usage(result, "design_doc_draft")
+        except ModelThrottledException:
+            logger.warning("Bedrock throttling during design_doc draft generation")
+            raise
+
+        raw_text = str(result)
+        json_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", raw_text, re.DOTALL)
+        if json_match:
+            raw_text = json_match.group(1)
+        data = json.loads(raw_text.strip())
+
+        summary = data.get("theme") or {}
+        if not isinstance(summary, dict):
+            summary = {}
+        tone = data.get("tone") or ""
+        if not isinstance(tone, str):
+            tone = ""
+
+        page_requests: list = []
+        for item in data.get("page_requests") or []:
+            if not isinstance(item, dict):
+                continue
+            number = item.get("number")
+            number = number if isinstance(number, int) else None
+            title = str(item.get("title") or "").strip()
+            text = str(item.get("request") or "").strip()
+            if not text:
+                continue
+            page_requests.append(PageRequest(number=number, title=title, text=text))
+
+        logger.info(
+            "design_doc draft generated: tone=%dchars, page_requests=%d",
+            len(tone),
+            len(page_requests),
+        )
+        return summary, tone.strip(), page_requests
 
     @staticmethod
     def extract_design_summary(spec: PptxSlideSpec) -> dict:

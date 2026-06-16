@@ -2,6 +2,7 @@ import json
 
 from mcp.server.fastmcp import FastMCP
 
+from ppt_generator.interfaces import bg_image_utils
 from ppt_generator.interfaces.spec_utils import (
     parse_design_spec_json,
 )  # inline parameter용
@@ -28,6 +29,10 @@ def register_pptx_tools(
             JSON string containing project_id and pptx_path
         """
         project_id, project_dir = project_service.resolve_project_dir(project_id)
+
+        # 배경 이미지 선택을 프로젝트 단위로 고정 — 재export·경로(HTML/PPTX)와
+        # 무관하게 같은 프로젝트는 같은 배경을 쓰도록 시드를 건다.
+        bg_image_utils.set_project_seed(project_id)
 
         # design_summary에서 color_theme 로드
         design_summary = project_service.load_design_summary(project_dir)

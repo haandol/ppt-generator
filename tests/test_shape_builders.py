@@ -215,3 +215,79 @@ class TestParagraphsPathVerticalAlignment:
         add_auto_shape_from_spec(slide, spec)
 
         assert _get_anchor(slide.shapes[0].text_frame) == "b"
+
+
+# ── 컴팩트 라벨(번호 뱃지) word_wrap 억제 ─────────────────────────
+
+
+class TestCompactLabelNoWrap:
+    """작은 도형 + 짧은 텍스트(번호 뱃지)는 PPTX 줄바꿈을 끄고 여백 0."""
+
+    def test_compact_badge_text_disables_wrap(self, blank_slide):
+        slide = blank_slide
+        # 36x36 원형에 "01" — 전형적 번호 뱃지.
+        spec = PptxShape(
+            left_px=82,
+            top_px=166,
+            width_px=36,
+            height_px=36,
+            shape_type="ellipse",
+            text="01",
+            text_size_pt=14,
+            text_bold=True,
+        )
+        add_auto_shape_from_spec(slide, spec)
+
+        tf = slide.shapes[0].text_frame
+        assert tf.word_wrap is False
+        assert tf.margin_left == Emu(0)
+        assert tf.margin_right == Emu(0)
+
+    def test_compact_badge_paragraphs_disables_wrap(self, blank_slide):
+        slide = blank_slide
+        spec = PptxShape(
+            left_px=0,
+            top_px=0,
+            width_px=40,
+            height_px=40,
+            shape_type="ellipse",
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="02", font_size_pt=14, bold=True)])
+            ],
+        )
+        add_auto_shape_from_spec(slide, spec)
+
+        tf = slide.shapes[0].text_frame
+        assert tf.word_wrap is False
+
+    def test_large_card_keeps_wrap(self, blank_slide):
+        slide = blank_slide
+        # 큰 카드 + 긴 본문 → 줄바꿈 유지(과교정 방지).
+        spec = PptxShape(
+            left_px=0,
+            top_px=0,
+            width_px=400,
+            height_px=200,
+            shape_type="rounded_rectangle",
+            text="이것은 여러 줄로 줄바꿈되어야 하는 긴 카드 본문 텍스트입니다.",
+        )
+        add_auto_shape_from_spec(slide, spec)
+
+        tf = slide.shapes[0].text_frame
+        assert tf.word_wrap is True
+
+    def test_small_shape_long_text_keeps_wrap(self, blank_slide):
+        slide = blank_slide
+        # 작아도 텍스트가 길면 라벨이 아니므로 줄바꿈 유지.
+        spec = PptxShape(
+            left_px=0,
+            top_px=0,
+            width_px=40,
+            height_px=40,
+            shape_type="ellipse",
+            text="긴 텍스트입니다",
+        )
+        add_auto_shape_from_spec(slide, spec)
+
+        tf = slide.shapes[0].text_frame
+        assert tf.word_wrap is True

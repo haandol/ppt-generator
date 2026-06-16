@@ -37,7 +37,7 @@ def _register_tools(project_service: ProjectService) -> dict:
     design_service.generate_single_slide.return_value = _make_slide_spec("새로 생성됨")
     design_service.last_token_usage = {}
     design_service.last_overflow = []
-    design_service.generate_design_summary.return_value = {
+    _summary = {
         "background_color": "#1a1a2e",
         "text_colors": ["#ffffff"],
         "title_font_pt": 32,
@@ -45,6 +45,8 @@ def _register_tools(project_service: ProjectService) -> dict:
         "card_fills": [],
         "card_borders": [],
     }
+    design_service.generate_design_summary.return_value = _summary
+    design_service.generate_design_doc_draft.return_value = (_summary, "", [])
 
     slides_service = MagicMock()
     slides_service.render_single_slide_html.return_value = "<html>new slide</html>"

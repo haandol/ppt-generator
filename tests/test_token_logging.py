@@ -391,7 +391,7 @@ class TestDesignControllerTokenAggregation:
 
         design_service = MagicMock()
         design_service.generate_single_slide.return_value = spec
-        design_service.generate_design_summary.return_value = {
+        _summary = {
             "background_color": "#1a1a2e",
             "text_colors": ["#ffffff"],
             "title_font_pt": 32,
@@ -399,6 +399,8 @@ class TestDesignControllerTokenAggregation:
             "card_fills": [],
             "card_borders": [],
         }
+        design_service.generate_design_summary.return_value = _summary
+        design_service.generate_design_doc_draft.return_value = (_summary, "", [])
         design_service.last_token_usage = {
             "inputTokens": 10000,
             "outputTokens": 3000,
@@ -564,7 +566,7 @@ class TestDesignControllerTokenAggregation:
 
         design_service = MagicMock()
         design_service.generate_single_slide.return_value = spec
-        design_service.generate_design_summary.return_value = {
+        _summary = {
             "background_color": "#1a1a2e",
             "text_colors": ["#ffffff"],
             "title_font_pt": 32,
@@ -572,6 +574,8 @@ class TestDesignControllerTokenAggregation:
             "card_fills": [],
             "card_borders": [],
         }
+        design_service.generate_design_summary.return_value = _summary
+        design_service.generate_design_doc_draft.return_value = (_summary, "", [])
         # last_token_usage가 빈 dict
         design_service.last_token_usage = {}
         design_service.last_overflow = []

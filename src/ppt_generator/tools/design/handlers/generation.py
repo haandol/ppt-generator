@@ -50,6 +50,12 @@ async def handle_generate(
     project_id, project_dir = project_service.resolve_project_dir(project_id)
     target_count = len(indices)
 
+    # 배경 이미지 선택을 프로젝트 단위로 고정 — 생성 시 만드는 미리보기와
+    # 이후 export(HTML/PPTX)가 같은 title/closing 배경을 쓰도록 시드를 건다.
+    from ppt_generator.interfaces import bg_image_utils
+
+    bg_image_utils.set_project_seed(project_id)
+
     # --- Step 1: Pre-generate DESIGN.md draft (design intent source of truth) ---
     # DESIGN.md 가 없으면 outline 기반으로 초안을 자동 생성한다 (기존 머신
     # 디자인 요약을 LLM 으로 만들던 자리를 대체). 사용자가 이후 DESIGN.md 를
@@ -59,11 +65,19 @@ async def handle_generate(
             await ctx.report_progress(0, target_count, "디자인 테마 생성 중...")
         logger.info("Starting DESIGN.md draft generation (LLM call)")
         summary_svc = deps.design_service_factory("content")
-        summary = summary_svc.generate_design_summary(outline, color_theme)
+        # 초안은 수치 테마뿐 아니라 톤·선별적 페이지별 요청(taste 레이어)까지
+        # outline 에 근거해 생성한다 — 덱이 AI slop(균일 카드 트리오·무아크)으로
+        # 떨어지지 않도록 하는 기본 바닥.
+        summary, tone, page_requests = summary_svc.generate_design_doc_draft(
+            outline, color_theme
+        )
         summary["color_theme"] = color_theme
         from ppt_generator.tools.design.design_doc_md import render_design_doc_md
 
-        project_service.save_design_doc_md(project_dir, render_design_doc_md(summary))
+        project_service.save_design_doc_md(
+            project_dir,
+            render_design_doc_md(summary, tone=tone, page_requests=page_requests),
+        )
         logger.info("DESIGN.md draft generation completed")
         if ctx is not None:
             await ctx.report_progress(0, target_count, "디자인 테마 생성 완료")
