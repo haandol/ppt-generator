@@ -23,6 +23,7 @@ from ppt_generator.interfaces.constants import (
     PX_TO_EMU,
 )
 from ppt_generator.interfaces.schemas import PptxShape
+from ppt_generator.interfaces.text_measurement import calculate_shrink_font_scale
 from ppt_generator.tools.pptx.freeform_builder import add_freeform_from_svg
 from ppt_generator.tools.pptx.text_formatter import (
     apply_line_spacing,
@@ -84,6 +85,21 @@ _ROUNDED_RECT_DEFAULT_RADIUS_PX = 8.0
 # "01" 같은 번호를 세로로 쪼개지 않도록 word_wrap 을 끈다.
 _COMPACT_BADGE_MAX_PX = 64.0
 _COMPACT_BADGE_MAX_CHARS = 4
+
+
+# shrink_text 측정 시 padding 기본값 (HTML 렌더러 shape_to_html 과 동일).
+_DEFAULT_SHAPE_PADDING_LR_PX = PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU / PX_TO_EMU
+_DEFAULT_SHAPE_PADDING_TB_PX = PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU / PX_TO_EMU
+
+
+def _resolved_padding_lr(value: float | None) -> float:
+    """좌우 padding 을 해석한다 (None 이면 HTML 렌더러와 동일한 기본값)."""
+    return value if value is not None else _DEFAULT_SHAPE_PADDING_LR_PX
+
+
+def _resolved_padding_tb(value: float | None) -> float:
+    """상하 padding 을 해석한다 (None 이면 HTML 렌더러와 동일한 기본값)."""
+    return value if value is not None else _DEFAULT_SHAPE_PADDING_TB_PX
 
 
 def _is_compact_label(shape_spec: PptxShape, text: str) -> bool:
@@ -192,7 +208,23 @@ def add_auto_shape_from_spec(slide, shape_spec: PptxShape) -> None:
         else:
             _apply_shape_margins(tf, shape_spec)
 
-        format_paragraphs(tf, shape_spec.paragraphs)
+        # shrink_text autofit: 텍스트가 박스 높이를 넘으면 폰트를 비례 축소한다
+        # (HTML 렌더러 shape_to_html 과 동일). expand_height 는 박스가 늘어나므로 제외.
+        # 컴팩트 라벨은 여백 0·한 줄이므로 축소 불필요.
+        font_scale = 1.0
+        if not compact and shape_spec.autofit_mode != "expand_height":
+            font_scale = calculate_shrink_font_scale(
+                shape_spec.paragraphs,
+                shape_spec.width_px,
+                shape_spec.height_px,
+                line_spacing_pt=shape_spec.line_spacing_pt,
+                padding_left_px=_resolved_padding_lr(shape_spec.padding_left_px),
+                padding_right_px=_resolved_padding_lr(shape_spec.padding_right_px),
+                padding_top_px=_resolved_padding_tb(shape_spec.padding_top_px),
+                padding_bottom_px=_resolved_padding_tb(shape_spec.padding_bottom_px),
+            )
+
+        format_paragraphs(tf, shape_spec.paragraphs, font_scale=font_scale)
 
         if shape_spec.line_spacing_pt:
             apply_line_spacing(tf, shape_spec.line_spacing_pt, shape_spec.paragraphs)

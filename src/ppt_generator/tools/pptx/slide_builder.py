@@ -7,8 +7,6 @@ from __future__ import annotations
 
 import logging
 from io import BytesIO
-
-logger = logging.getLogger(__name__)
 from struct import unpack
 
 from lxml.etree import SubElement
@@ -28,6 +26,7 @@ from ppt_generator.interfaces.schemas import (
     PptxSlideSpec,
     PptxTextBox,
 )
+from ppt_generator.interfaces.text_measurement import calculate_shrink_font_scale
 from ppt_generator.tools.pptx.shape_builders import (
     add_auto_shape_from_spec,
     add_connector_from_spec,
@@ -39,6 +38,8 @@ from ppt_generator.tools.pptx.text_formatter import (
     format_paragraphs,
     parse_color,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SlideBuilder:
@@ -244,7 +245,20 @@ class SlideBuilder:
         else:
             tf.margin_bottom = Emu(0)
 
-        format_paragraphs(tf, tb.paragraphs)
+        # shrink_text autofit: 텍스트가 박스 높이를 넘으면 폰트를 비례 축소한다
+        # (HTML 렌더러 textbox_to_html 과 동일). 헤더/푸터가 넘쳐 잘리는 것을 막는다.
+        font_scale = calculate_shrink_font_scale(
+            tb.paragraphs,
+            tb.width_px,
+            tb.height_px,
+            line_spacing_pt=tb.line_spacing_pt,
+            padding_left_px=tb.padding_left_px or 0,
+            padding_right_px=tb.padding_right_px or 0,
+            padding_top_px=tb.padding_top_px or 0,
+            padding_bottom_px=tb.padding_bottom_px or 0,
+        )
+
+        format_paragraphs(tf, tb.paragraphs, font_scale=font_scale)
 
         if tb.line_spacing_pt:
             apply_line_spacing(tf, tb.line_spacing_pt, tb.paragraphs)

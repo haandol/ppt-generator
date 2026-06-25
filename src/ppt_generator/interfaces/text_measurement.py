@@ -9,6 +9,10 @@ from __future__ import annotations
 
 import math
 import unicodedata
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ppt_generator.interfaces.schemas import PptxParagraph
 
 from ppt_generator.interfaces.constants import (
     TEXT_MEASURE_BULLET_INDENT_L0_PX,
@@ -65,8 +69,6 @@ def estimate_paragraph_wrapped_lines(
 
     최소 1줄 반환.
     """
-    from ppt_generator.interfaces.schemas import PptxParagraph  # noqa: F811
-
     if available_width_px <= 0:
         return 1
 
@@ -237,3 +239,62 @@ def calculate_autofit_font_scale(
     scale = available_h / required_h
     min_scale = min_font_pt / max_font_pt
     return max(scale, min_scale)
+
+
+# shrink_text autofit 시 폰트 축소 판정에 쓰는 높이 여유 (text-overflow lint 와 동일).
+AUTOFIT_HEIGHT_TOLERANCE = 1.15
+
+
+def max_paragraph_font_pt(
+    paragraphs: list["PptxParagraph"], default: float = 16.0
+) -> float:
+    """paragraph 리스트에서 가장 큰 run 폰트 크기(pt)를 반환한다.
+
+    shrink 축소 하한을 절대 10pt 로 만들기 위해 calculate_autofit_font_scale 의
+    max_font_pt 인자로 사용한다 (min_scale = 10 / max_font_pt).
+    """
+    sizes = [
+        r.font_size_pt
+        for p in paragraphs
+        for r in p.runs
+        if getattr(r, "font_size_pt", None)
+    ]
+    return max(sizes) if sizes else default
+
+
+def calculate_shrink_font_scale(
+    paragraphs: list["PptxParagraph"],
+    box_width_px: float,
+    box_height_px: float,
+    line_spacing_pt: float | None = None,
+    padding_left_px: float = 0.0,
+    padding_right_px: float = 0.0,
+    padding_top_px: float = 0.0,
+    padding_bottom_px: float = 0.0,
+    height_tolerance: float = AUTOFIT_HEIGHT_TOLERANCE,
+) -> float:
+    """shrink_text autofit 폰트 축소 비율을 계산한다.
+
+    필요 높이가 box_height_px(× height_tolerance)를 넘으면 1.0 미만의 scale 을
+    반환한다. 축소 하한은 paragraph 내 최대 폰트 기준 절대 10pt 다.
+
+    HTML 렌더러(shape_renderer/html_renderer)와 PPTX 빌더(shape_builders/
+    slide_builder)가 동일한 폰트 크기를 산출하도록 이 헬퍼를 공유한다.
+    """
+    if not paragraphs:
+        return 1.0
+
+    required_h = calculate_required_height(
+        paragraphs,
+        box_width_px,
+        line_spacing_pt=line_spacing_pt,
+        padding_left_px=padding_left_px,
+        padding_right_px=padding_right_px,
+        padding_top_px=padding_top_px,
+        padding_bottom_px=padding_bottom_px,
+    )
+    return calculate_autofit_font_scale(
+        required_h,
+        box_height_px * height_tolerance,
+        max_font_pt=max_paragraph_font_pt(paragraphs),
+    )

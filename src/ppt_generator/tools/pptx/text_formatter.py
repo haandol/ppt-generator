@@ -56,15 +56,19 @@ def parse_color(color_str: str) -> RGBColor | None:
     return None
 
 
-def format_run(run_obj, run_spec: PptxTextRun) -> None:
-    """run에 폰트/색상/볼드/이탤릭을 적용한다."""
+def format_run(run_obj, run_spec: PptxTextRun, font_scale: float = 1.0) -> None:
+    """run에 폰트/색상/볼드/이탤릭을 적용한다.
+
+    font_scale 이 1.0 미만이면 shrink_text autofit 으로 폰트를 비례 축소한다
+    (HTML 렌더러의 paragraph_to_html(font_scale=...) 과 동일한 동작).
+    """
     run_obj.text = run_spec.text
     if run_spec.font_family == "monospace":
         run_obj.font.name = PPTX_MONOSPACE_FONT_NAME
     else:
         run_obj.font.name = PPTX_FONT_NAME
     if run_spec.font_size_pt:
-        run_obj.font.size = Pt(run_spec.font_size_pt)
+        run_obj.font.size = Pt(run_spec.font_size_pt * font_scale)
     run_obj.font.bold = run_spec.bold
     run_obj.font.italic = run_spec.italic
     if run_spec.color:
@@ -103,8 +107,12 @@ def apply_bullet(paragraph, level: int) -> None:
 def format_paragraphs(
     text_frame,
     paragraphs: list[PptxParagraph],
+    font_scale: float = 1.0,
 ) -> None:
-    """paragraph 반복 + run 포매팅 + 불릿/정렬 적용."""
+    """paragraph 반복 + run 포매팅 + 불릿/정렬 적용.
+
+    font_scale 이 1.0 미만이면 모든 run 의 폰트를 비례 축소한다 (shrink_text autofit).
+    """
     for p_idx, para_spec in enumerate(paragraphs):
         if p_idx == 0:
             para = text_frame.paragraphs[0]
@@ -115,7 +123,7 @@ def format_paragraphs(
             if not run_spec.text:
                 continue
             run = para.add_run()
-            format_run(run, run_spec)
+            format_run(run, run_spec, font_scale=font_scale)
 
         if para_spec.bullet_level >= 0:
             apply_bullet(para, para_spec.bullet_level)
