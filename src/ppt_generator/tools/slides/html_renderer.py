@@ -11,8 +11,12 @@ from ppt_generator.interfaces.schemas import (
     PptxSlideSpec,
     PptxTextBox,
 )
-from ppt_generator.interfaces.text_measurement import should_apply_nowrap_to_paragraph
-from ppt_generator.tools.slides.shape_renderer import shape_to_html
+from ppt_generator.interfaces.text_measurement import (
+    calculate_autofit_font_scale,
+    calculate_required_height,
+    should_apply_nowrap_to_paragraph,
+)
+from ppt_generator.tools.slides.shape_renderer import _max_font_pt, shape_to_html
 from ppt_generator.tools.slides.text_renderer import (
     escape_html,
     paragraph_to_html,
@@ -28,6 +32,10 @@ __all__ = [
     "shape_to_html",
     "spec_to_html_section",
 ]
+
+
+# shrink_text autofit 시 textbox 폰트 축소 판정에 쓰는 높이 여유 (text-overflow lint 와 동일).
+_TEXTBOX_AUTOFIT_HEIGHT_TOLERANCE = 1.15
 
 
 def textbox_to_html(tb: PptxTextBox) -> str:
@@ -53,11 +61,29 @@ def textbox_to_html(tb: PptxTextBox) -> str:
     # 불릿 그룹핑
     has_bullets = any(p.bullet_level >= 0 for p in tb.paragraphs)
     usable_w = tb.width_px - pl - pr
+
+    # shrink_text autofit: 텍스트가 박스 높이를 넘으면 폰트를 비례 축소해
+    # 헤더/푸터가 넘쳐 이웃과 겹치거나 잘리는 것을 막는다. 박스에 들어가면 scale=1.0.
+    required_h = calculate_required_height(
+        tb.paragraphs,
+        tb.width_px,
+        line_spacing_pt=tb.line_spacing_pt,
+        padding_left_px=pl,
+        padding_right_px=pr,
+        padding_top_px=pt_,
+        padding_bottom_px=pb,
+    )
+    font_scale = calculate_autofit_font_scale(
+        required_h,
+        tb.height_px * _TEXTBOX_AUTOFIT_HEIGHT_TOLERANCE,
+        max_font_pt=_max_font_pt(tb.paragraphs),
+    )
+
     inner_parts: list[str] = []
     if has_bullets:
         bullet_items: list[str] = []
         for para in tb.paragraphs:
-            html = paragraph_to_html(para)
+            html = paragraph_to_html(para, font_scale=font_scale)
             if para.bullet_level >= 0:
                 bullet_items.append(html)
             else:
@@ -74,7 +100,9 @@ def textbox_to_html(tb: PptxTextBox) -> str:
     else:
         for para in tb.paragraphs:
             apply_nowrap = should_apply_nowrap_to_paragraph(para, usable_w)
-            inner_parts.append(paragraph_to_html(para, nowrap=apply_nowrap))
+            inner_parts.append(
+                paragraph_to_html(para, nowrap=apply_nowrap, font_scale=font_scale)
+            )
 
     return f'<div style="{style}">{"".join(inner_parts)}</div>'
 

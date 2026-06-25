@@ -13,8 +13,31 @@ from ppt_generator.interfaces.constants import (
     PX_TO_EMU,
 )
 from ppt_generator.interfaces.schemas import PptxShape
-from ppt_generator.interfaces.text_measurement import should_apply_nowrap_to_paragraph
+from ppt_generator.interfaces.text_measurement import (
+    calculate_autofit_font_scale,
+    calculate_required_height,
+    should_apply_nowrap_to_paragraph,
+)
 from ppt_generator.tools.slides.text_renderer import escape_html, paragraph_to_html
+
+# shrink_text autofit 시 폰트 축소 판정에 쓰는 높이 여유 (text-overflow lint 와 동일).
+_AUTOFIT_HEIGHT_TOLERANCE = 1.15
+
+
+def _max_font_pt(paragraphs: list, default: float = 16.0) -> float:
+    """paragraph 리스트에서 가장 큰 run 폰트 크기(pt)를 반환한다.
+
+    shrink 축소 하한을 절대 10pt 로 만들기 위해 calculate_autofit_font_scale 의
+    max_font_pt 인자로 사용한다 (min_scale = 10 / max_font_pt).
+    """
+    sizes = [
+        r.font_size_pt
+        for p in paragraphs
+        for r in p.runs
+        if getattr(r, "font_size_pt", None)
+    ]
+    return max(sizes) if sizes else default
+
 
 # CSS clip-path polygon 매핑: shape_type → polygon points
 _CLIP_PATH_MAP: dict[str, str] = {
@@ -253,10 +276,34 @@ def shape_to_html(shape: PptxShape) -> str:
     inner = ""
     if shape.paragraphs:
         usable_w = shape.width_px - pl - pr
+        # shrink_text autofit: 필요 높이가 박스 높이를 초과하면 폰트를 비례 축소한다.
+        # expand_height 는 박스가 늘어나므로 축소 불필요.
+        font_scale = 1.0
+        if not expand:
+            required_h = calculate_required_height(
+                shape.paragraphs,
+                shape.width_px,
+                line_spacing_pt=shape.line_spacing_pt,
+                padding_left_px=pl,
+                padding_right_px=pr,
+                padding_top_px=pt_,
+                padding_bottom_px=pb,
+            )
+            # text-overflow lint 와 동일한 15% 여유를 두어, 경계 케이스에서
+            # 불필요하게 축소하지 않는다. max_font_pt 에 박스 실제 최대 폰트를 넘겨
+            # 축소 하한이 절대 10pt(가독성 floor)가 되도록 한다.
+            max_font_pt = _max_font_pt(shape.paragraphs)
+            font_scale = calculate_autofit_font_scale(
+                required_h,
+                shape.height_px * _AUTOFIT_HEIGHT_TOLERANCE,
+                max_font_pt=max_font_pt,
+            )
         para_parts: list[str] = []
         for para in shape.paragraphs:
             apply_nowrap = should_apply_nowrap_to_paragraph(para, usable_w)
-            para_parts.append(paragraph_to_html(para, nowrap=apply_nowrap))
+            para_parts.append(
+                paragraph_to_html(para, nowrap=apply_nowrap, font_scale=font_scale)
+            )
         inner = "".join(para_parts)
     elif shape.text:
         text_style = ""

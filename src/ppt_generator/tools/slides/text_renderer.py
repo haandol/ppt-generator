@@ -13,11 +13,17 @@ def escape_html(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def run_to_html(run: PptxTextRun) -> str:
-    """PptxTextRun -> <span> 변환."""
+def run_to_html(run: PptxTextRun, *, font_scale: float = 1.0) -> str:
+    """PptxTextRun -> <span> 변환.
+
+    font_scale 이 1.0 미만이면 shrink_text autofit 으로 폰트를 비례 축소한다.
+    """
     styles: list[str] = []
     if run.font_size_pt:
-        styles.append(f"font-size:{run.font_size_pt}pt")
+        size_pt = (
+            run.font_size_pt * font_scale if font_scale < 1.0 else run.font_size_pt
+        )
+        styles.append(f"font-size:{size_pt:.2f}pt")
     if run.color:
         styles.append(f"color:{run.color}")
     if run.bold:
@@ -38,12 +44,15 @@ def run_to_html(run: PptxTextRun) -> str:
     return inner
 
 
-def paragraph_to_html(para: PptxParagraph, *, nowrap: bool = False) -> str:
+def paragraph_to_html(
+    para: PptxParagraph, *, nowrap: bool = False, font_scale: float = 1.0
+) -> str:
     """PptxParagraph -> HTML 변환.
 
     nowrap=True 이면 white-space:nowrap을 적용하여 PPT의 한 줄 레이아웃을 유지한다.
+    font_scale 이 1.0 미만이면 모든 run 의 폰트를 비례 축소한다 (shrink_text autofit).
     """
-    runs_html = "".join(run_to_html(r) for r in para.runs)
+    runs_html = "".join(run_to_html(r, font_scale=font_scale) for r in para.runs)
     style_props: list[str] = []
     if para.alignment:
         style_props.append(f"text-align:{para.alignment}")

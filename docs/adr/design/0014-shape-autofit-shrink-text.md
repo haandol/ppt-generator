@@ -1,6 +1,7 @@
 # PptxShape autofit 기본값을 "shrink_text" 로
 
 Date: 2026-05-26 (split from 0011 결정 14)
+Updated: 2026-06-25 (HTML 렌더 경로의 shrink_text 미구현 결함 보정)
 
 ## Status
 
@@ -21,11 +22,21 @@ PptxShape 의 `autofit_mode` 는 두 가지가 있다.
 
 `shrink_text` 가 기본이라면 LLM 이 명시 안 해도 카드 그리드가 자연스럽게 균일성을 유지하고, 폰트가 너무 작아지는 케이스는 별도 lint(font-range, 10~44pt) 가 잡아준다.
 
+### 후속 결함: HTML 렌더 경로에 shrink 가 없었다 (2026-06-25)
+
+이 ADR 은 "shrink_text → 폰트가 자동 축소되어 시각적 잘림이 없다" 를 전제로 lint 의 height overflow 검사까지 스킵하게 했다. 그러나 그 전제는 **PPTX 출력에서만** 성립했다. PPTX 는 PowerPoint 자체 autofit 으로 폰트를 줄여 채우지만, **HTML 렌더 경로에는 축소가 구현돼 있지 않았다** — `expand_height` 만 분기 처리되고 `shrink_text` 는 spec 의 폰트 크기를 그대로 출력한 뒤 컨테이너를 overflow 숨김 처리하므로, 텍스트가 박스를 넘으면 그대로 잘렸다.
+
+게다가 lint 가 "shrink 면 안 잘린다" 는 전제로 height 검사를 스킵했기 때문에, 이 잘림은 경고 한 줄 없이 통과되어 결함을 가렸다. 폰트 축소 비율을 계산하는 측정 유틸은 이미 존재했지만 렌더 경로에서 호출되지 않는 죽은 코드였다.
+
 ## Decision
 
 `PptxShape.autofit_mode` 의 기본값을 `expand_height` → `shrink_text` 로 변경한다. ShapeOutput(LLM 응답 모델) 의 default 도 동일하게 정렬한다.
 
 `expand_height` 는 *명시적으로* 필요한 경우(자유롭게 흐르는 텍스트 블록, 단일 callout) 에만 LLM 이 선택하도록 프롬프트에서 안내한다.
+
+### HTML 렌더의 shrink 구현 (2026-06-25 추가)
+
+HTML 렌더 시 `shrink_text` 요소는 측정한 필요 높이가 가용 높이를 초과하면 폰트를 비율만큼 축소해 출력한다. 축소 비율은 이미 존재하던 폰트 스케일 산출 로직(하한 10pt / 상한 44pt 비율)을 재사용해, PPTX autofit 및 lint 의 height-skip 전제와 결과를 일치시킨다. 동일 원리를 textbox(헤더·푸터 포함) 에도 적용해 제목·하단 텍스트가 셀 높이를 넘쳐 잘리던 케이스를 함께 해소한다. 즉 "shrink_text 면 잘리지 않는다" 는 전제를 모든 출력 경로에서 비로소 참으로 만든다.
 
 ### Lint 영향
 
@@ -48,10 +59,13 @@ PptxShape 의 `autofit_mode` 는 두 가지가 있다.
 - 카드 그리드 회귀가 *기본값* 차원에서 차단됨 — LLM 이 명시 안 해도 안전.
 - text-overflow 노이즈 warning 감소 (shrink_text shape 검사 스킵).
 - "텍스트 잘림" 이라는 큰 시각 결함 대신 "폰트 약간 작아짐" 이라는 작은 trade-off 로 부작용이 옮겨감.
+- HTML 과 PPTX 의 shrink 동작이 일치하게 되어, lint 의 height-skip 전제가 비로소 실제 출력과 부합한다 (전제와 구현의 괴리 제거).
+- 헤더/푸터 textbox 의 폰트가 셀 높이에 맞춰 자동 축소되어, 제목·하단 안내 텍스트 잘림이 사라진다.
 
 ### Negative / Risks
 
 - 폰트가 의도보다 많이 작아져 가독성이 떨어질 가능성 — `font-range` lint 가 10pt 미만은 잡지만 10~12pt 구간은 통과.
+- HTML shrink 는 폰트 메트릭 *추정* 기반 높이 측정에 의존하므로, 브라우저 실제 렌더와 미세한 오차가 있을 수 있다. 축소 비율에 하한(10pt/44pt)이 있어 극단적으로 긴 텍스트는 여전히 넘칠 수 있으며, 그 경우는 `font-range` lint 가 별도 경고한다.
 - 기존 generated 슬라이드 spec/json 의 autofit_mode 가 명시 출력되어 있어 영향 없음. 새로 생성되는 슬라이드만 default 적용.
 - imported PPTX 슬라이드: import 단계에서 별도 autofit_mode 부여 안 함 → dataclass default 적용. 시각 출력에 회귀가 의심되면 import 단계에서 `expand_height` 를 명시 부여해 보존하는 옵션을 향후 검토 (현 ADR 범위 밖).
 
