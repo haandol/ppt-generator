@@ -4,7 +4,11 @@ Date: 2026-02-11
 
 ## Status
 
-Accepted (Updated: Claude Sonnet 4.6 사용, project_id 파라미터 추가, 개별 JSON 파일 저장 + JSONL/JSON legacy fallback)
+Deprecated
+
+별도의 스크립트 생성 단계(`generate_script`)는 파이프라인에서 제거되었다. 발표자 노트는
+이제 design_doc 의 `speaker_notes` 로 흡수되어 슬라이드 디자인 생성과 함께 채워진다.
+아래는 독립 스크립트 단계가 존재하던 시절의 기록이다.
 
 ## Context
 
@@ -64,10 +68,7 @@ sequenceDiagram
 - LLM이 유효하지 않은 JSON 반환 시 재시도 또는 에러 반환한다
 - 일부 슬라이드의 speaker_notes가 누락된 경우 기존 값(빈 문자열) 유지한다
 
-## References
+## Related
 
-- 구현: `src/ppt_generator/tools/script/` (controller.py, service.py)
-- 스키마: `src/ppt_generator/interfaces/schemas.py` — `ScriptRequest(outline)`, `ScriptResponse(slides)`
-- 프롬프트: `src/ppt_generator/interfaces/prompts/` — `SCRIPT_SYSTEM_PROMPT`, `SCRIPT_USER_PROMPT_TEMPLATE` (`constants.py`에서 re-export)
-- 관련 ADR: [0001-outline-generation](../outline/0001-outline-generation.md)
-- ALPS: Section 7.2
+- [outline/0001](../outline/0001-outline-generation.md) — speaker_notes 를 빈 문자열로 생성하는 선행 단계
+- [offload/0001](../offload/0001-client-llm-offload-plugin.md) — LLM 생성을 클라이언트로 오프로딩하며 파이프라인 재편

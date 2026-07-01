@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-import/0001 의 임포트 파이프라인은 외부 PPTX 를 DesignSpec 으로 변환하지만, 임포트 결과 슬라이드는 design_doc / grid_plan / 모든 element 의 grid_cell·component_id 가 None 인 상태로 들어온다 (graceful fallback 정책). 이 상태에서는 0003 의 `modify_component` 가 design_doc.layout leaf 매칭에 의존하므로 사용 불가다. 사용자가 imported 슬라이드를 부분 수정하려면 `modify_design_spec(action="update")` 로 슬라이드 전체를 outline 기반 재생성해야 했고, 이는 imported 시각 자산의 "원본 보존" 가치를 깨뜨린다.
+import/0001 의 임포트 파이프라인은 외부 PPTX 를 DesignSpec 으로 변환하지만, 임포트 결과 슬라이드는 design_doc / grid_plan / 모든 element 의 grid_cell·component_id 가 None 인 상태로 들어온다 (graceful fallback 정책). 이 상태에서는 0003 의 `modify_component` 가 design_doc.layout leaf 매칭에 의존하므로 사용 불가다. 사용자가 imported 슬라이드를 부분 수정하려면 `slide_edit(action="update")` 로 슬라이드 전체를 outline 기반 재생성해야 했고, 이는 imported 시각 자산의 "원본 보존" 가치를 깨뜨린다.
 
 import 시점에 *모든* 슬라이드를 일괄 backfill 하는 것은 비합리적이다. 사용자가 안 만지는 슬라이드까지 LLM 호출이 들어가고(30 슬라이드 PPTX 면 30 회), 사용자가 즉시 결과를 보고 싶은 import 단계가 길어지며, 일부 backfill 실패 시 전체 import 재실행 부담이 크다.
 
@@ -57,7 +57,7 @@ LLM 은 element 의 bbox 좌표를 직접 출력하지 않는다 — 픽셀 산�
 
 backfill 이 실패(LLM throttle, parse error, schema violation) 하면:
 1. 슬라이드 변경 없음 (design_doc=None 유지).
-2. 명확한 에러 메시지 반환 — `modify_design_spec(action="update")` 사용 안내 포함.
+2. 명확한 에러 메시지 반환 — `slide_edit(action="update")` 사용 안내 포함.
 3. 부분 성공(일부 element 만 component_id 채워짐) 은 허용하지 않음 — backfill 은 트랜잭션이라 전부 또는 전무.
 
 ### backfill 결과 영구 저장
@@ -91,7 +91,7 @@ backfill 결과는 슬라이드 spec 에 저장. 후속 modify_component 호출�
 ### Negative / Risks
 
 - 첫 modify_component 호출이 round-trip 2 회 됨 — `available_components` 응답으로 완화.
-- LLM 이 추론한 design_doc 트리 구조가 부자연스러울 수 있음 — instruction 으로 보정 가능하지만 큰 수정은 modify_design_spec(update) 가 더 적합.
+- LLM 이 추론한 design_doc 트리 구조가 부자연스러울 수 있음 — instruction 으로 보정 가능하지만 큰 수정은 slide_edit(update) 가 더 적합.
 - backfill 결과를 되돌릴 도구가 없음 — design_doc 만 추가되어 시각 출력에는 무영향이라 신뢰성 우려는 작음.
 
 ## Out of Scope

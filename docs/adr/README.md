@@ -25,7 +25,7 @@ docs/adr/
 ├── import/     PPTX 임포트 — tools/pptx_import/
 ├── visual-qa/  스크린샷 기반 자동 QA — tools/visual_qa/
 ├── project/    파이프라인 인프라 (저장, 토큰/비용, 진행률, 안정성) — tools/project/, infra
-├── script/     발표 스크립트 생성 (deprecated, ADR 1 개) — tools/script/
+├── script/     발표 스크립트 생성 (deprecated, 코드 제거 — speaker_notes 는 design_doc 로 흡수)
 ├── template/   PPTX 템플릿 분석 (proposed) — 미구현
 ├── chart/      차트/데이터 시각화 (proposed) — 미구현
 └── offload/    LLM 생성을 클라이언트로 오프로딩 — 플러그인 + 스킬 + prepare/ingest
@@ -37,7 +37,7 @@ docs/adr/
 
 - [0001 슬라이드 아웃라인 생성 (F1)](./outline/0001-outline-generation.md)
 - [0002 Agenda Slide Optional Numbering](./outline/0002-agenda-optional-numbering.md)
-- [0003 Outline 생성에 Medium Thinking 활성화](./outline/0003-outline-thinking-medium.md)
+- [0003 Outline 생성에 Medium Thinking 활성화](./outline/0003-outline-thinking-medium.md) — _Superseded by offload/0001_
 - [0004 레이아웃 계획 단계 추가 (Layout Planning Phase)](./outline/0004-layout-planning-phase.md)
 - [0005 load_outline 에 include_content 파라미터 추가](./outline/0005-load-outline-include-content.md)
 
@@ -75,7 +75,7 @@ docs/adr/
 ### modify — 슬라이드/component 부분 수정
 
 - [0001 파일 기반 통신, 슬라이드 단위 CRUD 및 파일 분리](./modify/0001-file-based-communication-and-per-slide-crud.md)
-- [0002 개별 파일 기반 outline/script 저장 및 save_outline_slide 도구](./modify/0002-modify-design-spec-inline-outline.md)
+- [0002 개별 파일 기반 outline 저장 및 save_outline_slide 도구](./modify/0002-modify-design-spec-inline-outline.md)
 - [0003 modify_component MCP 도구 — Section 단위 부분 수정](./modify/0003-modify-component-mcp-tool.md)
 - [0004 Imported 슬라이드 design_doc lazy backfill](./modify/0004-imported-slide-lazy-backfill.md)
 
@@ -103,12 +103,12 @@ docs/adr/
 - [0001 파이프라인 결과물 저장/로드 + 프로젝트 디렉토리 통합](./project/0001-pipeline-artifact-persistence.md)
 - [0002 점진적 구체화 파이프라인 설계](./project/0002-progressive-refinement-pipeline.md)
 - [0003 토큰 사용량 추적 및 비용 추정](./project/0003-token-usage-cost-estimation.md) — _Superseded by offload/0001_
-- [0004 파이프라인 전체 진행률 보고 및 로깅 강화](./project/0004-progress-reporting-and-logging.md)
+- [0004 파이프라인 전체 진행률 보고 및 로깅 강화](./project/0004-progress-reporting-and-logging.md) — _Superseded by offload/0001_
 - [0005 MCP Server Stability Improvements](./project/0005-mcp-server-stability.md)
 
 ### script — 발표 스크립트 생성 (deprecated)
 
-- [0001 발표 스크립트 생성 (F2)](./script/0001-script-generation.md)
+- [0001 발표 스크립트 생성 (F2)](./script/0001-script-generation.md) — _Deprecated (코드 제거, speaker_notes 는 design_doc 로 흡수)_
 
 ### template — PPTX 템플릿 분석 (proposed)
 

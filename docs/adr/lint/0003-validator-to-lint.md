@@ -72,7 +72,7 @@ spec_utils/
 
 디자인 스펙 생성/수정 후 lint를 실행하고, MCP 응답의 `lint` 필드에 위반 리포트를 JSON으로 포함한다. 위반이 없으면 `lint` 필드를 생략한다.
 
-MCP 클라이언트는 lint 결과를 사용자에게 보여주고, 사용자가 수정 여부를 결정한다. 수정이 필요하면 `modify_design_spec(action="update")`로 해당 슬라이드를 재생성한다.
+MCP 클라이언트는 lint 결과를 사용자에게 보여주고, 사용자가 수정 여부를 결정한다. 수정이 필요하면 `slide_edit(action="update")`로 해당 슬라이드를 재생성한다.
 
 렌더링(HTML/PPTX) 시점에서는 `clean_slide_spec()`만 적용하고, lint는 실행하지 않는다.
 

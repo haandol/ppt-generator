@@ -54,13 +54,13 @@ design/0011 결정 3 의 "구조적 사전 차단" 을 실질화하려면 다음
 
 `lint_slide_spec` 호출에 `stop_on_layer_error: bool = False` 인자를 추가한다. True 일 때 layout → section → cross → content 순서로 layer 별 검사를 순차 실행하고, 어느 layer 에 `severity="error"` 위반이 발견되면 *그 다음 layer 검사를 중단* 한다. 거시 위반을 먼저 보고하고 미시 노이즈로 가리지 않는다.
 
-generate_slides_design_spec / modify_design_spec(action="update") / modify_component 의 lint 호출 지점이 이 옵션을 사용한다. 기본값은 False (기존 동작 유지).
+디자인 스펙 생성(ingest_design_slide) / 슬라이드 수정(ingest_slide_edit, action="update") / component 수정(ingest_modify_component) 의 lint 호출 지점이 이 옵션을 사용한다. 기본값은 False (기존 동작 유지).
 
 부수적으로 `ALL_RULES` 를 layer 그룹 순서(layout → section → cross → content) 로 재정렬해, 호출자가 layer 별로 결과를 훑을 때 생성 파이프라인 순서와 일치시킨다.
 
-### 결정 4 — generate 응답에 cross-layer error 가드
+### 결정 4 — 디자인 스펙 ingest 응답에 cross-layer error 가드
 
-generate_slides_design_spec 결과에서 `severity="error"` & `layer="cross"` 위반이 발견되면 슬라이드별 결과에 `cross_layer_errors` 필드로 명시 노출한다. 자동 재시도는 비용 영향이 커서 본 ADR 에선 *경고만* 한다 — 자동 재생성 정책은 별도 ADR 에서 다룬다.
+디자인 스펙 ingest 결과에서 `severity="error"` & `layer="cross"` 위반이 발견되면 슬라이드별 결과에 `cross_layer_errors` 필드로 명시 노출한다. 자동 재시도는 비용 영향이 커서 본 ADR 에선 *경고만* 한다 — 자동 재생성 정책은 별도 ADR 에서 다룬다.
 
 ### 결정 5 — 외곽 정렬 lint (`slide-edge-alignment-*`)
 

@@ -33,8 +33,9 @@ def register_pptx_import_tools(
         backgrounds, speaker notes), and creates a new project with the design spec.
         HTML preview is automatically generated.
 
-        After import, you can use modify_design_spec, export_html, export_pptx,
-        and visual_qa on the imported project.
+        After import, you can use prepare_slide_edit / ingest_slide_edit,
+        prepare_modify_component / ingest_modify_component, export_html, export_pptx,
+        and the visual QA tools on the imported project.
 
         Args:
             file_path: Absolute path to the PPTX file to import

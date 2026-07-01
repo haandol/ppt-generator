@@ -43,7 +43,7 @@ The server does not call an LLM. Every generation step is a pair:
 Prompts (`interfaces/prompts/`), output models (`interfaces/llm_output_models.py`), and all
 post-processing stay server-side, so output is byte-for-byte what the old in-server LLM path
 produced. Per-slide tools are stateless; the client drives parallelism and iteration loops
-(see `skills/`). Design decision: [`docs/adr/offload/0001`](docs/adr/offload/0001-client-llm-offload-plugin.md).
+(see `skills/`). See the ADR index under [`docs/adr/`](docs/adr/) for the design rationale.
 
 ## Commands
 

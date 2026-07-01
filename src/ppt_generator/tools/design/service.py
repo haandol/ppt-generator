@@ -351,7 +351,7 @@ class DesignService:
         if spec.design_doc is None:
             raise ValueError(
                 "modify_component requires a slide with design_doc "
-                "(content slides only). Use modify_design_spec(action='update') "
+                "(content slides only). Use prepare_slide_edit(action='update') "
                 "for title/closing/imported slides."
             )
         # 존재/모호 검증 (결정 12). 결과 kind 는 ingest 에서 재검증.

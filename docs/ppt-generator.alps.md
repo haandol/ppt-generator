@@ -169,39 +169,38 @@ sequenceDiagram
     participant User
     participant MCPClient as MCP Client
     participant MCPServer as MCP Server
-    participant Bedrock as Bedrock LLM
+    participant LLM as 클라이언트 LLM
     participant Gemini as Gemini 2.5 Flash
 
     User->>MCPClient: "클라우드 트렌드 발표자료 만들어줘"
     MCPClient->>User: 발표 시간과 청중 유형을 확인
     User->>MCPClient: "15분, 기술자 대상"
-    MCPClient->>MCPServer: generate_outline(주제, audience_type="technical", presentation_minutes=15)
-    MCPServer->>Bedrock: 아웃라인 생성 요청
-    Bedrock-->>MCPServer: 슬라이드 아웃라인 JSON (speaker_notes 비어있음)
-    MCPServer-->>MCPClient: 아웃라인 반환
+    MCPClient->>MCPServer: prepare_outline(주제, audience_type="technical", presentation_minutes=15)
+    MCPServer-->>MCPClient: 프롬프트 + 출력 스키마
+    MCPClient->>LLM: 아웃라인 생성 요청
+    LLM-->>MCPClient: 슬라이드 아웃라인 JSON (speaker_notes 비어있음)
+    MCPClient->>MCPServer: ingest_outline(아웃라인 JSON)
+    MCPServer-->>MCPClient: 검증·저장된 아웃라인 반환
 
-    MCPClient->>MCPServer: generate_script(아웃라인 JSON)
-    MCPServer->>Bedrock: 슬라이드별 스크립트 생성 요청
-    Bedrock-->>MCPServer: 슬라이드별 speaker_notes
-    MCPServer-->>MCPClient: speaker_notes가 채워진 아웃라인 JSON
-
-    Note over MCPClient,MCPServer: 디자인 스펙 생성 (서버 내부 병렬 처리)
-    MCPClient->>MCPServer: generate_slides_design_spec(project_id, total_slides)
-    MCPServer->>Bedrock: slide[0] PptxSlideSpec 생성 (design_summary 추출)
-    Bedrock-->>MCPServer: PptxSlideSpec JSON
-    MCPServer->>Bedrock: slide[1..N-1] 병렬 생성
-    Bedrock-->>MCPServer: PptxSlideSpec JSON (각 슬라이드)
-    MCPServer-->>MCPClient: design_spec_dir, slide_count, total_slides, project_id, results
+    Note over MCPClient,MCPServer: 디자인 스펙 생성 (클라이언트가 슬라이드별 병렬)
+    MCPClient->>MCPServer: prepare_design_slide(project_id, slide_index)
+    MCPServer-->>MCPClient: 프롬프트 + 출력 스키마
+    MCPClient->>LLM: PptxSlideSpec 생성 요청
+    LLM-->>MCPClient: PptxSlideSpec JSON
+    MCPClient->>MCPServer: ingest_design_slide(spec JSON)
+    MCPServer-->>MCPClient: 검증·정합화·저장 결과
 
     MCPClient->>MCPServer: export_html(project_id=...)
     MCPServer->>MCPServer: DesignSpec → HTML 결정론적 변환
     MCPServer-->>MCPClient: HTML 슬라이드 반환 (프리뷰)
 
     User->>MCPClient: "3번 슬라이드 제목 바꿔줘"
-    MCPClient->>MCPServer: modify_slides(세션ID, 수정요청)
-    MCPServer->>Bedrock: HTML 수정 요청
-    Bedrock-->>MCPServer: 수정된 HTML
-    MCPServer-->>MCPClient: 수정된 HTML 슬라이드
+    MCPClient->>MCPServer: prepare_modify_component(...)
+    MCPServer-->>MCPClient: 프롬프트 + 출력 스키마
+    MCPClient->>LLM: 수정 요청
+    LLM-->>MCPClient: 수정된 스펙 JSON
+    MCPClient->>MCPServer: ingest_modify_component(...)
+    MCPServer-->>MCPClient: 수정 반영된 슬라이드
 
     User->>MCPClient: "확정, PPTX로 내보내줘"
     MCPClient->>MCPServer: export_pptx(project_id=...)
@@ -218,7 +217,7 @@ sequenceDiagram
 
 | ID | 기능 | 설명 | 우선순위 |
 |----|------|------|----------|
-| F1 | 슬라이드 아웃라인 생성 | 사용자가 입력한 주제와 슬라이드 수를 기반으로 Bedrock LLM이 슬라이드 아웃라인 JSON 생성 (speaker_notes 비어있음) | Must-Have |
+| F1 | 슬라이드 아웃라인 생성 | 사용자가 입력한 주제와 슬라이드 수를 기반으로 LLM이 슬라이드 아웃라인 JSON 생성 (speaker_notes 비어있음) | Must-Have |
 | F2 | 발표 스크립트 생성 | 아웃라인 JSON을 기반으로 슬라이드별 발표자 노트(speaker_notes) 생성 | Must-Have |
 | F3 | HTML 슬라이드 생성 | 아웃라인 기반 HTML/CSS 자유 레이아웃 슬라이드 생성. 이미지는 필요한 경우 Gemini로 내부 생성. 발표자 노트 포함 | Must-Have |
 | F4 | 슬라이드 수정 | 사용자의 자연어 수정 요청을 받아 HTML 슬라이드를 업데이트하는 인터랙티브 수정 루프 | Must-Have |
@@ -245,12 +244,12 @@ sequenceDiagram
 
 #### 7.1.2 흐름
 1. MCP 클라이언트에서 `generate_outline(topic, num_slides)` 호출
-2. Strands 에이전트가 Bedrock LLM에 주제와 슬라이드 수 전달
+2. MCP 클라이언트가 LLM에 주제와 슬라이드 수 전달
 3. LLM이 주제를 분석하여 슬라이드별 제목/본문 요점/이미지 아이디어/레이아웃 타입을 JSON으로 생성 (speaker_notes는 빈 문자열)
 4. 아웃라인 JSON 반환
 
 #### 7.1.3 기술 설명
-- Bedrock Claude Sonnet 4.6 호출 (Strands SDK 경유, 아웃라인)
+- LLM 호출은 MCP 클라이언트가 담당 (prepare/ingest 오프로딩)
 - 프롬프트: 주제를 기반으로 구조화된 JSON 아웃라인 생성 요청
 - 출력 JSON 스키마: `{ slides: [{ title, bullets: [], image_idea, layout_type, speaker_notes: "" }] }`
 - layout_type: `title`, `text_image`, `text_only`, `chart`, `closing` 등 (HTML 슬라이드 생성 시 디자인 힌트로 활용)
@@ -273,12 +272,12 @@ sequenceDiagram
 
 #### 7.2.2 흐름
 1. MCP 클라이언트에서 `generate_script(outline_json)` 호출
-2. Strands 에이전트가 Bedrock Claude Sonnet 4.6에 아웃라인 JSON 전달 (스크립트 생성)
+2. MCP 클라이언트가 LLM에 아웃라인 JSON 전달 (스크립트 생성)
 3. LLM이 각 슬라이드의 제목과 본문 요점을 기반으로 슬라이드별 발표자 노트 생성
 4. speaker_notes가 채워진 아웃라인 JSON 반환
 
 #### 7.2.3 기술 설명
-- Bedrock Claude Sonnet 4.6 호출 (Strands SDK 경유)
+- LLM 호출은 MCP 클라이언트가 담당 (prepare/ingest 오프로딩)
 - 프롬프트: 아웃라인 JSON을 기반으로 슬라이드별 발표자 노트(speaker_notes) 생성 요청
 - 출력 JSON 스키마: `{ scripts: [{ slide_index, speaker_notes }] }`
 - 출력의 speaker_notes를 원본 아웃라인의 각 슬라이드에 적용하여 반환
@@ -319,14 +318,14 @@ sequenceDiagram
 1. MCP 클라이언트에서 `export_html(outline_json=...)` 호출
 2. 슬라이드마다 `layout_index`를 확인하여, 이미지가 필요한 슬라이드는 Gemini로 이미지를 내부 생성
 3. 슬라이드마다 `LAYOUT_REGIONS` 좌표를 사용하여 `position:absolute` div 골격(skeleton) HTML을 코드로 생성
-4. Bedrock LLM에 골격 HTML과 아웃라인 JSON을 전달하여, 각 `data-region` div 내부의 `<!-- CONTENT:xxx -->` 마커를 실제 HTML 컨텐츠로 교체하도록 요청
+4. LLM에 골격 HTML과 아웃라인 JSON을 전달하여, 각 `data-region` div 내부의 `<!-- CONTENT:xxx -->` 마커를 실제 HTML 컨텐츠로 교체하도록 요청
 5. LLM 응답에서 section을 추출하고, `_validate_region_styles()`로 좌표를 검증/복원
 6. 모든 슬라이드의 section을 합산하여 HTML 템플릿에 삽입
 7. 세션 ID를 부여하고 HTML 슬라이드 상태를 서버에 저장
 8. HTML 슬라이드와 세션 ID 반환
 
 #### 7.3.3 기술 설명
-- Bedrock Claude Opus 4-7 호출 (Strands SDK 경유, 디자인 스펙 생성)
+- LLM 호출은 MCP 클라이언트가 담당 (prepare/ingest 오프로딩, 디자인 스펙 생성)
 - **이미지 내부 생성**: `layout_index`가 `SKIP_IMAGE_LAYOUT_INDICES`에 해당하지 않는 슬라이드에 대해 Gemini 2.5 Flash로 이미지를 자동 생성. 이미지가 필요 없는 슬라이드(text_only, chart, title, closing 등)는 건너뜀
 - **레이아웃 골격 기반 생성**: `build_layout_skeleton()` 함수가 `LAYOUT_REGIONS` 좌표로 `position:absolute` div 골격을 생성. LLM은 `SLIDES_REGION_SYSTEM_PROMPT`를 사용하여 각 `data-region` div 내부 컨텐츠만 채움
 - **좌표 검증/복원**: `_validate_region_styles()`가 LLM이 변경한 좌표를 `LAYOUT_REGIONS` 원본으로 복원
@@ -364,12 +363,12 @@ sequenceDiagram
 #### 7.4.2 흐름
 1. MCP 클라이언트에서 `modify_slides(session_id, modification_request)` 호출
 2. 서버에서 세션 ID에 해당하는 현재 HTML 슬라이드 상태를 로드
-3. Bedrock LLM에 현재 HTML과 수정 요청을 전달
+3. LLM에 현재 HTML과 수정 요청을 전달
 4. LLM이 수정 사항을 반영한 새 HTML 생성
 5. 세션의 HTML 슬라이드 상태를 업데이트하고 반환
 
 #### 7.4.3 기술 설명
-- Bedrock Claude Opus 4-7 호출 (Strands SDK 경유, 슬라이드 수정)
+- LLM 호출은 MCP 클라이언트가 담당 (prepare/ingest 오프로딩, 슬라이드 수정)
 - 프롬프트: 현재 HTML 슬라이드 코드와 사용자의 자연어 수정 요청을 전달하여 수정된 HTML 반환 요청
 - 지원하는 수정 유형:
   - 텍스트 변경: 제목, 본문 내용, 불릿 포인트 수정/추가/삭제

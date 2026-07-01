@@ -8,7 +8,7 @@ render); it never calls a model itself. Each generation step is a `prepare_*` /
 `ingest_*` pair — `prepare_*` hands the client the prompt + schema, the client generates
 the JSON, and `ingest_*` validates and post-processes it. This means **no AWS/Anthropic
 credentials and no per-call model cost on the server side** — the client's own model does
-the generating. Design decision: [docs/adr/offload/0001](docs/adr/offload/0001-client-llm-offload-plugin.md).
+the generating. See the ADR index under [`docs/adr/`](docs/adr/) for the design rationale.
 
 ## Prerequisites
 
@@ -194,5 +194,5 @@ uv run pytest                  # Run all tests
 - [Schemas](docs/harness/schemas.md) — domain models, client output models, component_hint table
 - [Testing](docs/harness/testing.md) — test writing rules and patterns
 - [ALPS Design Document](docs/ppt-generator.alps.md)
-- [ADR](docs/adr/) — Architecture Decision Records ([offload/0001](docs/adr/offload/0001-client-llm-offload-plugin.md) covers the client-LLM offload)
+- [ADR](docs/adr/) — Architecture Decision Records (the client-LLM offload decision lives under the `offload/` category)
 - [Contributing Guide](CONTRIBUTING.md)

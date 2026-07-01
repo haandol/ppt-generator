@@ -10,7 +10,7 @@ Accepted
 
 design/0011 가 5단 디자인 스펙 계층(Project / Slide / Layout / Section / Content) 을 정의하면서 얻은 핵심 가치는 **Section 트리의 component_id 로 의미 단위 요소를 정확히 지칭할 수 있다** 는 점이다. 그러나 design/0011 는 그 가치를 사용자가 직접 호출할 수 있는 MCP 도구로 노출하지 않은 채 Out of Scope 로 미뤘다.
 
-기존 `modify_design_spec(action="update")` 는 슬라이드 전체를 outline 기반으로 재생성한다. 이 방식의 문제:
+기존 `slide_edit(action="update")` 는 슬라이드 전체를 outline 기반으로 재생성한다. 이 방식의 문제:
 
 1. **부분 변경에 과도한 비용** — "좌측 두 번째 카드 색을 빨간색으로" 같은 좁은 명령에도 슬라이드 전체 LLM 재호출이 일어나 토큰·시간 낭비.
 2. **다른 요소가 의도치 않게 변경됨** — 전체 재생성이라 매 호출 결과가 동일하다는 보장이 없어 다이어그램/카드 위치/색이 미세하게 흔들림.
@@ -42,11 +42,11 @@ LLM 이 수정할 수 있는 것:
 - 다른 component 의 spec
 - grid_plan / background_color / speaker_notes / 다른 슬라이드
 
-이 범위는 lint 가 자연스럽게 강제한다 — `layout-tree-containment`, `layout-tree-sibling-overlap`, `grid-cell-coverage`, `font-range`, `text-overflow` 등이 그대로 안전망 역할. 구조 변경이 필요한 변경은 기존 `modify_design_spec(action="update")` 를 사용한다.
+이 범위는 lint 가 자연스럽게 강제한다 — `layout-tree-containment`, `layout-tree-sibling-overlap`, `grid-cell-coverage`, `font-range`, `text-overflow` 등이 그대로 안전망 역할. 구조 변경이 필요한 변경은 기존 `slide_edit(action="update")` 를 사용한다.
 
 ### 후처리
 
-수정 직후 (1) 변경된 슬라이드만 lint 재검증해 위반 있으면 응답에 포함 (재생성 자동 안 함, 호출자가 결정), (2) 단일 슬라이드 HTML 재렌더해 path 반환, (3) `steps_completed` 에 modify 단계 갱신. 기존 modify_design_spec 후처리와 동일한 패턴.
+수정 직후 (1) 변경된 슬라이드만 lint 재검증해 위반 있으면 응답에 포함 (재생성 자동 안 함, 호출자가 결정), (2) 단일 슬라이드 HTML 재렌더해 path 반환, (3) `steps_completed` 에 modify 단계 갱신. 기존 slide_edit 후처리와 동일한 패턴.
 
 ### 비-design 메타 필드 보존
 
@@ -63,7 +63,7 @@ LLM 이 element 전체를 출력해도, design/0013 결정 3 에 따라 schema �
 
 ## 하위 호환성
 
-- 기존 `modify_design_spec(action="update")` 는 그대로 유지. 사용자가 큰 변경(트리 구조, 여러 element) 을 요청하면 기존 도구를 안내.
+- 기존 `slide_edit(action="update")` 는 그대로 유지. 사용자가 큰 변경(트리 구조, 여러 element) 을 요청하면 기존 도구를 안내.
 - design_doc 없는 슬라이드(title/closing) 는 미지원 — 명확한 에러로 update 도구 안내.
 - imported PPTX 슬라이드는 design_doc=None 이라 미지원이지만, 0004 의 lazy backfill 이 첫 modify_component 호출 시 자동으로 design_doc 을 채운다.
 
@@ -80,7 +80,7 @@ LLM 이 element 전체를 출력해도, design/0013 결정 3 에 따라 schema �
 
 - LLM 이 대상 외 element 를 (명시 금지에도) 변경하려 시도할 가능성 — Pydantic 응답 모델이 단일 element 만 받도록 강제하므로 자연 차단.
 - bbox 동기화 로직 결함 시 design_doc 트리와 element 가 불일치 — lint 가 즉시 잡지만 직전 결과는 어색할 수 있음.
-- modify_component 와 modify_design_spec 사용 시점 분기를 사용자(LLM) 가 잘못 고를 위험 — tool docstring 의 명확한 분기 가이드로 완화.
+- modify_component 와 slide_edit 사용 시점 분기를 사용자(LLM) 가 잘못 고를 위험 — tool docstring 의 명확한 분기 가이드로 완화.
 
 ## Out of Scope
 

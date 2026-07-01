@@ -51,7 +51,7 @@
         "tests/test_move_slide.py",
         "tests/test_outline_design_spec_sync.py"
       ],
-      "description": "슬라이드/component 부분 수정 — modify_design_spec(add/update/delete) + modify_component + imported lazy backfill."
+      "description": "슬라이드/component 부분 수정 — slide_edit(add/update/delete) + modify_component + imported lazy backfill."
     },
     "slides": {
       "codePaths": [
@@ -87,7 +87,7 @@
         "src/ppt_generator/interfaces/prompts/visual_qa_*",
         "tests/test_visual_qa_*.py"
       ],
-      "description": "스크린샷 기반 자동 QA — Haiku 분석 + Sonnet 수정 2-phase."
+      "description": "스크린샷 기반 자동 QA — 서버는 스크린샷 캡처(Playwright)만, 비전 분석/수정은 클라이언트 LLM(prepare/ingest)."
     },
     "project": {
       "codePaths": [
@@ -99,13 +99,11 @@
         "src/ppt_generator/interfaces/protocols.py",
         "tests/test_project_*.py"
       ],
-      "description": "파이프라인 인프라 — 결과물 저장, 토큰/비용 추적, 진행률 보고, MCP 서버 안정성, DI 컨테이너."
+      "description": "파이프라인 인프라 — 결과물 저장, 진행률 보고, MCP 서버 안정성, DI 컨테이너. (토큰/비용 추적은 offload/0001 로 제거됨)"
     },
     "script": {
-      "codePaths": [
-        "src/ppt_generator/tools/script/**"
-      ],
-      "description": "발표 스크립트 생성 (deprecated) — 현재 파이프라인은 design_doc 의 speaker_notes 로 대체."
+      "codePaths": [],
+      "description": "발표 스크립트 생성 (deprecated, 코드 제거됨) — speaker_notes 는 design_doc 생성 단계로 흡수. ADR 은 역사적 기록으로만 유지."
     },
     "template": {
       "codePaths": [

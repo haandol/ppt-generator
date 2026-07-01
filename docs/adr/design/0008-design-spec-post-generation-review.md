@@ -4,7 +4,7 @@ Date: 2026-04-02
 
 ## Status
 
-Accepted (verified 2026-05-26: DesignReviewService + apply_review_and_fix 정착, _generate_and_review 흐름에서 lint 결과를 LLM 리뷰 프롬프트에 전달)
+Accepted
 
 ## Context
 
@@ -19,15 +19,16 @@ Accepted (verified 2026-05-26: DesignReviewService + apply_review_and_fix 정착
 
 ## Decision
 
-디자인 스펙 생성 직후 **필수(mandatory)** LLM 리뷰 단계를 추가한다.
+디자인 스펙 생성 직후 LLM 리뷰 단계를 둔다. 리뷰 태스크 조립과 결과 검증은 서버가
+`prepare_review` / `ingest_review` 쌍으로 소유하고, 리뷰 판단(토큰 생성)은 클라이언트 LLM이
+수행한다 ([offload/0001](../offload/0001-client-llm-offload-plugin.md)).
 
 ### 핵심 설계
 
-1. **필수 실행**: Visual QA와 달리 opt-in이 아니라, 모든 디자인 스펙 생성 후 자동 실행
-2. **모델**: Adaptive thinking 없는 Sonnet (비용/속도 절감, 리뷰는 단순 체크리스트 판단이므로 thinking 불필요)
-3. **프롬프트 캐싱 활용**: 디자인 스펙 생성 시스템 프롬프트(design_system_content.prompt.md 등)와 동일한 규칙을 참조하므로, system prompt에 캐시 마커를 적용하여 cache hit로 비용 절감
-4. **병렬 실행**: 슬라이드별 생성 직후 동일 스레드에서 리뷰 실행 (기존 병렬 구조 활용)
-5. **재생성 정책**: 리뷰에서 high severity 이슈 발견 시 해당 슬라이드만 1회 재생성. 재생성 후 재리뷰는 하지 않음 (무한 루프 방지)
+1. **디자인 스펙 JSON 단계 리뷰**: 렌더링 없이 spec JSON 만으로 규칙 위반을 감지한다 — Visual QA(픽셀 렌더링 결함)와 목적이 다르다.
+2. **lint 힌트 전달**: 기계적 lint 결과를 리뷰 프롬프트에 힌트로 실어, LLM 판단이 결정론적 검사와 어긋나지 않게 한다.
+3. **슬라이드 단위 stateless**: 슬라이드별로 독립적인 prepare→생성→ingest 체인이라, 여러 슬라이드 리뷰를 클라이언트가 병렬로 진행한다.
+4. **재생성 정책**: 리뷰에서 high severity 이슈가 나오면 해당 슬라이드만 1회 재생성하도록 유도한다(`ingest_review` 는 재생성을 자동 수행하지 않고 fix 피드백만 돌려준다). 재생성 후 재리뷰는 하지 않는다 — 무한 루프 방지.
 
 ### 리뷰 체크리스트
 
@@ -44,16 +45,9 @@ Accepted (verified 2026-05-26: DesignReviewService + apply_review_and_fix 정착
 ### 리뷰 결과 처리
 
 - **이슈 없음**: 그대로 저장, HTML 렌더링 진행
-- **high severity 이슈 존재**: 해당 슬라이드를 1회 재생성 (원래 생성과 동일 파라미터 + 리뷰 피드백을 user prompt에 추가)
-- **medium only**: 로그 경고만 남기고 저장 진행 (minor 이슈는 Visual QA에서 잡을 수 있음)
+- **high severity 이슈 존재**: 해당 슬라이드를 1회 재생성하도록 fix 피드백을 반환 (원래 생성 파라미터 + 리뷰 피드백을 user prompt에 추가)
+- **medium only**: 경고만 남기고 저장 진행 (minor 이슈는 Visual QA에서 잡을 수 있음)
 - **재생성 후**: 재리뷰 없이 바로 저장 (최대 1회 재생성으로 제한)
-
-### 토큰 비용 추정
-
-- 리뷰 input: system prompt (~5K tokens, 캐시 hit 시 90% 절감) + slide spec JSON (~2K tokens)
-- 리뷰 output: ~200 tokens (체크리스트 결과 JSON)
-- 슬라이드당 추가 비용: 캐시 hit 시 ~$0.003, 캐시 miss 시 ~$0.02
-- 재생성 발생 시: 기존 생성 비용과 동일한 비용이 1회 추가
 
 ### Alternatives Considered
 
@@ -63,12 +57,9 @@ Accepted (verified 2026-05-26: DesignReviewService + apply_review_and_fix 정착
 
 ### Acceptance Criteria
 
-- 디자인 스펙 생성 후 모든 슬라이드에 대해 LLM 리뷰가 자동 실행됨
-- 리뷰에서 high severity 이슈 발견 시 해당 슬라이드가 1회 재생성됨
-- Adaptive thinking 없는 Sonnet 모델 사용
-- 프롬프트 캐싱이 적용되어 system prompt가 캐시됨
-- 리뷰 결과(이슈 수, 재생성 여부)가 generate_slides_design_spec 응답에 포함됨
-- 토큰 사용량이 기존 추적 시스템에 합산됨
+- 디자인 스펙 생성 후 슬라이드에 대해 `prepare_review` → `ingest_review` 리뷰가 수행됨
+- 리뷰에서 high severity 이슈 발견 시 `ingest_review` 가 재생성용 fix 피드백을 반환함
+- lint 결과가 리뷰 프롬프트에 힌트로 전달됨
 - 기존 테스트가 깨지지 않음
 
 ### Out of Scope
@@ -82,17 +73,16 @@ Accepted (verified 2026-05-26: DesignReviewService + apply_review_and_fix 정착
 ### 긍정적
 
 - 폰트 크기 위반, 겹침 등 반복적인 규칙 위반을 렌더링 전에 감지
-- 프롬프트 캐싱으로 추가 비용이 최소화됨
-- 기존 병렬 구조를 활용하므로 latency 증가가 제한적
+- 슬라이드 단위 stateless 라 클라이언트가 리뷰를 병렬로 진행 가능
 - Visual QA 실행 전에 명백한 결함을 제거하여 Visual QA 효율 향상
 
 ### 부정적
 
 - 슬라이드당 1회 추가 LLM 호출 (리뷰) + 이슈 시 1회 재생성 = 최대 2회 추가 호출
-- 전체 생성 시간이 약간 증가 (리뷰 ~2-3초/슬라이드)
 - 리뷰가 false positive를 반환할 경우 불필요한 재생성 발생 가능
 
-## References
+## Related
 
-- 0003: 디자인 스펙 병렬 생성, 프롬프트 캐싱 및 Adaptive Effort
-- visual-qa/0001: Visual QA Pipeline
+- [design/0003](./0003-parallel-design-spec.md) — 디자인 스펙 생성 흐름 (Superseded by offload/0001)
+- [visual-qa/0001](../visual-qa/0001-visual-qa-pipeline.md) — 픽셀 렌더링 결함을 잡는 별도 QA
+- [offload/0001](../offload/0001-client-llm-offload-plugin.md) — 리뷰의 LLM 호출이 클라이언트로 이동

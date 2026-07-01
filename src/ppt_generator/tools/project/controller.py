@@ -15,11 +15,11 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         Most recent projects are listed first.
 
         The "source" field indicates how the project was created:
-        - "generated": Created via generate_outline pipeline (has outline)
-        - "imported": Created via import_pptx (no outline — modify design spec directly)
+        - "generated": Created via the prepare_outline / ingest_outline pipeline (has outline)
+        - "imported": Created via import_pptx (no outline — edit the design spec directly)
 
         **When to use**: Always call this tool first before starting the PPT generation pipeline.
-        - If no projects exist: Start a new project (call generate_outline).
+        - If no projects exist: Start a new project (call prepare_outline).
         - If projects exist: Guide the user to choose whether to continue an existing project
           or start a new one.
         - For imported projects: Skip outline step and work directly with design spec.
@@ -40,12 +40,12 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
 
         Checks the saved project's topic, slide count, and completion status of each step.
         The "source" field indicates how the project was created:
-        - "generated": Created via generate_outline pipeline (has outline)
+        - "generated": Created via the prepare_outline / ingest_outline pipeline (has outline)
         - "imported": Created via import_pptx (no outline available)
 
         **For imported projects:** Since there is no outline, skip outline
-        modification steps. Use modify_design_spec or generate_slides_design_spec directly
-        to modify slides.
+        modification steps. Use prepare_slide_edit / ingest_slide_edit or
+        prepare_design_slide / ingest_design_slide directly to modify slides.
 
         Args:
             project_id: Project ID
@@ -73,7 +73,7 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         """Loads the saved outline JSON.
 
         Retrieves the previously generated slide outline from the project directory.
-        The loaded result can be used directly as input for generate_slides_design_spec or export_html.
+        The loaded result can be used directly as input for prepare_design_slide or export_html.
 
         Args:
             project_id: Project ID
@@ -115,17 +115,17 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         """Saves (overwrites) a single slide outline to the project.
 
         Creates or overwrites the outline file for a specific slide index.
-        Use this before calling modify_design_spec(action="update") to provide
+        Use this before calling prepare_slide_edit(action="update") to provide
         the updated slide content that the LLM will use for design spec generation.
 
-        **For adding new slides**: Use modify_design_spec(action="add") directly —
+        **For adding new slides**: Use prepare_slide_edit(action="add") directly —
         it accepts outline parameters (title, content_summary, etc.) and handles
         all file shifts automatically. No need to call this tool first.
 
         **For updating existing slides**:
         1. Call save_outline_slide to overwrite the outline at slide_index.
-        2. Call modify_design_spec(action="update", slide_index=...) to regenerate the design.
-        (Or pass title/content_summary directly to modify_design_spec update.)
+        2. Call prepare_slide_edit(action="update", slide_index=...) to regenerate the design.
+        (Or pass title/content_summary directly to the slide_edit update.)
 
         Args:
             project_id: Target project ID (required)

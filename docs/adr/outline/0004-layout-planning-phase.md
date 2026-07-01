@@ -4,7 +4,7 @@ Date: 2026-04-18
 
 ## Status
 
-Accepted (verified 2026-05-26: SlideOutline.layout_plan + outline_system prompt 의 layout_plan_schema 정착)
+Accepted
 
 ## Context
 
@@ -69,7 +69,7 @@ outline → layout_plan → script → design_spec
 
 1. `LayoutPlanService` 신규: outline을 입력받아 layout plan JSON 생성
 2. `layout_plan` 아티팩트 저장: `project_dir/layout_plan/` 디렉토리
-3. `generate_slides_design_spec` 핸들러: layout plan이 있으면 이를 참조하여 complexity → budget_tokens 결정
+3. 디자인 스펙 생성(prepare_design_slide): layout plan이 있으면 이를 프롬프트 컨텍스트에 반영
 4. `ProjectService`: layout plan CRUD 메서드 추가
 5. outline 프롬프트: 다이어그램 적극 사용 가이드라인 추가
 

@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-기존 파이프라인은 *생성 전용* 단방향 흐름(Outline → Script → Design Spec → HTML / PPTX) 만 지원했다. 사용자가 보유한 외부 PPTX 를 시스템에 가져와 수정하거나, HTML 미리보기로 확인하거나, 디자인 스펙 기반 도구(`modify_design_spec`, `visual_qa`) 를 활용하려면 **PPTX → DesignSpec 역변환** 경로가 필요하다.
+기존 파이프라인은 *생성 전용* 단방향 흐름(Outline → Design Spec → HTML / PPTX) 만 지원했다. 사용자가 보유한 외부 PPTX 를 시스템에 가져와 수정하거나, HTML 미리보기로 확인하거나, 디자인 스펙 기반 도구(slide_edit, modify_component, visual QA) 를 활용하려면 **PPTX → DesignSpec 역변환** 경로가 필요하다.
 
 핵심 요구사항:
 
@@ -76,7 +76,7 @@ Accepted
 ### Positive
 
 - 양방향 파이프라인 — 기존 PPTX 를 시스템에 가져와 수정/재내보내기 가능.
-- 기존 도구 재활용 — modify_design_spec / visual_qa / export_html / export_pptx 즉시 호환.
+- 기존 도구 재활용 — slide_edit / modify_component / visual QA / export_html / export_pptx 즉시 호환.
 - 변환에 LLM 호출 0 — 비용·결정성 모두 좋음.
 - Export 와 Import 가 서로의 역변환으로 설계되어 라운드트립 정확도 높음.
 - 이미지 src 보존으로 라운드트립 시 누락 없음.

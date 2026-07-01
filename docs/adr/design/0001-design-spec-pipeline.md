@@ -20,9 +20,9 @@ Accepted
 **디자인 스펙(PptxSlideSpec JSON) 을 파이프라인의 중간 표현** 으로 도입해, 단일 소스에서 HTML 과 PPTX 를 각각 *결정론적* 으로 생성한다.
 
 ```
-Outline → Script → Design Spec (LLM 생성)
-                       ├──→ HTML (결정론적 변환, 브라우저 미리보기)
-                       └──→ PPTX (SlideBuilder 직접)
+Outline → Design Spec (LLM 생성)
+             ├──→ HTML (결정론적 변환, 브라우저 미리보기)
+             └──→ PPTX (SlideBuilder 직접)
 ```
 
 ### LLM 의 역할은 디자인 스펙 생성에 한정
@@ -35,8 +35,8 @@ LLM 은 절대 좌표(left/top/width/height) 와 스타일을 가진 PptxSlideSp
 
 ### MCP 도구 분리
 
-- `generate_slides_design_spec` — 전체/선택적 슬라이드 디자인 스펙 병렬 생성 (0003).
-- `modify_design_spec` — 개별 슬라이드 추가/수정/삭제 (modify/0001).
+- `prepare_design_slide` / `ingest_design_slide` — 슬라이드 단위 디자인 스펙 생성 (병렬성은 클라이언트, offload/0001).
+- `prepare_slide_edit` / `ingest_slide_edit` — 개별 슬라이드 추가/수정 (modify/0001).
 - `load_design_spec` — 저장된 디자인 스펙 로드.
 - `export_html` / `export_pptx` — design_spec 을 받아 결정론적 변환.
 

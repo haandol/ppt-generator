@@ -19,7 +19,7 @@ Accepted
 
 문제점:
 1. **비대칭**: 디자인 스펙은 슬라이드별 파일(`design_spec/slide_NN.json`)인데, HTML은 단일 파일
-2. **재생성 비효율**: `modify_design_spec`으로 1개 슬라이드만 수정해도 전체 HTML을 재생성해야 함
+2. **재생성 비효율**: 슬라이드 수정으로 1개 슬라이드만 바꿔도 전체 HTML을 재생성해야 함
 3. **파일 크기**: 슬라이드 수 증가 시 단일 HTML 파일이 비대해짐
 
 ## Decision
@@ -129,7 +129,7 @@ class SlidesResponse:
 
 | 대안 | 설명 | 판단 |
 |------|------|------|
-| A. 단일 HTML 유지 | 현 구조 유지, modify_design_spec 후 전체 재생성 | 비대칭 해결 불가, 탈락 |
+| A. 단일 HTML 유지 | 현 구조 유지, 슬라이드 수정 후 전체 재생성 | 비대칭 해결 불가, 탈락 |
 | B. SPA 방식 (JavaScript 네비게이션) | 단일 HTML에 JS로 슬라이드 전환 | 미리보기 용도에 과도, JavaScript 의존성 증가, 탈락 |
 | **C. 슬라이드별 HTML + iframe 컨테이너** | 개별 HTML 파일 + iframe 참조 | **채택** |
 

@@ -62,7 +62,7 @@ def register_pptx_tools(
             except FileNotFoundError:
                 raise ValueError(
                     "Either provide design_spec_json, or "
-                    "run generate_slides_design_spec first to save a design spec to the project."
+                    "run prepare_design_slide / ingest_design_slide first to save a design spec to the project."
                 )
 
         project_service.update_step(project_dir, "pptx")

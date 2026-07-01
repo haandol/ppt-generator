@@ -29,24 +29,24 @@ MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 �
 
 ### 3. 슬라이드 단위 CRUD
 
-#### generate_slide_design_spec
+#### 디자인 스펙 생성 (prepare_design_slide / ingest_design_slide)
 
 - 슬라이드를 하나씩 생성하고 검토/수정한 뒤 다음 슬라이드로 진행하는 점진적 워크플로우 지원
 - 첫 슬라이드 생성 시 디자인 요약 추출·저장, 후속 슬라이드에서 로드하여 테마 일관성 유지
 
-#### modify_design_spec
+#### 슬라이드 편집 (prepare_slide_edit / ingest_slide_edit)
 
 - `action`: "add" (삽입), "update" (교체), "delete" (삭제)
-- **add**: 인라인 파라미터(`title`, `content_summary`, `component_hint`, `slide_type`, `speaker_notes`)를 받아 단일 호출로 모든 작업을 수행한다. 내부적으로 outline/script 파일 shift → outline 삽입 → HTML shift → 디자인 스펙 LLM 생성 → 디자인 스펙 삽입 → HTML 렌더링을 자동 처리한다. 호출자가 사전에 `save_outline_slide`을 호출할 필요가 없다.
+- **add**: 인라인 파라미터(`title`, `content_summary`, `component_hint`, `slide_type`, `speaker_notes`)를 받아 단일 호출로 모든 작업을 수행한다. 내부적으로 outline 파일 shift → outline 삽입 → HTML shift → 디자인 스펙 LLM 생성 → 디자인 스펙 삽입 → HTML 렌더링을 자동 처리한다. 호출자가 사전에 `save_outline_slide`을 호출할 필요가 없다.
 - **update**: 인라인 파라미터(`title`, `content_summary`)를 전달하면 outline을 자동 업데이트한다. 또는 사전에 `save_outline_slide`로 수정 후 호출할 수 있다.
 - **color_theme 자동 참조**: `design_summary.json`에 `color_theme`이 저장되어 있으면 해당 값을 LLM 디자인 스펙 생성과 배경 이미지 선택에 사용한다. 이를 통해 임포트된 프로젝트의 라이트/다크 테마가 슬라이드 추가/수정 시 자동으로 유지된다.
-- **delete**: 디자인 스펙, HTML, outline/script를 함께 삭제한다.
+- **delete**: 디자인 스펙, HTML, outline를 함께 삭제한다.
 
 | action | slide_index | 사전 조건 | 동작 |
 |--------|-------------|----------|------|
-| add | -1 (끝) 또는 삽입 위치 | 없음 (인라인 파라미터 필수: `title`, `content_summary`) | **outline sync** → outline/script shift → outline 삽입 → HTML shift → LLM 디자인 스펙 생성 → 디자인 스펙 삽입 + `num_slides` 동기화 |
+| add | -1 (끝) 또는 삽입 위치 | 없음 (인라인 파라미터 필수: `title`, `content_summary`) | **outline sync** → outline shift → outline 삽입 → HTML shift → LLM 디자인 스펙 생성 → 디자인 스펙 삽입 + `num_slides` 동기화 |
 | update | 대상 인덱스 | 없음 (인라인 `title`/`content_summary` 제공 시 자동 업데이트, 또는 `save_outline_slide`로 사전 수정) | **outline sync** → outline 읽기 → 디자인 스펙 재생성 후 교체 + `num_slides` 동기화 |
-| delete | 대상 인덱스 | 없음 | **outline sync** → 디자인 스펙 제거 + outline/script 해당 슬라이드 삭제 + HTML 삭제 + `num_slides` 동기화 |
+| delete | 대상 인덱스 | 없음 | **outline sync** → 디자인 스펙 제거 + outline 해당 슬라이드 삭제 + HTML 삭제 + `num_slides` 동기화 |
 
 #### move_slide
 
@@ -54,8 +54,8 @@ MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 �
 
 - `from_index`: 현재 슬라이드 위치 (1-based)
 - `to_index`: 이동할 위치 (1-based)
-- 실행 전 **outline sync**로 outline 수를 design_spec에 맞춘 뒤, 모든 관련 파일(outline/script, design_spec, slide HTML)을 원자적으로 재정렬한다.
-- `modify_design_spec`과 분리된 독립 도구로 등록하여 LLM 클라이언트의 혼동을 방지한다.
+- 실행 전 **outline sync**로 outline 수를 design_spec에 맞춘 뒤, 모든 관련 파일(outline, design_spec, slide HTML)을 원자적으로 재정렬한다.
+- `slide_edit`과 분리된 독립 도구로 등록하여 LLM 클라이언트의 혼동을 방지한다.
 - 호출 후 `export_html`로 HTML을 새로 내보내야 한다.
 
 | 파라미터 | 설명 |
@@ -65,15 +65,13 @@ MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 �
 
 > **설계 근거**: 슬라이드 이동은 기존에 `delete` + `add` 조합으로만 가능했으나, `add`가 LLM 디자인 스펙 재생성을 수반하여 불필요한 비용과 시간이 발생했다. 이동은 콘텐츠 변경 없이 순서만 바꾸는 연산이므로 파일 rename만으로 충분하다.
 
-> **save_outline_slide**: 기존 슬라이드를 덮어쓰는 용도로만 사용한다. 삽입은 `modify_design_spec(action="add")`가 내부적으로 처리한다.
+> **save_outline_slide**: 기존 슬라이드를 덮어쓰는 용도로만 사용한다. 삽입은 `slide_edit(action="add")`가 내부적으로 처리한다.
 
-> **save_outline_slide의 script 동기화**: outline 파일 저장 시 script 디렉토리에 동일 인덱스 파일이 존재하면 새 내용으로 동기화한다.
+> **읽기**: outline 파일에서 슬라이드 내용을 읽는다. 없으면 에러를 발생시킨다.
 
-> **읽기 우선순위**: script가 존재하면 우선 읽고, 없으면 outline에서 읽는다. 둘 다 없으면 에러를 발생시킨다.
+> **outline sync (`sync_outline_to_design_spec_count`)**: `slide_edit`(add/update/delete) 및 `move_slide` 실행 전에 outline 파일 수를 design_spec 파일 수에 맞춘다. outline이 design_spec보다 적으면 부족한 슬롯을 빈 placeholder(`title: "", content_summary: ""`)로 채워서 양쪽 수를 일치시킨다. 이를 통해 imported 프로젝트처럼 outline이 없거나 불완전한 상태에서도 인덱스 기반 CRUD가 안전하게 동작한다.
 
-> **outline sync (`sync_outline_to_design_spec_count`)**: `modify_design_spec`(add/update/delete) 및 `move_slide` 실행 전에 outline 파일 수를 design_spec 파일 수에 맞춘다. outline이 design_spec보다 적으면 부족한 슬롯을 빈 placeholder(`title: "", content_summary: ""`)로 채워서 양쪽 수를 일치시킨다. 이를 통해 imported 프로젝트처럼 outline이 없거나 불완전한 상태에서도 인덱스 기반 CRUD가 안전하게 동작한다.
-
-> **num_slides 동기화**: `modify_design_spec` 완료 시 `project.json`의 `num_slides`를 실제 디자인 스펙 파일 수와 자동 동기화한다.
+> **num_slides 동기화**: `slide_edit` 완료 시 `project.json`의 `num_slides`를 실제 디자인 스펙 파일 수와 자동 동기화한다.
 
 ### Technical Details
 
@@ -87,10 +85,10 @@ export_pptx:     design_spec_json > project_id (자동 로드)
 #### project_id 기반 체이닝 (권장 흐름)
 
 ```
-generate_outline → generate_script
+prepare_outline → ingest_outline
     → for i in 0..N-1:
-        generate_slide_design_spec(slide[i], slide_index=i, total_slides=N)
-        (선택) modify_design_spec(action="update", slide_index=i)
+        prepare_design_slide(slide_index=i) → ingest_design_slide(spec[i])
+        (선택) prepare_slide_edit(action="update", slide_index=i) → ingest_slide_edit
     → (선택) move_slide(project_id, from_index, to_index)
     → export_html(project_id=...) → export_pptx(project_id=...)
 ```
@@ -111,17 +109,17 @@ generate_outline → generate_script
 | 대안 | 설명 | 판단 |
 |------|------|------|
 | A. 인라인 JSON 유지 + 압축 | gzip 등으로 인라인 JSON 크기 축소 | MCP 프로토콜이 바이너리를 지원하지 않아 탈락 |
-| B. 전체 재생성만 지원 | modify_design_spec 없이 전체 디자인 스펙 재생성 | 비용/시간 비효율, 탈락 |
+| B. 전체 재생성만 지원 | slide_edit 없이 전체 디자인 스펙 재생성 | 비용/시간 비효율, 탈락 |
 | C. 단일 파일 유지 + 부분 읽기 | JSON streaming parser로 필요한 슬라이드만 읽기 | JSON 구조상 부분 수정 불가, 탈락 |
 | D. SQLite 기반 저장 | 슬라이드별 row로 관리 | 파일 기반 통신 원칙에 어긋남, 디버깅 어려움, 탈락 |
 | **E. 파일 기반 통신 + 슬라이드별 파일 + CRUD** | project_id 참조 + 개별 파일 + 슬라이드 CRUD | **채택** |
 
 ### Acceptance Criteria
 
-1. `generate_slide_design_spec` 반환에 `design_spec_json` 인라인 키가 없다
+1. `design_slide (prepare/ingest)` 반환에 `design_spec_json` 인라인 키가 없다
 2. `export_html(project_id=...)` 만으로 HTML 슬라이드가 생성된다
 3. `export_pptx(project_id=...)` 만으로 PPTX가 생성된다
-4. `modify_design_spec`으로 개별 슬라이드 add/update/delete가 동작한다
+4. `slide_edit`으로 개별 슬라이드 add/update/delete가 동작한다
 4-1. `move_slide`로 슬라이드 순서 변경이 LLM 호출 없이 동작한다
 5. `design_spec_json` 직접 전달 경로도 동작한다 (인라인 파라미터 하위 호환)
 6. 디자인 스펙 저장 시 슬라이드별 개별 파일이 생성된다
@@ -146,7 +144,7 @@ generate_outline → generate_script
 
 ### Negative
 
-- `modify_design_spec`의 add/update 시 디자인 요약 추출을 위한 추가 LLM 호출 필요
+- `slide_edit`의 add/update 시 디자인 요약 추출을 위한 추가 LLM 호출 필요
 - project_id를 통한 암묵적 파일 의존성으로 디버깅 시 파일 상태 확인 필요
 - 파일 삽입/삭제 시 재번호 로직 필요 (O(n) 파일 rename)
 
