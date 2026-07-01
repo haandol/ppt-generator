@@ -103,7 +103,7 @@ def test_invalid_input_raises_error():
 
 ### 외부 의존성 처리
 
-- **LLM API(Bedrock/Anthropic) 호출**: 반드시 mock 처리
+- **LLM API 호출**: 이 서버는 LLM 을 직접 호출하지 않는다(생성은 MCP 클라이언트 담당). 혹시 남는 외부 API 호출이 있다면 반드시 mock 처리
 - **파일시스템**: `tmp_path` fixture 사용
 - **python-pptx 객체**: `Presentation()`으로 실제 객체 생성하여 테스트 (mock 불필요)
 

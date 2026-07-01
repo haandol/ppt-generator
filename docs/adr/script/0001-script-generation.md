@@ -14,11 +14,11 @@ F1에서 생성한 아웃라인 JSON의 speaker_notes는 비어있다. 각 슬�
 
 ## Decision
 
-MCP 도구 `generate_script`를 구현하여, 아웃라인 JSON을 입력받아 Bedrock Claude Sonnet 4.6가 슬라이드별 발표자 노트를 생성하고, speaker_notes가 채워진 아웃라인 JSON을 반환한다.
+MCP 도구 `generate_script`를 구현하여, 아웃라인 JSON을 입력받아 LLM이 슬라이드별 발표자 노트를 생성하고, speaker_notes가 채워진 아웃라인 JSON을 반환한다.
 
 ### Technical Details
 
-- Bedrock Claude Sonnet 4.6 호출 (Strands SDK 경유, 16K max tokens)
+- LLM 호출은 MCP 클라이언트가 담당 (서버는 prepare/ingest 로 프롬프트·스키마만 제공, [offload/0001](../offload/0001-client-llm-offload-plugin.md) 참조)
 - 프롬프트: 아웃라인 JSON을 기반으로 슬라이드별 발표자 노트(speaker_notes) 생성 요청
 - LLM 출력 JSON 스키마: `{ scripts: [{ slide_index, speaker_notes }] }`
 - 출력의 speaker_notes를 원본 아웃라인의 각 슬라이드에 적용하여 최종 아웃라인 JSON 반환

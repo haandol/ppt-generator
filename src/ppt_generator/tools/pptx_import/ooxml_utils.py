@@ -9,7 +9,6 @@ from __future__ import annotations
 import re
 from xml.etree.ElementTree import Element
 
-from pptx.enum.dml import MSO_THEME_COLOR
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import PP_ALIGN
 from pptx.oxml.ns import qn

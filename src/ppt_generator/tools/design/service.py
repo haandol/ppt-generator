@@ -1,7 +1,14 @@
 """Design spec generation service.
 
-Generates PptxSlideSpec-based design specs from slide outlines via LLM.
-Uses strands structured_output for direct parsing into Pydantic models.
+LLM 호출을 클라이언트로 오프로딩했다. 이 서비스는 각 생성 단계를 prepare/ingest
+두 단계로 나눈다:
+
+- ``prepare_*``: 클라이언트가 생성하는 데 필요한 system/user 프롬프트와 출력 스키마를
+  조립해 반환한다 (LLM 호출 없음).
+- ``ingest_*``: 클라이언트가 스키마대로 생성해 돌려준 JSON 을 Pydantic 으로 검증하고,
+  dataclass 변환·정합화(clean_slide_spec)·트리 재구성 등 후처리를 수행한다.
+
+프롬프트·출력 스키마·후처리 로직은 서버가 그대로 소유하므로 산출물이 불변이다.
 """
 
 from __future__ import annotations
@@ -12,19 +19,19 @@ import re
 from dataclasses import replace
 from typing import NoReturn
 
-from strands import Agent
-from strands.types.exceptions import ModelThrottledException
-
 from ppt_generator.interfaces.constants import (
+    BACKFILL_DESIGN_DOC_SYSTEM_PROMPT,
     BACKFILL_DESIGN_DOC_USER_PROMPT_TEMPLATE,
     COMPONENT_MODIFY_USER_PROMPT_TEMPLATE,
     DESIGN_DOC_DRAFT_USER_PROMPT_TEMPLATE,
     DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE,
+    DESIGN_SPEC_SYSTEM_PROMPTS,
     DESIGN_SPEC_USER_PROMPT_TEMPLATE,
-    DESIGN_SUMMARY_USER_PROMPT_TEMPLATE,
 )
+from ppt_generator.interfaces.handoff import build_llm_task
 from ppt_generator.interfaces.llm_output_models import (
     BackfillDesignDocOutput,
+    BackfillNode,
     ComponentModifyOutput,
     ContentSlideSpecOutput,
     SimpleSlideSpecOutput,
@@ -45,21 +52,23 @@ from ppt_generator.interfaces.schemas import (
 )
 from ppt_generator.interfaces.spec_utils import clean_slide_spec
 from ppt_generator.interfaces.spec_utils.serializer import slide_spec_to_json
-from ppt_generator.interfaces.utils import log_token_usage
 
 logger = logging.getLogger(__name__)
 
 
+def _slide_spec_output_model(slide_type: str) -> type[_BaseSlideSpecOutput]:
+    """slide_type 에 따른 응답 Pydantic 모델. content 는 grid_plan Required."""
+    return ContentSlideSpecOutput if slide_type == "content" else SimpleSlideSpecOutput
+
+
 class DesignService:
-    """Service that generates PptxSlideSpec from slide outlines."""
+    """슬라이드 아웃라인으로부터 PptxSlideSpec 을 생성하기 위한 prepare/ingest 서비스."""
 
-    def __init__(self, agent: Agent, backfill_agent: Agent | None = None) -> None:
-        self._agent = agent
-        self._backfill_agent = backfill_agent
-        self._last_token_usage: dict[str, int] = {}
-        self._last_overflow: list[dict] = []
+    # ------------------------------------------------------------------
+    # 단일 슬라이드 design spec: prepare / ingest
+    # ------------------------------------------------------------------
 
-    def generate_single_slide(
+    def prepare_slide(
         self,
         slide_outline: SlideOutline,
         design_summary: dict | None = None,
@@ -70,24 +79,17 @@ class DesignService:
         next_outline: SlideOutline | None = None,
         review_feedback: str = "",
         design_directives: str = "",
-    ) -> PptxSlideSpec:
-        """Generates the design spec for a single slide.
+        budget_tokens: int = 8192,
+    ) -> dict:
+        """단일 슬라이드 design spec 생성을 위한 LLM 태스크를 조립한다.
 
-        Args:
-            slide_outline: Slide outline
-            design_summary: Existing design summary dict (maintains consistency when provided)
-            slide_index: Slide number (1-based)
-            total_slides: Total number of slides
-            color_theme: Color theme ("dark" or "light", default: "dark")
-            prev_outline: Previous slide outline (None for first slide)
-            next_outline: Next slide outline (None for last slide)
-            review_feedback: Optional lint/review feedback appended to the prompt
-            design_directives: Optional human design intent (global tone + per-slide
-                request) derived from DESIGN.md, appended to the prompt
+        Args 는 기존 generate_single_slide 와 동일하며, 프롬프트 조립도 동일하다.
 
         Returns:
-            Generated PptxSlideSpec
+            build_llm_task 결과 (system_prompt, user_prompt, response_schema) +
+            slide_type, thinking_budget 힌트.
         """
+        slide_type = slide_outline.slide_type or "content"
         outline_json = self._outline_to_json(slide_outline)
         adjacent_context = self._adjacent_context_section(prev_outline, next_outline)
         slide_type_instruction = self._slide_type_instruction(slide_outline.slide_type)
@@ -119,114 +121,85 @@ class DesignService:
         if review_feedback:
             prompt = prompt + "\n\n" + review_feedback
 
-        spec = self._generate_with_structured_output(
-            prompt,
-            slide_type=slide_outline.slide_type or "content",
-            label=f"slide[{slide_index}/{total_slides}]",
+        system_prompt = DESIGN_SPEC_SYSTEM_PROMPTS.get(
+            slide_type, DESIGN_SPEC_SYSTEM_PROMPTS["content"]
         )
-        return replace(spec, slide_type=slide_outline.slide_type)
+        model = _slide_spec_output_model(slide_type)
+        return build_llm_task(
+            system_prompt=system_prompt,
+            user_prompt=prompt,
+            response_schema=model.model_json_schema(),
+            slide_type=slide_type,
+            thinking_budget=budget_tokens,
+        )
 
-    def generate_design_summary(
+    def ingest_slide(
+        self,
+        spec_json: str | dict,
+        slide_type: str | None = "content",
+    ) -> tuple[PptxSlideSpec, list[dict]]:
+        """클라이언트가 생성한 슬라이드 spec JSON 을 검증·정합화한다.
+
+        기존 generate_single_slide 후처리와 동일:
+        Pydantic 검증 → to_dataclass → clean_slide_spec, overflow 추출, slide_type 세팅.
+        동작 불변: 응답 모델 선택은 정규화된 `slide_type or "content"` 로, 최종 spec 에
+        저장하는 slide_type 은 전달받은 원본 값(None/"" 포함) 그대로 둔다 — 기존
+        `replace(spec, slide_type=slide_outline.slide_type)` 과 동일하다.
+
+        Returns:
+            (spec, overflow) — overflow 는 초과 컨텐츠 dict 리스트.
+        """
+        model = _slide_spec_output_model(slide_type or "content")
+        output = self._validate(model, spec_json)
+        overflow = (
+            [item.model_dump() for item in output.overflow] if output.overflow else []
+        )
+        if overflow:
+            logger.info(
+                "slide overflow detected: %d item(s) to suggest as new slides",
+                len(overflow),
+            )
+        spec = clean_slide_spec(output.to_dataclass())
+        spec = replace(spec, slide_type=slide_type)
+        return spec, overflow
+
+    # ------------------------------------------------------------------
+    # DESIGN.md 초안 (theme + tone + page_requests): prepare / ingest
+    # ------------------------------------------------------------------
+
+    def prepare_design_doc_draft(
         self,
         outline: OutlineResponse,
         color_theme: str = "dark",
     ) -> dict:
-        """Pre-generates a design_summary via LLM based on the full outline.
+        """DESIGN.md 초안(수치 테마 + 톤 + 선별적 페이지 요청) 생성 태스크를 조립한다.
 
-        Args:
-            outline: Full outline (OutlineResponse)
-            color_theme: Color theme ("dark" or "light")
-
-        Returns:
-            Dict in the same format as extract_design_summary()
+        출력은 프롬프트가 정의하는 자유형 JSON 이므로 엄격한 Pydantic 스키마를 강제하지
+        않는다 (response_schema 없음). 클라이언트는 프롬프트의 output_format 을 따른다.
         """
-        outline_json = json.dumps(
-            [
-                {
-                    "title": s.title,
-                    "content_summary": s.content_summary,
-                    "component_hint": s.component_hint,
-                    "slide_type": s.slide_type,
-                }
-                for s in outline.slides
-            ],
-            ensure_ascii=False,
-            indent=2,
-        )
-
-        prompt = DESIGN_SUMMARY_USER_PROMPT_TEMPLATE.format(
-            total_slides=len(outline.slides),
-            color_theme=color_theme,
-            outline_json=outline_json,
-        )
-
-        try:
-            result = self._agent(prompt)
-            log_token_usage(result, "design_summary")
-        except ModelThrottledException:
-            logger.warning("Bedrock throttling during design_summary generation")
-            raise
-        raw_text = str(result)
-
-        # Extract JSON block (```json... ``` or raw JSON)
-        json_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", raw_text, re.DOTALL)
-        if json_match:
-            raw_text = json_match.group(1)
-
-        summary = json.loads(raw_text.strip())
-        logger.info("design_summary LLM generation completed: %s", summary)
-        return summary
-
-    def generate_design_doc_draft(
-        self,
-        outline: OutlineResponse,
-        color_theme: str = "dark",
-    ) -> tuple[dict, str, list]:
-        """Pre-generates the full DESIGN.md draft intent via LLM.
-
-        Unlike generate_design_summary (numeric theme only), this also produces
-        the prose taste layer — the global tone & direction and a selective set
-        of per-slide deviation requests — so the deck does not default to AI
-        slop (uniform card trios, no narrative arc). The taste guidance lives in
-        the prompt; the model grounds it in this deck's outline.
-
-        Returns:
-            (design_summary, tone, page_requests) where design_summary is the
-            same numeric dict shape as generate_design_summary, tone is prose,
-            and page_requests is a list of PageRequest. On a malformed/partial
-            LLM response, falls back to whatever could be parsed (numeric theme
-            at minimum), keeping draft generation robust.
-        """
-        from ppt_generator.tools.design.design_doc_md import PageRequest
-
-        outline_json = json.dumps(
-            [
-                {
-                    "title": s.title,
-                    "content_summary": s.content_summary,
-                    "component_hint": s.component_hint,
-                    "slide_type": s.slide_type,
-                }
-                for s in outline.slides
-            ],
-            ensure_ascii=False,
-            indent=2,
-        )
-
+        outline_json = self._outline_summary_json(outline)
         prompt = DESIGN_DOC_DRAFT_USER_PROMPT_TEMPLATE.format(
             total_slides=len(outline.slides),
             color_theme=color_theme,
             outline_json=outline_json,
         )
+        return build_llm_task(
+            system_prompt=DESIGN_SPEC_SYSTEM_PROMPTS["content"],
+            user_prompt=prompt,
+        )
 
-        try:
-            result = self._agent(prompt)
-            log_token_usage(result, "design_doc_draft")
-        except ModelThrottledException:
-            logger.warning("Bedrock throttling during design_doc draft generation")
-            raise
+    def ingest_design_doc_draft(self, draft_text: str) -> tuple[dict, str, list]:
+        """클라이언트가 생성한 DESIGN.md 초안 JSON 을 파싱한다.
 
-        raw_text = str(result)
+        기존 generate_design_doc_draft 의 파싱과 동일 — 부분/불량 응답에도
+        가능한 만큼 복구한다.
+
+        Returns:
+            (design_summary, tone, page_requests)
+        """
+        from ppt_generator.tools.design.design_doc_md import PageRequest
+
+        raw_text = str(draft_text)
         json_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", raw_text, re.DOTALL)
         if json_match:
             raw_text = json_match.group(1)
@@ -252,7 +225,7 @@ class DesignService:
             page_requests.append(PageRequest(number=number, title=title, text=text))
 
         logger.info(
-            "design_doc draft generated: tone=%dchars, page_requests=%d",
+            "design_doc draft ingested: tone=%dchars, page_requests=%d",
             len(tone),
             len(page_requests),
         )
@@ -312,68 +285,68 @@ class DesignService:
             "card_borders": sorted(card_borders) if card_borders else [],
         }
 
-    def backfill_design_doc(
+    # ------------------------------------------------------------------
+    # imported 슬라이드 design_doc backfill: prepare / ingest
+    # ------------------------------------------------------------------
+
+    def prepare_backfill(
         self,
         spec: PptxSlideSpec,
         slide_index: int = 1,
-    ) -> PptxSlideSpec:
-        """Imported 슬라이드(design_doc=None)에 design_doc 트리 + grid_plan 을
-        LLM 으로 backfill한다.
-
-        textbox/shape 의 좌표/스타일/텍스트는 변경하지 않고, design_doc.layout
-        트리 + 각 element 의 component_id, 그리고 grid_plan(regions/columns/
-        rows/cells) 을 채운다. design_doc.layout bbox 는 코드에서 element
-        bbox 합집합으로 계산. grid_plan 은 LLM 이 grid_layout/cell_assignment
-        를 함께 출력하므로 lint 의 `grid-plan-required` 규칙을 만족시킨다.
-
-        Returns:
-            새 PptxSlideSpec — design_doc 채워지고 textbox/shape 의 component_id 도 링크됨.
+    ) -> dict:
+        """imported 슬라이드 design_doc backfill 을 위한 LLM 태스크를 조립한다.
 
         Raises:
-            ValueError: 백필 대상이 부적합하거나(이미 design_doc 있음, content slide 아님 등)
-                LLM 응답 검증 실패.
+            ValueError: 이미 design_doc 이 있는 슬라이드.
         """
         if spec.design_doc is not None:
-            return spec
-        if self._backfill_agent is None:
-            raise RuntimeError(
-                "DesignService backfill_agent is not configured. "
-                "Pass it via DIContainer.create_design_service."
+            raise ValueError(
+                f"slide {slide_index} already has a design_doc; backfill not needed."
             )
-
         elements_json = _serialize_elements_for_backfill(spec)
         prompt = BACKFILL_DESIGN_DOC_USER_PROMPT_TEMPLATE.format(
             slide_index=slide_index,
             elements_json=elements_json,
         )
+        return build_llm_task(
+            system_prompt=BACKFILL_DESIGN_DOC_SYSTEM_PROMPT,
+            user_prompt=prompt,
+            response_schema=BackfillDesignDocOutput.model_json_schema(),
+        )
 
-        try:
-            result = self._backfill_agent(
-                prompt, structured_output_model=BackfillDesignDocOutput
-            )
-            self._last_token_usage = log_token_usage(
-                result, f"backfill_design_doc[{slide_index}]"
-            )
-        except ModelThrottledException:
-            logger.warning("Bedrock throttling during design_doc backfill")
-            raise
+    def ingest_backfill(
+        self,
+        spec: PptxSlideSpec,
+        output_json: str | dict,
+        slide_index: int = 1,
+    ) -> PptxSlideSpec:
+        """클라이언트가 생성한 backfill JSON 을 검증하고 design_doc 트리를 채운다.
 
-        output: BackfillDesignDocOutput = result.structured_output
+        기존 backfill_design_doc 의 후처리(_apply_backfill_output)와 동일.
+        """
+        if spec.design_doc is not None:
+            return spec
+        output = self._validate(BackfillDesignDocOutput, output_json)
         return _apply_backfill_output(spec, output)
 
-    def modify_component(
+    # ------------------------------------------------------------------
+    # 단일 component 부분 수정: prepare / ingest
+    # ------------------------------------------------------------------
+
+    def prepare_modify_component(
         self,
         spec: PptxSlideSpec,
         component_id: str,
         instruction: str,
         slide_index: int = 1,
         color_theme: str = "dark",
-    ) -> PptxSlideSpec:
-        """Applies a surgical modification to a single component.
+    ) -> dict:
+        """단일 component 부분 수정을 위한 LLM 태스크를 조립한다.
 
-        Returns a new PptxSlideSpec with exactly one textbox/shape replaced
-        (and its design_doc.layout node bbox synced if bbox changed).
-        Raises ValueError when component_id is not found or design_doc is missing.
+        대상 component_id 가 존재하는지 먼저 검증(_find_element_by_component_id)한다.
+
+        Raises:
+            ValueError: design_doc 없음, 또는 component_id 미존재/모호.
         """
         if spec.design_doc is None:
             raise ValueError(
@@ -381,7 +354,8 @@ class DesignService:
                 "(content slides only). Use modify_design_spec(action='update') "
                 "for title/closing/imported slides."
             )
-        kind, idx, existing = _find_element_by_component_id(spec, component_id)
+        # 존재/모호 검증 (결정 12). 결과 kind 는 ingest 에서 재검증.
+        _find_element_by_component_id(spec, component_id)
 
         slide_spec_json = slide_spec_to_json(spec)
         prompt = COMPONENT_MODIFY_USER_PROMPT_TEMPLATE.format(
@@ -391,25 +365,42 @@ class DesignService:
             slide_spec_json=slide_spec_json,
             instruction=instruction,
         )
+        # 동작 불변: 오프로딩 이전 modify_component 는 design_service_factory("content")
+        # 로 만든 agent 를 재사용했으므로 시스템 프롬프트가 content 디자인 시스템
+        # 프롬프트였다 (COMPONENT_MODIFY_SYSTEM_PROMPT 는 어떤 agent 에도 연결되지
+        # 않은 미사용 상수였다). 프롬프트를 그대로 재현한다.
+        return build_llm_task(
+            system_prompt=DESIGN_SPEC_SYSTEM_PROMPTS["content"],
+            user_prompt=prompt,
+            response_schema=ComponentModifyOutput.model_json_schema(),
+        )
 
-        try:
-            result = self._agent(prompt, structured_output_model=ComponentModifyOutput)
-            self._last_token_usage = log_token_usage(
-                result, f"modify_component[{component_id}]"
+    def ingest_modify_component(
+        self,
+        spec: PptxSlideSpec,
+        component_id: str,
+        output_json: str | dict,
+    ) -> PptxSlideSpec:
+        """클라이언트가 생성한 부분 수정 JSON 을 검증하고 단일 element 만 교체한다.
+
+        기존 modify_component 의 후처리와 동일 — element_kind 검증, z_index/grid_cell
+        보존, bbox_changed 시 design_doc.layout 노드 bbox 동기화, clean_slide_spec.
+        """
+        if spec.design_doc is None:
+            raise ValueError(
+                "modify_component requires a slide with design_doc "
+                "(content slides only)."
             )
-        except ModelThrottledException:
-            logger.warning("Bedrock throttling during component modification")
-            raise
+        kind, idx, existing = _find_element_by_component_id(spec, component_id)
+        output = self._validate(ComponentModifyOutput, output_json)
 
-        output: ComponentModifyOutput = result.structured_output
         if output.element_kind != kind:
             raise ValueError(
                 f"LLM returned element_kind={output.element_kind} but target "
                 f"component_id={component_id} is a {kind}. Modification rejected."
             )
 
-        # 결정 11: LLM schema 에 없는 비-design 메타 필드는 기존 element
-        # 에서 보존한다. component_id 는 입력값을 그대로 유지.
+        # 결정 11: LLM schema 에 없는 비-design 메타 필드는 기존 element 에서 보존.
         if kind == "textbox":
             if output.textbox is None:
                 raise ValueError(
@@ -462,56 +453,37 @@ class DesignService:
 
         return clean_slide_spec(new_spec)
 
-    @property
-    def last_token_usage(self) -> dict[str, int]:
-        """Token usage from the last LLM call. Empty dict before first call."""
-        return self._last_token_usage
+    # ------------------------------------------------------------------
+    # 검증 헬퍼
+    # ------------------------------------------------------------------
 
-    @property
-    def last_overflow(self) -> list[dict]:
-        """Overflow content from the last LLM call. Empty list if none."""
-        return self._last_overflow
+    @staticmethod
+    def _validate(model, payload: str | dict):
+        """클라이언트 JSON 을 Pydantic 모델로 검증한다 (문자열/딕셔너리 모두 허용)."""
+        if isinstance(payload, str):
+            return model.model_validate_json(payload)
+        return model.model_validate(payload)
 
-    def _generate_with_structured_output(
-        self,
-        prompt: str,
-        *,
-        slide_type: str,
-        label: str = "design_spec",
-    ) -> PptxSlideSpec:
-        """Generates and validates slide spec via strands structured_output.
-
-        slide_type 에 따라 응답 모델을 분기해 content 슬라이드는
-        grid_plan 을 Pydantic Required 로 강제한다. title/closing 은 옵셔널.
-        """
-        model: type[_BaseSlideSpecOutput] = (
-            ContentSlideSpecOutput if slide_type == "content" else SimpleSlideSpecOutput
+    @staticmethod
+    def _outline_summary_json(outline: OutlineResponse) -> str:
+        """DESIGN.md 초안 프롬프트용 outline 요약 JSON."""
+        return json.dumps(
+            [
+                {
+                    "title": s.title,
+                    "content_summary": s.content_summary,
+                    "component_hint": s.component_hint,
+                    "slide_type": s.slide_type,
+                }
+                for s in outline.slides
+            ],
+            ensure_ascii=False,
+            indent=2,
         )
-        try:
-            result = self._agent(prompt, structured_output_model=model)
-            self._last_token_usage = log_token_usage(result, label)
-        except ModelThrottledException:
-            logger.warning("Bedrock throttling during design spec generation")
-            raise
-        output: _BaseSlideSpecOutput = result.structured_output
-        self._last_overflow = (
-            [item.model_dump() for item in output.overflow] if output.overflow else []
-        )
-        if self._last_overflow:
-            logger.info(
-                "slide overflow detected: %d item(s) to suggest as new slides",
-                len(self._last_overflow),
-            )
-        spec = output.to_dataclass()
-        return clean_slide_spec(spec)
 
     @staticmethod
     def _slide_type_instruction(slide_type: str) -> str:
-        """Returns the layout instruction to pass to the LLM based on slide_type.
-
-        Since system prompts are separated by slide_type,
-        the user prompt only specifies the slide type.
-        """
+        """Returns the layout instruction to pass to the LLM based on slide_type."""
         if slide_type == "title":
             return "\nThis slide is a **title slide**."
         if slide_type == "closing":

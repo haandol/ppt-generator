@@ -1,25 +1,18 @@
-"""review_design_spec 핸들러."""
+"""design 스펙 리뷰 핸들러 (prepare/ingest, 슬라이드 단위).
+
+리뷰 LLM 호출은 클라이언트가 수행한다. 서버는 기계적 lint 를 돌려 프롬프트에 힌트로
+싣고(prepare), 클라이언트가 생성한 리뷰 결과 JSON 을 검증한다(ingest). auto-fix 재생성은
+클라이언트가 update-slide prepare/ingest 를 이어서 호출하는 것으로 대체된다.
+"""
 
 from __future__ import annotations
 
 import json
 import logging
-from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from ppt_generator.interfaces.constants import BEDROCK_DESIGN_MODEL_ID
 from ppt_generator.interfaces.spec_utils import lint_slide_spec
-from ppt_generator.interfaces.utils import (
-    complexity_to_budget_tokens,
-    estimate_cost,
-    estimate_slide_complexity,
-    format_token_usage,
-    parse_outline_json,
-)
-from ppt_generator.tools.design.review_service import (
-    DesignReviewService,
-    merge_token_usage,
-)
+from ppt_generator.tools.design.review_service import DesignReviewService
 
 if TYPE_CHECKING:
     from ppt_generator.tools.design.handlers.deps import DesignDeps
@@ -27,133 +20,79 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def handle_review(
+def handle_prepare_review(
     deps: DesignDeps,
     *,
     project_id: str,
-    slide_indices: str,
-    auto_fix: bool,
-    color_theme: str,
+    slide_index: int,
 ) -> str:
-    """기존 디자인 스펙을 LLM 리뷰하고 선택적으로 재생성한다."""
-    if deps.review_service_factory is None:
+    """단일 슬라이드 리뷰 태스크를 조립한다 (lint 를 힌트로 실어 보냄)."""
+    if deps.review_service is None:
         raise ValueError("Review service is not configured.")
 
     project_service = deps.project_service
     _, project_dir = project_service.resolve_project_dir(project_id)
     slide_count = project_service.get_design_spec_slide_count(project_dir)
 
-    # Parse slide_indices
-    if slide_indices:
-        indices = sorted(set(int(x.strip()) for x in slide_indices.split(",")))
-        for idx in indices:
-            if idx < 1 or idx > slide_count:
-                raise ValueError(
-                    f"Invalid slide_index: {idx} (valid range: 1-{slide_count})"
-                )
-    else:
-        indices = list(range(1, slide_count + 1))
-
-    design_summary = project_service.load_design_summary(project_dir)
-    bg_image_policy = project_service.load_bg_image_policy(project_dir)
-    results: list[dict] = []
-    total_usage: dict[str, int] = {}
-
-    for slide_index in indices:
-        idx = slide_index - 1
-        spec = project_service.load_design_spec_slide(project_dir, idx)
-
-        # 기계적 린트를 먼저 돌려 LLM 리뷰에 힌트로 전달
-        lint_result = lint_slide_spec(spec)
-
-        # Review
-        review_svc = deps.review_service_factory()
-        review_result = review_svc.review(
-            spec, slide_index=slide_index, lint_result=lint_result
-        )
-        review_usage = review_svc.last_token_usage
-        slide_usage = review_usage
-
-        regenerated = False
-        if auto_fix and review_result.has_high_severity:
-            outline_json = project_service.load_outline_slide(project_dir, idx)
-            slide_outline = parse_outline_json(outline_json).slides[0]
-
-            feedback = DesignReviewService.format_feedback(review_result)
-
-            complexity = estimate_slide_complexity(slide_outline)
-            budget_tokens = complexity_to_budget_tokens(complexity)
-            svc_regen = deps.design_service_factory(
-                slide_outline.slide_type or "content", budget_tokens=budget_tokens
-            )
-            new_spec = svc_regen.generate_single_slide(
-                slide_outline,
-                design_summary,
-                color_theme=color_theme,
-                review_feedback=feedback,
-            )
-            regen_usage = svc_regen.last_token_usage
-            slide_usage = merge_token_usage(review_usage, regen_usage)
-
-            # Restore images and slide_type from original spec (LLM cannot generate these)
-            restore = {}
-            if spec.images:
-                restore["images"] = spec.images
-            if spec.slide_type != "content":
-                restore["slide_type"] = spec.slide_type
-            if restore:
-                new_spec = replace(new_spec, **restore)
-
-            project_service.save_design_spec_slide(project_dir, idx, new_spec)
-            project_service.renumber_design_spec_image_srcs(project_dir)
-            if deps.slides_service is not None:
-                html = deps.slides_service.render_single_slide_html(
-                    idx,
-                    new_spec,
-                    color_theme=color_theme,
-                    bg_image_policy=bg_image_policy,
-                )
-                project_service.save_single_slide_html(project_dir, idx, html)
-            regenerated = True
-            logger.info(
-                "slide[%d] review: high-severity issues found, regenerated", slide_index
-            )
-        else:
-            logger.info(
-                "slide[%d] review: %d issues (%s high)",
-                slide_index,
-                len(review_result.issues),
-                "has" if review_result.has_high_severity else "no",
-            )
-
-        total_usage = (
-            merge_token_usage(total_usage, slide_usage) if total_usage else slide_usage
+    if slide_index < 1 or slide_index > slide_count:
+        raise ValueError(
+            f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})"
         )
 
-        results.append(
-            {
-                "slide_index": slide_index,
-                "has_high_severity": review_result.has_high_severity,
-                "issue_count": len(review_result.issues),
-                "issues": [
-                    {
-                        "severity": i.severity,
-                        "rule_id": i.rule_id,
-                        "description": i.description,
-                    }
-                    for i in review_result.issues
-                ],
-                "regenerated": regenerated,
-            }
-        )
+    idx = slide_index - 1
+    spec = project_service.load_design_spec_slide(project_dir, idx)
+    lint_result = lint_slide_spec(spec)
 
-    resp: dict = {
+    task = deps.review_service.prepare(
+        spec, slide_index=slide_index, lint_result=lint_result
+    )
+    task["project_id"] = project_id
+    task["slide_index"] = slide_index
+    return json.dumps(task, ensure_ascii=False)
+
+
+def handle_ingest_review(
+    deps: DesignDeps,
+    *,
+    project_id: str,
+    slide_index: int,
+    review_json: str,
+) -> str:
+    """클라이언트가 생성한 리뷰 결과 JSON 을 검증해 이슈 목록으로 반환한다.
+
+    자동 재생성은 하지 않는다 (report-only). high-severity 이슈가 있으면 클라이언트가
+    피드백을 담아 update-slide 로 재생성하도록 안내한다.
+    """
+    if deps.review_service is None:
+        raise ValueError("Review service is not configured.")
+
+    review_output = deps.review_service.ingest(review_json)
+    high_count = sum(1 for i in review_output.issues if i.severity == "high")
+    logger.info(
+        "slide[%d] review ingested: %d issues (%d high)",
+        slide_index,
+        len(review_output.issues),
+        high_count,
+    )
+
+    result: dict = {
         "project_id": project_id,
-        "reviewed_count": len(results),
-        "results": results,
+        "slide_index": slide_index,
+        "has_high_severity": review_output.has_high_severity,
+        "issue_count": len(review_output.issues),
+        "issues": [
+            {
+                "severity": i.severity,
+                "rule_id": i.rule_id,
+                "description": i.description,
+            }
+            for i in review_output.issues
+        ],
     }
-    if total_usage:
-        resp["token_usage"] = format_token_usage(total_usage)
-        resp["estimated_cost"] = estimate_cost(total_usage, BEDROCK_DESIGN_MODEL_ID)
-
-    return json.dumps(resp, ensure_ascii=False)
+    if review_output.has_high_severity:
+        result["fix_feedback"] = DesignReviewService.format_feedback(review_output)
+        result["fix_suggestion"] = (
+            f"슬라이드 {slide_index}에 high-severity 이슈가 있습니다. "
+            "prepare_update_slide 로 재생성할 때 fix_feedback 을 함께 반영하세요."
+        )
+    return json.dumps(result, ensure_ascii=False)

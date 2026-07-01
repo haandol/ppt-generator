@@ -2,6 +2,9 @@
 
 16페이지를 11페이지로 이동하는 등 다수 슬라이드 시나리오에서
 전체 페이지 개수 인지, 파일 정렬, 인덱스 검증 등을 테스트한다.
+
+move_slide 는 LLM 을 사용하지 않는 순수 파일 재정렬 도구이므로 오프로딩 리팩터에서
+동작이 변하지 않았다. 도구 등록만 새 시그니처(design_service=<obj>)로 갱신한다.
 """
 
 import json
@@ -11,7 +14,6 @@ import pytest
 
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
-    PptxSlideSpec,
 )
 from ppt_generator.tools.project.design_spec_store import DesignSpecStore
 from ppt_generator.tools.project.html_store import HtmlStore
@@ -463,6 +465,11 @@ class TestMoveSlideToolWith16Pages:
 
     @staticmethod
     def _register_tools(project_service: ProjectService) -> dict:
+        """register_design_tools 를 mock MCP 에 적용해 도구 dict 를 만든다.
+
+        move_slide 는 LLM 을 쓰지 않으므로 design_service 는 형태만 갖춘 mock 이면 된다.
+        오프로딩 후 시그니처는 design_service=<obj> (팩토리 아님).
+        """
         from unittest.mock import MagicMock
 
         from ppt_generator.tools.design.controller import register_design_tools
@@ -478,12 +485,13 @@ class TestMoveSlideToolWith16Pages:
             return decorator
 
         mcp.tool = tool_decorator
+
+        # prepare/ingest 를 노출하는 mock DesignService.
         design_service = MagicMock()
-        design_service.generate_single_slide.return_value = _make_slide_spec(
-            "새로 생성됨"
+        design_service.ingest_slide.return_value = (
+            _make_slide_spec("새로 생성됨"),
+            [],
         )
-        design_service.last_token_usage = {}
-        design_service.last_overflow = []
         _summary = {
             "background_color": "#1a1a2e",
             "text_colors": ["#ffffff"],
@@ -492,15 +500,9 @@ class TestMoveSlideToolWith16Pages:
             "card_fills": [],
             "card_borders": [],
         }
-        design_service.generate_design_summary.return_value = _summary
-        design_service.generate_design_doc_draft.return_value = (_summary, "", [])
-        design_service_factory = lambda slide_type="content", budget_tokens=8192: (
-            design_service
-        )  # noqa: E731
+        design_service.ingest_design_doc_draft.return_value = (_summary, "", [])
 
-        register_design_tools(
-            mcp, project_service, design_service_factory=design_service_factory
-        )
+        register_design_tools(mcp, project_service, design_service=design_service)
         tools["_project_service"] = project_service
         return tools
 
@@ -719,7 +721,10 @@ class TestMoveSlideEdgeCases:
 
 
 class TestMoveSlideTool:
-    """move_slide MCP 도구 — outline + design_spec + HTML 동기화."""
+    """move_slide MCP 도구 — outline + design_spec + HTML 동기화.
+
+    conftest 의 mcp_tools fixture(새 design_service=<obj> 시그니처)를 사용한다.
+    """
 
     @staticmethod
     def _setup_project(

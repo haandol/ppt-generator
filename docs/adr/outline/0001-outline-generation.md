@@ -8,17 +8,17 @@ Accepted (Updated: layout_type → layout_index, freeform/elements 제거, Claud
 
 ## Context
 
-사용자가 주제를 입력하면 최적의 슬라이드 구성을 빠르게 얻을 수 있도록, Bedrock LLM이 슬라이드 아웃라인 JSON을 자동 생성해야 한다.
+사용자가 주제를 입력하면 최적의 슬라이드 구성을 빠르게 얻을 수 있도록, LLM이 슬라이드 아웃라인 JSON을 자동 생성해야 한다.
 
 파이프라인의 첫 단계로, 이 아웃라인은 이후 스크립트 생성(F2), HTML 슬라이드 생성(F3)의 공통 입력으로 사용된다. speaker_notes는 빈 문자열로 생성되며, F2에서 채워진다.
 
 ## Decision
 
-MCP 도구 `generate_outline`을 구현하여, 주제와 슬라이드 수를 입력받아 Bedrock Claude Sonnet 4.6 Extended Thinking (effort: medium)가 구조화된 JSON 아웃라인을 생성한다. 각 슬라이드에 `layout_index`(PPTX 템플릿 레이아웃 인덱스)와 `component_hint`(시각적 컴포넌트 유형)를 포함하여, HTML 슬라이드 생성 시 레이아웃 골격과 본문 구조를 결정한다.
+MCP 도구 `generate_outline`을 구현하여, 주제와 슬라이드 수를 입력받아 LLM이 구조화된 JSON 아웃라인을 생성한다. 각 슬라이드에 `layout_index`(PPTX 템플릿 레이아웃 인덱스)와 `component_hint`(시각적 컴포넌트 유형)를 포함하여, HTML 슬라이드 생성 시 레이아웃 골격과 본문 구조를 결정한다.
 
 ### Technical Details
 
-- Bedrock Claude Sonnet 4.6 Extended Thinking (effort: medium) 호출 (Strands SDK 경유, 16K max tokens)
+- LLM 호출은 MCP 클라이언트가 담당 (서버는 prepare/ingest 로 프롬프트·스키마만 제공, [offload/0001](../offload/0001-client-llm-offload-plugin.md) 참조)
 - 프롬프트: 주제를 기반으로 구조화된 JSON 아웃라인 생성 요청
 - 출력 JSON 스키마: `{ slides: [{ slide_index, title, content_summary, layout_index, component_hint, speaker_notes: "" }] }`
 - 저장 형식: 개별 JSON 파일 (`outline/slide_01.json`, `outline/slide_02.json`, ...) — 슬라이드별 독립 파일, `slide_index` 명시 포함. 하위 호환: `outline.jsonl` → `outline.json` 순으로 fallback 지원

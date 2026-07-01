@@ -10,7 +10,7 @@ import re
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 from pptx.oxml.ns import qn
-from pptx.util import Emu, Pt
+from pptx.util import Pt
 
 from ppt_generator.interfaces.constants import (
     PPTX_BULLET_CHAR_L0,

@@ -27,7 +27,8 @@ docs/adr/
 ├── project/    파이프라인 인프라 (저장, 토큰/비용, 진행률, 안정성) — tools/project/, infra
 ├── script/     발표 스크립트 생성 (deprecated, ADR 1 개) — tools/script/
 ├── template/   PPTX 템플릿 분석 (proposed) — 미구현
-└── chart/      차트/데이터 시각화 (proposed) — 미구현
+├── chart/      차트/데이터 시각화 (proposed) — 미구현
+└── offload/    LLM 생성을 클라이언트로 오프로딩 — 플러그인 + 스킬 + prepare/ingest
 ```
 
 ## ADRs
@@ -44,7 +45,7 @@ docs/adr/
 
 - [0001 디자인 스펙 기반 슬라이드 생성 파이프라인](./design/0001-design-spec-pipeline.md)
 - [0002 폰트 메트릭 기반 텍스트 오버플로우 방지](./design/0002-font-metric-text-overflow.md)
-- [0003 디자인 스펙 병렬 생성 — Worker 스케줄링 + Thinking Budget](./design/0003-parallel-design-spec.md)
+- [0003 디자인 스펙 병렬 생성 — Worker 스케줄링 + Thinking Budget](./design/0003-parallel-design-spec.md) — _Superseded by offload/0001_
 - [0004 슬라이드 타입별 시스템 프롬프트 분리](./design/0004-slide-type-specific-prompts.md)
 - [0005 타이틀 슬라이드 긴 제목 텍스트 잘림 수정](./design/0005-title-long-title-overflow-fix.md)
 - [0006 텍스트 런 하이퍼링크 지원](./design/0006-text-run-hyperlink.md)
@@ -95,13 +96,13 @@ docs/adr/
 
 - [0001 Visual QA Pipeline](./visual-qa/0001-visual-qa-pipeline.md)
 - [0002 Visual QA 브라우저 도구 안내 개선](./visual-qa/0002-browser-tool-fallback.md) — _Proposed_
-- [0003 Visual QA 2-Phase 모델 분리 (Haiku 분석 + Sonnet 수정)](./visual-qa/0003-two-phase-model-split.md)
+- [0003 Visual QA 2-Phase 모델 분리 (Haiku 분석 + Sonnet 수정)](./visual-qa/0003-two-phase-model-split.md) — _Superseded by offload/0001_
 
 ### project — 파이프라인 인프라
 
 - [0001 파이프라인 결과물 저장/로드 + 프로젝트 디렉토리 통합](./project/0001-pipeline-artifact-persistence.md)
 - [0002 점진적 구체화 파이프라인 설계](./project/0002-progressive-refinement-pipeline.md)
-- [0003 토큰 사용량 추적 및 비용 추정](./project/0003-token-usage-cost-estimation.md)
+- [0003 토큰 사용량 추적 및 비용 추정](./project/0003-token-usage-cost-estimation.md) — _Superseded by offload/0001_
 - [0004 파이프라인 전체 진행률 보고 및 로깅 강화](./project/0004-progress-reporting-and-logging.md)
 - [0005 MCP Server Stability Improvements](./project/0005-mcp-server-stability.md)
 
@@ -116,6 +117,10 @@ docs/adr/
 ### chart — 차트/데이터 시각화 (proposed)
 
 - [0001 차트 및 데이터 시각화 지원](./chart/0001-chart-data-visualization.md) — _Proposed_
+
+### offload — LLM 생성을 클라이언트로 오프로딩
+
+- [0001 LLM 생성을 클라이언트로 오프로딩 — 플러그인 + 스킬 + prepare/ingest 핸드셰이크](./offload/0001-client-llm-offload-plugin.md)
 
 ## 작성 규칙
 

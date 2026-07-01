@@ -5,7 +5,7 @@
 ### 1.1. 목적
 
 - 사용자가 주제 또는 문서를 입력하면 AI가 자동으로 HTML 기반 프레젠테이션을 생성하고, 사용자의 수정 요청을 반영한 뒤 최종적으로 편집 가능한 PPTX로 내보내는 Python MCP 서버 구축
-- Amazon Bedrock LLM으로 콘텐츠를 생성하고, HTML 슬라이드 생성 과정에서 필요한 경우 Gemini로 시각 자료를 생성하여, HTML/CSS 기반 슬라이드로 자유로운 디자인을 구현한 뒤 최종 PPTX로 변환하는 파이프라인 구현
+- LLM으로 콘텐츠를 생성하고, HTML 슬라이드 생성 과정에서 필요한 경우 Gemini로 시각 자료를 생성하여, HTML/CSS 기반 슬라이드로 자유로운 디자인을 구현한 뒤 최종 PPTX로 변환하는 파이프라인 구현
 - 기존 서비스(NotebookLM의 이미지 기반 편집 불가, Claude Cowork의 디자인 품질 부족)의 한계를 극복하고, HTML 기반 자유 레이아웃으로 고품질 디자인을 달성한 뒤 편집 가능한 PPTX로 내보내기를 목표로 함
 
 ### 1.2. 문서 제목
@@ -29,7 +29,7 @@
 
 ### 1.6. 솔루션 전략
 
-- Amazon Bedrock LLM을 통한 콘텐츠 분석 및 슬라이드 아웃라인 자동 생성
+- LLM을 통한 콘텐츠 분석 및 슬라이드 아웃라인 자동 생성
 - Google Gemini를 활용한 일관된 스타일의 시각 자료 생성 (슬라이드 생성 과정에서 필요한 경우 내부 호출)
 - HTML/CSS 기반 슬라이드 렌더링으로 자유로운 레이아웃과 고품질 디자인 구현 (python-pptx의 레이아웃 제약 극복)
 - HTML 슬라이드 상태에서 사용자의 수정 요청을 반복적으로 반영하는 인터랙티브 수정 루프 지원
@@ -41,7 +41,7 @@
 - HTML/CSS 기반 자유 레이아웃으로 python-pptx 직접 생성 대비 월등한 디자인 품질
 - 인터랙티브 수정 루프: 사용자가 결과물을 확인하고 수정 요청을 반복할 수 있어 최종 품질 향상
 - 최종 PPTX 내보내기로 편집 가능한 결과물 제공 (텍스트, 도형, 이미지가 개별 객체)
-- AWS 네이티브 서비스 기반 (Bedrock + Gemini) 으로 사내 인프라와 자연스러운 통합
+- 클라이언트 LLM + Gemini 조합으로 별도 모델 자격 증명 없이 통합 가능
 - MCP 프로토콜 지원으로 다양한 AI 클라이언트에서 호출 가능
 
 ---
@@ -50,7 +50,7 @@
 
 ### 2.1. 핵심 가설
 
-- Bedrock LLM + Gemini + HTML/CSS 슬라이드 + PPTX 내보내기 파이프라인으로, 콘텐츠와 디자인 품질이 모두 우수하고 수정이 용이한 프레젠테이션을 자동 생성할 수 있는가?
+- LLM + Gemini + HTML/CSS 슬라이드 + PPTX 내보내기 파이프라인으로, 콘텐츠와 디자인 품질이 모두 우수하고 수정이 용이한 프레젠테이션을 자동 생성할 수 있는가?
 
 ### 2.2. MVP 목표
 
@@ -81,7 +81,7 @@
 
 **사용자 여정**:
 1. 사용자가 주제와 슬라이드 수를 자연어로 입력
-2. MCP 서버가 Bedrock LLM을 호출하여 슬라이드 아웃라인 생성 (speaker_notes 비어있음)
+2. MCP 클라이언트가 LLM으로 슬라이드 아웃라인 생성 (speaker_notes 비어있음)
 3. 사용자가 아웃라인을 확인하고 확정
 4. 아웃라인을 기반으로 슬라이드별 발표자 노트(스크립트) 생성
 5. 아웃라인 기반 HTML/CSS 슬라이드 생성 (필요한 슬라이드에는 Gemini로 이미지 자동 생성 포함)
@@ -103,9 +103,9 @@
 ```mermaid
 flowchart LR
     User -- "자연어 요청" --> MCPClient[MCP Client\ne.g. Kiro, Claude Desktop]
-    MCPClient -- "MCP Protocol" --> MCPServer[Python MCP Server\nStrands Agent]
-    MCPServer -- "아웃라인 생성" --> Bedrock[Amazon Bedrock\nClaude Sonnet 4.6]
-    MCPServer -- "디자인 스펙 생성" --> BedrockOpus[Amazon Bedrock\nClaude Opus 4-7]
+    MCPClient -- "MCP Protocol" --> MCPServer[Python MCP Server\nprepare/ingest]
+    MCPClient -- "아웃라인 생성" --> ClientLLM[클라이언트 LLM]
+    MCPClient -- "디자인 스펙 생성" --> ClientLLM
     MCPServer -- "HTML 슬라이드 생성/수정" --> HTMLEngine[HTML/CSS\n슬라이드 엔진]
     HTMLEngine -- "이미지 생성 (필요시)" --> Gemini[Google Gemini\n2.5 Flash]
     MCPServer -- "PPTX 내보내기" --> PythonPptx[python-pptx]
@@ -117,15 +117,15 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    A[사용자 입력: 주제 + 슬라이드 수] --> B[Bedrock LLM: 슬라이드 아웃라인 생성]
+    A[사용자 입력: 주제 + 슬라이드 수] --> B[클라이언트 LLM: 슬라이드 아웃라인 생성]
     B --> DS{경로 선택}
-    DS -- "디자인 스펙 경로 (권장)" --> DS1[Bedrock Opus 4-7: PptxSlideSpec JSON 생성]
+    DS -- "디자인 스펙 경로 (권장)" --> DS1[클라이언트 LLM: PptxSlideSpec JSON 생성]
     DS1 --> DS2[결정론적 HTML 변환: 미리보기]
     DS2 --> F{사용자 확인}
     DS1 --> DS3[SlideBuilder: PPTX 직접 생성]
     DS -- "HTML 경로 (기존)" --> E[HTML/CSS 슬라이드 생성 + 필요시 Gemini 이미지 생성]
     E --> F
-    F -- "수정 요청" --> G[Bedrock LLM: 수정 사항 반영]
+    F -- "수정 요청" --> G[클라이언트 LLM: 수정 사항 반영]
     G --> F
     F -- "확정" --> H{PPTX 내보내기}
     H -- "디자인 스펙" --> DS3
@@ -139,8 +139,7 @@ flowchart TD
 | 구성 요소 | 기술 스택 | 선택 이유 |
 |-----------|-----------|-----------|
 | MCP 서버 | Python + MCP Protocol | 다양한 AI 클라이언트에서 도구로 호출 가능 |
-| 에이전트 프레임워크 | AWS Strands SDK | Bedrock 네이티브 통합, 멀티스텝 워크플로우 관리 |
-| LLM | Amazon Bedrock - Claude Opus 4-7 (디자인 스펙) / Sonnet 4.6 (아웃라인) | 고품질 콘텐츠 생성, 구조화된 출력, HTML/CSS 코드 생성 |
+| LLM 생성 | MCP 클라이언트가 보유한 모델 (prepare/ingest 오프로딩) | 서버가 모델 자격 증명 없이 동작, 클라이언트 최신 모델 재사용 |
 | 이미지 생성 | Google Gemini 2.5 Flash (슬라이드 생성 시 내부 호출) | 색상 팔레트 조건, 스타일 일관성 유지 |
 | 슬라이드 렌더링 | HTML/CSS | 자유로운 레이아웃, 풍부한 스타일링, LLM의 코드 생성 능력 활용 |
 | PPTX 내보내기 | python-pptx | 디자인 스펙에서 직접 생성 또는 HTML 슬라이드를 편집 가능한 PPT 객체로 변환 |

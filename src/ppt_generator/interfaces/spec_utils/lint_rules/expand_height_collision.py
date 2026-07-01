@@ -9,7 +9,7 @@ HTML 렌더러는 autofit_mode='expand_height' 를 `min-height` 로 변환하므
 
 from __future__ import annotations
 
-from ppt_generator.interfaces.schemas import PptxShape, PptxSlideSpec, PptxTextBox
+from ppt_generator.interfaces.schemas import PptxShape, PptxSlideSpec
 from ppt_generator.interfaces.spec_utils.lint_types import (
     LintViolation,
     SlideLintResult,

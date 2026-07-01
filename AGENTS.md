@@ -1,32 +1,49 @@
 # PPT Generator — Agent Guide
 
-> Python MCP server that auto-generates presentations via AI agents.
+> Python MCP server that auto-generates presentations. LLM generation is offloaded to
+> the client via a prepare/ingest handshake — the server owns prompts, output schemas,
+> and deterministic post-processing (validation, layout, lint, render), not model calls.
 > This file serves as a **table of contents**. See `docs/` for details.
 
 ## Project Overview
 
-- **Tech stack**: Python 3.13+ · MCP · AWS Strands SDK · Claude Opus 4-7 (design) / Sonnet 4.6 (outline/script)
+- **Tech stack**: Python 3.13+ · MCP · Pydantic (output schema + validation) · no server-side LLM
+- **Distribution**: Claude Code plugin (`.claude-plugin/plugin.json`) + skills (`skills/`)
 - **Package manager**: uv · Build: hatchling · Entry point: `ppt_generator.server:main`
 - **ALPS design doc**: [`docs/ppt-generator.alps.md`](docs/ppt-generator.alps.md)
 
 ## Repository Structure
 
 ```
+.claude-plugin/plugin.json # Claude Code plugin manifest (runs the MCP server via uv)
+skills/                    # ppt-outline, ppt-design, ppt-modify, ppt-visual-qa (client workflows)
 src/ppt_generator/
 ├── server.py              # MCP server entry point
-├── di/                    # Dependency injection (container, model_factory)
-├── interfaces/            # Schemas, constants, prompts, spec_utils
+├── di/                    # Dependency injection (container — wires stateless services)
+├── interfaces/            # Schemas, constants, prompts, spec_utils, handoff (prepare/ingest envelope)
 ├── templates/             # HTML templates, layout mapping
 └── tools/
-    ├── outline/           # Outline generation
-    ├── script/            # Presentation script generation
-    ├── design/            # Design spec generation/modification (parallel)
+    ├── outline/           # Outline: prepare_outline / ingest_outline
+    ├── design/            # Design spec: prepare_*/ingest_* (generation, modify, review)
     ├── slides/            # HTML slide rendering
-    ├── visual_qa/         # Visual QA (Playwright + Vision)
+    ├── visual_qa/         # Visual QA: screenshot (server) + analyze/fix (client, prepare/ingest)
     ├── pptx/              # PPTX export
     ├── pptx_import/       # PPTX import
     └── project/           # Project management
 ```
+
+## LLM Offloading — prepare/ingest (Critical)
+
+The server does not call an LLM. Every generation step is a pair:
+- `prepare_*` assembles the exact system+user prompt and returns it with the output
+  JSON schema (`response_schema`, from the Pydantic model's `model_json_schema()`).
+- `ingest_*` validates the client-generated JSON against that same Pydantic model, then
+  runs the identical post-processing (`to_dataclass` → `clean_slide_spec` → lint → render → save).
+
+Prompts (`interfaces/prompts/`), output models (`interfaces/llm_output_models.py`), and all
+post-processing stay server-side, so output is byte-for-byte what the old in-server LLM path
+produced. Per-slide tools are stateless; the client drives parallelism and iteration loops
+(see `skills/`). Design decision: [`docs/adr/offload/0001`](docs/adr/offload/0001-client-llm-offload-plugin.md).
 
 ## Commands
 
@@ -76,7 +93,7 @@ When modifying prompts or pipeline logic:
 - Type hints required (`-> None`, `-> str`, etc.)
 - Constants in `interfaces/constants.py`, prompts in `interfaces/prompts/*.prompt.md`
 - Korean docstrings required for MCP tool functions (exposed to clients)
-- External API (Bedrock/Anthropic) calls in tests must be mocked
+- Client generation in tests is mocked at the service `ingest_*` boundary (no real LLM)
 - Conventional Commits: `<type>(<scope>): <subject>` (details: [CONTRIBUTING.md](CONTRIBUTING.md))
 
 ## Verification Criteria
@@ -87,6 +104,7 @@ Always verify before completing work:
 2. `uv run pytest` passes
 3. Related ADR is up to date
 4. MCP client compatibility confirmed when changing existing tool signatures
+5. `prepare_*`/`ingest_*` stay paired — output schema matches the validating model
 
 ## Mandatory Testing Rules
 
@@ -106,13 +124,17 @@ Details: [`docs/harness/testing.md`](docs/harness/testing.md)
 - Only bump patch version — major/minor version bumps require explicit user request
 - Do not bypass git hooks with `--no-verify`
 - Do not delete or modify tests to make them pass — fix the code instead
-- When changing LLM API call parameters, verify both Anthropic and Bedrock compatibility
+- Keep the prepare/ingest contract intact: `prepare_*` returns the prompt +
+  `response_schema` (the Pydantic model's schema), and `ingest_*` validates against the
+  SAME model. Prompts and output models are the source of truth — never fork them into skills.
 
 ## Approach with Caution
 
 - `server.py` — Tool registration logic
 - `di/container.py` — Dependency injection setup
 - Changing existing tool signatures (affects MCP client compatibility)
+- The prepare/ingest split — a prompt change in `prepare_*` without the matching schema
+  in `ingest_*` breaks validation; keep them paired
 - PPTX conversion logic (`tools/pptx/` — coordinate conversion, style mapping)
 - HTML rendering logic (`tools/slides/html_renderer.py`)
 

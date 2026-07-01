@@ -9,9 +9,13 @@ from __future__ import annotations
 import json
 import logging
 import re
+from typing import TYPE_CHECKING
 
 from ppt_generator.interfaces.constants import COMPONENT_HINT_COMPLEXITY
 from ppt_generator.interfaces.schemas import OutlineResponse, SlideOutline
+
+if TYPE_CHECKING:
+    from ppt_generator.interfaces.schemas import PptxSlideSpec
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +90,12 @@ def _layout_plan_has_many_elements(layout_plan: str) -> bool:
 
 
 def complexity_to_budget_tokens(complexity: int) -> int:
-    """Complexity (1-5) → thinking budget_tokens 매핑."""
+    """Complexity (1-5) → thinking budget_tokens 힌트 매핑.
+
+    LLM 생성은 클라이언트가 수행하므로 서버가 예산을 강제하지는 않는다.
+    prepare 응답에 권장 thinking budget 힌트로 실어 보내 클라이언트가
+    복잡한 슬라이드에 더 많은 사고 예산을 쓰도록 안내한다.
+    """
     if complexity <= 2:
         return 4096
     if complexity <= 4:
@@ -111,162 +120,3 @@ def estimate_spec_complexity(spec: "PptxSlideSpec") -> int:
     if total >= 3:
         return 2
     return 1
-
-
-# Claude model pricing (USD / 1M tokens)
-# https://www.anthropic.com/pricing
-_MODEL_PRICING: dict[str, dict[str, float]] = {
-    "claude-sonnet-4-6": {
-        "input": 3.0,
-        "output": 15.0,
-        "cache_read": 0.30,
-        "cache_write": 3.75,
-    },
-    "claude-opus-4-6": {
-        "input": 15.0,
-        "output": 75.0,
-        "cache_read": 1.50,
-        "cache_write": 18.75,
-    },
-    "claude-opus-4-7": {
-        "input": 15.0,
-        "output": 75.0,
-        "cache_read": 1.50,
-        "cache_write": 18.75,
-    },
-    "claude-haiku-3-5": {
-        "input": 0.80,
-        "output": 4.0,
-        "cache_read": 0.08,
-        "cache_write": 1.0,
-    },
-    "claude-haiku-4-5": {
-        "input": 0.80,
-        "output": 4.0,
-        "cache_read": 0.08,
-        "cache_write": 1.0,
-    },
-}
-
-# model_id → pricing key mapping (strips Bedrock prefixes etc.)
-_MODEL_ID_ALIASES: dict[str, str] = {
-    "global.anthropic.claude-sonnet-4-6": "claude-sonnet-4-6",
-    "anthropic.claude-sonnet-4-6-v1:0": "claude-sonnet-4-6",
-    "global.anthropic.claude-opus-4-6": "claude-opus-4-6",
-    "global.anthropic.claude-opus-4-6-v1": "claude-opus-4-6",
-    "anthropic.claude-opus-4-6-v1:0": "claude-opus-4-6",
-    "anthropic.claude-opus-4-6-v1": "claude-opus-4-6",
-    "global.anthropic.claude-opus-4-7": "claude-opus-4-7",
-    "global.anthropic.claude-opus-4-7-v1": "claude-opus-4-7",
-    "anthropic.claude-opus-4-7-v1:0": "claude-opus-4-7",
-    "anthropic.claude-opus-4-7-v1": "claude-opus-4-7",
-    "global.anthropic.claude-haiku-3-5": "claude-haiku-3-5",
-    "anthropic.claude-3-5-haiku-20241022-v1:0": "claude-haiku-3-5",
-    "global.anthropic.claude-haiku-4-5-20251001": "claude-haiku-4-5",
-    "global.anthropic.claude-haiku-4-5-20251001-v1:0": "claude-haiku-4-5",
-    "anthropic.claude-haiku-4-5-20251001-v1:0": "claude-haiku-4-5",
-    "claude-haiku-4-5-20251001": "claude-haiku-4-5",
-}
-
-_DEFAULT_PRICING_KEY = "claude-sonnet-4-6"
-
-
-def _resolve_pricing_key(model_id: str) -> str:
-    if model_id in _MODEL_PRICING:
-        return model_id
-    return _MODEL_ID_ALIASES.get(model_id, _DEFAULT_PRICING_KEY)
-
-
-def estimate_cost(usage: dict[str, int], model_id: str = "") -> dict[str, float]:
-    """Calculates estimated cost (USD) based on token usage and model ID.
-
-    Args:
-        usage: {inputTokens, outputTokens, cacheReadInputTokens, cacheWriteInputTokens, ...}
-        model_id: Model ID (defaults to Sonnet 4.6 pricing if empty)
-
-    Returns:
-        {"input_cost": ..., "output_cost": ..., "cache_read_cost": ..., "cache_write_cost": ..., "total_cost": ...}
-    """
-    if not usage:
-        return {"input_cost": 0.0, "output_cost": 0.0, "total_cost": 0.0}
-
-    key = _resolve_pricing_key(model_id) if model_id else _DEFAULT_PRICING_KEY
-    pricing = _MODEL_PRICING.get(key, _MODEL_PRICING[_DEFAULT_PRICING_KEY])
-
-    input_tokens = usage.get("inputTokens", 0)
-    output_tokens = usage.get("outputTokens", 0)
-    cache_read = usage.get("cacheReadInputTokens", 0)
-    cache_write = usage.get("cacheWriteInputTokens", 0)
-
-    input_cost = (input_tokens / 1_000_000) * pricing["input"]
-    output_cost = (output_tokens / 1_000_000) * pricing["output"]
-    cache_read_cost = (cache_read / 1_000_000) * pricing.get("cache_read", 0)
-    cache_write_cost = (cache_write / 1_000_000) * pricing.get("cache_write", 0)
-    total_cost = input_cost + output_cost + cache_read_cost + cache_write_cost
-
-    result: dict[str, float] = {
-        "input_cost": round(input_cost, 6),
-        "output_cost": round(output_cost, 6),
-        "total_cost": round(total_cost, 6),
-    }
-    if cache_read_cost:
-        result["cache_read_cost"] = round(cache_read_cost, 6)
-    if cache_write_cost:
-        result["cache_write_cost"] = round(cache_write_cost, 6)
-    return result
-
-
-def format_token_usage(usage: dict[str, int]) -> dict[str, int]:
-    """Converts a token usage dict into a cleaned dict suitable for response JSON."""
-    if not usage:
-        return {}
-    result: dict[str, int] = {}
-    for key in (
-        "inputTokens",
-        "outputTokens",
-        "totalTokens",
-        "cacheReadInputTokens",
-        "cacheWriteInputTokens",
-    ):
-        val = usage.get(key, 0)
-        if val:
-            result[key] = val
-    return result
-
-
-def log_token_usage(result: object, label: str) -> dict[str, int]:
-    """Logs token usage from an Agent call result.
-
-    Args:
-        result: strands Agent call result (AgentResult)
-        label: Label for log identification (e.g., "outline", "script", "design_summary", "slide[0]")
-
-    Returns:
-        Token usage dict (inputTokens, outputTokens, totalTokens, etc.).
-        Empty dict if metrics are unavailable.
-    """
-    try:
-        metrics = result.metrics  # type: ignore[union-attr]
-        usage = metrics.accumulated_usage
-        if not usage:
-            return {}
-
-        input_tokens = usage.get("inputTokens", 0)
-        output_tokens = usage.get("outputTokens", 0)
-        total_tokens = usage.get("totalTokens", 0)
-        cache_read = usage.get("cacheReadInputTokens", 0)
-        cache_write = usage.get("cacheWriteInputTokens", 0)
-
-        parts = [
-            f"input={input_tokens:,}",
-            f"output={output_tokens:,}",
-            f"total={total_tokens:,}",
-            f"cache_read={cache_read:,}",
-            f"cache_write={cache_write:,}",
-        ]
-
-        logger.info("[tokens] %s: %s", label, ", ".join(parts))
-        return dict(usage)
-    except (AttributeError, TypeError):
-        logger.debug("토큰 사용량 추출 실패", exc_info=True)
-        return {}

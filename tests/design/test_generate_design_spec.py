@@ -1,15 +1,19 @@
-"""generate_slides_design_spec 도구 테스트.
+"""design spec 생성 도구 테스트 (prepare/ingest 오프로딩).
 
-배치 도구 — outline_json 또는 project_id 의 outline 파일을 읽어 슬라이드별
-design spec 을 생성한다. design_summary 단일 호출 + 슬라이드별 병렬 생성.
+배치 생성이 클라이언트로 옮겨졌다. 서버는 슬라이드별 prepare/ingest 와 draft
+prepare/ingest, finalize 를 제공한다. 이 파일은 그 서버 도구들의 파일 저장/보정/lint
+오케스트레이션을 검증한다. LLM 병렬 루프는 클라이언트 책임이므로 테스트 대상이 아니다.
+
+배치 흐름을 재현하기 위해 클라이언트가 하는 일을 `_run_batch` 헬퍼로 흉내낸다:
+  prepare_design_doc_draft → (skip 아니면) ingest_design_doc_draft →
+  각 슬라이드 prepare_design_slide + ingest_design_slide → finalize_design_spec.
+mock design_service.ingest_slide 는 고정 (spec, overflow) 를 돌려주므로, ingest 에
+넘기는 spec_json 은 무의미하다 — "{}" 를 넘긴다.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
-import threading
-import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -29,8 +33,9 @@ from ppt_generator.tools.project.service import ProjectService
 from _helpers import make_slide_spec
 
 
-def _run(coro):
-    return asyncio.run(coro)
+def _run(result):
+    """서버 도구는 동기 함수라 str 을 바로 반환한다. 호출부 형태를 유지하기 위한 패스스루."""
+    return result
 
 
 SAMPLE_BATCH_OUTLINE_JSON = json.dumps(
@@ -47,6 +52,134 @@ SAMPLE_BATCH_OUTLINE_JSON = json.dumps(
     },
     ensure_ascii=False,
 )
+
+
+def _run_batch(
+    tools: dict,
+    *,
+    project_id: str = "",
+    outline_json: str = "",
+    total_slides: int = 0,
+    slide_indices: str = "",
+    color_theme: str = "dark",
+) -> dict:
+    """클라이언트 배치 흐름을 재현한다.
+
+    prepare_design_doc_draft(→ skip 아니면 ingest) 를 한 번 돌리고, 대상 슬라이드마다
+    prepare_design_slide + ingest_design_slide 를 호출한 뒤 finalize_design_spec 로
+    마무리한다. 슬라이드별 ingest 결과를 모아 예전 배치 응답과 유사한 형태로 집계한다.
+
+    slide_indices 가 있으면 그 1-based 인덱스들만 (draft 는 인덱스 1 이 포함될 때만)
+    처리한다. slide_indices 가 비어 있으면 outline 의 모든 슬라이드를 처리한다.
+    """
+    if not outline_json and not project_id:
+        raise ValueError("Either outline_json or project_id must be provided.")
+
+    project_service = tools["_project_service"]
+
+    # 프로젝트 id 를 먼저 확정한다 (빈 값이면 UUID 자동 생성). 클라이언트가
+    # outline_json 을 넘긴 경우, 실제 워크플로우처럼 outline 을 프로젝트에 저장해
+    # ingest_design_slide 가 프로젝트에서 outline 을 로드할 수 있게 한다.
+    resolved_project_id, proj_dir = project_service.resolve_project_dir(project_id)
+    if outline_json:
+        project_service.save_outline(proj_dir, outline_json)
+
+    outline = _parse_outline(
+        tools, project_id=resolved_project_id, outline_json=outline_json
+    )
+    n = len(outline.slides)
+    if total_slides <= 0:
+        total_slides = n
+    if total_slides != n:
+        raise ValueError(
+            f"total_slides ({total_slides}) does not match outline slide count ({n})"
+        )
+
+    if slide_indices.strip():
+        indices = [int(x) for x in slide_indices.split(",") if x.strip()]
+        for i in indices:
+            if i < 1 or i > n:
+                raise ValueError(f"Invalid slide_index: {i} (valid range: 1-{n})")
+    else:
+        indices = list(range(1, n + 1))
+
+    # DESIGN.md 초안: 인덱스 1 이 포함될 때만 (부분 재생성은 초안 재생성 안 함).
+    if 1 in indices:
+        draft_raw = _run(
+            tools["prepare_design_doc_draft"](
+                project_id=resolved_project_id,
+                color_theme=color_theme,
+            )
+        )
+        draft = json.loads(draft_raw)
+        if not draft.get("skip"):
+            _run(
+                tools["ingest_design_doc_draft"](
+                    project_id=resolved_project_id,
+                    draft_json="{}",
+                    color_theme=color_theme,
+                )
+            )
+
+    results: list[dict] = []
+    all_overflow: list[dict] = []
+    for i in indices:
+        _run(
+            tools["prepare_design_slide"](
+                project_id=resolved_project_id,
+                slide_index=i,
+                total_slides=total_slides,
+                color_theme=color_theme,
+            )
+        )
+        try:
+            ing_raw = _run(
+                tools["ingest_design_slide"](
+                    project_id=resolved_project_id,
+                    slide_index=i,
+                    spec_json="{}",
+                    color_theme=color_theme,
+                )
+            )
+            ing = json.loads(ing_raw)
+            results.append(ing)
+            all_overflow.extend(ing.get("overflow", []))
+        except Exception as exc:  # noqa: BLE001 — 배치 부분 실패 재현
+            results.append({"slide_index": i, "status": "error", "error": str(exc)})
+
+    fin_raw = _run(
+        tools["finalize_design_spec"](
+            project_id=resolved_project_id,
+            overflow_json=json.dumps(all_overflow) if all_overflow else "",
+        )
+    )
+    fin = json.loads(fin_raw)
+
+    success = [r for r in results if r.get("status") == "success"]
+    errors = [r for r in results if r.get("status") == "error"]
+    return {
+        "project_id": resolved_project_id,
+        "total_slides": total_slides,
+        "success_count": len(success),
+        "error_count": len(errors),
+        "slide_count": fin.get("slide_count", 0),
+        "results": results,
+        "finalize": fin,
+        "slides_html_path": fin.get("slides_html_path"),
+    }
+
+
+def _parse_outline(
+    tools: dict, *, project_id: str, outline_json: str
+) -> OutlineResponse:
+    """배치 헬퍼에서 슬라이드 수/인덱스 계산을 위해 outline 을 로드한다."""
+    from ppt_generator.interfaces.utils import parse_outline_json
+
+    if outline_json:
+        return parse_outline_json(outline_json)
+    project_service = tools["_project_service"]
+    _, proj_dir = project_service.resolve_project_dir(project_id)
+    return parse_outline_json(project_service.load_outline(proj_dir))
 
 
 class TestGenerateSlidesDesignSpecFromProject:
@@ -89,13 +222,7 @@ class TestGenerateSlidesDesignSpecFromProject:
         project_id = self._setup_project_with_outline(
             tmp_path, monkeypatch, num_slides=3
         )
-        result = json.loads(
-            _run(
-                mcp_tools["generate_slides_design_spec"](
-                    project_id=project_id,
-                )
-            )
-        )
+        result = _run_batch(mcp_tools, project_id=project_id)
         assert result["total_slides"] == 3
         assert result["success_count"] == 3
         assert result["project_id"] == project_id
@@ -106,20 +233,13 @@ class TestGenerateSlidesDesignSpecFromProject:
         project_id = self._setup_project_with_outline(
             tmp_path, monkeypatch, num_slides=4
         )
-        result = json.loads(
-            _run(
-                mcp_tools["generate_slides_design_spec"](
-                    project_id=project_id,
-                    total_slides=0,
-                )
-            )
-        )
+        result = _run_batch(mcp_tools, project_id=project_id, total_slides=0)
         assert result["total_slides"] == 4
         assert result["success_count"] == 4
 
     def test_no_outline_no_project_raises(self, mcp_tools: dict) -> None:
         with pytest.raises(ValueError, match="Either outline_json or project_id"):
-            _run(mcp_tools["generate_slides_design_spec"]())
+            _run_batch(mcp_tools)
 
 
 class TestGenerateSlidesDesignSpec:
@@ -144,14 +264,11 @@ class TestGenerateSlidesDesignSpec:
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
     ) -> None:
         project_id = self._setup_project(tmp_path, monkeypatch)
-        result = json.loads(
-            _run(
-                mcp_tools["generate_slides_design_spec"](
-                    outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-                    total_slides=5,
-                    project_id=project_id,
-                )
-            )
+        result = _run_batch(
+            mcp_tools,
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
         )
         assert result["total_slides"] == 5
         assert result["success_count"] == 5
@@ -164,14 +281,11 @@ class TestGenerateSlidesDesignSpec:
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
     ) -> None:
         project_id = self._setup_project(tmp_path, monkeypatch)
-        result = json.loads(
-            _run(
-                mcp_tools["generate_slides_design_spec"](
-                    outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-                    total_slides=5,
-                    project_id=project_id,
-                )
-            )
+        result = _run_batch(
+            mcp_tools,
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
         )
         for i, r in enumerate(result["results"]):
             assert r["slide_index"] == i + 1
@@ -182,12 +296,11 @@ class TestGenerateSlidesDesignSpec:
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
     ) -> None:
         project_id = self._setup_project(tmp_path, monkeypatch)
-        _run(
-            mcp_tools["generate_slides_design_spec"](
-                outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-                total_slides=5,
-                project_id=project_id,
-            )
+        _run_batch(
+            mcp_tools,
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
         )
         # DESIGN.md 가 디자인 의도의 단일 소스.
         design_doc_path = tmp_path / project_id / "DESIGN.md"
@@ -196,8 +309,8 @@ class TestGenerateSlidesDesignSpec:
     def test_existing_design_md_not_regenerated_and_directives_injected(
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
     ) -> None:
-        """사람이 편집한 DESIGN.md 는 덮어쓰지 않고, 톤+페이지 요청이
-        generate_single_slide 프롬프트에 주입된다."""
+        """사람이 편집한 DESIGN.md 는 덮어쓰지 않고(초안 ingest 스킵), 톤+페이지
+        요청이 prepare_design_slide 프롬프트에 design_directives 로 주입된다."""
         project_id = self._setup_project(tmp_path, monkeypatch)
         design_md = (
             "# DESIGN\n\n"
@@ -210,21 +323,20 @@ class TestGenerateSlidesDesignSpec:
         (tmp_path / project_id / "DESIGN.md").write_text(design_md, encoding="utf-8")
 
         design_service = mcp_tools["_design_service"]
-        _run(
-            mcp_tools["generate_slides_design_spec"](
-                outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-                total_slides=5,
-                project_id=project_id,
-            )
+        _run_batch(
+            mcp_tools,
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
         )
 
-        # 기존 DESIGN.md 를 덮어쓰지 않았으므로 draft 생성 LLM 호출 없음.
-        assert not design_service.generate_design_doc_draft.called
+        # 기존 DESIGN.md 를 덮어쓰지 않았으므로 draft ingest(저장) 호출 없음.
+        assert not design_service.ingest_design_doc_draft.called
 
-        # 슬라이드별 directives 주입 확인.
+        # 슬라이드별 directives 주입 확인 (prepare_slide 에 전달됨).
         directives_by_index = {
             call.kwargs["slide_index"]: call.kwargs.get("design_directives", "")
-            for call in design_service.generate_single_slide.call_args_list
+            for call in design_service.prepare_slide.call_args_list
         }
         # 전역 톤은 모든 슬라이드에.
         assert "차분한 기업 톤." in directives_by_index[1]
@@ -237,12 +349,11 @@ class TestGenerateSlidesDesignSpec:
     ) -> None:
         self._setup_project(tmp_path, monkeypatch)
         with pytest.raises(ValueError, match="does not match"):
-            _run(
-                mcp_tools["generate_slides_design_spec"](
-                    outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-                    total_slides=3,
-                    project_id="batch-proj",
-                )
+            _run_batch(
+                mcp_tools,
+                outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+                total_slides=3,
+                project_id="batch-proj",
             )
 
     def test_batch_single_slide(
@@ -262,14 +373,11 @@ class TestGenerateSlidesDesignSpec:
             },
             ensure_ascii=False,
         )
-        result = json.loads(
-            _run(
-                mcp_tools["generate_slides_design_spec"](
-                    outline_json=single_outline,
-                    total_slides=1,
-                    project_id=project_id,
-                )
-            )
+        result = _run_batch(
+            mcp_tools,
+            outline_json=single_outline,
+            total_slides=1,
+            project_id=project_id,
         )
         assert result["success_count"] == 1
         assert result["error_count"] == 0
@@ -295,13 +403,10 @@ class TestGenerateSlidesDesignSpec:
             },
             ensure_ascii=False,
         )
-        result = json.loads(
-            _run(
-                mcp_tools["generate_slides_design_spec"](
-                    outline_json=single_outline,
-                    total_slides=1,
-                )
-            )
+        result = _run_batch(
+            mcp_tools,
+            outline_json=single_outline,
+            total_slides=1,
         )
         assert result["project_id"]
         assert len(result["project_id"]) == 36  # UUID
@@ -312,21 +417,24 @@ class TestGenerateSlidesDesignSpec:
         project_id = self._setup_project(tmp_path, monkeypatch)
         design_service = mcp_tools["_design_service"]
 
+        # ingest_slide 는 (spec, overflow) 를 반환. 슬라이드 3 에서만 실패시킨다.
+        # ingest_design_slide 는 outline 로딩 후 순서대로 호출되므로 호출 카운트로
+        # 3번째(slide_index=3) 를 식별한다.
+        call_count = {"n": 0}
+
         def side_effect(*args, **kwargs):
-            if kwargs.get("slide_index") == 3:
+            call_count["n"] += 1
+            if call_count["n"] == 3:
                 raise RuntimeError("LLM 호출 실패")
-            return make_slide_spec("생성됨")
+            return (make_slide_spec("생성됨"), [])
 
-        design_service.generate_single_slide.side_effect = side_effect
+        design_service.ingest_slide.side_effect = side_effect
 
-        result = json.loads(
-            _run(
-                mcp_tools["generate_slides_design_spec"](
-                    outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-                    total_slides=5,
-                    project_id=project_id,
-                )
-            )
+        result = _run_batch(
+            mcp_tools,
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
         )
         assert result["success_count"] == 4
         assert result["error_count"] == 1
@@ -339,121 +447,27 @@ class TestGenerateSlidesDesignSpec:
         succeeded = [r for r in result["results"] if r["status"] == "success"]
         assert len(succeeded) == 4
 
-    def test_batch_respects_parallel_limit(
-        self, mcp_tools: dict, tmp_path: Path, monkeypatch
-    ) -> None:
-        project_id = self._setup_project(tmp_path, monkeypatch)
-        import ppt_generator.tools.design.parallel_runner as runner_module
-
-        monkeypatch.setattr(runner_module, "DESIGN_SPEC_PARALLEL", 2)
-
-        outline_10 = json.dumps(
-            {
-                "slides": [
-                    {
-                        "title": f"슬라이드 {i + 1}",
-                        "content_summary": f"내용 {i + 1}",
-                        "component_hint": "bullets",
-                        "speaker_notes": "",
-                    }
-                    for i in range(10)
-                ],
-            },
-            ensure_ascii=False,
-        )
-
-        peak_concurrent = 0
-        current_concurrent = 0
-        lock = threading.Lock()
-
-        def slow_generate(*args, **kwargs):
-            nonlocal peak_concurrent, current_concurrent
-            with lock:
-                current_concurrent += 1
-                if current_concurrent > peak_concurrent:
-                    peak_concurrent = current_concurrent
-            time.sleep(0.05)
-            with lock:
-                current_concurrent -= 1
-            return make_slide_spec("생성됨")
-
-        design_service = mcp_tools["_design_service"]
-        design_service.generate_single_slide.side_effect = slow_generate
-
-        result = json.loads(
-            _run(
-                mcp_tools["generate_slides_design_spec"](
-                    outline_json=outline_10,
-                    total_slides=10,
-                    project_id=project_id,
-                )
-            )
-        )
-        assert result["success_count"] == 10
-        assert result["error_count"] == 0
-        assert peak_concurrent <= 2, f"동시 실행 peak={peak_concurrent}, 제한=2"
-
-    def test_batch_reports_progress(
-        self, mcp_tools: dict, tmp_path: Path, monkeypatch
-    ) -> None:
-        project_id = self._setup_project(tmp_path, monkeypatch)
-
-        from unittest.mock import AsyncMock
-
-        progress_calls: list[tuple[int, int, str]] = []
-        ctx = AsyncMock()
-
-        async def _capture_progress(
-            progress: int, total: int, message: str = ""
-        ) -> None:
-            progress_calls.append((progress, total, message))
-
-        ctx.report_progress.side_effect = _capture_progress
-
-        async def _run_and_drain():
-            result = await mcp_tools["generate_slides_design_spec"](
-                outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-                total_slides=5,
-                project_id=project_id,
-                ctx=ctx,
-            )
-            await asyncio.sleep(0.1)
-            return result
-
-        result = json.loads(asyncio.run(_run_and_drain()))
-        assert result["success_count"] == 5
-        non_heartbeat = [
-            c for c in progress_calls if "디자인 스펙 생성 중..." not in c[2]
-        ]
-        assert len(non_heartbeat) == 7
-        assert non_heartbeat[-1][0] == 5
-        assert non_heartbeat[-1][1] == 5
-
     def test_batch_with_slide_indices(
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
     ) -> None:
         project_id = self._setup_project(tmp_path, monkeypatch)
 
-        _run(
-            mcp_tools["generate_slides_design_spec"](
-                outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-                total_slides=5,
-                project_id=project_id,
-            )
+        _run_batch(
+            mcp_tools,
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
         )
 
         design_service = mcp_tools["_design_service"]
-        design_service.generate_single_slide.reset_mock()
+        design_service.ingest_slide.reset_mock()
 
-        result = json.loads(
-            _run(
-                mcp_tools["generate_slides_design_spec"](
-                    outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-                    total_slides=5,
-                    project_id=project_id,
-                    slide_indices="2,4",
-                )
-            )
+        result = _run_batch(
+            mcp_tools,
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
+            slide_indices="2,4",
         )
         assert result["success_count"] == 2
         assert result["error_count"] == 0
@@ -464,15 +478,12 @@ class TestGenerateSlidesDesignSpec:
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
     ) -> None:
         project_id = self._setup_project(tmp_path, monkeypatch)
-        result = json.loads(
-            _run(
-                mcp_tools["generate_slides_design_spec"](
-                    outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-                    total_slides=5,
-                    project_id=project_id,
-                    slide_indices="1,3,5",
-                )
-            )
+        result = _run_batch(
+            mcp_tools,
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
+            slide_indices="1,3,5",
         )
         assert result["success_count"] == 3
         assert result["error_count"] == 0
@@ -481,64 +492,58 @@ class TestGenerateSlidesDesignSpec:
 
         design_doc_path = tmp_path / project_id / "DESIGN.md"
         assert design_doc_path.exists()
-        assert mcp_tools["_design_service"].generate_design_doc_draft.called
+        # 인덱스 1 이 포함되므로 초안을 ingest(저장)한다.
+        assert mcp_tools["_design_service"].ingest_design_doc_draft.called
 
     def test_batch_slide_indices_without_index_zero(
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
     ) -> None:
         project_id = self._setup_project(tmp_path, monkeypatch)
 
-        _run(
-            mcp_tools["generate_slides_design_spec"](
-                outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-                total_slides=5,
-                project_id=project_id,
-            )
+        _run_batch(
+            mcp_tools,
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
         )
 
         design_service = mcp_tools["_design_service"]
-        design_service.generate_design_doc_draft.reset_mock()
+        design_service.ingest_design_doc_draft.reset_mock()
 
-        result = json.loads(
-            _run(
-                mcp_tools["generate_slides_design_spec"](
-                    outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-                    total_slides=5,
-                    project_id=project_id,
-                    slide_indices="3,4",
-                )
-            )
+        result = _run_batch(
+            mcp_tools,
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
+            slide_indices="3,4",
         )
         assert result["success_count"] == 2
         assert result["error_count"] == 0
         assert len(result["results"]) == 2
-        assert not design_service.generate_design_doc_draft.called
+        # 인덱스 1 이 없으므로 초안을 다시 ingest 하지 않는다.
+        assert not design_service.ingest_design_doc_draft.called
 
     def test_batch_single_index(
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
     ) -> None:
         project_id = self._setup_project(tmp_path, monkeypatch)
 
-        _run(
-            mcp_tools["generate_slides_design_spec"](
-                outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-                total_slides=5,
-                project_id=project_id,
-            )
+        _run_batch(
+            mcp_tools,
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
         )
 
         design_service = mcp_tools["_design_service"]
-        design_service.generate_single_slide.reset_mock()
+        design_service.ingest_slide.reset_mock()
 
-        result = json.loads(
-            _run(
-                mcp_tools["generate_slides_design_spec"](
-                    outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-                    total_slides=5,
-                    project_id=project_id,
-                    slide_indices="3",
-                )
-            )
+        result = _run_batch(
+            mcp_tools,
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
+            slide_indices="3",
         )
         assert result["success_count"] == 1
         assert result["error_count"] == 0
@@ -551,23 +556,25 @@ class TestGenerateSlidesDesignSpec:
     ) -> None:
         project_id = self._setup_project(tmp_path, monkeypatch)
         with pytest.raises(ValueError, match="Invalid slide_index"):
-            _run(
-                mcp_tools["generate_slides_design_spec"](
-                    outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-                    total_slides=5,
-                    project_id=project_id,
-                    slide_indices="0,10",
-                )
+            _run_batch(
+                mcp_tools,
+                outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+                total_slides=5,
+                project_id=project_id,
+                slide_indices="0,10",
             )
 
     def test_batch_enforces_background_color_from_design_summary(
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
     ) -> None:
-        """content 슬라이드 배경색이 design_summary.background_color 로 보정된다."""
+        """content 슬라이드 배경색이 design_summary.background_color 로 보정된다.
+
+        보정 로직은 ingest_design_slide 의 서버 후처리(_enforce_background_color)에 있다.
+        """
         project_id = self._setup_project(tmp_path, monkeypatch)
 
         design_service = mcp_tools["_design_service"]
-        design_service.generate_design_doc_draft.return_value = (
+        design_service.ingest_design_doc_draft.return_value = (
             {
                 "background_color": "#1a1a2e",
                 "text_colors": ["#ffffff"],
@@ -601,14 +608,13 @@ class TestGenerateSlidesDesignSpec:
             speaker_notes="",
             slide_type="content",
         )
-        design_service.generate_single_slide.return_value = wrong_bg_spec
+        design_service.ingest_slide.return_value = (wrong_bg_spec, [])
 
-        _run(
-            mcp_tools["generate_slides_design_spec"](
-                outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-                total_slides=5,
-                project_id=project_id,
-            )
+        _run_batch(
+            mcp_tools,
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
         )
 
         project_service = mcp_tools["_project_service"]
@@ -637,7 +643,7 @@ class TestGenerateSlidesDesignSpec:
             "- background_image: none\n",
         )
 
-        # LLM 이 closing 을 background_color=None 으로 생성했다고 가정
+        # 클라이언트가 closing 을 background_color=None 으로 생성했다고 가정
         design_service = mcp_tools["_design_service"]
         closing_spec = PptxSlideSpec(
             background_color=None,
@@ -659,14 +665,13 @@ class TestGenerateSlidesDesignSpec:
             speaker_notes="",
             slide_type="closing",
         )
-        design_service.generate_single_slide.return_value = closing_spec
+        design_service.ingest_slide.return_value = (closing_spec, [])
 
-        _run(
-            mcp_tools["generate_slides_design_spec"](
-                outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-                total_slides=5,
-                project_id=project_id,
-            )
+        _run_batch(
+            mcp_tools,
+            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+            total_slides=5,
+            project_id=project_id,
         )
 
         saved = project_service.load_design_spec_slide(proj_dir, 0)
@@ -706,10 +711,18 @@ class TestGenerateSlidesDesignSpecWithSlidesService:
 
         mcp.tool = tool_decorator
 
+        # 실제 SlidesService 로 컨테이너 HTML 생성을 검증한다.
         design_service = MagicMock()
-        design_service.generate_single_slide.return_value = make_slide_spec("생성됨")
-        design_service.last_token_usage = {}
-        design_service.last_overflow = []
+        design_service.prepare_design_doc_draft.return_value = {
+            "system_prompt": "sys",
+            "user_prompt": "usr",
+        }
+        design_service.prepare_slide.return_value = {
+            "system_prompt": "sys",
+            "user_prompt": "usr",
+            "response_schema": {},
+        }
+        design_service.ingest_slide.return_value = (make_slide_spec("생성됨"), [])
         _summary = {
             "background_color": "#1a1a2e",
             "text_colors": ["#ffffff"],
@@ -718,8 +731,7 @@ class TestGenerateSlidesDesignSpecWithSlidesService:
             "card_fills": [],
             "card_borders": [],
         }
-        design_service.generate_design_summary.return_value = _summary
-        design_service.generate_design_doc_draft.return_value = (_summary, "", [])
+        design_service.ingest_design_doc_draft.return_value = (_summary, "", [])
 
         from ppt_generator.tools.slides.service import SlidesService
 
@@ -729,11 +741,10 @@ class TestGenerateSlidesDesignSpecWithSlidesService:
         register_design_tools(
             mcp,
             project_service,
-            design_service_factory=lambda slide_type="content", budget_tokens=8192: (
-                design_service
-            ),
+            design_service=design_service,
             slides_service=slides_service,
         )
+        tools["_project_service"] = project_service
 
         outline_3 = json.dumps(
             {
@@ -750,17 +761,14 @@ class TestGenerateSlidesDesignSpecWithSlidesService:
             ensure_ascii=False,
         )
 
-        result = json.loads(
-            _run(
-                tools["generate_slides_design_spec"](
-                    outline_json=outline_3,
-                    total_slides=3,
-                    project_id=project_id,
-                )
-            )
+        result = _run_batch(
+            tools,
+            outline_json=outline_3,
+            total_slides=3,
+            project_id=project_id,
         )
         assert result["success_count"] == 3
-        assert "slides_html_path" in result
+        assert result["slides_html_path"]
 
         slides_html_path = tmp_path / project_id / "slides.html"
         assert slides_html_path.exists()
@@ -847,27 +855,12 @@ class TestAdjacentContextSection:
         assert "speaker_notes" not in parsed
 
 
-class TestGenerateDesignDocDraft:
-    """generate_design_doc_draft — 톤+선별적 페이지 요청까지 LLM 으로 생성하는
-    초안 단계 (design/0018). 응답 파싱 견고성 위주로 검증."""
+class TestIngestDesignDocDraft:
+    """DesignService.ingest_design_doc_draft — 클라이언트가 생성한 DESIGN.md 초안
+    JSON(테마 + 톤 + 선별적 페이지 요청) 파싱 견고성 검증 (design/0018).
 
-    @staticmethod
-    def _service_returning(text: str) -> DesignService:
-        agent_result = MagicMock()
-        agent_result.metrics.accumulated_usage = {}
-        agent_result.__str__ = lambda self: text
-        agent = MagicMock(return_value=agent_result)
-        return DesignService(agent=agent)
-
-    @staticmethod
-    def _outline():
-        return OutlineResponse(
-            slides=[
-                SlideOutline(title="표지", content_summary="제목", slide_type="title"),
-                SlideOutline(title="현황", content_summary="병렬 항목 3개"),
-                SlideOutline(title="제안", content_summary="핵심 전환점"),
-            ]
-        )
+    LLM 호출 없이 순수 파싱만 하므로 DesignService() 를 직접 인스턴스화해 검증한다.
+    """
 
     def test_parses_theme_tone_and_page_requests(self) -> None:
         payload = json.dumps(
@@ -894,8 +887,8 @@ class TestGenerateDesignDocDraft:
             },
             ensure_ascii=False,
         )
-        svc = self._service_returning(payload)
-        summary, tone, page_requests = svc.generate_design_doc_draft(self._outline())
+        svc = DesignService()
+        summary, tone, page_requests = svc.ingest_design_doc_draft(payload)
 
         assert summary["background_color"] == "#0B1020"
         assert summary["title_font_pt"] == 34
@@ -911,8 +904,8 @@ class TestGenerateDesignDocDraft:
             + json.dumps({"theme": {"background_color": "#111111"}, "tone": "x"})
             + "\n```"
         )
-        svc = self._service_returning(payload)
-        summary, tone, page_requests = svc.generate_design_doc_draft(self._outline())
+        svc = DesignService()
+        summary, tone, page_requests = svc.ingest_design_doc_draft(payload)
         assert summary["background_color"] == "#111111"
         assert tone == "x"
         assert page_requests == []
@@ -925,8 +918,8 @@ class TestGenerateDesignDocDraft:
                 "page_requests": [],
             }
         )
-        svc = self._service_returning(payload)
-        _, _, page_requests = svc.generate_design_doc_draft(self._outline())
+        svc = DesignService()
+        _, _, page_requests = svc.ingest_design_doc_draft(payload)
         assert page_requests == []
 
     def test_malformed_page_request_entries_skipped(self) -> None:
@@ -945,9 +938,72 @@ class TestGenerateDesignDocDraft:
                 ],
             }
         )
-        svc = self._service_returning(payload)
-        _, _, page_requests = svc.generate_design_doc_draft(self._outline())
+        svc = DesignService()
+        _, _, page_requests = svc.ingest_design_doc_draft(payload)
         # 빈 request 와 garbage 는 빠지고, 번호 비정수 1건만 number=None 으로 남는다.
         assert len(page_requests) == 1
         assert page_requests[0].number is None
         assert page_requests[0].text == "유효"
+
+
+class TestIngestSlideTypeInvariance:
+    """동작 불변: ingest_slide 는 응답 모델을 정규화된 slide_type 으로 고르되,
+    최종 spec 에는 전달받은 원본 slide_type(None/"" 포함)을 그대로 저장한다.
+
+    오프로딩 이전 generate_single_slide 는 모델 선택에 `slide_type or "content"` 를
+    쓰고 `replace(spec, slide_type=slide_outline.slide_type)` 로 원본을 저장했다.
+    """
+
+    # content 모델은 grid/cell/design_doc 이 Required.
+    _CONTENT_SPEC_JSON = json.dumps(
+        {
+            "grid_layout": {
+                "regions": ["content"],
+                "content_columns": 1,
+                "content_rows": 1,
+            },
+            "cell_assignment": {"cells": []},
+            "design_doc": {"topic": "t", "layout_summary": "s", "layout": []},
+            "background_color": "#101010",
+            "speaker_notes": "",
+            "textboxes": [],
+            "shapes": [],
+            "overflow": [],
+        }
+    )
+    # simple 모델은 grid/cell/design_doc 이 Optional.
+    _SIMPLE_SPEC_JSON = json.dumps(
+        {
+            "grid_layout": None,
+            "cell_assignment": None,
+            "design_doc": None,
+            "background_color": "#101010",
+            "speaker_notes": "",
+            "textboxes": [],
+            "shapes": [],
+            "overflow": [],
+        }
+    )
+
+    def test_content_slide_type_preserved(self) -> None:
+        spec, _ = DesignService().ingest_slide(
+            self._CONTENT_SPEC_JSON, slide_type="content"
+        )
+        assert spec.slide_type == "content"
+
+    def test_none_slide_type_preserved_not_normalized(self) -> None:
+        # 원본이 None 이면 저장도 None (정규화된 "content" 로 덮어쓰지 않는다).
+        # 단, 모델 선택은 `None or "content"` → Content 모델이라 content 페이로드가 필요.
+        spec, _ = DesignService().ingest_slide(self._CONTENT_SPEC_JSON, slide_type=None)
+        assert spec.slide_type is None
+
+    def test_empty_slide_type_preserved(self) -> None:
+        # `"" or "content"` → Content 모델 선택.
+        spec, _ = DesignService().ingest_slide(self._CONTENT_SPEC_JSON, slide_type="")
+        assert spec.slide_type == ""
+
+    def test_title_slide_type_preserved(self) -> None:
+        spec, _ = DesignService().ingest_slide(
+            self._SIMPLE_SPEC_JSON, slide_type="title"
+        )
+        assert spec.slide_type == "title"

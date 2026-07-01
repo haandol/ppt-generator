@@ -1,8 +1,12 @@
 """에러 로깅 회귀 테스트.
 
-production 디버깅을 위해 검증 실패·LLM 실패·파이프라인 실패 시 적절한 logger
+production 디버깅을 위해 검증 실패·backfill 실패·파이프라인 실패 시 적절한 logger
 호출이 일어나는지 확인한다. 메시지에 핵심 식별자(project_id, slide_index,
 component_id, node_id) 가 포함되어야 한다.
+
+LLM 오프로딩 후로 생성 도구는 prepare/ingest 로 나뉜다. modify_component 는
+prepare_modify_component/ingest_modify_component 로, backfill 실패 로깅은
+ingest_backfill 로 옮겨졌으나 검증·로깅 동작 자체는 동일하다.
 """
 
 from __future__ import annotations
@@ -103,18 +107,26 @@ def mcp_tools(tmp_path: Path, monkeypatch):
         return decorator
 
     mcp.tool = tool_decorator
+
+    # prepare/ingest 를 노출하는 mock DesignService.
     design_service = MagicMock()
-    design_service.last_token_usage = {}
+    design_service.prepare_modify_component.return_value = {
+        "system_prompt": "sys",
+        "user_prompt": "usr",
+        "response_schema": {},
+    }
+    design_service.prepare_backfill.return_value = {
+        "system_prompt": "sys",
+        "user_prompt": "usr",
+        "response_schema": {},
+    }
 
-    def factory(slide_type="content", budget_tokens=8192):
-        return design_service
-
-    register_design_tools(mcp, project_service, design_service_factory=factory)
+    register_design_tools(mcp, project_service, design_service=design_service)
     return project_id, project_dir, project_service, design_service, tools
 
 
 # ---------------------------------------------------------------------------
-# modify_component 검증 실패 로깅
+# prepare_modify_component 검증 실패 로깅
 # ---------------------------------------------------------------------------
 
 
@@ -122,14 +134,14 @@ class TestModifyComponentValidationLogging:
     def test_empty_project_id_logged(self, mcp_tools, caplog) -> None:
         _, _, _, _, tools = mcp_tools
         with caplog.at_level(logging.ERROR), pytest.raises(ValueError):
-            tools["modify_component"](
+            tools["prepare_modify_component"](
                 project_id="",
                 slide_index=1,
                 component_id="x",
                 instruction="y",
             )
         assert any(
-            "modify_component validation failed" in r.message
+            "prepare_modify_component validation failed" in r.message
             and "project_id is required" in r.message
             for r in caplog.records
         )
@@ -137,7 +149,7 @@ class TestModifyComponentValidationLogging:
     def test_invalid_slide_index_logged_with_context(self, mcp_tools, caplog) -> None:
         project_id, _, _, _, tools = mcp_tools
         with caplog.at_level(logging.ERROR), pytest.raises(ValueError):
-            tools["modify_component"](
+            tools["prepare_modify_component"](
                 project_id=project_id,
                 slide_index=99,
                 component_id="x",
@@ -147,7 +159,7 @@ class TestModifyComponentValidationLogging:
         recs = [
             r
             for r in caplog.records
-            if "modify_component validation failed" in r.message
+            if "prepare_modify_component validation failed" in r.message
         ]
         assert recs
         joined = " ".join(r.message for r in recs)
@@ -157,7 +169,7 @@ class TestModifyComponentValidationLogging:
     def test_empty_instruction_logged(self, mcp_tools, caplog) -> None:
         project_id, _, _, _, tools = mcp_tools
         with caplog.at_level(logging.ERROR), pytest.raises(ValueError):
-            tools["modify_component"](
+            tools["prepare_modify_component"](
                 project_id=project_id,
                 slide_index=1,
                 component_id="x",
@@ -174,18 +186,17 @@ class TestModifyComponentValidationLogging:
 class TestBackfillFailureLogging:
     def test_backfill_exception_logs_with_identifiers(self, mcp_tools, caplog) -> None:
         project_id, _, _, ds, tools = mcp_tools
-        ds.backfill_design_doc.side_effect = RuntimeError("LLM 5xx")
+        ds.ingest_backfill.side_effect = RuntimeError("LLM 5xx")
 
         with caplog.at_level(logging.ERROR), pytest.raises(ValueError):
-            tools["modify_component"](
+            tools["ingest_backfill"](
                 project_id=project_id,
                 slide_index=1,
-                component_id="x",
-                instruction="y",
+                backfill_json="{}",
             )
         # error 로그에 stack trace 포함 + 식별자 포함
         backfill_errs = [
-            r for r in caplog.records if "modify_component backfill failed" in r.message
+            r for r in caplog.records if "ingest_backfill failed" in r.message
         ]
         assert backfill_errs
         rec = backfill_errs[0]
@@ -284,17 +295,3 @@ class TestGenerationValidationLogging:
             "Either outline_json or project_id must be provided" in r.message
             for r in caplog.records
         )
-
-    def test_invalid_slide_indices_logged(self, caplog) -> None:
-        from ppt_generator.tools.design.handlers.generation import (
-            _parse_slide_indices,
-        )
-
-        outline = MagicMock()
-        outline.slides = [MagicMock()] * 3
-
-        with caplog.at_level(logging.ERROR), pytest.raises(ValueError):
-            _parse_slide_indices(outline, total_slides=3, slide_indices="not-numbers")
-        joined = " ".join(r.message for r in caplog.records)
-        assert "slide_indices parse failed" in joined
-        assert "not-numbers" in joined

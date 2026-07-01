@@ -1,7 +1,8 @@
 """tests/design/ 공용 fixture.
 
-design tool (modify_design_spec / generate_slides_design_spec /
-modify_component / move_slide) 테스트들이 공유하는 fixture.
+design tool (prepare/ingest 오프로딩) 테스트들이 공유하는 fixture.
+LLM 생성은 클라이언트가 하므로, 테스트는 mock design_service 가 반환하는
+(spec, overflow) 를 ingest 결과로 쓴다.
 """
 
 from __future__ import annotations
@@ -72,10 +73,34 @@ def project_with_design_spec(
 
 
 def _build_design_service_mock() -> MagicMock:
+    """prepare/ingest 를 노출하는 mock DesignService.
+
+    - prepare_* 는 stub 태스크 dict 를 반환한다 (프롬프트 조립은 실제 서비스가 검증하므로
+      여기선 형태만).
+    - ingest_slide 는 (spec, overflow) 를 반환한다 — 기본은 새 spec + overflow 없음.
+    - ingest_modify_component / ingest_backfill 은 새 spec 을 반환한다.
+    """
     design_service = MagicMock()
-    design_service.generate_single_slide.return_value = make_slide_spec("새로 생성됨")
-    design_service.last_token_usage = {}
-    design_service.last_overflow = []
+    design_service.prepare_slide.return_value = {
+        "system_prompt": "sys",
+        "user_prompt": "usr",
+        "response_schema": {},
+    }
+    design_service.prepare_design_doc_draft.return_value = {
+        "system_prompt": "sys",
+        "user_prompt": "usr",
+    }
+    design_service.prepare_backfill.return_value = {
+        "system_prompt": "sys",
+        "user_prompt": "usr",
+        "response_schema": {},
+    }
+    design_service.prepare_modify_component.return_value = {
+        "system_prompt": "sys",
+        "user_prompt": "usr",
+        "response_schema": {},
+    }
+    design_service.ingest_slide.return_value = (make_slide_spec("새로 생성됨"), [])
     _summary = {
         "background_color": "#1a1a2e",
         "text_colors": ["#ffffff"],
@@ -84,9 +109,7 @@ def _build_design_service_mock() -> MagicMock:
         "card_fills": [],
         "card_borders": [],
     }
-    design_service.generate_design_summary.return_value = _summary
-    # DESIGN.md 초안 생성은 (summary, tone, page_requests) 튜플을 반환한다.
-    design_service.generate_design_doc_draft.return_value = (_summary, "", [])
+    design_service.ingest_design_doc_draft.return_value = (_summary, "", [])
     return design_service
 
 
@@ -109,24 +132,20 @@ def _register_tools(
     mcp.tool = tool_decorator
 
     design_service = _build_design_service_mock()
-    factory = lambda slide_type="content", budget_tokens=8192: (  # noqa: E731
-        design_service
-    )
 
-    kwargs = {"design_service_factory": factory}
+    kwargs = {"design_service": design_service}
     if slides_service is not None:
         kwargs["slides_service"] = slides_service
 
     register_design_tools(mcp, project_service, **kwargs)
     tools["_design_service"] = design_service
-    tools["_design_service_factory"] = factory
     tools["_project_service"] = project_service
     return tools
 
 
 @pytest.fixture()
 def mcp_tools(project_service: ProjectService) -> dict:
-    """slides_service 미설정 — modify_design_spec 의 텍스트 동기화만 테스트할 때 사용."""
+    """slides_service 미설정 — 파일 동기화만 테스트할 때 사용."""
     return _register_tools(project_service)
 
 

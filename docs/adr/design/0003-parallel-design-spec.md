@@ -4,7 +4,13 @@ Date: 2026-05-26
 
 ## Status
 
-Accepted
+Superseded by [offload/0001](../offload/0001-client-llm-offload-plugin.md)
+
+디자인 스펙 생성의 LLM 호출이 클라이언트로 오프로딩되면서 서버측 ThreadPoolExecutor
+병렬 생성·워커 스케줄링·고정 thinking budget 강제는 제거되었다. 서버 API 는 슬라이드
+단위 prepare/ingest 로 stateless 해졌고, 여러 슬라이드를 동시에 진행하는 병렬성은
+클라이언트가 담당한다. thinking budget 은 이제 강제값이 아니라 prepare 응답에 실리는
+힌트다. 아래 내용은 오프로딩 이전의 기록이다.
 
 ## Context
 

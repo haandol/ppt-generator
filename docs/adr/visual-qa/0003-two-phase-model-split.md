@@ -4,7 +4,12 @@ Date: 2026-04-15
 
 ## Status
 
-Accepted (verified 2026-05-26: BEDROCK_VISUAL_QA_ANALYSIS_MODEL_ID + analysis_agent_factory / fix_agent_factory 정착)
+Superseded by [offload/0001](../offload/0001-client-llm-offload-plugin.md)
+
+Visual QA 의 분석·수정 LLM 호출이 클라이언트로 오프로딩되면서 서버가 모델을 고르지
+않게 되었다. Haiku(분석)/Sonnet(수정) 이원화는 제거되었고, 스크린샷 캡처(Playwright)만
+서버에 남았다. 어떤 모델로 분석·수정할지는 이제 클라이언트가 결정한다. 아래는 오프로딩
+이전의 기록이다.
 
 ## Context
 

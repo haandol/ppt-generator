@@ -1,13 +1,17 @@
 """imported 슬라이드 design_doc lazy backfill 테스트.
 
-DesignService.backfill_design_doc + _apply_backfill_output + handle_modify_component
-의 backfill 분기를 검증.
+DesignService.ingest_backfill + _apply_backfill_output + prepare/ingest
+backfill 오프로딩 분기를 검증.
+
+LLM 생성은 클라이언트가 수행하므로, 서버 도구는 prepare_modify_component 로 backfill
+태스크(stage="backfill")를 반환하고, ingest_backfill 로 검증·저장한다. mock
+design_service.ingest_backfill 이 backfilled spec 을 반환하므로 전달하는 JSON 문자열은
+무의미하다 — 여기선 서버의 파일 저장/검증 오케스트레이션만 검증한다.
 """
 
 from __future__ import annotations
 
 import json
-from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -358,10 +362,8 @@ class TestApplyBackfillOutput:
         assert new_spec.grid_plan is None
 
     def test_already_has_design_doc_skipped(self) -> None:
-        """이미 design_doc 있으면 backfill_design_doc 은 그대로 반환."""
-        agent = MagicMock()
-        backfill_agent = MagicMock()
-        svc = DesignService(agent=agent, backfill_agent=backfill_agent)
+        """이미 design_doc 있으면 ingest_backfill 은 그대로 반환 (재검증 없음)."""
+        svc = DesignService()
         layout = [
             LayoutNode(
                 id="x",
@@ -376,40 +378,29 @@ class TestApplyBackfillOutput:
             slide_type="content",
             design_doc=DesignDoc(topic="t", layout_summary="ls", layout=layout),
         )
-        out = svc.backfill_design_doc(spec)
+        # design_doc 이 이미 있으면 output_json 을 파싱하지 않고 spec 을 그대로 돌려준다.
+        out = svc.ingest_backfill(spec, "{}")
         assert out is spec
-        assert backfill_agent.call_count == 0
 
 
 # ---------------------------------------------------------------------------
-# DesignService.backfill_design_doc (LLM mocked)
+# DesignService.ingest_backfill (클라이언트 생성 JSON 검증 → design_doc 채움)
 # ---------------------------------------------------------------------------
 
 
-class TestBackfillDesignDocService:
-    def _service_with_mock(self, output: BackfillDesignDocOutput) -> DesignService:
-        backfill_agent = MagicMock()
-        result = MagicMock()
-        result.structured_output = output
-        result.metrics = None
-        backfill_agent.return_value = result
-        return DesignService(agent=MagicMock(), backfill_agent=backfill_agent)
-
+class TestIngestBackfillService:
     def test_full_flow(self) -> None:
+        """imported spec + 유효한 backfill JSON → design_doc/component_id 채워짐."""
         spec = _imported_slide()
-        svc = self._service_with_mock(_backfill_output_for_imported())
-        new_spec = svc.backfill_design_doc(spec)
+        svc = DesignService()
+        output_json = _backfill_output_for_imported().model_dump_json()
+        new_spec = svc.ingest_backfill(spec, output_json)
         assert new_spec.design_doc is not None
         assert new_spec.textboxes[0].component_id == "header.title"
 
-    def test_missing_backfill_agent_raises(self) -> None:
-        svc = DesignService(agent=MagicMock(), backfill_agent=None)
-        with pytest.raises(RuntimeError, match="backfill_agent is not configured"):
-            svc.backfill_design_doc(_imported_slide())
-
 
 # ---------------------------------------------------------------------------
-# handle_modify_component lazy backfill 분기
+# prepare_modify_component / ingest_backfill lazy backfill 통합
 # ---------------------------------------------------------------------------
 
 
@@ -452,94 +443,115 @@ def mcp_tools_with_imported(tmp_path: Path, monkeypatch):
 
     mcp.tool = tool_decorator
 
+    # prepare/ingest 를 노출하는 mock DesignService.
     design_service = MagicMock()
-    design_service.last_token_usage = {}
+    design_service.prepare_backfill.return_value = {
+        "system_prompt": "sys",
+        "user_prompt": "usr",
+        "response_schema": {},
+    }
+    design_service.prepare_modify_component.return_value = {
+        "system_prompt": "sys",
+        "user_prompt": "usr",
+        "response_schema": {},
+    }
 
-    def factory(slide_type="content", budget_tokens=8192):
-        return design_service
-
-    register_design_tools(mcp, project_service, design_service_factory=factory)
+    register_design_tools(mcp, project_service, design_service=design_service)
     return project_id, project_dir, project_service, design_service, tools
 
 
 class TestModifyComponentBackfillIntegration:
-    def test_first_call_triggers_backfill_and_returns_available_components(
+    def test_prepare_returns_backfill_stage_for_imported(
         self, mcp_tools_with_imported
     ) -> None:
+        """imported 슬라이드(design_doc=None)면 prepare 는 stage='backfill' 태스크를 반환한다."""
         project_id, project_dir, project_service, ds, tools = mcp_tools_with_imported
 
-        # design_service.backfill_design_doc 가 backfilled spec 을 반환하도록 설정
-        def _fake_backfill(spec, slide_index=1):
-            return _apply_backfill_output(spec, _backfill_output_for_imported())
-
-        ds.backfill_design_doc.side_effect = _fake_backfill
-        ds.last_token_usage = {"input_tokens": 100, "output_tokens": 50}
-
         result = json.loads(
-            tools["modify_component"](
+            tools["prepare_modify_component"](
                 project_id=project_id,
                 slide_index=1,
                 component_id="unknown.id",
                 instruction="x",
             )
         )
-        # backfill 실행되고 unknown id → available_components 응답
+        # design_doc 이 없으므로 backfill 태스크
+        assert result["stage"] == "backfill"
+        assert result["component_id"] == "unknown.id"
+        # prepare_backfill 이 호출되고, modify 프롬프트는 조립되지 않음
+        assert ds.prepare_backfill.call_count == 1
+        assert ds.prepare_modify_component.call_count == 0
+
+    def test_ingest_backfill_saves_design_doc_and_returns_components(
+        self, mcp_tools_with_imported
+    ) -> None:
+        """ingest_backfill 은 backfilled spec 을 저장하고 available_components 를 반환한다."""
+        project_id, project_dir, project_service, ds, tools = mcp_tools_with_imported
+
+        # mock design_service.ingest_backfill 가 backfilled spec 을 반환하도록 설정.
+        def _fake_ingest_backfill(spec, output_json, slide_index=1):
+            return _apply_backfill_output(spec, _backfill_output_for_imported())
+
+        ds.ingest_backfill.side_effect = _fake_ingest_backfill
+
+        result = json.loads(
+            tools["ingest_backfill"](
+                project_id=project_id,
+                slide_index=1,
+                backfill_json="{}",  # mock 이 고정 spec 을 반환하므로 내용 무의미
+            )
+        )
         assert result["status"] == "backfilled"
-        assert result["requested_component_id"] == "unknown.id"
         assert any(c["id"] == "right.box" for c in result["available_components"])
-        # design_service.modify_component 는 호출되지 않음 (id 매칭 실패)
-        assert ds.modify_component.call_count == 0
         # spec 에 design_doc 영구 저장 확인
         saved = project_service.load_design_spec_slide(project_dir, 0)
         assert saved.design_doc is not None
         assert saved.textboxes[0].component_id == "header.title"
 
-    def test_second_call_uses_saved_design_doc(self, mcp_tools_with_imported) -> None:
+    def test_second_prepare_uses_saved_design_doc(
+        self, mcp_tools_with_imported
+    ) -> None:
+        """backfill 저장 후 다시 prepare 하면 stage='modify' 태스크를 반환한다."""
         project_id, project_dir, project_service, ds, tools = mcp_tools_with_imported
 
-        # 1st call: backfill
-        def _fake_backfill(spec, slide_index=1):
+        # 1st: backfill ingest 로 design_doc 저장
+        def _fake_ingest_backfill(spec, output_json, slide_index=1):
             return _apply_backfill_output(spec, _backfill_output_for_imported())
 
-        ds.backfill_design_doc.side_effect = _fake_backfill
-        tools["modify_component"](
+        ds.ingest_backfill.side_effect = _fake_ingest_backfill
+        tools["ingest_backfill"](
             project_id=project_id,
             slide_index=1,
-            component_id="unknown",
-            instruction="x",
+            backfill_json="{}",
         )
-        # 2nd call: 정확한 id, modify_component 호출됨
-        # ds.modify_component 가 spec 그대로 반환하도록 설정
-        ds.modify_component.side_effect = lambda **kw: kw["spec"]
-        ds.last_token_usage = {"input_tokens": 50, "output_tokens": 20}
 
+        # 2nd: 유효한 component_id 로 prepare → modify 태스크
         result = json.loads(
-            tools["modify_component"](
+            tools["prepare_modify_component"](
                 project_id=project_id,
                 slide_index=1,
                 component_id="right.box",
                 instruction="Make it red",
             )
         )
-        # modify_component 가 정확히 1 회 호출 (1차에서는 호출 안 함)
-        assert ds.modify_component.call_count == 1
-        # backfill 은 1 회만 (2nd call 에서는 안 함)
-        assert ds.backfill_design_doc.call_count == 1
+        assert result["stage"] == "modify"
         assert result["component_id"] == "right.box"
-        assert "modified_element" in result
+        # design_doc 이 이미 저장돼 backfill 은 다시 호출되지 않음
+        assert ds.prepare_backfill.call_count == 0
+        assert ds.prepare_modify_component.call_count == 1
 
     def test_backfill_failure_keeps_spec_unchanged(
         self, mcp_tools_with_imported
     ) -> None:
+        """ingest_backfill 검증 실패 시 ValueError, spec 은 보존된다."""
         project_id, project_dir, project_service, ds, tools = mcp_tools_with_imported
-        ds.backfill_design_doc.side_effect = RuntimeError("LLM failure")
+        ds.ingest_backfill.side_effect = RuntimeError("bad backfill json")
 
         with pytest.raises(ValueError, match="design_doc backfill failed"):
-            tools["modify_component"](
+            tools["ingest_backfill"](
                 project_id=project_id,
                 slide_index=1,
-                component_id="x",
-                instruction="y",
+                backfill_json="{}",
             )
         # spec 보존
         saved = project_service.load_design_spec_slide(project_dir, 0)

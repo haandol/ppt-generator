@@ -29,7 +29,7 @@ generate 차단까진 하지 않는다.
 
 from __future__ import annotations
 
-from ppt_generator.interfaces.schemas import PptxShape, PptxSlideSpec, PptxTextBox
+from ppt_generator.interfaces.schemas import PptxSlideSpec
 from ppt_generator.interfaces.spec_utils.lint_types import (
     LintViolation,
     SlideLintResult,

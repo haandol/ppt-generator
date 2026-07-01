@@ -1,5 +1,12 @@
+"""OutlineService prepare/ingest 단위 테스트.
+
+LLM 호출은 클라이언트로 오프로딩됐다. OutlineService 는
+- prepare(request) → 프롬프트 + 출력 스키마 조립
+- ingest(outline_text, request) → 클라이언트 JSON 검증·발표자 주입·파싱
+두 단계를 제공한다. (재시도 루프는 클라이언트 몫이라 서비스에서 사라졌다.)
+"""
+
 import json
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -28,26 +35,81 @@ VALID_OUTLINE_JSON = json.dumps(
 
 
 @pytest.fixture
-def mock_agent():
-    agent = MagicMock()
-    agent.return_value = VALID_OUTLINE_JSON
-    return agent
+def service():
+    return OutlineService()
 
 
-@pytest.fixture
-def service(mock_agent):
-    return OutlineService(agent=mock_agent)
+class TestOutlineServicePrepare:
+    """prepare — 프롬프트/스키마 조립 (부작용 없음)."""
 
-
-class TestOutlineService:
-    def test_generate_returns_outline_response(self, service):
+    def test_prepare_returns_prompt_and_schema(self, service):
         request = OutlineRequest(
             topic="클라우드 컴퓨팅 트렌드",
             num_slides=5,
             audience_type="general",
             presentation_minutes=15,
         )
-        response = service.generate(request)
+        task = service.prepare(request)
+
+        assert "system_prompt" in task
+        assert "user_prompt" in task
+        assert "response_schema" in task
+        # 스키마는 slides 배열을 요구한다.
+        assert "slides" in json.dumps(task["response_schema"])
+
+    def test_prepare_raises_on_empty_topic(self, service):
+        request = OutlineRequest(
+            topic="", num_slides=5, audience_type="general", presentation_minutes=15
+        )
+        with pytest.raises(ValueError, match="Topic is empty"):
+            service.prepare(request)
+
+    def test_prepare_raises_on_whitespace_topic(self, service):
+        request = OutlineRequest(
+            topic="   ", num_slides=5, audience_type="general", presentation_minutes=15
+        )
+        with pytest.raises(ValueError, match="Topic is empty"):
+            service.prepare(request)
+
+    def test_prepare_prompt_contains_topic(self, service):
+        request = OutlineRequest(topic="테스트 주제", num_slides=5)
+        task = service.prepare(request)
+        assert "테스트 주제" in task["user_prompt"]
+
+    def test_prepare_prompt_contains_audience_type_and_minutes(self, service):
+        request = OutlineRequest(
+            topic="AI 트렌드",
+            num_slides=5,
+            audience_type="technical",
+            presentation_minutes=20,
+        )
+        task = service.prepare(request)
+        assert "technical" in task["user_prompt"]
+        assert "20" in task["user_prompt"]
+
+    def test_prepare_prompt_contains_executive_and_minutes(self, service):
+        request = OutlineRequest(
+            topic="AI 트렌드",
+            num_slides=5,
+            audience_type="executive",
+            presentation_minutes=30,
+        )
+        task = service.prepare(request)
+        assert "executive" in task["user_prompt"]
+        assert "30" in task["user_prompt"]
+
+
+class TestOutlineServiceIngest:
+    """ingest — 클라이언트 JSON 검증·파싱·발표자 주입."""
+
+    def test_ingest_returns_outline_response(self, service):
+        request = OutlineRequest(
+            topic="클라우드 컴퓨팅 트렌드",
+            num_slides=5,
+            audience_type="general",
+            presentation_minutes=15,
+        )
+        response = service.ingest(VALID_OUTLINE_JSON, request)
 
         assert len(response.slides) == 3
         assert response.slides[0].title == "클라우드 컴퓨팅 트렌드"
@@ -56,112 +118,54 @@ class TestOutlineService:
             == "AWS, Azure, GCP 비교 및 하이브리드 접근 방식"
         )
 
-    def test_generate_calls_agent_with_topic(self, service, mock_agent):
-        request = OutlineRequest(
-            topic="테스트 주제",
-            num_slides=5,
-            audience_type="technical",
-            presentation_minutes=20,
-        )
-        service.generate(request)
-
-        mock_agent.assert_called_once()
-        prompt = mock_agent.call_args[0][0]
-        assert "테스트 주제" in prompt
-
-    def test_generate_raises_on_empty_topic(self, service):
-        request = OutlineRequest(
-            topic="", num_slides=5, audience_type="general", presentation_minutes=15
-        )
-        with pytest.raises(ValueError, match="Topic is empty"):
-            service.generate(request)
-
-    def test_generate_raises_on_whitespace_topic(self, service):
-        request = OutlineRequest(
-            topic="   ", num_slides=5, audience_type="general", presentation_minutes=15
-        )
-        with pytest.raises(ValueError, match="Topic is empty"):
-            service.generate(request)
-
-    def test_generate_parses_json_in_code_block(self, mock_agent):
-        mock_agent.return_value = (
-            f"여기 결과입니다:\n```json\n{VALID_OUTLINE_JSON}\n```"
-        )
-        service = OutlineService(agent=mock_agent)
+    def test_ingest_parses_json_in_code_block(self, service):
+        wrapped = f"여기 결과입니다:\n```json\n{VALID_OUTLINE_JSON}\n```"
         request = OutlineRequest(topic="스크립트 내용", num_slides=5)
-        response = service.generate(request)
+        response = service.ingest(wrapped, request)
 
         assert len(response.slides) == 3
 
-    def test_generate_raises_on_invalid_json_after_retries(self, mock_agent):
-        mock_agent.return_value = "이것은 JSON이 아닙니다"
-        service = OutlineService(agent=mock_agent)
+    def test_ingest_raises_on_invalid_json(self, service):
         request = OutlineRequest(topic="스크립트 내용", num_slides=5)
-
         with pytest.raises(ValueError, match="LLM returned invalid JSON"):
-            service.generate(request)
+            service.ingest("이것은 JSON이 아닙니다", request)
 
-        assert mock_agent.call_count == 3
-
-    def test_generate_raises_on_missing_slides_key_after_retries(self, mock_agent):
-        mock_agent.return_value = '{"data": []}'
-        service = OutlineService(agent=mock_agent)
+    def test_ingest_raises_on_missing_slides_key(self, service):
         request = OutlineRequest(topic="스크립트 내용", num_slides=5)
-
         with pytest.raises(ValueError, match="slides"):
-            service.generate(request)
+            service.ingest('{"data": []}', request)
 
-        assert mock_agent.call_count == 3
-
-    def test_generate_retries_on_invalid_json_then_succeeds(self, mock_agent):
-        mock_agent.side_effect = ["잘못된 JSON", VALID_OUTLINE_JSON]
-        service = OutlineService(agent=mock_agent)
-        request = OutlineRequest(topic="스크립트 내용", num_slides=5)
-        response = service.generate(request)
-
-        assert mock_agent.call_count == 2
-        assert len(response.slides) == 3
-
-    def test_generate_handles_missing_optional_fields(self, mock_agent):
+    def test_ingest_handles_missing_optional_fields(self, service):
         data = {"slides": [{"title": "최소 슬라이드"}]}
-        mock_agent.return_value = json.dumps(data)
-        service = OutlineService(agent=mock_agent)
         request = OutlineRequest(topic="스크립트 내용", num_slides=5)
-        response = service.generate(request)
+        response = service.ingest(json.dumps(data), request)
 
         slide = response.slides[0]
         assert slide.title == "최소 슬라이드"
         assert slide.content_summary == ""
 
-    def test_generate_prompt_contains_topic(self, service, mock_agent):
-        request = OutlineRequest(topic="테스트 주제", num_slides=5)
-        service.generate(request)
-
-        prompt = mock_agent.call_args[0][0]
-        assert "테스트 주제" in prompt
-
-    def test_generate_prompt_contains_audience_type(self, service, mock_agent):
+    def test_ingest_injects_presenter_into_title_slide(self, service):
+        data = {
+            "slides": [
+                {
+                    "title": "표지",
+                    "content_summary": "발표 개요",
+                    "slide_type": "title",
+                },
+                {"title": "본문", "content_summary": "내용"},
+            ]
+        }
         request = OutlineRequest(
-            topic="AI 트렌드",
-            num_slides=5,
-            audience_type="technical",
-            presentation_minutes=20,
+            topic="주제",
+            num_slides=2,
+            presenter_name="홍길동",
+            presenter_title="Solutions Architect",
+            presenter_org="ACME",
         )
-        service.generate(request)
+        response = service.ingest(json.dumps(data), request)
 
-        prompt = mock_agent.call_args[0][0]
-        assert "technical" in prompt
-        assert "20" in prompt
-
-    def test_generate_prompt_contains_presentation_minutes(self, service, mock_agent):
-        request = OutlineRequest(
-            topic="AI 트렌드",
-            num_slides=5,
-            audience_type="executive",
-            presentation_minutes=30,
-        )
-        service.generate(request)
-
-        prompt = mock_agent.call_args[0][0]
-        assert "executive" in prompt
-        assert "30" in prompt
+        # title 슬라이드에만 발표자 정보 주입.
+        assert "홍길동" in response.slides[0].content_summary
+        assert "Solutions Architect" in response.slides[0].content_summary
+        assert "ACME" in response.slides[0].content_summary
+        assert "홍길동" not in response.slides[1].content_summary

@@ -1,8 +1,14 @@
-"""Visual QA service 테스트: Playwright/LLM mock으로 핵심 로직 검증."""
+"""Visual QA service 테스트: prepare/ingest + 스크린샷 캡처(Playwright mock).
 
-import asyncio
-import inspect
-import json
+LLM 호출은 클라이언트로 오프로딩되었으므로 서버는 스크린샷 캡처(결정론적)와
+prepare(태스크 조립)/ingest(클라이언트 JSON 검증·후처리)만 담당한다. 이 파일은
+그 세 지점을 검증한다:
+  - capture_screenshots — Playwright mock
+  - prepare_analysis / ingest_analysis — 이슈 감지
+  - prepare_fix / ingest_fix — 수정 spec 검증·정합화
+"""
+
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -23,25 +29,30 @@ from ppt_generator.interfaces.schemas import (
     PptxTextBox,
     PptxTextRun,
 )
-from ppt_generator.tools.visual_qa.service import VisualQAResult, VisualQAService
+from ppt_generator.tools.visual_qa.service import VisualQAService
 
 from _helpers import make_slide_spec as _make_spec
 
 
-def _make_qa_output(
-    has_issues: bool, issues: list[dict] | None = None
-) -> VisualQAOutput:
+def _make_qa_output_json(has_issues: bool, issues: list[dict] | None = None) -> str:
+    """클라이언트가 생성했을 법한 분석 결과 JSON 을 조립한다 (ingest_analysis 입력)."""
     if issues is None:
         issues = []
-    return VisualQAOutput(
+    output = VisualQAOutput(
         has_issues=has_issues,
         issues=[VisualQAIssue(**i) for i in issues],
         overall_quality="good" if not has_issues else "needs_improvement",
     )
+    return output.model_dump_json()
 
 
-def _make_slide_spec_output() -> SimpleSlideSpecOutput:
-    return SimpleSlideSpecOutput(
+def _make_fix_output_json() -> str:
+    """클라이언트가 생성했을 법한 수정 spec JSON 을 조립한다 (ingest_fix 입력).
+
+    slide_type != "content" 슬라이드는 SimpleSlideSpecOutput 을 사용하므로
+    grid_layout/design_doc 없이 textbox 만으로 유효하다.
+    """
+    output = SimpleSlideSpecOutput(
         background_color="#1a1a2e",
         textboxes=[
             TextBoxOutput(
@@ -58,17 +69,20 @@ def _make_slide_spec_output() -> SimpleSlideSpecOutput:
         ],
         shapes=[],
     )
+    return output.model_dump_json()
+
+
+def _make_simple_spec(title: str = "테스트") -> PptxSlideSpec:
+    """slide_type='title' 인 spec — ingest_fix 가 SimpleSlideSpecOutput 을 쓰게 한다."""
+    return replace(_make_spec(title), slide_type="title")
 
 
 class TestVisualQAServiceCapture:
-    """capture_screenshots 테스트."""
+    """capture_screenshots 테스트 (Playwright mock)."""
 
     def test_chromium_not_installed_raises(self, tmp_path: Path) -> None:
         """Chromium 브라우저 바이너리 미설치 시 RuntimeError 발생."""
-        svc = VisualQAService(
-            analysis_agent_factory=MagicMock(),
-            fix_agent_factory=MagicMock(),
-        )
+        svc = VisualQAService()
         slides_dir = tmp_path / "slides"
         slides_dir.mkdir()
         (slides_dir / "slide_01.html").write_text("<html></html>")
@@ -91,10 +105,7 @@ class TestVisualQAServiceCapture:
 
     def test_missing_html_returns_empty(self, tmp_path: Path) -> None:
         """HTML 파일이 없으면 빈 딕셔너리 반환."""
-        svc = VisualQAService(
-            analysis_agent_factory=MagicMock(),
-            fix_agent_factory=MagicMock(),
-        )
+        svc = VisualQAService()
         slides_dir = tmp_path / "slides"
         slides_dir.mkdir()
 
@@ -111,32 +122,32 @@ class TestVisualQAServiceCapture:
 
 
 class TestVisualQAServiceAnalyze:
-    """analyze_screenshot 테스트."""
+    """prepare_analysis / ingest_analysis 테스트."""
 
-    def test_no_issues(self, tmp_path: Path) -> None:
-        """이슈 없는 분석 결과."""
+    def test_prepare_analysis_carries_screenshot_and_schema(
+        self, tmp_path: Path
+    ) -> None:
+        """prepare_analysis 는 스크린샷 경로(images)와 응답 스키마를 태스크에 실어준다."""
         png_path = tmp_path / "test.png"
         png_path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
 
-        mock_result = MagicMock()
-        mock_result.structured_output = _make_qa_output(has_issues=False)
-        mock_result.metrics.accumulated_usage = {"inputTokens": 100, "outputTokens": 50}
+        svc = VisualQAService()
+        task = svc.prepare_analysis(png_path, 0, _make_spec())
 
-        mock_agent = MagicMock(return_value=mock_result)
+        assert task["images"] == [str(png_path)]
+        assert "system_prompt" in task
+        assert "user_prompt" in task
+        assert "response_schema" in task
 
-        svc = VisualQAService(
-            analysis_agent_factory=lambda: mock_agent,
-            fix_agent_factory=MagicMock(),
-        )
-        result = svc.analyze_screenshot(png_path, 0, _make_spec())
+    def test_ingest_no_issues(self) -> None:
+        """이슈 없는 분석 결과 검증."""
+        svc = VisualQAService()
+        result = svc.ingest_analysis(_make_qa_output_json(has_issues=False))
         assert result.has_issues is False
         assert result.issues == []
 
-    def test_with_issues(self, tmp_path: Path) -> None:
-        """이슈가 있는 분석 결과."""
-        png_path = tmp_path / "test.png"
-        png_path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
-
+    def test_ingest_with_issues(self) -> None:
+        """이슈가 있는 분석 결과 검증."""
         issues = [
             {
                 "issue_type": "text_truncation",
@@ -147,47 +158,25 @@ class TestVisualQAServiceAnalyze:
                 "suggested_fix": "텍스트박스 너비 확장",
             },
         ]
-        mock_result = MagicMock()
-        mock_result.structured_output = _make_qa_output(has_issues=True, issues=issues)
-        mock_result.metrics.accumulated_usage = {
-            "inputTokens": 200,
-            "outputTokens": 100,
-        }
-
-        mock_agent = MagicMock(return_value=mock_result)
-
-        svc = VisualQAService(
-            analysis_agent_factory=lambda: mock_agent,
-            fix_agent_factory=MagicMock(),
+        svc = VisualQAService()
+        result = svc.ingest_analysis(
+            _make_qa_output_json(has_issues=True, issues=issues)
         )
-        result = svc.analyze_screenshot(png_path, 0, _make_spec())
         assert result.has_issues is True
         assert len(result.issues) == 1
         assert result.issues[0].issue_type == "text_truncation"
 
 
 class TestVisualQAServiceFix:
-    """fix_design_spec 테스트."""
+    """prepare_fix / ingest_fix 테스트."""
 
-    def test_successful_fix(self, tmp_path: Path) -> None:
-        """수정 성공."""
+    def test_prepare_fix_carries_screenshot_and_schema(self, tmp_path: Path) -> None:
+        """prepare_fix 는 스크린샷 경로(images)와 응답 스키마를 태스크에 실어준다."""
         png_path = tmp_path / "test.png"
         png_path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
 
-        mock_result = MagicMock()
-        mock_result.structured_output = _make_slide_spec_output()
-        mock_result.metrics.accumulated_usage = {
-            "inputTokens": 300,
-            "outputTokens": 200,
-        }
-
-        mock_agent = MagicMock(return_value=mock_result)
-
-        svc = VisualQAService(
-            analysis_agent_factory=MagicMock(),
-            fix_agent_factory=lambda: mock_agent,
-        )
-        result = svc.fix_design_spec(
+        svc = VisualQAService()
+        task = svc.prepare_fix(
             png_path,
             _make_spec(),
             issues=[
@@ -201,58 +190,31 @@ class TestVisualQAServiceFix:
                 }
             ],
         )
+        assert task["images"] == [str(png_path)]
+        assert "system_prompt" in task
+        assert "response_schema" in task
+
+    def test_successful_fix(self) -> None:
+        """수정 성공: 검증된 JSON 이 PptxSlideSpec 으로 정합화된다."""
+        svc = VisualQAService()
+        result = svc.ingest_fix(_make_fix_output_json(), _make_simple_spec())
         assert result is not None
         assert isinstance(result, PptxSlideSpec)
         assert result.textboxes[0].width_px == 700
 
-    def test_fix_failure_returns_none(self, tmp_path: Path) -> None:
-        """수정 실패 시 None 반환."""
-        png_path = tmp_path / "test.png"
-        png_path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
-
-        mock_agent = MagicMock(side_effect=Exception("LLM error"))
-
-        svc = VisualQAService(
-            analysis_agent_factory=MagicMock(),
-            fix_agent_factory=lambda: mock_agent,
-        )
-        result = svc.fix_design_spec(
-            png_path,
-            _make_spec(),
-            issues=[
-                {
-                    "issue_type": "overlap",
-                    "severity": "high",
-                    "element_type": "shape",
-                    "element_index": 0,
-                    "description": "test",
-                    "suggested_fix": "test",
-                }
-            ],
-        )
+    def test_fix_failure_returns_none(self) -> None:
+        """수정 실패(잘못된 JSON) 시 None 반환."""
+        svc = VisualQAService()
+        result = svc.ingest_fix("{ not valid json", _make_simple_spec())
         assert result is None
 
-    def test_fix_preserves_images(self, tmp_path: Path) -> None:
-        """수정 시 기존 spec의 images가 보존된다."""
-        png_path = tmp_path / "test.png"
-        png_path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+    def test_fix_preserves_images(self) -> None:
+        """수정 시 기존 spec 의 images 가 보존된다."""
+        svc = VisualQAService()
 
-        mock_result = MagicMock()
-        mock_result.structured_output = _make_slide_spec_output()
-        mock_result.metrics.accumulated_usage = {
-            "inputTokens": 300,
-            "outputTokens": 200,
-        }
-
-        mock_agent = MagicMock(return_value=mock_result)
-
-        svc = VisualQAService(
-            analysis_agent_factory=MagicMock(),
-            fix_agent_factory=lambda: mock_agent,
-        )
-
-        # 기존 spec에 images 포함
+        # 기존 spec 에 images 포함 (slide_type='title' → SimpleSlideSpecOutput 경로)
         spec_with_images = PptxSlideSpec(
+            slide_type="title",
             background_color="#1a1a2e",
             textboxes=[
                 PptxTextBox(
@@ -281,159 +243,10 @@ class TestVisualQAServiceFix:
             ],
         )
 
-        result = svc.fix_design_spec(
-            png_path,
-            spec_with_images,
-            issues=[
-                {
-                    "issue_type": "text_truncation",
-                    "severity": "high",
-                    "element_type": "textbox",
-                    "element_index": 0,
-                    "description": "test",
-                    "suggested_fix": "test",
-                }
-            ],
-        )
+        result = svc.ingest_fix(_make_fix_output_json(), spec_with_images)
         assert result is not None
         assert len(result.images) == 1
         assert result.images[0].src == "images/bg.png"
-
-
-class TestVisualQARunQA:
-    """run_qa 오케스트레이션 루프 테스트."""
-
-    def test_all_pass(self, tmp_path: Path) -> None:
-        """모든 슬라이드가 이슈 없이 pass."""
-        # Setup
-        slides_dir = tmp_path / "slides"
-        slides_dir.mkdir()
-        (slides_dir / "slide_01.html").write_text("<html>slide 1</html>")
-        (slides_dir / "slide_02.html").write_text("<html>slide 2</html>")
-
-        no_issues = _make_qa_output(has_issues=False)
-        mock_analysis_result = MagicMock()
-        mock_analysis_result.structured_output = no_issues
-        mock_analysis_result.metrics.accumulated_usage = {
-            "inputTokens": 100,
-            "outputTokens": 50,
-        }
-        mock_analysis_agent = MagicMock(return_value=mock_analysis_result)
-
-        # Mock capture_screenshots to create fake PNGs
-        def mock_capture(project_dir, indices, iteration=0):
-            screenshots_dir = project_dir / "screenshots"
-            screenshots_dir.mkdir(parents=True, exist_ok=True)
-            result = {}
-            for idx in indices:
-                p = screenshots_dir / f"slide_{idx + 1:02d}_v{iteration}.png"
-                p.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
-                result[idx] = p
-            return result
-
-        svc = VisualQAService(
-            analysis_agent_factory=lambda: mock_analysis_agent,
-            fix_agent_factory=MagicMock(),
-        )
-        svc.capture_screenshots = mock_capture
-
-        specs = {0: _make_spec("슬라이드 1"), 1: _make_spec("슬라이드 2")}
-
-        result = asyncio.run(
-            svc.run_qa(
-                project_dir=tmp_path,
-                indices=[0, 1],
-                max_iterations=2,
-                load_spec=lambda pd, idx: specs[idx],
-                save_spec=MagicMock(),
-                render_html=MagicMock(return_value="<html>fixed</html>"),
-                save_html=MagicMock(return_value=tmp_path / "slides" / "slide_01.html"),
-            )
-        )
-
-        assert result.slides_analyzed == 2
-        assert result.slides_with_issues == 0
-        assert result.slides_fixed == 0
-        assert all(r.status == "pass" for r in result.per_slide)
-
-    def test_fix_and_pass(self, tmp_path: Path) -> None:
-        """이슈 발견 후 수정 성공."""
-        slides_dir = tmp_path / "slides"
-        slides_dir.mkdir()
-        (slides_dir / "slide_01.html").write_text("<html>slide 1</html>")
-
-        issue = {
-            "issue_type": "text_truncation",
-            "severity": "high",
-            "element_type": "textbox",
-            "element_index": 0,
-            "description": "단어 잘림",
-            "suggested_fix": "너비 확장",
-        }
-
-        call_count = {"analyze": 0}
-
-        # First call: has issues. Second call: no issues.
-        def make_analysis_agent():
-            def agent_call(*args, **kwargs):
-                call_count["analyze"] += 1
-                result = MagicMock()
-                if call_count["analyze"] == 1:
-                    result.structured_output = _make_qa_output(True, [issue])
-                else:
-                    result.structured_output = _make_qa_output(False)
-                result.metrics.accumulated_usage = {
-                    "inputTokens": 100,
-                    "outputTokens": 50,
-                }
-                return result
-
-            return agent_call
-
-        fix_result = MagicMock()
-        fix_result.structured_output = _make_slide_spec_output()
-        fix_result.metrics.accumulated_usage = {"inputTokens": 200, "outputTokens": 100}
-        mock_fix_agent = MagicMock(return_value=fix_result)
-
-        def mock_capture(project_dir, indices, iteration=0):
-            screenshots_dir = project_dir / "screenshots"
-            screenshots_dir.mkdir(parents=True, exist_ok=True)
-            result = {}
-            for idx in indices:
-                p = screenshots_dir / f"slide_{idx + 1:02d}_v{iteration}.png"
-                p.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
-                result[idx] = p
-            return result
-
-        svc = VisualQAService(
-            analysis_agent_factory=make_analysis_agent,
-            fix_agent_factory=lambda: mock_fix_agent,
-        )
-        svc.capture_screenshots = mock_capture
-
-        spec = _make_spec()
-        save_spec = MagicMock()
-        render_html = MagicMock(return_value="<html>fixed</html>")
-        save_html = MagicMock(return_value=tmp_path / "slides" / "slide_01.html")
-
-        result = asyncio.run(
-            svc.run_qa(
-                project_dir=tmp_path,
-                indices=[0],
-                max_iterations=2,
-                load_spec=lambda pd, idx: spec,
-                save_spec=save_spec,
-                render_html=render_html,
-                save_html=save_html,
-            )
-        )
-
-        assert result.slides_analyzed == 1
-        assert result.slides_with_issues == 1
-        assert result.slides_fixed == 1
-        assert result.per_slide[0].status == "fixed"
-        assert save_spec.call_count == 1
-        assert render_html.call_count == 1
 
 
 class TestVisualQAModels:
@@ -483,54 +296,3 @@ class TestVisualQAModels:
                 suggested_fix="test",
             )
             assert issue.issue_type == issue_type
-
-
-class TestVisualQAModelSplit:
-    """Visual QA analysis(Haiku)/fix(Sonnet) 모델 분리 테스트."""
-
-    def test_analysis_agent_uses_haiku_model(self) -> None:
-        """_create_visual_qa_analysis_agent가 Haiku 모델 팩토리를 호출한다."""
-        src = inspect.getsource(
-            __import__(
-                "ppt_generator.di.container", fromlist=["DIContainer"]
-            ).DIContainer._create_visual_qa_analysis_agent
-        )
-        assert (
-            "create_bedrock_visual_qa_analysis_model" in src
-            or "create_anthropic_visual_qa_analysis_model" in src
-        )
-
-    def test_fix_agent_uses_sonnet_model(self) -> None:
-        """_create_visual_qa_fix_agent가 Sonnet(visual_qa_model) 팩토리를 호출한다."""
-        src = inspect.getsource(
-            __import__(
-                "ppt_generator.di.container", fromlist=["DIContainer"]
-            ).DIContainer._create_visual_qa_fix_agent
-        )
-        # fix agent는 Sonnet 기반 visual_qa_model을 사용해야 한다
-        assert (
-            "create_bedrock_visual_qa_model" in src
-            or "create_anthropic_visual_qa_model" in src
-        )
-        # analysis 전용 모델이 아닌지 확인
-        assert "create_bedrock_visual_qa_analysis_model" not in src
-        assert "create_anthropic_visual_qa_analysis_model" not in src
-
-    def test_analysis_model_constants_use_haiku(self) -> None:
-        """분석 모델 상수가 Haiku 모델 ID를 사용한다."""
-        from ppt_generator.interfaces.constants import (
-            ANTHROPIC_VISUAL_QA_ANALYSIS_MODEL_ID,
-            BEDROCK_VISUAL_QA_ANALYSIS_MODEL_ID,
-        )
-
-        assert "haiku" in BEDROCK_VISUAL_QA_ANALYSIS_MODEL_ID
-        assert "haiku" in ANTHROPIC_VISUAL_QA_ANALYSIS_MODEL_ID
-
-    def test_analysis_model_max_tokens_smaller(self) -> None:
-        """분석 모델의 max_tokens가 수정 모델보다 작다."""
-        from ppt_generator.interfaces.constants import (
-            BEDROCK_DESIGN_MAX_TOKENS,
-            BEDROCK_VISUAL_QA_ANALYSIS_MAX_TOKENS,
-        )
-
-        assert BEDROCK_VISUAL_QA_ANALYSIS_MAX_TOKENS < BEDROCK_DESIGN_MAX_TOKENS

@@ -1,4 +1,4 @@
-"""Bedrock Structured Output용 JSON 스키마 정의."""
+"""Structured Output용 JSON 스키마 정의."""
 
 OUTLINE_JSON_SCHEMA = {
     "type": "object",

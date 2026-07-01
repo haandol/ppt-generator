@@ -15,7 +15,7 @@ LLM이 카드 paragraphs 사이에 시각적 간격을 주려고 ``text=" "``, `
 
 from __future__ import annotations
 
-from ppt_generator.interfaces.schemas import PptxParagraph, PptxShape, PptxSlideSpec
+from ppt_generator.interfaces.schemas import PptxParagraph, PptxSlideSpec
 from ppt_generator.interfaces.spec_utils.lint_types import (
     LintViolation,
     SlideLintResult,

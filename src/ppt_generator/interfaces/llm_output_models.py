@@ -1,7 +1,10 @@
-"""LLM structured_output용 Pydantic 모델.
+"""LLM 출력용 Pydantic 모델.
 
-strands Agent의 structured_output_model로 사용되며,
-to_dataclass() 메서드로 내부 dataclass(PptxSlideSpec)로 변환한다.
+두 역할을 한다:
+- ``prepare_*`` 도구가 ``model_json_schema()`` 로 출력 스키마를 만들어 클라이언트에
+  넘긴다 (클라이언트가 따라야 할 형식).
+- ``ingest_*`` 도구가 ``model_validate()`` 로 클라이언트 JSON 을 검증한 뒤
+  ``to_dataclass()`` 로 내부 dataclass(PptxSlideSpec)로 변환한다.
 """
 
 from __future__ import annotations

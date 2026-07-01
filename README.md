@@ -1,26 +1,20 @@
 # PPT Generator
 
-An MCP (Model Context Protocol) server that automatically generates presentations from a given topic using AI.
+An MCP (Model Context Protocol) server that automatically generates presentations from a given topic.
 
-### Cost & Time
-
-> Based on Claude Opus 4-7 + Bedrock. Time and cost scale proportionally with slide count and complexity.
-
-**5-slide benchmark (Outline → Script → Design, excluding Visual QA)**
-
-| Stage | Input | Output | Cache Write | Cache Read | Cost (USD) |
-| --- | --- | --- | --- | --- | --- |
-| Outline + Script | 4K | 3K | - | - | $0.12 |
-| Design (summary + slides) | 4K | 70K | 31K | 29K | $1.17 |
-| **Total** | **8K** | **73K** | **31K** | **29K** | **~$1.3** |
-
-Visual QA does not run automatically and must be explicitly requested by the user. To reduce costs, set `max_iterations=1` or request Visual QA only for specific problematic slides.
+**LLM generation is offloaded to the client.** The server owns the prompts, the output
+JSON schemas, and all deterministic post-processing (validation, layout, lint, HTML/PPTX
+render); it never calls a model itself. Each generation step is a `prepare_*` /
+`ingest_*` pair — `prepare_*` hands the client the prompt + schema, the client generates
+the JSON, and `ingest_*` validates and post-processes it. This means **no AWS/Anthropic
+credentials and no per-call model cost on the server side** — the client's own model does
+the generating. Design decision: [docs/adr/offload/0001](docs/adr/offload/0001-client-llm-offload-plugin.md).
 
 ## Prerequisites
 
 1. Python 3.13+
 2. [uv](https://docs.astral.sh/uv/) package manager
-3. AWS CLI configured (default: Bedrock IAM) or Anthropic API Key
+3. An MCP client that can generate JSON (e.g. Claude Code) — no model API keys needed on the server
 
 ## 1. Installation
 
@@ -30,24 +24,16 @@ cd ppt-generator
 uv sync
 ```
 
-## 2. Register MCP Server
+## 2. Install the plugin (Claude Code)
 
-Add the server to your MCP client configuration file.
+The repo ships as a Claude Code plugin (manifest at `.claude-plugin/plugin.json`) with
+skills that drive the prepare→generate→ingest workflow. Install it as a local plugin so
+the MCP server and the `ppt-outline` / `ppt-design` / `ppt-modify` / `ppt-visual-qa`
+skills are available.
 
-**Claude Code** — create `.mcp.json` at the project root:
+Alternatively, register just the MCP server directly.
 
-```json
-{
-  "mcpServers": {
-    "ppt-generator": {
-      "command": "uv",
-      "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"]
-    }
-  }
-}
-```
-
-**Kiro** — create `.kiro/settings/mcp.json` at the project root:
+**Claude Code / Kiro / Claude Desktop** — MCP server config:
 
 ```json
 {
@@ -60,27 +46,16 @@ Add the server to your MCP client configuration file.
 }
 ```
 
-**Claude Desktop** — add the same format to `claude_desktop_config.json`.
+> Replace `/path/to/ppt-generator` with the actual project path. No model API keys are
+> required — the client supplies the generation.
 
-> By default, IAM credentials from the AWS CLI profile are used (Bedrock). To use the Anthropic API, add `"ANTHROPIC_API_KEY": "sk-ant-..."` to the `env` section.
-
-> Replace `/path/to/ppt-generator` with the actual project path.
-
-### LLM Providers
-
-Supports both Anthropic API and AWS Bedrock.
-
-| Provider               | Required Environment Variables                              |
-| ---------------------- | ----------------------------------------------------------- |
-| Bedrock IAM (default)  | AWS CLI profile or `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` |
-| Bedrock (Bearer Token) | `AWS_BEARER_TOKEN_BEDROCK`, `AWS_REGION`                    |
-| Anthropic              | `ANTHROPIC_API_KEY`                                         |
-
-When `LLM_PROVIDER` is not set, it auto-selects `anthropic` if `ANTHROPIC_API_KEY` is present, otherwise defaults to `bedrock`.
-
-> For the full list of environment variables and detailed client configurations, see [docs/architecture.md](docs/architecture.md).
+> For the full list of environment variables and detailed client configurations, see [docs/harness/environment.md](docs/harness/environment.md).
 
 ## 3. Usage
+
+You interact in natural language; the client drives the prepare→generate→ingest handshake
+behind the scenes (guided by the bundled skills). You don't call the `prepare_*`/`ingest_*`
+tools by hand — just describe what you want.
 
 ### Step 1 — Generate or Import PPT
 
@@ -90,13 +65,16 @@ When `LLM_PROVIDER` is not set, it auto-selects `anthropic` if `ANTHROPIC_API_KE
 Read @context.md and generate a PPT using ppt-generator.
 ```
 
+The client generates the outline JSON, then the per-slide design specs, following the
+prompts and schemas the server hands back — no model credentials on the server side.
+
 **Import existing PPTX** — You can also import an existing PPTX file for editing:
 
 ```
 Import @presentation.pptx using import_pptx.
 ```
 
-Importing automatically generates an HTML preview. You can skip Step 2 and directly use per-slide editing, Visual QA, and export features. Parsing is deterministic with no LLM calls, so no additional cost is incurred.
+Importing automatically generates an HTML preview. You can skip Step 2 and directly use per-slide editing, Visual QA, and export features. Parsing is deterministic with no LLM calls.
 
 ### Step 2 — Provide Project Information
 
@@ -105,39 +83,47 @@ Before outline generation, you will be asked for the following:
 - **Presentation purpose** — e.g., "internal tech sharing", "client proposal", "conference talk"
 - **Presentation duration** — 3–60 minutes (default: 15 minutes)
 - **Audience type** — `general` / `technical` / `executive`
+- **Presenter info** — name / title / organization
 
-The system then auto-generates in order: Outline → Design Spec. You get a chance to review and edit at each stage.
+The flow proceeds Outline → DESIGN.md (design intent) → per-slide Design Spec. You review
+and confirm the outline before slides are generated, and can edit at each stage.
 
 ### Step 3 — Edit Individual Slides (Optional)
 
-After design spec generation (or PPTX import), you can modify individual slides. Instead of regenerating everything, you can add, update, or delete specific slides:
+After design spec generation (or PPTX import), you can modify individual slides. Instead of regenerating everything, you can add, update, delete, move, or make narrow single-component edits:
 
 ```
 Add a bar chart comparing performance data below the diagram on slide 3.
 Slide 5 has too much text — reduce it to key bullet points with icon layout.
 Add a Q&A slide after slide 7.
+Make the "LLM" box on slide 4 red.
+Move slide 6 to position 2.
 ```
+
+Add/update/component edits use the prepare/ingest handshake; move and delete are pure file
+operations with no generation.
 
 ### Step 4 — Visual QA (Optional)
 
-Automatically detects and fixes visual defects (line breaks, overlaps, margin misalignment, etc.). **Does not run automatically — must be explicitly requested by the user.**
+Detects and fixes visual defects (line breaks, overlaps, margin misalignment, etc.). The
+server captures screenshots (Playwright); the client analyzes them and generates fixes via
+the prepare/ingest handshake. **Does not run automatically — must be explicitly requested.**
 
 **Prerequisites:**
 
 ```bash
-uv sync --group visual-qa
 playwright install chromium
 ```
 
 ```
-Run visual_qa.
+Run visual QA.
 ```
 
 > Visual QA is an opt-in tool. A suggestion message appears after design spec generation, but it will not run until explicitly requested. If Playwright is not installed, it can be skipped without affecting existing functionality.
 
 ### Step 5 — Export Files
 
-Once design spec generation is complete, an HTML file is automatically exported by default. If it was not exported automatically, you can request it manually:
+After the design spec is finalized, request an HTML preview:
 
 ```
 Export as HTML and open it.
@@ -202,7 +188,10 @@ uv run pytest                  # Run all tests
 
 ## Documentation
 
-- [Architecture](docs/architecture.md) — Feature details, MCP tool list, workflows, project structure, tech stack
+- [Architecture](docs/harness/architecture.md) — prepare/ingest handshake, MCP tool list, workflows, project structure
+- [Environment & Config](docs/harness/environment.md) — environment variables, MCP client / plugin config
+- [Schemas](docs/harness/schemas.md) — domain models, client output models, component_hint table
+- [Testing](docs/harness/testing.md) — test writing rules and patterns
 - [ALPS Design Document](docs/ppt-generator.alps.md)
-- [ADR](docs/adr/) — Architecture Decision Records
+- [ADR](docs/adr/) — Architecture Decision Records ([offload/0001](docs/adr/offload/0001-client-llm-offload-plugin.md) covers the client-LLM offload)
 - [Contributing Guide](CONTRIBUTING.md)

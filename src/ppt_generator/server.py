@@ -18,30 +18,31 @@ def create_server() -> FastMCP:
     mcp = FastMCP(
         "ppt-generator",
         instructions=(
-            "## Required Workflow Rules\n"
-            "- After calling generate_slides_design_spec or modify_design_spec, "
-            "you **must** call export_html(project_id=...) to export HTML.\n"
-            "- Share the slides_html_path returned by export_html with the user.\n"
-            "- After design spec generation, suggest visual_qa(project_id=...) to the user "
-            "for pixel-perfect quality check.\n"
-            "- Only run visual_qa when the user agrees. "
-            "It requires Playwright (`playwright install chromium` for browser binary).\n"
-            "- Use import_pptx to import an external PPTX file for editing.\n"
-            "- Check the project's `source` field: "
-            '"imported" projects have no outline. '
-            "For imported projects, use modify_design_spec directly to add/update slides "
-            "(pass title, content_summary, etc. inline). "
-            "Or use generate_slides_design_spec with explicit outline_json.\n"
-            '- **Adding slides**: Call modify_design_spec(action="add") with '
-            "title, content_summary, component_hint, etc. "
-            "All file shifts (outline/design_spec/HTML) are handled automatically.\n"
-            '- **Updating slides**: Call modify_design_spec(action="update") with '
-            "title/content_summary to update, or call save_outline_slide first. "
-            "For imported projects, title and content_summary are **required** (no outline available).\n"
-            "- **Moving slides**: Call move_slide(project_id, from_index, to_index). "
-            "All slide indices are 1-based (first slide = 1). "
-            "This is a pure file reorder — no LLM call. "
-            "After move_slide, call export_html to refresh.\n"
+            "## LLM Offloading — prepare/ingest handshake\n"
+            "This server does NOT call an LLM. Each generation step is split into a "
+            "`prepare_*` tool (returns the system/user prompt + a `response_schema`) "
+            "and an `ingest_*` tool (validates + post-processes + saves the JSON YOU, "
+            "the client, generate). Workflow for a new deck:\n"
+            "1. prepare_outline → generate outline JSON (matching response_schema) → ingest_outline.\n"
+            "   Then show the outline to the user and get confirmation.\n"
+            "2. prepare_design_doc_draft → generate DESIGN.md draft JSON → ingest_design_doc_draft "
+            '(call ONCE; skip if it returns {"skip": true}).\n'
+            "3. For EACH slide (parallelize): prepare_design_slide → generate spec JSON "
+            "(matching response_schema) → ingest_design_slide.\n"
+            "4. finalize_design_spec once, then export_html and share slides_html_path.\n"
+            "## Rules\n"
+            "- Always generate JSON that conforms to the `response_schema` returned by prepare_*.\n"
+            '- **Adding a slide**: prepare_slide_edit(action="add") → generate → ingest_slide_edit.\n'
+            '- **Updating a slide**: prepare_slide_edit(action="update") → generate → ingest_slide_edit.\n'
+            "- **Narrow single-element edit**: prepare_modify_component → generate → ingest_modify_component "
+            '(imported slides return stage="backfill" first: generate → ingest_backfill → retry).\n'
+            "- **Moving/deleting**: move_slide / delete_slide are pure file ops (no generation).\n"
+            "- **Review**: prepare_review → generate → ingest_review (report-only; regenerate via prepare_slide_edit).\n"
+            "- **Visual QA** (opt-in, needs `playwright install chromium`): capture_slides → "
+            "prepare_visual_qa_analysis → generate → ingest_visual_qa_analysis → (if issues) "
+            "prepare_visual_qa_fix → generate → ingest_visual_qa_fix → finalize_visual_qa.\n"
+            "- After any add/update/modify/finalize, call export_html and share slides_html_path.\n"
+            "- Imported projects have no outline: pass title/content_summary inline to prepare_slide_edit.\n"
         ),
     )
     container = DIContainer()
@@ -49,9 +50,9 @@ def create_server() -> FastMCP:
     register_design_tools(
         mcp,
         container.project_service,
-        design_service_factory=container.create_design_service,
+        design_service=container.design_service,
         slides_service=container.slides_service,
-        review_service_factory=container.create_review_service,
+        review_service=container.review_service,
     )
     register_pptx_tools(mcp, container.export_service, container.project_service)
     register_pptx_import_tools(
@@ -65,7 +66,7 @@ def create_server() -> FastMCP:
     register_visual_qa_tools(
         mcp,
         container.project_service,
-        visual_qa_service_factory=container.create_visual_qa_service,
+        visual_qa_service=container.visual_qa_service,
         slides_service=container.slides_service,
     )
     return mcp

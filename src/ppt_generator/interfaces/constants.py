@@ -7,55 +7,16 @@ load_dotenv(Path(__file__).resolve().parents[3] / "env" / "local.env", override=
 
 PPT_GENERATOR_HOME = Path.home() / ".ppt-generator"
 
-DESIGN_SPEC_PARALLEL = int(os.environ.get("DESIGN_SPEC_PARALLEL", "8"))
-
 # --- Visual QA ---
+# 스크린샷 캡처 병렬도 (Playwright, 서버측). LLM 분석/수정은 클라이언트가 담당.
 VISUAL_QA_PARALLEL = int(os.environ.get("VISUAL_QA_PARALLEL", "8"))
 VISUAL_QA_MAX_ITERATIONS = int(os.environ.get("VISUAL_QA_MAX_ITERATIONS", "2"))
 
 # --- Timeouts (seconds) ---
-DESIGN_SPEC_TIMEOUT = int(os.environ.get("DESIGN_SPEC_TIMEOUT", "300"))
 SCREENSHOT_TIMEOUT = int(os.environ.get("SCREENSHOT_TIMEOUT", "60"))
-VISUAL_QA_PHASE_TIMEOUT = int(os.environ.get("VISUAL_QA_PHASE_TIMEOUT", "600"))
 
-# Visual QA analysis model (Haiku — lightweight classification)
-BEDROCK_VISUAL_QA_ANALYSIS_MODEL_ID = os.environ.get(
-    "BEDROCK_VISUAL_QA_ANALYSIS_MODEL_ID",
-    "global.anthropic.claude-haiku-4-5-20251001-v1:0",
-)
-ANTHROPIC_VISUAL_QA_ANALYSIS_MODEL_ID = os.environ.get(
-    "ANTHROPIC_VISUAL_QA_ANALYSIS_MODEL_ID", "claude-haiku-4-5-20251001"
-)
-BEDROCK_VISUAL_QA_ANALYSIS_MAX_TOKENS = int(
-    os.environ.get("BEDROCK_VISUAL_QA_ANALYSIS_MAX_TOKENS", "8192")
-)
 VISUAL_QA_VIEWPORT_WIDTH = 1280
 VISUAL_QA_VIEWPORT_HEIGHT = 720
-
-# --- Design spec generation model ---
-BEDROCK_DESIGN_MODEL_ID = os.environ.get(
-    "BEDROCK_DESIGN_MODEL_ID", "global.anthropic.claude-sonnet-4-6"
-)
-ANTHROPIC_DESIGN_MODEL_ID = os.environ.get(
-    "ANTHROPIC_DESIGN_MODEL_ID", "claude-sonnet-4-6"
-)
-BEDROCK_DESIGN_MAX_TOKENS = int(os.environ.get("BEDROCK_DESIGN_MAX_TOKENS", "64000"))
-BEDROCK_REVIEW_MAX_TOKENS = int(os.environ.get("BEDROCK_REVIEW_MAX_TOKENS", "4096"))
-BEDROCK_VISUAL_QA_FIX_MAX_TOKENS = int(
-    os.environ.get("BEDROCK_VISUAL_QA_FIX_MAX_TOKENS", "4096")
-)
-
-# --- Outline generation model ---
-BEDROCK_OUTLINE_MODEL_ID = os.environ.get(
-    "BEDROCK_OUTLINE_MODEL_ID", "global.anthropic.claude-sonnet-4-6"
-)
-ANTHROPIC_OUTLINE_MODEL_ID = os.environ.get(
-    "ANTHROPIC_OUTLINE_MODEL_ID", "claude-sonnet-4-6"
-)
-BEDROCK_OUTLINE_MAX_TOKENS = int(os.environ.get("BEDROCK_OUTLINE_MAX_TOKENS", "32000"))
-
-# --- Common ---
-BEDROCK_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 DEFAULT_NUM_SLIDES = 5
 MIN_NUM_SLIDES = 3
@@ -67,7 +28,7 @@ DEFAULT_PRESENTATION_MINUTES = 15
 MIN_PRESENTATION_MINUTES = 3
 MAX_PRESENTATION_MINUTES = 60
 
-# --- Bedrock Structured Output JSON Schemas (re-export) ---
+# --- Structured Output JSON Schemas (re-export) ---
 
 from ppt_generator.interfaces.json_schemas import OUTLINE_JSON_SCHEMA  # noqa: E402
 
@@ -212,17 +173,6 @@ from ppt_generator.interfaces.prompts import (  # noqa: E402
 )
 
 __all__ = [
-    # Design model settings
-    "BEDROCK_DESIGN_MODEL_ID",
-    "ANTHROPIC_DESIGN_MODEL_ID",
-    "BEDROCK_DESIGN_MAX_TOKENS",
-    "BEDROCK_REVIEW_MAX_TOKENS",
-    # Outline model settings
-    "BEDROCK_OUTLINE_MODEL_ID",
-    "ANTHROPIC_OUTLINE_MODEL_ID",
-    "BEDROCK_OUTLINE_MAX_TOKENS",
-    # Common
-    "BEDROCK_REGION",
     # Numeric constants
     "DEFAULT_NUM_SLIDES",
     "MIN_NUM_SLIDES",
@@ -313,20 +263,13 @@ __all__ = [
     "VISUAL_QA_FIX_SYSTEM_PROMPT",
     # Paths
     "PPT_GENERATOR_HOME",
-    # Parallelism
-    "DESIGN_SPEC_PARALLEL",
     # Visual QA
+    "VISUAL_QA_PARALLEL",
     "VISUAL_QA_MAX_ITERATIONS",
     "VISUAL_QA_VIEWPORT_WIDTH",
     "VISUAL_QA_VIEWPORT_HEIGHT",
-    "BEDROCK_VISUAL_QA_ANALYSIS_MODEL_ID",
-    "ANTHROPIC_VISUAL_QA_ANALYSIS_MODEL_ID",
-    "BEDROCK_VISUAL_QA_ANALYSIS_MAX_TOKENS",
-    "BEDROCK_VISUAL_QA_FIX_MAX_TOKENS",
     # Complexity
     "COMPONENT_HINT_COMPLEXITY",
     # Timeouts
-    "DESIGN_SPEC_TIMEOUT",
     "SCREENSHOT_TIMEOUT",
-    "VISUAL_QA_PHASE_TIMEOUT",
 ]

@@ -7,7 +7,6 @@ from mcp.server.fastmcp import FastMCP
 
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
-    PptxImage,
     PptxSlideSpec,
     ProjectMetadata,
 )

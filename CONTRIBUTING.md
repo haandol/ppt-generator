@@ -102,7 +102,7 @@ Refs: #42
 ```
 
 ```
-fix(di): fall back to default AWS credentials when bearer token is unset
+fix(outline): handle empty slide list in ingest_outline
 ```
 
 ```
@@ -110,11 +110,11 @@ refactor(design): extract design summary generation into separate method
 ```
 
 ```
-docs: update environment variable descriptions for Bedrock config
+docs: clarify prepare/ingest handshake in environment guide
 ```
 
 ```
-chore(deps): bump strands-agents to 1.2.0
+chore(deps): bump python-pptx to 1.0.2
 ```
 
 ```
@@ -178,7 +178,7 @@ fix(design): correct progress percentage calculation
 | 접두사       | 용도             | 예시                             |
 | ------------ | ---------------- | -------------------------------- |
 | `feat/`      | 새 기능 개발     | `feat/parallel-design-spec`      |
-| `fix/`       | 버그 수정        | `fix/bedrock-auth-fallback`      |
+| `fix/`       | 버그 수정        | `fix/outline-empty-slides`       |
 | `refactor/`  | 리팩토링         | `refactor/di-container-cleanup`  |
 | `docs/`      | 문서 작업        | `docs/contributing-guide`        |
 | `chore/`     | 유지보수         | `chore/update-dependencies`      |
@@ -241,7 +241,7 @@ uv run pytest tests/test_xxx.py::test_function_name -v
 
 ### 테스트 규칙
 
-- 외부 API(Bedrock/Anthropic) 호출은 반드시 mock 처리
+- 이 서버는 LLM 을 직접 호출하지 않는다(생성은 MCP 클라이언트 담당). 남는 외부 API 호출이 있다면 반드시 mock 처리
 - 새 기능 추가 시 관련 테스트 파일 작성
 - 테스트 파일명: `tests/test_<모듈명>.py`
 

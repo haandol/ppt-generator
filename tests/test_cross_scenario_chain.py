@@ -1,13 +1,14 @@
 """Cross-시나리오 회귀 테스트 ( 갭 점검 후속).
 
 여러 도구를 chain 으로 호출했을 때 5단 계층 데이터가 일관되게 보존되는지 검증.
-LLM 호출은 MagicMock 으로 대체.
+LLM 생성은 클라이언트가 하므로, 테스트는 prepare/ingest 도구 쌍을 호출하고
+mock design_service 의 ingest_* 가 실제 결정론 코어(_apply_backfill_output,
+DesignService.ingest_modify_component)를 통과하도록 side_effect 를 연결한다.
 """
 
 from __future__ import annotations
 
 import json
-from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -21,11 +22,7 @@ from ppt_generator.interfaces.llm_output_models import (
     ShapeOutput,
 )
 from ppt_generator.interfaces.schemas import (
-    DesignDoc,
     DesignSpec,
-    GridCell,
-    GridPlan,
-    LayoutNode,
     PptxParagraph,
     PptxShape,
     PptxSlideSpec,
@@ -34,7 +31,7 @@ from ppt_generator.interfaces.schemas import (
 )
 from ppt_generator.tools.design.controller import register_design_tools
 from ppt_generator.tools.design.service import (
-    _apply_backfill_output,
+    DesignService,
 )
 from ppt_generator.tools.project.service import ProjectService
 
@@ -148,6 +145,13 @@ def imported_project(tmp_path: Path, monkeypatch):
 
 @pytest.fixture()
 def chain_tools(imported_project):
+    """prepare/ingest 도구를 mock MCP 에 등록한다.
+
+    mock design_service 의 ingest_backfill / ingest_modify_component 는
+    실제 결정론 코어(_apply_backfill_output / DesignService.ingest_modify_component)를
+    호출하도록 side_effect 를 연결해, z_index 등 LLM schema 에 없는 필드 보존 코드가
+    실제로 실행되게 한다. prepare_* 는 stub 태스크 dict 를 반환한다.
+    """
     project_id, project_dir, project_service = imported_project
 
     mcp = MagicMock()
@@ -162,13 +166,32 @@ def chain_tools(imported_project):
 
     mcp.tool = tool_decorator
 
+    real_svc = DesignService()
+
     design_service = MagicMock()
-    design_service.last_token_usage = {}
+    design_service.prepare_backfill.return_value = {
+        "system_prompt": "sys",
+        "user_prompt": "usr",
+        "response_schema": {},
+    }
+    design_service.prepare_modify_component.return_value = {
+        "system_prompt": "sys",
+        "user_prompt": "usr",
+        "response_schema": {},
+    }
+    # ingest_backfill / ingest_modify_component 은 실제 결정론 코어로 위임.
+    design_service.ingest_backfill.side_effect = (
+        lambda spec, output_json, slide_index=1: real_svc.ingest_backfill(
+            spec, output_json, slide_index=slide_index
+        )
+    )
+    design_service.ingest_modify_component.side_effect = (
+        lambda spec, component_id, output_json: real_svc.ingest_modify_component(
+            spec=spec, component_id=component_id, output_json=output_json
+        )
+    )
 
-    def factory(slide_type="content", budget_tokens=8192):
-        return design_service
-
-    register_design_tools(mcp, project_service, design_service_factory=factory)
+    register_design_tools(mcp, project_service, design_service=design_service)
     return project_id, project_dir, project_service, design_service, tools
 
 
@@ -176,22 +199,27 @@ class TestImportBackfillModifyChain:
     """import → backfill → modify_component 체인에서 z_index 보존 보장."""
 
     def test_z_index_preserved_through_full_chain(self, chain_tools) -> None:
-        from ppt_generator.tools.design.service import DesignService
-
         project_id, project_dir, ps, ds, tools = chain_tools
 
-        # 1) backfill 결과는 _apply_backfill_output 으로 시뮬레이션
-        ds.backfill_design_doc.side_effect = lambda spec, slide_index=1: (
-            _apply_backfill_output(spec, _backfill_output())
-        )
-
-        # 1차 호출: backfill 만 (component_id 매칭 실패)
-        result1 = json.loads(
-            tools["modify_component"](
+        # 1) backfill 단계: prepare_modify_component 가 component_id 매칭 실패(design_doc
+        #    없음)이면 stage="backfill" 태스크를 반환한다.
+        prep1 = json.loads(
+            tools["prepare_modify_component"](
                 project_id=project_id,
                 slide_index=1,
                 component_id="unknown",
                 instruction="x",
+            )
+        )
+        assert prep1["stage"] == "backfill"
+
+        # 클라이언트가 생성한 backfill JSON 을 ingest. mock 은 실제
+        # _apply_backfill_output 를 통과하는 ingest_backfill 로 위임한다.
+        result1 = json.loads(
+            tools["ingest_backfill"](
+                project_id=project_id,
+                slide_index=1,
+                backfill_json=_backfill_output().model_dump_json(),
             )
         )
         assert result1["status"] == "backfilled"
@@ -202,34 +230,30 @@ class TestImportBackfillModifyChain:
         assert saved.shapes[0].z_index == 1
         assert saved.shapes[0].component_id == "right.box"
 
-        # 2차 호출: modify_component 호출. 실제 DesignService.modify_component
-        # 사용 (mock 아님) — z_index 보존 코드를 통과하는지 검증
-        real_svc = DesignService(agent=MagicMock(), backfill_agent=MagicMock())
-        agent_mock = real_svc._agent
-        result_obj = MagicMock()
-        result_obj.structured_output = ComponentModifyOutput(
-            element_kind="shape",
-            shape=_shape_red(),
-            bbox_changed=False,
-        )
-        result_obj.metrics = None
-        agent_mock.return_value = result_obj
-
-        # design_service mock 의 modify_component 가 실제 메서드를 호출하도록 설정
-        ds.modify_component.side_effect = lambda **kw: real_svc.modify_component(
-            spec=kw["spec"],
-            component_id=kw["component_id"],
-            instruction=kw["instruction"],
-            slide_index=kw.get("slide_index", 1),
-            color_theme=kw.get("color_theme", "dark"),
-        )
-
-        result2 = json.loads(
-            tools["modify_component"](
+        # 2) modify 단계: 이제 design_doc 이 채워졌으므로 prepare 는 stage="modify".
+        prep2 = json.loads(
+            tools["prepare_modify_component"](
                 project_id=project_id,
                 slide_index=1,
                 component_id="right.box",
                 instruction="Make red",
+            )
+        )
+        assert prep2["stage"] == "modify"
+
+        # 클라이언트가 생성한 ComponentModify JSON 을 ingest. mock 은 실제
+        # DesignService.ingest_modify_component (z_index/grid_cell 보존 코드)로 위임한다.
+        modify_output = ComponentModifyOutput(
+            element_kind="shape",
+            shape=_shape_red(),
+            bbox_changed=False,
+        )
+        result2 = json.loads(
+            tools["ingest_modify_component"](
+                project_id=project_id,
+                slide_index=1,
+                component_id="right.box",
+                modify_json=modify_output.model_dump_json(),
             )
         )
         assert result2["component_id"] == "right.box"
@@ -250,15 +274,20 @@ class TestImportBackfillModifyChain:
         from ppt_generator.interfaces.spec_utils import lint_slide_spec
 
         project_id, project_dir, ps, ds, tools = chain_tools
-        ds.backfill_design_doc.side_effect = lambda spec, slide_index=1: (
-            _apply_backfill_output(spec, _backfill_output())
-        )
-        tools["modify_component"](
+
+        # backfill 단계까지 진행 (prepare → ingest_backfill).
+        tools["prepare_modify_component"](
             project_id=project_id,
             slide_index=1,
             component_id="unknown",
             instruction="x",
         )
+        tools["ingest_backfill"](
+            project_id=project_id,
+            slide_index=1,
+            backfill_json=_backfill_output().model_dump_json(),
+        )
+
         saved = ps.load_design_spec_slide(project_dir, 0)
         result = lint_slide_spec(saved)
         link_violations = [

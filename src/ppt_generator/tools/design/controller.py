@@ -1,21 +1,36 @@
-"""Design 도구 MCP 등록."""
+"""Design 도구 MCP 등록 (prepare/ingest 오프로딩).
+
+LLM 생성은 클라이언트가 수행한다. 각 생성 단계는 prepare_*(프롬프트+스키마 반환) /
+ingest_*(검증+후처리+저장) 로 나뉜다. move/delete 는 LLM 이 없어 단일 도구로 유지.
+"""
 
 from __future__ import annotations
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.fastmcp import FastMCP
 
-from ppt_generator.interfaces.protocols import (
-    DesignServiceFactory,
-    ReviewServiceFactory,
-)
 from ppt_generator.tools.design.handlers.deps import DesignDeps
-from ppt_generator.tools.design.handlers.generation import handle_generate
-from ppt_generator.tools.design.handlers.modification import (
-    handle_modify,
-    handle_modify_component,
-    handle_move,
+from ppt_generator.tools.design.handlers.generation import (
+    handle_finalize_design_spec,
+    handle_ingest_design_doc_draft,
+    handle_ingest_design_slide,
+    handle_prepare_design_doc_draft,
+    handle_prepare_design_slide,
 )
-from ppt_generator.tools.design.handlers.review import handle_review
+from ppt_generator.tools.design.handlers.modification import (
+    handle_delete,
+    handle_ingest_backfill,
+    handle_ingest_modify_component,
+    handle_ingest_slide_edit,
+    handle_move,
+    handle_prepare_modify_component,
+    handle_prepare_slide_edit,
+)
+from ppt_generator.tools.design.handlers.review import (
+    handle_ingest_review,
+    handle_prepare_review,
+)
+from ppt_generator.tools.design.review_service import DesignReviewService
+from ppt_generator.tools.design.service import DesignService
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
 
@@ -23,62 +38,182 @@ from ppt_generator.tools.slides.service import SlidesService
 def register_design_tools(
     mcp: FastMCP,
     project_service: ProjectService,
-    design_service_factory: DesignServiceFactory,
+    design_service: DesignService,
     slides_service: SlidesService | None = None,
-    review_service_factory: ReviewServiceFactory | None = None,
+    review_service: DesignReviewService | None = None,
 ) -> None:
     deps = DesignDeps(
-        project_service, design_service_factory, slides_service, review_service_factory
+        project_service=project_service,
+        design_service=design_service,
+        slides_service=slides_service,
+        review_service=review_service,
     )
 
+    # ------------------------------------------------------------------
+    # DESIGN.md 초안 (theme + tone + page_requests)
+    # ------------------------------------------------------------------
+
     @mcp.tool()
-    async def generate_slides_design_spec(
+    def prepare_design_doc_draft(
         project_id: str = "",
+        outline_json: str = "",
+        color_theme: str = "dark",
+    ) -> str:
+        """Prepares the prompt for the CLIENT to draft DESIGN.md (design intent).
+
+        No LLM call. If DESIGN.md already exists, returns {"skip": true} — reuse the
+        existing design intent (do not regenerate). Otherwise returns system_prompt,
+        user_prompt, and project_id. **Generate the draft JSON (theme + tone +
+        page_requests) following the prompt's output_format, then call
+        `ingest_design_doc_draft`.**
+
+        Call this ONCE before generating slides, so every slide shares one design
+        theme and narrative arc.
+
+        Args:
+            project_id: Project ID. Loads outline from the saved project.
+            outline_json: Full outline JSON. Optional if project_id is given.
+            color_theme: Color theme ("dark" or "light", default: "dark").
+
+        Returns:
+            JSON with system_prompt, user_prompt, project_id, color_theme — or {"skip": true}.
+        """
+        return handle_prepare_design_doc_draft(
+            deps,
+            project_id=project_id,
+            outline_json=outline_json,
+            color_theme=color_theme,
+        )
+
+    @mcp.tool()
+    def ingest_design_doc_draft(
+        project_id: str,
+        draft_json: str,
+        color_theme: str = "dark",
+    ) -> str:
+        """Ingests the client-generated DESIGN.md draft and saves DESIGN.md.
+
+        Call AFTER prepare_design_doc_draft with the draft JSON you generated.
+
+        Args:
+            project_id: Project ID (required).
+            draft_json: Draft JSON (theme + tone + page_requests) from the client.
+            color_theme: Color theme (stored into the theme).
+
+        Returns:
+            JSON with project_id and design_doc_path.
+        """
+        return handle_ingest_design_doc_draft(
+            deps,
+            project_id=project_id,
+            draft_json=draft_json,
+            color_theme=color_theme,
+        )
+
+    # ------------------------------------------------------------------
+    # 단일 슬라이드 design spec 생성
+    # ------------------------------------------------------------------
+
+    @mcp.tool()
+    def prepare_design_slide(
+        project_id: str,
+        slide_index: int,
         outline_json: str = "",
         total_slides: int = 0,
         color_theme: str = "dark",
-        slide_indices: str = "",
-        ctx: Context | None = None,
     ) -> str:
-        """Generates slide design specs (all or selective, with server-side parallel processing).
+        """Prepares the prompt + JSON schema for the CLIENT to generate ONE slide's design spec.
 
-        Can generate all slides at once, or selectively generate specific slides via slide_indices.
-        **Parallel processing is handled automatically inside the server**, so there is no need to call this tool multiple times in parallel.
-        The DESIGN_SPEC_PARALLEL env var (default 8) controls the concurrency level.
+        No LLM call. Returns the system prompt, user prompt (with adjacent-slide
+        context and DESIGN.md directives baked in), the `response_schema` the spec
+        must match, and a `thinking_budget` hint. **Generate the slide spec JSON that
+        conforms to `response_schema`, then call `ingest_design_slide`.**
 
-        **Processing order:**
-        1. If design_summary doesn't exist, pre-generates the design theme via LLM.
-        2. Generates all slides in parallel (HTML preview for each slide is also auto-generated).
-        3. If some slides fail, the rest are still saved normally.
-           Failed slides can be retried by specifying only those slide_indices in this tool.
-
-        **For individual slide modifications, use the update action in `modify_design_spec`.**
-
-        **Precondition: After outline generation, you must confirm with the user that there are no outline modifications before calling.**
+        **Parallelize across slides**: call prepare→generate→ingest for each slide
+        concurrently. Slides are independent server-side. Call
+        `prepare_design_doc_draft`/`ingest_design_doc_draft` FIRST so all slides share
+        one theme.
 
         Args:
-            project_id: Project ID. If specified, automatically loads from saved outline.
-            outline_json: Full outline JSON ({"slides": [...]}) - including all slides. Can be omitted if project_id is specified.
-            total_slides: Total number of slides. 0 = auto-calculated from loaded outline.
-            color_theme: Color theme ("dark" or "light", default: "dark")
-            slide_indices: Slide indices to generate (1-based, comma-separated). E.g., "1,3,5". Empty string = generate all.
+            project_id: Project ID (required).
+            slide_index: 1-based slide number to generate.
+            outline_json: Full outline JSON. Optional if project_id has a saved outline.
+            total_slides: Total slide count (0 = infer from outline).
+            color_theme: Color theme ("dark" or "light").
 
         Returns:
-            JSON string containing design_spec_dir, slide_count, total_slides, project_id, success_count, error_count, results
-
-        **IMPORTANT — Required follow-up action:**
-        After this tool call succeeds, you must call `export_html(project_id=<project_id>)`
-        to export HTML and share the slides_html_path with the user.
+            JSON with system_prompt, user_prompt, response_schema, slide_type,
+            thinking_budget, project_id, slide_index.
         """
-        return await handle_generate(
+        return handle_prepare_design_slide(
             deps,
-            ctx,
             project_id=project_id,
+            slide_index=slide_index,
             outline_json=outline_json,
             total_slides=total_slides,
             color_theme=color_theme,
-            slide_indices=slide_indices,
         )
+
+    @mcp.tool()
+    def ingest_design_slide(
+        project_id: str,
+        slide_index: int,
+        spec_json: str,
+        color_theme: str = "dark",
+    ) -> str:
+        """Ingests the client-generated slide spec: validate, normalize, save, render, lint.
+
+        Call AFTER prepare_design_slide with the spec JSON you generated.
+
+        Args:
+            project_id: Project ID (required).
+            slide_index: 1-based slide number (same as prepare).
+            spec_json: The slide spec JSON generated by the client, matching the schema.
+            color_theme: Color theme ("dark" or "light").
+
+        Returns:
+            JSON with status, slide_file, slide_html_path, optional lint and overflow.
+
+        **After ingesting ALL slides, call `finalize_design_spec` once.**
+        """
+        return handle_ingest_design_slide(
+            deps,
+            project_id=project_id,
+            slide_index=slide_index,
+            spec_json=spec_json,
+            color_theme=color_theme,
+        )
+
+    @mcp.tool()
+    def finalize_design_spec(
+        project_id: str,
+        overflow_json: str = "",
+    ) -> str:
+        """Finalizes a freshly generated deck: builds slides.html, runs deck-wide lint.
+
+        No LLM call. Call ONCE after all slides have been ingested via
+        `ingest_design_slide`. Pass the collected overflow items (if any) as JSON.
+
+        Args:
+            project_id: Project ID (required).
+            overflow_json: JSON array of overflow items collected from ingest calls
+                (optional, "" if none).
+
+        Returns:
+            JSON with design_spec_dir, slide_count, slides_html_path, lint, overflow.
+
+        **IMPORTANT — Required follow-up:** call `export_html(project_id=<project_id>)`
+        and share slides_html_path with the user.
+        """
+        return handle_finalize_design_spec(
+            deps,
+            project_id=project_id,
+            overflow_json=overflow_json,
+        )
+
+    # ------------------------------------------------------------------
+    # move / delete (LLM 불필요)
+    # ------------------------------------------------------------------
 
     @mcp.tool()
     def move_slide(
@@ -93,11 +228,11 @@ def register_design_tools(
 
         Args:
             project_id: Target project ID (required)
-            from_index: Current slide position (1-based). E.g., 16 for the 16th slide.
-            to_index: Desired slide position (1-based). E.g., 11 for the 11th position.
+            from_index: Current slide position (1-based).
+            to_index: Desired slide position (1-based).
 
         Returns:
-            JSON string containing project_id, slide_count, from_index, to_index
+            JSON string containing project_id, slide_count, from_index, to_index.
         """
         return handle_move(
             deps,
@@ -107,7 +242,33 @@ def register_design_tools(
         )
 
     @mcp.tool()
-    def modify_design_spec(
+    def delete_slide(
+        project_id: str,
+        slide_index: int,
+    ) -> str:
+        """Deletes a slide. No LLM call — pure file removal + reindex.
+
+        Args:
+            project_id: Target project ID (required)
+            slide_index: Slide position to delete (1-based).
+
+        Returns:
+            JSON string containing project_id and the new slide_count.
+
+        **After this call, call `export_html(project_id=<project_id>)` to refresh HTML.**
+        """
+        return handle_delete(
+            deps,
+            project_id=project_id,
+            slide_index=slide_index,
+        )
+
+    # ------------------------------------------------------------------
+    # add / update 슬라이드 (prepare/ingest)
+    # ------------------------------------------------------------------
+
+    @mcp.tool()
+    def prepare_slide_edit(
         project_id: str,
         action: str,
         slide_index: int = -1,
@@ -118,43 +279,30 @@ def register_design_tools(
         speaker_notes: str = "",
         color_theme: str = "dark",
     ) -> str:
-        """Adds, updates, or deletes individual slides in the design spec.
+        """Prepares to add or update ONE slide — updates the outline, returns a generation task.
 
-        Performs slide-level CRUD on an existing project's design spec.
-        For add/update, maintains consistent style based on the first slide's design.
+        No LLM call. For add: shifts files and inserts the new outline. For update:
+        updates the outline (if title/content_summary given). Returns the slide
+        generation prompt + `response_schema`. **Generate the slide spec JSON, then
+        call `ingest_slide_edit` with the SAME action and slide_index.**
 
-        **add: All file shifts are handled automatically.**
-        Pass the new slide's outline (title, content_summary, etc.) directly.
-        This tool shifts all files (outline/design_spec/HTML) at slide_index+1 onward by +1,
-        saves the new outline, generates the design spec via LLM, and saves everything.
-        No need to call save_outline_slide beforehand.
-
-        **update: Pass the updated outline directly, or call save_outline_slide beforehand.**
-        If title/content_summary are provided, the outline is updated automatically.
-        Otherwise, reads the existing outline at slide_index.
-
-        **delete: No precondition needed.**
+        For narrow single-element tweaks, use `prepare_modify_component` instead.
 
         Args:
-            project_id: Target project ID (required)
-            action: Action to perform ("add" | "update" | "delete")
-            slide_index: Slide position (1-based). Insertion position for add (-1 = end), target for update/delete.
-            title: Slide title (required for add; required for update on imported projects, optional otherwise)
-            content_summary: Slide content description for LLM (required for add; required for update on imported projects, optional otherwise)
-            component_hint: Layout hint (default: "bullets")
-            slide_type: Slide type - "title", "content", "closing", "agenda" (default: "content")
-            speaker_notes: Optional speaker notes
-            color_theme: Color theme ("dark" or "light", default: "dark")
+            project_id: Target project ID (required).
+            action: "add" | "update".
+            slide_index: 1-based position. add: insertion point (-1 = end). update: target.
+            title: Slide title (required for add; required for update on imported projects).
+            content_summary: Content description (required for add; required for update on imported).
+            component_hint: Layout hint (default: "bullets").
+            slide_type: "title" | "content" | "closing" | "agenda" (default: "content").
+            speaker_notes: Optional speaker notes.
+            color_theme: Color theme ("dark" or "light").
 
         Returns:
-            JSON string containing design_spec_path, project_id, slide_count
-
-        **IMPORTANT — Required follow-up action:**
-        After this tool call succeeds (when action is "add" or "update"),
-        you must call `export_html(project_id=<project_id>)`
-        to export HTML and share the slides_html_path with the user.
+            JSON with system_prompt, user_prompt, response_schema, action, project_id.
         """
-        return handle_modify(
+        return handle_prepare_slide_edit(
             deps,
             project_id=project_id,
             action=action,
@@ -168,52 +316,74 @@ def register_design_tools(
         )
 
     @mcp.tool()
-    def modify_component(
+    def ingest_slide_edit(
+        project_id: str,
+        action: str,
+        slide_index: int,
+        spec_json: str,
+        color_theme: str = "dark",
+    ) -> str:
+        """Ingests an add/update slide spec: validate, save (insert for add), render, lint.
+
+        Call AFTER prepare_slide_edit with the same action/slide_index and your spec JSON.
+
+        Args:
+            project_id: Target project ID (required).
+            action: "add" | "update" (same as prepare).
+            slide_index: 1-based position (same as prepare; use the insertion point for add).
+            spec_json: The slide spec JSON generated by the client.
+            color_theme: Color theme ("dark" or "light").
+
+        Returns:
+            JSON with design_spec_dir, slide_count, slide_index, slide_html_path, optional lint.
+
+        **IMPORTANT — Required follow-up:** call `export_html(project_id=<project_id>)`.
+        """
+        return handle_ingest_slide_edit(
+            deps,
+            project_id=project_id,
+            action=action,
+            slide_index=slide_index,
+            spec_json=spec_json,
+            color_theme=color_theme,
+        )
+
+    # ------------------------------------------------------------------
+    # modify_component (prepare/ingest, + lazy backfill)
+    # ------------------------------------------------------------------
+
+    @mcp.tool()
+    def prepare_modify_component(
         project_id: str,
         slide_index: int,
         component_id: str,
         instruction: str,
         color_theme: str = "dark",
     ) -> str:
-        """Modifies exactly ONE component on a content slide via natural-language instruction.
+        """Prepares a narrow single-component edit on a content slide.
 
-        Use this for *narrow* changes like "make the LLM box red", "rename the second
-        function card to db_query", "shift the diagram block 24px to the right".
-        The LLM only edits the textbox/shape whose `component_id` matches; everything
-        else on the slide (other elements, grid_plan, background, speaker_notes,
-        design_doc tree structure) stays byte-equal.
+        No LLM call. Returns a generation task with `stage`:
+        - `stage="modify"`: generate the ComponentModify JSON, then call
+          `ingest_modify_component`.
+        - `stage="backfill"` (imported slides with no design_doc): generate the backfill
+          JSON, call `ingest_backfill` to get `available_components`, then call
+          `prepare_modify_component` again with a valid component_id.
 
-        For broader changes (replace 3 cards at once, change overall topic, restructure
-        layout), use `modify_design_spec(action="update")` instead.
-
-        **Imported slides**: Imported PPTX slides start with `design_doc=None`.
-        On the first call to this tool, design_doc is auto-backfilled (LLM infers the
-        section tree + component_id linkage from existing textbox/shape positions).
-        If the requested `component_id` is not in the backfilled tree, the response
-        returns `status="backfilled"` with `available_components` — pick one and call
-        again. The second call uses the saved design_doc directly (no re-backfill).
-        Title/closing slides still require `modify_design_spec(action="update")`.
+        Use for narrow changes like "make the LLM box red". For broader changes use
+        `prepare_slide_edit(action="update")`.
 
         Args:
             project_id: Target project ID (required).
-            slide_index: Slide position (1-based).
-            component_id: Target component id from `design_doc.layout` leaf (e.g.
-                "right_diagram.llm_box"). Look it up via `load_design_spec`.
-            instruction: Natural-language description of the change. Be specific
-                about color/text/size — vague instructions get vague edits.
-            color_theme: Color theme ("dark" or "light", default: "dark").
+            slide_index: 1-based slide position.
+            component_id: Target component id from design_doc.layout leaf.
+            instruction: Natural-language description of the change.
+            color_theme: Color theme ("dark" or "light").
 
         Returns:
-            JSON string containing project_id, slide_index, component_id,
-            modified_element (type+index), slide_html_path, optional lint result,
-            and token_usage.
-
-        **IMPORTANT — Required follow-up action:**
-        After this call succeeds, share the returned `slide_html_path` with the user
-        (it is the rendered HTML for just this one slide). Call `export_html` if
-        the user wants to refresh the deck-wide HTML.
+            JSON with system_prompt, user_prompt, response_schema, stage, project_id,
+            slide_index, component_id.
         """
-        return handle_modify_component(
+        return handle_prepare_modify_component(
             deps,
             project_id=project_id,
             slide_index=slide_index,
@@ -223,35 +393,115 @@ def register_design_tools(
         )
 
     @mcp.tool()
-    def review_design_spec(
+    def ingest_backfill(
         project_id: str,
-        slide_indices: str = "",
-        auto_fix: bool = True,
-        color_theme: str = "dark",
+        slide_index: int,
+        backfill_json: str,
     ) -> str:
-        """Reviews existing design spec slides using LLM without full regeneration.
+        """Ingests the design_doc backfill for an imported slide (stage="backfill").
 
-        Checks each slide against 7 design rules (font size, overlap, alignment, etc.).
-        When auto_fix is True and high-severity issues are found, regenerates only those slides
-        with review feedback — much faster than regenerating all slides.
+        Call AFTER a prepare_modify_component that returned stage="backfill".
+        Saves the backfilled design_doc and returns `available_components`. Pick a
+        component id and call `prepare_modify_component` again.
 
         Args:
-            project_id: Target project ID (required)
-            slide_indices: Slide indices to review (1-based, comma-separated). E.g., "1,3,5". Empty string = review all.
-            auto_fix: If True, automatically regenerates slides with high-severity issues (default: True)
-            color_theme: Color theme ("dark" or "light", default: "dark")
+            project_id: Target project ID (required).
+            slide_index: 1-based slide position.
+            backfill_json: The backfill JSON generated by the client.
 
         Returns:
-            JSON string containing project_id, reviewed_count, per-slide review results with issues
-
-        **IMPORTANT — Required follow-up action:**
-        If any slides were regenerated (auto_fix=True), you must call `export_html(project_id=<project_id>)`
-        to export HTML and share the slides_html_path with the user.
+            JSON with status="backfilled", available_components.
         """
-        return handle_review(
+        return handle_ingest_backfill(
             deps,
             project_id=project_id,
-            slide_indices=slide_indices,
-            auto_fix=auto_fix,
+            slide_index=slide_index,
+            backfill_json=backfill_json,
+        )
+
+    @mcp.tool()
+    def ingest_modify_component(
+        project_id: str,
+        slide_index: int,
+        component_id: str,
+        modify_json: str,
+        color_theme: str = "dark",
+    ) -> str:
+        """Ingests a single-component edit: validate, apply to exactly one element, save, render.
+
+        Call AFTER a prepare_modify_component that returned stage="modify".
+
+        Args:
+            project_id: Target project ID (required).
+            slide_index: 1-based slide position.
+            component_id: Target component id (same as prepare).
+            modify_json: The ComponentModify JSON generated by the client.
+            color_theme: Color theme ("dark" or "light").
+
+        Returns:
+            JSON with modified_element, slide_html_path, optional lint.
+
+        **After this call, share the returned slide_html_path with the user.**
+        """
+        return handle_ingest_modify_component(
+            deps,
+            project_id=project_id,
+            slide_index=slide_index,
+            component_id=component_id,
+            modify_json=modify_json,
             color_theme=color_theme,
+        )
+
+    # ------------------------------------------------------------------
+    # review (prepare/ingest, 슬라이드 단위)
+    # ------------------------------------------------------------------
+
+    @mcp.tool()
+    def prepare_review(
+        project_id: str,
+        slide_index: int,
+    ) -> str:
+        """Prepares a design-rule review task for ONE slide (mechanical lint baked in as a hint).
+
+        No LLM call. Returns the review prompt + `response_schema`. **Generate the
+        review JSON, then call `ingest_review`.** Review slides in parallel.
+
+        Args:
+            project_id: Target project ID (required).
+            slide_index: 1-based slide position.
+
+        Returns:
+            JSON with system_prompt, user_prompt, response_schema, project_id, slide_index.
+        """
+        return handle_prepare_review(
+            deps,
+            project_id=project_id,
+            slide_index=slide_index,
+        )
+
+    @mcp.tool()
+    def ingest_review(
+        project_id: str,
+        slide_index: int,
+        review_json: str,
+    ) -> str:
+        """Ingests a slide's review result: validate, return issues (report-only).
+
+        Call AFTER prepare_review. Does NOT auto-regenerate. If has_high_severity,
+        the response includes `fix_feedback` — pass it into `prepare_slide_edit(
+        action="update")` to regenerate the slide with the review feedback applied.
+
+        Args:
+            project_id: Target project ID (required).
+            slide_index: 1-based slide position.
+            review_json: The review result JSON generated by the client.
+
+        Returns:
+            JSON with has_high_severity, issues, optional fix_feedback.
+        """
+        return handle_ingest_review(
+            deps,
+            project_id=project_id,
+            slide_index=slide_index,
+            review_json=review_json,
         )

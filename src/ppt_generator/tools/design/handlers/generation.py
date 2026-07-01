@@ -1,164 +1,264 @@
-"""generate_slides_design_spec 핸들러."""
+"""디자인 스펙 생성 핸들러 (prepare/ingest).
+
+LLM 생성은 클라이언트가 수행한다. 서버는 프롬프트 조립(prepare)과 출력 검증·정합화·
+저장·렌더·lint(ingest/finalize)를 담당한다. 슬라이드 단위로 stateless 하므로
+클라이언트가 여러 슬라이드를 병렬로 prepare→생성→ingest 할 수 있다.
+"""
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from ppt_generator.interfaces.constants import BEDROCK_DESIGN_MODEL_ID
-from ppt_generator.interfaces.spec_utils import lint_design_spec
+from ppt_generator.interfaces.spec_utils import lint_design_spec, lint_slide_spec
 from ppt_generator.interfaces.utils import (
-    estimate_cost,
-    format_token_usage,
+    complexity_to_budget_tokens,
+    estimate_slide_complexity,
     parse_outline_json,
 )
-from ppt_generator.tools.design.parallel_runner import run_parallel_generation
 from ppt_generator.tools.slides.service import SlidesService
 
 if TYPE_CHECKING:
-    from mcp.server.fastmcp import Context
-
+    from ppt_generator.interfaces.schemas import OutlineResponse
     from ppt_generator.tools.design.handlers.deps import DesignDeps
 
 logger = logging.getLogger(__name__)
 
 
-async def handle_generate(
+# ---------------------------------------------------------------------------
+# DESIGN.md 초안 (theme + tone + page_requests)
+# ---------------------------------------------------------------------------
+
+
+def handle_prepare_design_doc_draft(
     deps: DesignDeps,
-    ctx: Context | None,
     *,
     project_id: str,
     outline_json: str,
-    total_slides: int,
     color_theme: str,
-    slide_indices: str,
 ) -> str:
-    """병렬 디자인 스펙 생성을 오케스트레이션한다."""
+    """DESIGN.md 초안 생성 태스크를 조립한다. 이미 DESIGN.md 가 있으면 skip."""
     project_service = deps.project_service
-    slides_service = deps.slides_service
-
-    # --- Load outline ---
-    outline = _load_outline(deps, project_id=project_id, outline_json=outline_json)
-
-    if total_slides == 0:
-        total_slides = len(outline.slides)
-
-    # --- Parse and validate slide_indices ---
-    indices = _parse_slide_indices(outline, total_slides, slide_indices)
     project_id, project_dir = project_service.resolve_project_dir(project_id)
-    target_count = len(indices)
 
-    # 배경 이미지 선택을 프로젝트 단위로 고정 — 생성 시 만드는 미리보기와
-    # 이후 export(HTML/PPTX)가 같은 title/closing 배경을 쓰도록 시드를 건다.
+    # 배경 이미지 선택을 프로젝트 단위로 고정 (미리보기/내보내기 일관성).
     from ppt_generator.interfaces import bg_image_utils
 
     bg_image_utils.set_project_seed(project_id)
 
-    # --- Step 1: Pre-generate DESIGN.md draft (design intent source of truth) ---
-    # DESIGN.md 가 없으면 outline 기반으로 초안을 자동 생성한다 (기존 머신
-    # 디자인 요약을 LLM 으로 만들던 자리를 대체). 사용자가 이후 DESIGN.md 를
-    # 편집해 톤·페이지별 요청을 반영할 수 있다.
-    if not project_service.design_doc_md_exists(project_dir):
-        if ctx is not None:
-            await ctx.report_progress(0, target_count, "디자인 테마 생성 중...")
-        logger.info("Starting DESIGN.md draft generation (LLM call)")
-        summary_svc = deps.design_service_factory("content")
-        # 초안은 수치 테마뿐 아니라 톤·선별적 페이지별 요청(taste 레이어)까지
-        # outline 에 근거해 생성한다 — 덱이 AI slop(균일 카드 트리오·무아크)으로
-        # 떨어지지 않도록 하는 기본 바닥.
-        summary, tone, page_requests = summary_svc.generate_design_doc_draft(
-            outline, color_theme
+    if project_service.design_doc_md_exists(project_dir):
+        return json.dumps(
+            {"skip": True, "project_id": project_id, "reason": "DESIGN.md exists"},
+            ensure_ascii=False,
         )
-        summary["color_theme"] = color_theme
-        from ppt_generator.tools.design.design_doc_md import render_design_doc_md
 
-        project_service.save_design_doc_md(
-            project_dir,
-            render_design_doc_md(summary, tone=tone, page_requests=page_requests),
-        )
-        logger.info("DESIGN.md draft generation completed")
-        if ctx is not None:
-            await ctx.report_progress(0, target_count, "디자인 테마 생성 완료")
+    outline = _load_outline(deps, project_id=project_id, outline_json=outline_json)
+    task = deps.design_service.prepare_design_doc_draft(outline, color_theme)
+    task["project_id"] = project_id
+    task["color_theme"] = color_theme
+    return json.dumps(task, ensure_ascii=False)
 
-    # --- Step 2: Parallel generation ---
-    design_doc = project_service.load_design_doc_md(project_dir)
-    design_summary = project_service.load_design_summary(project_dir)
-    bg_image_policy = project_service.load_bg_image_policy(project_dir)
-    sync_report = _make_progress_reporter(ctx, target_count)
 
-    parallel_result = await _run_with_heartbeat(
-        asyncio.to_thread(
-            run_parallel_generation,
-            outline=outline,
-            indices=indices,
-            total_slides=total_slides,
-            color_theme=color_theme,
-            design_summary=design_summary,
-            design_service_factory=deps.design_service_factory,
-            project_service=project_service,
-            project_dir=project_dir,
-            slides_service=slides_service,
-            report_progress=sync_report,
-            review_service_factory=deps.review_service_factory,
-            design_doc=design_doc,
-            bg_image_policy=bg_image_policy,
-        ),
-        ctx=ctx,
-        target_count=target_count,
-        message="디자인 스펙 생성 중...",
+def handle_ingest_design_doc_draft(
+    deps: DesignDeps,
+    *,
+    project_id: str,
+    draft_json: str,
+    color_theme: str,
+) -> str:
+    """클라이언트가 생성한 DESIGN.md 초안을 파싱해 DESIGN.md 로 저장한다."""
+    from ppt_generator.tools.design.design_doc_md import render_design_doc_md
+
+    project_service = deps.project_service
+    _, project_dir = project_service.resolve_project_dir(project_id)
+
+    summary, tone, page_requests = deps.design_service.ingest_design_doc_draft(
+        draft_json
+    )
+    summary["color_theme"] = color_theme
+    project_service.save_design_doc_md(
+        project_dir,
+        render_design_doc_md(summary, tone=tone, page_requests=page_requests),
+    )
+    logger.info("DESIGN.md draft ingested and saved")
+    return json.dumps(
+        {
+            "project_id": project_id,
+            "design_doc_path": str(project_dir / "DESIGN.md"),
+        },
+        ensure_ascii=False,
     )
 
-    # LLM이 src를 'images/' prefix 없이 생성할 수 있으므로 교정
+
+# ---------------------------------------------------------------------------
+# 단일 슬라이드 design spec
+# ---------------------------------------------------------------------------
+
+
+def handle_prepare_design_slide(
+    deps: DesignDeps,
+    *,
+    project_id: str,
+    slide_index: int,
+    outline_json: str,
+    total_slides: int,
+    color_theme: str,
+) -> str:
+    """단일 슬라이드 design spec 생성 태스크를 조립한다.
+
+    slide_index 는 1-based. outline 은 project 에 저장된 것 또는 전달된 것을 쓴다.
+    """
+    project_service = deps.project_service
+    project_id, project_dir = project_service.resolve_project_dir(project_id)
+
+    outline = _load_outline(deps, project_id=project_id, outline_json=outline_json)
+    if total_slides <= 0:
+        total_slides = len(outline.slides)
+
+    if slide_index < 1 or slide_index > len(outline.slides):
+        raise ValueError(
+            f"Invalid slide_index: {slide_index} (valid range: 1-{len(outline.slides)})"
+        )
+    idx = slide_index - 1
+    slide_outline = outline.slides[idx]
+
+    design_summary = project_service.load_design_summary(project_dir)
+    directives = _directives_for(
+        project_service, project_dir, slide_index, slide_outline.title
+    )
+    prev_outline = outline.slides[idx - 1] if idx > 0 else None
+    next_outline = outline.slides[idx + 1] if idx + 1 < len(outline.slides) else None
+    budget_tokens = complexity_to_budget_tokens(
+        estimate_slide_complexity(slide_outline)
+    )
+
+    task = deps.design_service.prepare_slide(
+        slide_outline,
+        design_summary=design_summary,
+        slide_index=slide_index,
+        total_slides=total_slides,
+        color_theme=color_theme,
+        prev_outline=prev_outline,
+        next_outline=next_outline,
+        design_directives=directives,
+        budget_tokens=budget_tokens,
+    )
+    task["project_id"] = project_id
+    task["slide_index"] = slide_index
+    return json.dumps(task, ensure_ascii=False)
+
+
+def handle_ingest_design_slide(
+    deps: DesignDeps,
+    *,
+    project_id: str,
+    slide_index: int,
+    spec_json: str,
+    color_theme: str,
+) -> str:
+    """클라이언트가 생성한 슬라이드 spec 을 검증·정합화·저장·렌더·lint 한다.
+
+    기존 병렬 생성 러너의 슬라이드별 후처리와 동일 (배경색 보정 포함).
+    """
+    project_service = deps.project_service
+    project_id, project_dir = project_service.resolve_project_dir(project_id)
+
+    from ppt_generator.interfaces import bg_image_utils
+
+    bg_image_utils.set_project_seed(project_id)
+
+    idx = slide_index - 1
+    outline = _load_outline(deps, project_id=project_id, outline_json="")
+    # 동작 불변: 저장되는 slide_type 은 outline 의 원본 값 그대로 (None/"" 포함).
+    # 응답 모델 선택만 ingest_slide 내부에서 `or "content"` 로 정규화한다.
+    raw_slide_type = (
+        outline.slides[idx].slide_type if 0 <= idx < len(outline.slides) else "content"
+    )
+
+    spec, overflow = deps.design_service.ingest_slide(
+        spec_json, slide_type=raw_slide_type
+    )
+
+    design_summary = project_service.load_design_summary(project_dir)
+    bg_image_policy = project_service.load_bg_image_policy(project_dir)
+    spec = _enforce_background_color(spec, design_summary, bg_image_policy, idx)
+
+    project_service.create_design_spec_slide(project_dir, idx, spec)
+
+    slide_html_path: str | None = None
+    if deps.slides_service is not None:
+        html = deps.slides_service.render_single_slide_html(
+            idx, spec, color_theme=color_theme, bg_image_policy=bg_image_policy
+        )
+        hp = project_service.save_single_slide_html(project_dir, idx, html)
+        slide_html_path = str(hp)
+
     project_service.renumber_design_spec_image_srcs(project_dir)
 
+    result: dict = {
+        "project_id": project_id,
+        "slide_index": slide_index,
+        "status": "success",
+        "slide_file": f"slide_{slide_index:02d}.json",
+    }
+    if slide_html_path:
+        result["slide_html_path"] = slide_html_path
+    if overflow:
+        result["overflow"] = overflow
+
+    # 결정 13b — 단계적 lint.
+    slide_lint = lint_slide_spec(
+        spec, slide_index=slide_index, stop_on_layer_error=True
+    )
+    if slide_lint.has_violations:
+        result["lint"] = slide_lint.to_dict()
+
+    return json.dumps(result, ensure_ascii=False)
+
+
+def handle_finalize_design_spec(
+    deps: DesignDeps,
+    *,
+    project_id: str,
+    overflow_json: str,
+) -> str:
+    """모든 슬라이드 ingest 후 호출 — 컨테이너 HTML + 덱 전체 lint + overflow 저장.
+
+    LLM 없음. 클라이언트가 각 ingest 에서 모은 overflow 를 overflow_json 으로 넘긴다.
+    """
+    project_service = deps.project_service
+    _, project_dir = project_service.resolve_project_dir(project_id)
+
+    project_service.renumber_design_spec_image_srcs(project_dir)
     project_service.update_step(project_dir, "design_spec")
     slide_count = project_service.get_design_spec_slide_count(project_dir)
 
-    # --- Step 3: Generate slides.html container ---
     slides_html_path: str | None = None
-    if slides_service is not None and slide_count > 0:
+    if deps.slides_service is not None and slide_count > 0:
         container_html = SlidesService._build_container_html(slide_count)
         path = project_dir / "slides.html"
         path.write_text(container_html, encoding="utf-8")
         slides_html_path = str(path)
         logger.info("slides.html container generated: %s", path)
-        if ctx is not None:
-            await ctx.report_progress(target_count, target_count, "HTML 내보내기 완료")
 
-    # --- Token usage & estimated cost ---
-    pr = parallel_result
-    aggregated_usage: dict[str, int] = {}
-    if pr.total_input_tokens or pr.total_output_tokens:
-        aggregated_usage = {
-            "inputTokens": pr.total_input_tokens,
-            "outputTokens": pr.total_output_tokens,
-            "totalTokens": pr.total_input_tokens + pr.total_output_tokens,
-            "cacheReadInputTokens": pr.total_cache_read_tokens,
-            "cacheWriteInputTokens": pr.total_cache_write_tokens,
-        }
-
-    # --- Collect overflow content from all slides ---
+    # overflow 저장 (클라이언트가 집계해 전달)
     all_overflow: list[dict] = []
-    for slide_result in pr.results:
-        if "overflow" in slide_result:
-            all_overflow.extend(slide_result["overflow"])
+    if overflow_json:
+        try:
+            parsed = json.loads(overflow_json)
+            if isinstance(parsed, list):
+                all_overflow = parsed
+        except json.JSONDecodeError:
+            logger.warning("finalize: overflow_json parse 실패, 무시")
     if all_overflow:
         overflow_path = project_dir / "overflow.json"
         overflow_path.write_text(
             json.dumps(all_overflow, ensure_ascii=False, indent=2), encoding="utf-8"
         )
-        logger.info(
-            "overflow content saved: %d item(s) → %s",
-            len(all_overflow),
-            overflow_path,
-        )
 
-    # --- Step 4: Lint design spec ---
-    # 결정 13b — 단계적 검증: layout(거시)부터 차례로 검사하다가 어느
-    # layer 에 error 가 나면 다음 layer 검사를 스킵해 거시 위반을 미시 노이즈로
-    # 가리지 않는다.
+    # 덱 전체 lint (결정 13b/13e)
     lint_result_dict: dict | None = None
     cross_layer_errors: list[dict] = []
     if slide_count > 0:
@@ -166,7 +266,6 @@ async def handle_generate(
         lint_result = lint_design_spec(design_spec.slides, stop_on_layer_error=True)
         if lint_result.has_violations:
             lint_result_dict = lint_result.to_dict()
-        # 결정 13e — cross-layer error 는 응답에 명시적으로 노출.
         for slide_result in lint_result.slides:
             for v in slide_result.violations:
                 if v.severity == "error" and v.layer == "cross":
@@ -182,19 +281,14 @@ async def handle_generate(
         "design_spec_dir": str(project_dir / "design_spec"),
         "design_doc_path": str(project_dir / "DESIGN.md"),
         "slide_count": slide_count,
-        "total_slides": total_slides,
         "project_id": project_id,
-        "success_count": pr.success_count,
-        "error_count": pr.error_count,
-        "results": pr.results,
         "visual_qa_suggestion": (
             "Visual QA를 실행하면 시각적 결함(줄바꿈, 겹침, 잘림 등)을 자동 감지하고 수정합니다. "
-            f"실행하려면 visual_qa(project_id='{project_id}') 를 호출하세요."
+            f"실행하려면 prepare_visual_qa(project_id='{project_id}') 를 호출하세요."
         ),
         "design_doc_suggestion": (
             "디자인 의도(전역 톤, 페이지별 특별 요청)는 DESIGN.md 에서 관리합니다. "
-            "DESIGN.md 를 편집한 뒤 generate_slides_design_spec 또는 "
-            "modify_design_spec 을 다시 호출하면 변경된 의도가 반영됩니다."
+            "DESIGN.md 를 편집한 뒤 다시 생성하면 변경된 의도가 반영됩니다."
         ),
     }
     if lint_result_dict:
@@ -202,31 +296,14 @@ async def handle_generate(
         resp["lint_suggestion"] = (
             f"디자인 lint에서 {lint_result_dict['total_violations']}건의 위반이 발견되었습니다. "
             "위반 내용을 확인하고, 수정이 필요하면 해당 슬라이드를 "
-            "modify_design_spec(action='update')로 수정하세요."
+            "prepare_update_slide/ingest_update_slide 로 수정하세요."
         )
     if cross_layer_errors:
         resp["cross_layer_errors"] = cross_layer_errors
-        resp["cross_layer_errors_suggestion"] = (
-            f"{len(cross_layer_errors)}건의 cross-layer error 가 발견되었습니다 "
-            "(component_id 매칭 실패, GridPlan↔design_doc cell_id 불일치 등). "
-            "modify_component 또는 modify_design_spec(action='update') 호출 전에 "
-            "확인이 필요합니다 — 현재 상태에서 modify_component 가 "
-            "ValueError 로 실패할 수 있습니다."
-        )
     if all_overflow:
-        resp["overflow_suggestion"] = (
-            f"{len(all_overflow)}개의 컨텐츠가 슬라이드 공간 부족으로 포함되지 못했습니다. "
-            "아래 overflow 항목을 확인하고, modify_design_spec(action='add')로 "
-            "새 슬라이드를 추가할 수 있습니다."
-        )
         resp["overflow"] = all_overflow
     if slides_html_path:
         resp["slides_html_path"] = slides_html_path
-    if aggregated_usage:
-        resp["token_usage"] = format_token_usage(aggregated_usage)
-        resp["estimated_cost"] = estimate_cost(
-            aggregated_usage, BEDROCK_DESIGN_MODEL_ID
-        )
 
     return json.dumps(resp, ensure_ascii=False)
 
@@ -234,7 +311,39 @@ async def handle_generate(
 # --- helpers ---
 
 
-def _load_outline(deps: DesignDeps, *, project_id: str, outline_json: str):
+def _enforce_background_color(spec, design_summary, bg_image_policy, idx):
+    """content 슬라이드(및 bg 정책 none)의 배경색을 deck 배경색으로 보정한다.
+
+    parallel_runner 의 배경 보정과 동일 (design/0016).
+    """
+    _enforce_bg = spec.slide_type == "content" or bg_image_policy == "none"
+    if (
+        design_summary
+        and _enforce_bg
+        and design_summary.get("background_color")
+        and spec.background_color != design_summary["background_color"]
+    ):
+        logger.info(
+            "slide[%d] 배경색 보정: %s → %s",
+            idx,
+            spec.background_color,
+            design_summary["background_color"],
+        )
+        spec = replace(spec, background_color=design_summary["background_color"])
+    return spec
+
+
+def _directives_for(project_service, project_dir, slide_index: int, title: str) -> str:
+    """DESIGN.md 에서 해당 슬라이드의 디자인 지시(톤+페이지 요청)를 만든다."""
+    design_doc = project_service.load_design_doc_md(project_dir)
+    if design_doc is None:
+        return ""
+    return design_doc.directives_for(slide_index, title)
+
+
+def _load_outline(
+    deps: DesignDeps, *, project_id: str, outline_json: str
+) -> OutlineResponse:
     """아웃라인을 JSON 문자열 또는 프로젝트 디렉토리에서 로드한다."""
     if outline_json:
         return parse_outline_json(outline_json)
@@ -243,90 +352,7 @@ def _load_outline(deps: DesignDeps, *, project_id: str, outline_json: str):
         raw = deps.project_service.load_outline(proj_dir)
         return parse_outline_json(raw)
     logger.error(
-        "generate_slides_design_spec validation failed: "
+        "design slide prepare validation failed: "
         "Either outline_json or project_id must be provided."
     )
     raise ValueError("Either outline_json or project_id must be provided.")
-
-
-def _parse_slide_indices(outline, total_slides: int, slide_indices: str) -> list[int]:
-    """slide_indices 문자열을 파싱하여 0-based 인덱스 리스트로 반환한다."""
-    if not slide_indices and len(outline.slides) != total_slides:
-        msg = (
-            f"Number of slides in outline ({len(outline.slides)}) does not match "
-            f"total_slides ({total_slides})."
-        )
-        logger.error("generate_slides_design_spec validation failed: %s", msg)
-        raise ValueError(msg)
-    if slide_indices:
-        try:
-            raw_indices = sorted(set(int(x.strip()) for x in slide_indices.split(",")))
-        except ValueError as exc:
-            logger.error(
-                "slide_indices parse failed: input=%r, error=%s",
-                slide_indices,
-                exc,
-            )
-            raise ValueError(
-                f"Invalid slide_indices format: {slide_indices!r} "
-                "(expected comma-separated integers)"
-            ) from exc
-        for idx in raw_indices:
-            if idx < 1 or idx > len(outline.slides):
-                msg = (
-                    f"Invalid slide_index: {idx} (valid range: 1-{len(outline.slides)})"
-                )
-                logger.error("slide_indices validation failed: %s", msg)
-                raise ValueError(msg)
-        return [i - 1 for i in raw_indices]
-    return list(range(total_slides))
-
-
-async def _run_with_heartbeat(
-    coro,
-    ctx,
-    target_count: int,
-    message: str,
-    interval: float = 15.0,
-):
-    """coro 실행 중 interval 간격으로 MCP progress heartbeat를 보낸다."""
-    if ctx is None:
-        return await coro
-
-    done = asyncio.Event()
-
-    async def _heartbeat() -> None:
-        while not done.is_set():
-            try:
-                await ctx.report_progress(0, target_count, message)
-            except Exception:
-                logger.debug("heartbeat progress report 실패", exc_info=True)
-            try:
-                await asyncio.wait_for(done.wait(), timeout=interval)
-            except TimeoutError:
-                pass
-
-    heartbeat_task = asyncio.create_task(_heartbeat())
-    try:
-        return await coro
-    finally:
-        done.set()
-        await heartbeat_task
-
-
-def _make_progress_reporter(ctx, target_count: int):
-    """MCP Context의 async report_progress를 sync 콜백으로 래핑한다."""
-    if ctx is None:
-        return lambda progress, message: None
-    loop = asyncio.get_running_loop()
-
-    def sync_report(progress: int, message: str) -> None:
-        try:
-            loop.call_soon_threadsafe(
-                loop.create_task,
-                ctx.report_progress(progress, target_count, message),
-            )
-        except RuntimeError:
-            logger.debug("event loop closed, skipping progress report")
-
-    return sync_report

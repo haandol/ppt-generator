@@ -28,8 +28,7 @@
         "tests/test_design_*.py",
         "tests/test_text_measurement.py",
         "tests/test_render_nowrap.py",
-        "tests/test_complexity.py",
-        "tests/test_token_logging.py"
+        "tests/test_complexity.py"
       ],
       "description": "design spec 생성 + 5단 계층 (Layout/Section/Content) + 폰트 메트릭 + 병렬 생성 + 점진적 추상화 출력. 핵심 도메인."
     },
@@ -98,8 +97,7 @@
         "src/ppt_generator/interfaces/utils.py",
         "src/ppt_generator/interfaces/constants.py",
         "src/ppt_generator/interfaces/protocols.py",
-        "tests/test_project_*.py",
-        "tests/test_agent_hang_diagnosis.py"
+        "tests/test_project_*.py"
       ],
       "description": "파이프라인 인프라 — 결과물 저장, 토큰/비용 추적, 진행률 보고, MCP 서버 안정성, DI 컨테이너."
     },
@@ -120,6 +118,15 @@
         "src/ppt_generator/tools/chart/**"
       ],
       "description": "차트/데이터 시각화 (Proposed, 미구현) — 슬라이드 안의 차트를 데이터로부터 생성."
+    },
+    "offload": {
+      "codePaths": [
+        ".claude-plugin/**",
+        "skills/**",
+        "src/ppt_generator/server.py",
+        "src/ppt_generator/di/**"
+      ],
+      "description": "LLM 생성을 클라이언트로 오프로딩 — 플러그인 + 스킬 + prepare/ingest 핸드셰이크. 서버는 프롬프트·스키마·후처리만 소유하고 토큰 생성은 클라이언트가 담당."
     }
   }
 }

@@ -1,19 +1,22 @@
 """outline과 design_spec 불일치 시나리오 테스트.
 
 imported 프로젝트에서 outline 없이 design_spec만 있는 경우,
-modify_design_spec(add) 반복 후 outline과 design_spec 수가 달라지는 경우,
+add 반복 후 outline과 design_spec 수가 달라지는 경우,
 delete/move 시 불일치 상태에서도 안전하게 동작하는지 검증한다.
+
+오프로딩 리팩터 이후 modify_design_spec 단일 도구는 사라지고,
+delete 는 delete_slide, add 는 prepare_slide_edit/ingest_slide_edit 쌍으로 나뉘었다.
+move_slide 는 LLM 이 없어 그대로 유지된다. 서버가 수행하는 파일 이동/삭제/삽입/동기화
+동작은 변경되지 않았으므로 그대로 검증한다.
 """
 
 import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
 
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
-    PptxSlideSpec,
 )
 from ppt_generator.tools.design.controller import register_design_tools
 from ppt_generator.tools.project.service import ProjectService
@@ -33,20 +36,16 @@ def _register_tools(project_service: ProjectService) -> dict:
         return decorator
 
     mcp.tool = tool_decorator
+
+    # mock DesignService — prepare/ingest 오프로딩 형태.
+    # ingest_slide 는 (spec, overflow) 를 반환한다. spec_json 내용은 무관하다.
     design_service = MagicMock()
-    design_service.generate_single_slide.return_value = _make_slide_spec("새로 생성됨")
-    design_service.last_token_usage = {}
-    design_service.last_overflow = []
-    _summary = {
-        "background_color": "#1a1a2e",
-        "text_colors": ["#ffffff"],
-        "title_font_pt": 32,
-        "body_font_pt": 18,
-        "card_fills": [],
-        "card_borders": [],
+    design_service.prepare_slide.return_value = {
+        "system_prompt": "sys",
+        "user_prompt": "usr",
+        "response_schema": {},
     }
-    design_service.generate_design_summary.return_value = _summary
-    design_service.generate_design_doc_draft.return_value = (_summary, "", [])
+    design_service.ingest_slide.return_value = (_make_slide_spec("새로 생성됨"), [])
 
     slides_service = MagicMock()
     slides_service.render_single_slide_html.return_value = "<html>new slide</html>"
@@ -54,14 +53,41 @@ def _register_tools(project_service: ProjectService) -> dict:
     register_design_tools(
         mcp,
         project_service,
-        design_service_factory=lambda slide_type="content", budget_tokens=8192: (
-            design_service
-        ),
+        design_service=design_service,
         slides_service=slides_service,
     )
     tools["_project_service"] = project_service
     tools["_design_service"] = design_service
     return tools
+
+
+def _add_slide(
+    tools: dict,
+    project_id: str,
+    *,
+    slide_index: int = -1,
+    title: str = "추가 슬라이드",
+    content_summary: str = "내용",
+) -> dict:
+    """prepare_slide_edit(add) + ingest_slide_edit(add) 쌍을 실행하고 ingest 결과를 반환한다.
+
+    mock ingest_slide 가 고정 spec 을 반환하므로 spec_json 은 "{}" 로 충분하다.
+    """
+    tools["prepare_slide_edit"](
+        project_id=project_id,
+        action="add",
+        slide_index=slide_index,
+        title=title,
+        content_summary=content_summary,
+    )
+    return json.loads(
+        tools["ingest_slide_edit"](
+            project_id=project_id,
+            action="add",
+            slide_index=slide_index,
+            spec_json="{}",
+        )
+    )
 
 
 def _setup_imported_project(
@@ -256,9 +282,8 @@ class TestImportedProjectNoOutline:
         tools = _register_tools(svc)
 
         result = json.loads(
-            tools["modify_design_spec"](
+            tools["delete_slide"](
                 project_id=project_id,
-                action="delete",
                 slide_index=15,
             )
         )
@@ -273,23 +298,20 @@ class TestImportedProjectNoOutline:
         project_id, project_dir, svc = _setup_imported_project(tmp_path, monkeypatch, 5)
         tools = _register_tools(svc)
 
-        # add로 슬라이드 추가
-        result = json.loads(
-            tools["modify_design_spec"](
-                project_id=project_id,
-                action="add",
-                slide_index=-1,
-                title="추가 슬라이드",
-                content_summary="내용",
-            )
+        # add로 슬라이드 추가 (prepare_slide_edit + ingest_slide_edit)
+        result = _add_slide(
+            tools,
+            project_id,
+            slide_index=-1,
+            title="추가 슬라이드",
+            content_summary="내용",
         )
         assert result["slide_count"] == 6
 
         # 추가한 슬라이드(6번째, 1-based) 삭제
         result = json.loads(
-            tools["modify_design_spec"](
+            tools["delete_slide"](
                 project_id=project_id,
-                action="delete",
                 slide_index=6,
             )
         )
@@ -301,9 +323,9 @@ class TestImportedProjectNoOutline:
         tools = _register_tools(svc)
 
         # add
-        tools["modify_design_spec"](
-            project_id=project_id,
-            action="add",
+        _add_slide(
+            tools,
+            project_id,
             slide_index=-1,
             title="추가",
             content_summary="내용",
@@ -328,14 +350,12 @@ class TestImportedProjectNoOutline:
         tools = _register_tools(svc)
 
         for i in range(5):
-            result = json.loads(
-                tools["modify_design_spec"](
-                    project_id=project_id,
-                    action="add",
-                    slide_index=-1,
-                    title=f"추가 {i + 1}",
-                    content_summary=f"내용 {i + 1}",
-                )
+            result = _add_slide(
+                tools,
+                project_id,
+                slide_index=-1,
+                title=f"추가 {i + 1}",
+                content_summary=f"내용 {i + 1}",
             )
             assert result["slide_count"] == 10 + i + 1
 
@@ -350,9 +370,8 @@ class TestImportedProjectNoOutline:
 
         # 3번째 슬라이드 삭제 (1-based) — outline이 없어도 에러 없어야 함
         result = json.loads(
-            tools["modify_design_spec"](
+            tools["delete_slide"](
                 project_id=project_id,
-                action="delete",
                 slide_index=3,
             )
         )
@@ -403,9 +422,8 @@ class TestPartialOutlineMismatch:
 
         # 15번째 슬라이드 삭제 (1-based) — outline에는 해당 인덱스가 없음
         result = json.loads(
-            tools["modify_design_spec"](
+            tools["delete_slide"](
                 project_id=project_id,
-                action="delete",
                 slide_index=15,
             )
         )
@@ -427,9 +445,8 @@ class TestPartialOutlineMismatch:
 
         # 5번째 슬라이드 삭제 (1-based) — sync로 outline 20장 패딩 후 삭제
         result = json.loads(
-            tools["modify_design_spec"](
+            tools["delete_slide"](
                 project_id=project_id,
-                action="delete",
                 slide_index=5,
             )
         )
@@ -478,9 +495,8 @@ class TestPartialOutlineMismatch:
 
         # 15번 삭제 — sync로 outline 20장 패딩 후 삭제
         result = json.loads(
-            tools["modify_design_spec"](
+            tools["delete_slide"](
                 project_id=project_id,
-                action="delete",
                 slide_index=15,
             )
         )
@@ -488,9 +504,8 @@ class TestPartialOutlineMismatch:
 
         # 5번 삭제
         result = json.loads(
-            tools["modify_design_spec"](
+            tools["delete_slide"](
                 project_id=project_id,
-                action="delete",
                 slide_index=5,
             )
         )

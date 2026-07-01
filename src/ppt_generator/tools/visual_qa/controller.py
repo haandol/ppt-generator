@@ -1,20 +1,21 @@
-"""Visual QA MCP tool 등록."""
+"""Visual QA MCP tool 등록 (prepare/ingest).
+
+스크린샷 캡처는 서버(Playwright), 비전 분석·수정 생성은 클라이언트가 담당한다.
+iteration 루프(분석→수정→재캡처)는 클라이언트(스킬)가 오케스트레이션한다.
+"""
 
 from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.fastmcp import FastMCP
 
-from ppt_generator.interfaces.constants import (
-    BEDROCK_DESIGN_MODEL_ID,
-    VISUAL_QA_MAX_ITERATIONS,
-)
-from ppt_generator.interfaces.protocols import VisualQAServiceFactory
-from ppt_generator.interfaces.utils import estimate_cost, format_token_usage
+from ppt_generator.interfaces.constants import VISUAL_QA_MAX_ITERATIONS
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
+from ppt_generator.tools.visual_qa.service import VisualQAService
 
 logger = logging.getLogger(__name__)
 
@@ -22,185 +23,288 @@ logger = logging.getLogger(__name__)
 def register_visual_qa_tools(
     mcp: FastMCP,
     project_service: ProjectService,
-    visual_qa_service_factory: VisualQAServiceFactory,
+    visual_qa_service: VisualQAService,
     slides_service: SlidesService,
 ) -> None:
-    @mcp.tool()
-    async def visual_qa(
-        project_id: str,
-        slide_indices: str = "",
-        max_iterations: int = VISUAL_QA_MAX_ITERATIONS,
-        ctx: Context | None = None,
-    ) -> str:
-        """Checks visual quality of rendered slides and auto-fixes issues (opt-in).
-
-        Uses Playwright screenshots + Claude Vision to detect visual defects
-        (word breaks, text truncation, overlap, overflow, contrast, misalignment)
-        and automatically fixes the design spec.
-
-        **Requires:** `playwright install chromium` (browser binary download)
-
-        Args:
-            project_id: Target project ID (required)
-            slide_indices: Slide indices to check (1-based, comma-separated). E.g., "1,3,5". Empty = all slides.
-            max_iterations: Maximum fix iterations per slide (default: 2)
-
-        Returns:
-            JSON with analysis results, fix status per slide, and token usage.
-        """
-        from ppt_generator.tools.visual_qa.service import VisualQAService
-
-        _, project_dir = project_service.resolve_project_dir(project_id)
+    def _parse_indices(project_dir: Path, slide_indices: str) -> list[int]:
+        """1-based comma 문자열 → 0-based 인덱스. 빈 문자열이면 전체."""
         slide_count = project_service.get_design_spec_slide_count(project_dir)
-
         if slide_count == 0:
-            raise ValueError(
-                "디자인 스펙이 없습니다. 먼저 generate_slides_design_spec을 실행하세요."
-            )
-
-        # Parse indices (1-based → 0-based)
+            raise ValueError("디자인 스펙이 없습니다. 먼저 슬라이드를 생성하세요.")
         if slide_indices:
-            raw_indices = sorted(set(int(x.strip()) for x in slide_indices.split(",")))
-            for idx in raw_indices:
+            raw = sorted(set(int(x.strip()) for x in slide_indices.split(",")))
+            for idx in raw:
                 if idx < 1 or idx > slide_count:
                     raise ValueError(
                         f"유효하지 않은 slide_index: {idx} (유효 범위: 1-{slide_count})"
                     )
-            indices = [i - 1 for i in raw_indices]
-        else:
-            indices = list(range(slide_count))
+            return [i - 1 for i in raw]
+        return list(range(slide_count))
 
-        # Create service (lazy — Playwright check happens at capture time)
-        service: VisualQAService = visual_qa_service_factory()
+    def _screenshot_path(project_dir: Path, idx: int, iteration: int) -> Path:
+        return project_dir / "screenshots" / f"slide_{idx + 1:02d}_v{iteration}.png"
 
-        # design_summary에서 color_theme 로드
+    @mcp.tool()
+    def capture_slides(
+        project_id: str,
+        slide_indices: str = "",
+        iteration: int = 0,
+    ) -> str:
+        """Captures slide screenshots via Playwright (server-side). No LLM call.
+
+        Phase 1 of visual QA. Renders the current slide HTML to PNG so the CLIENT can
+        analyze them for visual defects. **Requires:** `playwright install chromium`.
+
+        Args:
+            project_id: Target project ID (required).
+            slide_indices: 1-based comma-separated indices (e.g. "1,3,5"). Empty = all.
+            iteration: Iteration counter (0-based) — screenshots are versioned per iteration.
+
+        Returns:
+            JSON with project_id, iteration, screenshots: [{slide_index, screenshot_path}].
+
+        **Next:** for each captured slide, call `prepare_visual_qa_analysis`.
+        """
+        _, project_dir = project_service.resolve_project_dir(project_id)
+        indices = _parse_indices(project_dir, slide_indices)
+
+        shots = visual_qa_service.capture_screenshots(project_dir, indices, iteration)
+        return json.dumps(
+            {
+                "project_id": project_id,
+                "iteration": iteration,
+                "max_iterations": VISUAL_QA_MAX_ITERATIONS,
+                "screenshots": [
+                    {"slide_index": idx + 1, "screenshot_path": str(shots[idx])}
+                    for idx in indices
+                    if idx in shots
+                ],
+            },
+            ensure_ascii=False,
+        )
+
+    @mcp.tool()
+    def prepare_visual_qa_analysis(
+        project_id: str,
+        slide_index: int,
+        iteration: int = 0,
+    ) -> str:
+        """Prepares the vision analysis task for ONE captured slide. No LLM call.
+
+        Returns the system prompt, user prompt, `response_schema`, and `images` (the
+        screenshot path to read). **Read the screenshot, analyze it against the spec,
+        generate the analysis JSON matching `response_schema`, then call
+        `ingest_visual_qa_analysis`.** Analyze slides in parallel.
+
+        Args:
+            project_id: Target project ID (required).
+            slide_index: 1-based slide position.
+            iteration: Iteration counter matching the capture (default 0).
+
+        Returns:
+            JSON with system_prompt, user_prompt, response_schema, images, project_id, slide_index.
+        """
+        _, project_dir = project_service.resolve_project_dir(project_id)
+        idx = slide_index - 1
+        png_path = _screenshot_path(project_dir, idx, iteration)
+        if not png_path.exists():
+            raise ValueError(
+                f"screenshot not found for slide {slide_index} (iteration {iteration}). "
+                "Call capture_slides first."
+            )
+        spec = project_service.load_design_spec_slide(project_dir, idx)
+        task = visual_qa_service.prepare_analysis(png_path, idx, spec)
+        task["project_id"] = project_id
+        task["slide_index"] = slide_index
+        return json.dumps(task, ensure_ascii=False)
+
+    @mcp.tool()
+    def ingest_visual_qa_analysis(
+        project_id: str,
+        slide_index: int,
+        analysis_json: str,
+    ) -> str:
+        """Ingests the client-generated analysis: validate, report issues. No fix applied.
+
+        Call AFTER prepare_visual_qa_analysis. If has_issues, call
+        `prepare_visual_qa_fix` with the returned issues to generate a fix.
+
+        Args:
+            project_id: Target project ID (required).
+            slide_index: 1-based slide position.
+            analysis_json: The analysis JSON generated by the client.
+
+        Returns:
+            JSON with has_issues, issues (dicts to feed into the fix step), overall_quality.
+        """
+        analysis = visual_qa_service.ingest_analysis(analysis_json)
+        issues = [i.model_dump() for i in analysis.issues]
+        return json.dumps(
+            {
+                "project_id": project_id,
+                "slide_index": slide_index,
+                "has_issues": analysis.has_issues,
+                "overall_quality": analysis.overall_quality,
+                "issues": issues,
+            },
+            ensure_ascii=False,
+        )
+
+    @mcp.tool()
+    def prepare_visual_qa_fix(
+        project_id: str,
+        slide_index: int,
+        issues_json: str,
+        iteration: int = 0,
+    ) -> str:
+        """Prepares the fix task for a slide with detected issues. No LLM call.
+
+        Returns the fix prompt, `response_schema`, and `images` (the screenshot).
+        **Generate the corrected full slide spec JSON, then call `ingest_visual_qa_fix`.**
+
+        Args:
+            project_id: Target project ID (required).
+            slide_index: 1-based slide position.
+            issues_json: JSON array of issues from ingest_visual_qa_analysis.
+            iteration: Iteration counter matching the capture (default 0).
+
+        Returns:
+            JSON with system_prompt, user_prompt, response_schema, images, project_id, slide_index.
+        """
+        _, project_dir = project_service.resolve_project_dir(project_id)
+        idx = slide_index - 1
+        png_path = _screenshot_path(project_dir, idx, iteration)
+        if not png_path.exists():
+            raise ValueError(
+                f"screenshot not found for slide {slide_index} (iteration {iteration})."
+            )
+        spec = project_service.load_design_spec_slide(project_dir, idx)
+        try:
+            issues = json.loads(issues_json) if issues_json else []
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"invalid issues_json: {exc}") from exc
+        task = visual_qa_service.prepare_fix(png_path, spec, issues)
+        task["project_id"] = project_id
+        task["slide_index"] = slide_index
+        return json.dumps(task, ensure_ascii=False)
+
+    @mcp.tool()
+    def ingest_visual_qa_fix(
+        project_id: str,
+        slide_index: int,
+        fix_json: str,
+    ) -> str:
+        """Ingests the client-generated fix: validate, save, re-render HTML.
+
+        Call AFTER prepare_visual_qa_fix. Restores images/slide_type the LLM can't
+        produce. Re-run capture → analysis on this slide to verify (up to max_iterations).
+
+        Args:
+            project_id: Target project ID (required).
+            slide_index: 1-based slide position.
+            fix_json: The corrected slide spec JSON generated by the client.
+
+        Returns:
+            JSON with status ("fixed" | "unfixed"), slide_html_path.
+        """
+        _, project_dir = project_service.resolve_project_dir(project_id)
+        idx = slide_index - 1
+        current_spec = project_service.load_design_spec_slide(project_dir, idx)
+
+        fixed = visual_qa_service.ingest_fix(fix_json, current_spec)
+        if fixed is None:
+            return json.dumps(
+                {
+                    "project_id": project_id,
+                    "slide_index": slide_index,
+                    "status": "unfixed",
+                },
+                ensure_ascii=False,
+            )
+
+        project_service.save_design_spec_slide(project_dir, idx, fixed)
+        project_service.renumber_design_spec_image_srcs(project_dir)
+
         design_summary = project_service.load_design_summary(project_dir)
         color_theme = (design_summary or {}).get("color_theme", "dark")
         bg_image_policy = project_service.load_bg_image_policy(project_dir)
 
-        if ctx is not None:
-            await ctx.report_progress(0, max_iterations, "Visual QA 시작")
+        slide_html_path: str | None = None
+        html = SlidesService.render_single_slide_html(
+            idx, fixed, color_theme=color_theme, bg_image_policy=bg_image_policy
+        )
+        hp = project_service.save_single_slide_html(project_dir, idx, html)
+        slide_html_path = str(hp)
 
-        async def _report_progress(completed: int, total: int, message: str) -> None:
-            if ctx is not None:
-                await ctx.report_progress(completed, total, message)
-
-        result = await service.run_qa(
-            project_dir=project_dir,
-            indices=indices,
-            max_iterations=max_iterations,
-            load_spec=project_service.load_design_spec_slide,
-            save_spec=project_service.save_design_spec_slide,
-            render_html=lambda idx, spec: SlidesService.render_single_slide_html(
-                idx, spec, color_theme=color_theme, bg_image_policy=bg_image_policy
-            ),
-            save_html=project_service.save_single_slide_html,
-            report_progress=_report_progress,
+        return json.dumps(
+            {
+                "project_id": project_id,
+                "slide_index": slide_index,
+                "status": "fixed",
+                "slide_html_path": slide_html_path,
+            },
+            ensure_ascii=False,
         )
 
-        # 이미지 src prefix 교정
-        if result.slides_fixed > 0:
-            project_service.renumber_design_spec_image_srcs(project_dir)
+    @mcp.tool()
+    def finalize_visual_qa(project_id: str) -> str:
+        """Rebuilds the deck container HTML + full export after visual QA fixes. No LLM call.
 
-        # Rebuild container HTML if any slides were fixed
-        if result.slides_fixed > 0:
-            new_count = project_service.get_design_spec_slide_count(project_dir)
-            container_html = SlidesService._build_container_html(new_count)
-            (project_dir / "slides.html").write_text(container_html, encoding="utf-8")
+        Call ONCE after all fix iterations are done.
 
-        # Auto export HTML after visual QA
+        Args:
+            project_id: Target project ID (required).
+
+        Returns:
+            JSON with project_id, slides_html_path.
+        """
+        _, project_dir = project_service.resolve_project_dir(project_id)
+        slide_count = project_service.get_design_spec_slide_count(project_dir)
+        if slide_count == 0:
+            raise ValueError("디자인 스펙이 없습니다.")
+
+        project_service.renumber_design_spec_image_srcs(project_dir)
+        container_html = SlidesService._build_container_html(slide_count)
+        (project_dir / "slides.html").write_text(container_html, encoding="utf-8")
+
+        design_summary = project_service.load_design_summary(project_dir)
+        color_theme = (design_summary or {}).get("color_theme", "dark")
+        bg_image_policy = project_service.load_bg_image_policy(project_dir)
+
         slides_html_path: str | None = None
-        if result.slides_fixed > 0 or slide_count > 0:
-            try:
-                design_spec = project_service.load_design_spec(project_dir)
-                design_spec = project_service.sync_image_paths(project_dir, design_spec)
-                slide_image_srcs: list[list[str]] = []
-                for idx, slide in enumerate(design_spec.slides):
-                    if slide.images:
-                        srcs = project_service.get_slide_image_srcs(
-                            project_dir, idx, len(slide.images)
-                        )
-                        slide_image_srcs.append(srcs)
-                    else:
-                        slide_image_srcs.append([])
-                metadata = project_service.load_metadata(project_dir)
-                is_imported = "import" in metadata.steps_completed
-                response = slides_service.generate_from_design_spec(
-                    design_spec,
-                    slide_image_srcs=slide_image_srcs,
-                    skip_autofit=is_imported,
-                    color_theme=color_theme,
-                    bg_image_policy=bg_image_policy,
-                )
-                project_service.save_slides_html(
-                    project_dir,
-                    response.session_id,
-                    response.slide_htmls,
-                    response.container_html,
-                )
-                slides_html_path = str(project_dir / "slides.html")
-                logger.info("Visual QA 후 HTML export 완료: %s", slides_html_path)
-            except Exception:
-                logger.exception("Visual QA 후 HTML export 실패")
-
-        if ctx is not None:
-            await ctx.report_progress(max_iterations, max_iterations, "Visual QA 완료")
-
-        # Build full response and save to file
-        full_resp: dict = {
-            "project_id": project_id,
-            "slides_analyzed": result.slides_analyzed,
-            "slides_with_issues": result.slides_with_issues,
-            "slides_fixed": result.slides_fixed,
-            "iterations_used": result.iterations_used,
-            "screenshots_dir": result.screenshots_dir,
-            "per_slide": [
-                {
-                    "slide_index": r.slide_index + 1,  # 0-based → 1-based
-                    "status": r.status,
-                    **({"issues_found": r.issues_found} if r.issues_found else {}),
-                    **({"iterations": r.iterations} if r.iterations else {}),
-                }
-                for r in result.per_slide
-            ],
-        }
-
-        aggregated_usage: dict[str, int] = {}
-        if result.total_input_tokens or result.total_output_tokens:
-            aggregated_usage = {
-                "inputTokens": result.total_input_tokens,
-                "outputTokens": result.total_output_tokens,
-                "totalTokens": result.total_input_tokens + result.total_output_tokens,
-                "cacheReadInputTokens": result.total_cache_read_tokens,
-                "cacheWriteInputTokens": result.total_cache_write_tokens,
-            }
-        if aggregated_usage:
-            full_resp["token_usage"] = format_token_usage(aggregated_usage)
-            full_resp["estimated_cost"] = estimate_cost(
-                aggregated_usage, BEDROCK_DESIGN_MODEL_ID
+        try:
+            design_spec = project_service.load_design_spec(project_dir)
+            design_spec = project_service.sync_image_paths(project_dir, design_spec)
+            slide_image_srcs: list[list[str]] = []
+            for idx, slide in enumerate(design_spec.slides):
+                if slide.images:
+                    srcs = project_service.get_slide_image_srcs(
+                        project_dir, idx, len(slide.images)
+                    )
+                    slide_image_srcs.append(srcs)
+                else:
+                    slide_image_srcs.append([])
+            metadata = project_service.load_metadata(project_dir)
+            is_imported = "import" in metadata.steps_completed
+            response = slides_service.generate_from_design_spec(
+                design_spec,
+                slide_image_srcs=slide_image_srcs,
+                skip_autofit=is_imported,
+                color_theme=color_theme,
+                bg_image_policy=bg_image_policy,
             )
+            project_service.save_slides_html(
+                project_dir,
+                response.session_id,
+                response.slide_htmls,
+                response.container_html,
+            )
+            slides_html_path = str(project_dir / "slides.html")
+            logger.info("Visual QA 후 HTML export 완료: %s", slides_html_path)
+        except Exception:
+            logger.exception("Visual QA 후 HTML export 실패")
 
-        # Save detailed result to file
-        result_path = project_dir / "visual_qa_result.json"
-        result_path.write_text(
-            json.dumps(full_resp, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-
-        # Return compact summary (minimal response to avoid client issues)
-        summary: dict = {
-            "project_id": project_id,
-            "slides_analyzed": result.slides_analyzed,
-            "slides_with_issues": result.slides_with_issues,
-            "slides_fixed": result.slides_fixed,
-            "iterations_used": result.iterations_used,
-            "result_detail_path": str(result_path),
-        }
-        if result.error:
-            summary["error"] = result.error
+        result: dict = {"project_id": project_id}
         if slides_html_path:
-            summary["slides_html_path"] = slides_html_path
-        if aggregated_usage:
-            summary["token_usage"] = full_resp["token_usage"]
-            summary["estimated_cost"] = full_resp["estimated_cost"]
-
-        return json.dumps(summary, ensure_ascii=False)
+            result["slides_html_path"] = slides_html_path
+        return json.dumps(result, ensure_ascii=False)
