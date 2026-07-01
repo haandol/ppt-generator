@@ -4,8 +4,9 @@ Date: 2026-07-01
 
 ## Status
 
-Accepted (verified 2026-07-01: 782 테스트 통과, 모델 팩토리 instantiation 검증 —
-design=complexity별 low/medium/high, outline=medium, review=disabled, vqa fix=low)
+Accepted (verified 2026-07-01: 789 테스트 통과 + 실제 LLM end-to-end —
+outline 3회 생성 성공, design spec complexity=5→effort=high 슬라이드 생성 성공.
+outline native structured-output(400 회귀) 제거 후 프롬프트+수동 파싱으로 안정화.)
 
 ## Context
 
@@ -29,8 +30,15 @@ Sonnet 5로 올리려는 이유:
 - non-default `temperature`/`top_p`/`top_k`도 **400 에러**로 거부된다. 기존 호출은
   `temperature=1.0`을 넘기고 있어 제거가 필요하다.
 
+또한 outline 생성은 그동안 Bedrock Converse의 native structured-output 필드
+(`outputConfig.textFormat` / Anthropic `output_config.format`)를 직접 주입해 JSON
+스키마를 강제해왔다. Sonnet 5는 이 필드를 400(`output_config.format: Extra inputs
+are not permitted`)으로 거부한다. 반면 design/review/visual-qa fix는 이미 strands의
+tool-forcing 경로를 쓰거나 프롬프트+수동 파싱으로 JSON을 받으므로 영향이 없다.
+Sonnet 5는 스키마 강제 없이도 프롬프트만으로 유효한 outline JSON을 안정적으로 생성한다.
+
 따라서 단순 모델 ID 교체가 아니라, budget_tokens 기반 제어를 effort 기반 제어로
-전환하는 동작 변경이 필요하다.
+전환하고, outline의 native structured-output 주입을 제거하는 동작 변경이 필요하다.
 
 ## Decision
 
@@ -50,6 +58,13 @@ Bedrock·Anthropic 양쪽 프로바이더 모두 적용한다.
 | 5 | 12288 | high |
 
 Visual QA fix는 기존 고정 2048(가장 낮은 예산)에 대응해 effort `low`로 고정한다.
+
+### outline structured output
+
+outline 모델에서 native structured-output 필드 주입을 제거하고, 프롬프트 지시 +
+기존 수동 JSON 파싱/재시도 로직에만 의존한다. Sonnet 5가 스키마 강제 없이도 유효
+JSON을 내므로 품질 손실은 없다. (더 엄격한 강제가 필요해지면 다른 서비스처럼
+strands tool-forcing 경로로 통일하는 것이 후속 대안이다.)
 
 ### 모델 ID
 
@@ -73,6 +88,8 @@ Visual QA fix는 기존 고정 2048(가장 낮은 예산)에 대응해 effort `l
 | Sonnet 5 + budget_tokens 유지 | Sonnet 5에서 400 에러로 불가능 |
 | 모든 단계 effort 고정값 하나로 통일 | complexity별 thinking 예산 차등이라는 기존 의도(design/0003, outline/0004의 complexity 재산정) 상실 |
 | Opus tier로 상향 | 비용 대비 과함. 디자인 스펙은 Sonnet 5 품질로 충분 |
+| outline native structured-output 유지 | Sonnet 5가 400으로 거부 → 불가능 |
+| outline을 tool-forcing으로 전환 | 견고하나, 수동 파싱이 이미 안정적이라 이번 범위엔 과함. 후속 대안으로 남김 |
 
 ## Consequences
 
@@ -94,6 +111,10 @@ Visual QA fix는 기존 고정 2048(가장 낮은 예산)에 대응해 effort `l
   `thinking: {type: "disabled"}`를 명시한다.
 - strands-agents를 adaptive thinking + output_config.effort pass-through가 검증된 최신
   버전으로 올린다. Bedrock은 additionalModelRequestFields, Anthropic은 params로 그대로 전달된다.
+- adaptive thinking은 outline 응답 형식을 실행마다 흔들리게 한다(코드블록 유무, 다중 블록,
+  산문 혼합). native structured-output 제거로 JSON 강제가 사라지므로, 응답에서 JSON 객체를
+  뽑는 로직을 다중 후보(코드블록 → 최외곽 객체 → 전체) + slides 우선 방식으로 견고화해
+  파싱 실패를 흡수한다.
 
 ## References
 

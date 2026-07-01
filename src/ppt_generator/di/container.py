@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from strands import Agent
 
@@ -20,7 +21,6 @@ from ppt_generator.interfaces.constants import (
     BEDROCK_OUTLINE_MAX_TOKENS,
     DESIGN_REVIEW_SYSTEM_PROMPT,
     DESIGN_SPEC_SYSTEM_PROMPTS,
-    OUTLINE_JSON_SCHEMA,
     OUTLINE_SYSTEM_PROMPT,
     VISUAL_QA_ANALYSIS_SYSTEM_PROMPT,
     VISUAL_QA_FIX_SYSTEM_PROMPT,
@@ -31,6 +31,10 @@ from ppt_generator.tools.pptx.service import ExportService
 from ppt_generator.tools.pptx_import.service import ImportService
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
+
+if TYPE_CHECKING:
+    from ppt_generator.tools.design.review_service import DesignReviewService
+    from ppt_generator.tools.visual_qa.service import VisualQAService
 
 __all__ = ["DIContainer"]
 
@@ -67,16 +71,11 @@ class DIContainer:
         )
 
     def _create_outline_agent(self) -> Agent:
-        model_kwargs = dict(
-            max_tokens=BEDROCK_OUTLINE_MAX_TOKENS,
-            json_schema=OUTLINE_JSON_SCHEMA,
-            json_schema_name="outline_output",
-        )
         model = (
             create_anthropic_outline_model
             if self._provider == "anthropic"
             else create_bedrock_outline_model
-        )(**model_kwargs)
+        )(max_tokens=BEDROCK_OUTLINE_MAX_TOKENS)
         return self._create_agent(model=model, prompt_text=OUTLINE_SYSTEM_PROMPT)
 
     def _create_visual_qa_analysis_agent(self) -> Agent:

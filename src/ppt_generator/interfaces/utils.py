@@ -11,24 +11,58 @@ import logging
 import re
 
 from ppt_generator.interfaces.constants import COMPONENT_HINT_COMPLEXITY
-from ppt_generator.interfaces.schemas import OutlineResponse, SlideOutline
+from ppt_generator.interfaces.schemas import (
+    OutlineResponse,
+    PptxSlideSpec,
+    SlideOutline,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def extract_json_from_response(text: str) -> dict:
-    """Extracts a JSON code block from the LLM response and returns it as a dict.
+    """Extracts a JSON object from the LLM response and returns it as a dict.
 
-    If a markdown code block (```json ... ```) is found, parses the JSON inside it.
-    Otherwise, attempts to parse the entire text as JSON.
+    adaptive thinking 모델은 코드블록을 여러 개 담거나(설명용 예시 등), 코드블록 없이
+    산문과 JSON 을 섞어 내기도 한다. 따라서 다음 후보들을 순서대로 시도한다:
+    1. 모든 ```json``` / ``` 코드블록 (앞에서부터)
+    2. 텍스트에서 첫 '{' ~ 마지막 '}' 까지의 최외곽 객체
+    3. 전체 텍스트
+
+    각 후보를 파싱해 dict 이면 반환한다. 파싱 가능한 dict 가 여럿이면 'slides' 키를
+    가진 것을 우선한다.
     """
-    match = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)
-    raw = match.group(1) if match else text
+    candidates: list[str] = [
+        block.strip()
+        for block in re.findall(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)
+    ]
+    first, last = text.find("{"), text.rfind("}")
+    if first != -1 and last != -1 and last > first:
+        candidates.append(text[first : last + 1])
+    candidates.append(text)
 
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"LLM returned invalid JSON: {e}") from e
+    parsed: list[dict] = []
+    last_error: json.JSONDecodeError | None = None
+    for raw in candidates:
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as e:
+            last_error = e
+            continue
+        if isinstance(data, dict):
+            parsed.append(data)
+
+    if not parsed:
+        raise ValueError(
+            f"LLM returned invalid JSON: {last_error}"
+            if last_error
+            else "LLM response contains no JSON object."
+        )
+
+    for data in parsed:
+        if "slides" in data:
+            return data
+    return parsed[0]
 
 
 def parse_outline_json(outline_json: str) -> OutlineResponse:
@@ -94,7 +128,7 @@ def complexity_to_effort(complexity: int) -> str:
     return "high"
 
 
-def estimate_spec_complexity(spec: "PptxSlideSpec") -> int:
+def estimate_spec_complexity(spec: PptxSlideSpec) -> int:
     """PptxSlideSpec의 요소 수로 complexity를 추정한다 (1-5 scale).
 
     Visual QA fix 단계에서 outline 없이 complexity를 판단할 때 사용.

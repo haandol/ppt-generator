@@ -5,7 +5,6 @@ Bedrock/Anthropic 프로바이더별 모델 인스턴스 생성 로직을 담당
 
 from __future__ import annotations
 
-import json
 import os
 from typing import Any
 
@@ -41,22 +40,6 @@ def build_client_config() -> BotocoreConfig:
     return BotocoreConfig(read_timeout=300, connect_timeout=60)
 
 
-def build_json_schema_args(schema: dict, name: str) -> dict:
-    return {
-        "outputConfig": {
-            "textFormat": {
-                "type": "json_schema",
-                "structure": {
-                    "jsonSchema": {
-                        "schema": json.dumps(schema),
-                        "name": name,
-                    },
-                },
-            },
-        },
-    }
-
-
 def build_anthropic_client_args() -> dict[str, Any]:
     return {"timeout": httpx.Timeout(connect=5.0, read=300.0, write=300.0, pool=300.0)}
 
@@ -79,19 +62,13 @@ def create_bedrock_design_model(effort: str = "medium") -> BedrockModel:
 
 def create_bedrock_outline_model(
     max_tokens: int,
-    json_schema: dict | None = None,
-    json_schema_name: str | None = None,
     effort: str = "medium",
 ) -> BedrockModel:
-    additional_args: dict[str, Any] = {}
-    if json_schema and json_schema_name:
-        additional_args = build_json_schema_args(json_schema, json_schema_name)
     return BedrockModel(
         model_id=BEDROCK_OUTLINE_MODEL_ID,
         region_name=BEDROCK_REGION,
         boto_client_config=build_client_config(),
         max_tokens=max_tokens,
-        additional_args=additional_args,
         additional_request_fields={
             "thinking": {"type": "adaptive"},
             "output_config": {"effort": effort},
@@ -118,27 +95,18 @@ def create_anthropic_design_model(effort: str = "medium") -> Any:
 
 def create_anthropic_outline_model(
     max_tokens: int,
-    json_schema: dict | None = None,
-    json_schema_name: str | None = None,
     effort: str = "medium",
 ) -> Any:
     from strands.models.anthropic import AnthropicModel
 
-    params: dict[str, Any] = {
-        "thinking": {"type": "adaptive"},
-        "output_config": {"effort": effort},
-    }
-    if json_schema and json_schema_name:
-        params["output_config"]["format"] = {
-            "type": "json_schema",
-            "schema": json_schema,
-            "name": json_schema_name,
-        }
     return AnthropicModel(
         client_args=build_anthropic_client_args(),
         model_id=ANTHROPIC_OUTLINE_MODEL_ID,
         max_tokens=max_tokens,
-        params=params,
+        params={
+            "thinking": {"type": "adaptive"},
+            "output_config": {"effort": effort},
+        },
     )
 
 
