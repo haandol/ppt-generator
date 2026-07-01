@@ -161,8 +161,9 @@ Add `PPT_LOG_DIR` to the `env` section when registering the MCP server:
 
 | Variable | Description |
 | --- | --- |
-| `VISUAL_QA_PARALLEL` | Number of parallel workers for Visual QA (default: 8) |
+| `VISUAL_QA_PARALLEL` | Number of parallel screenshot-capture workers for Visual QA (Playwright, server-side; default: 8). Analysis/fix generation runs on the client |
 | `VISUAL_QA_MAX_ITERATIONS` | Maximum fix iterations for Visual QA (default: 2) |
+| `SCREENSHOT_TIMEOUT` | Per-slide screenshot capture timeout in seconds (default: 60) |
 | `PPT_LOG_DIR` | Directory for per-project log files (recommended). e.g., `/tmp/ppt-generator` |
 | `PPT_LOG_FILE` | Single log file path (legacy). Ignored when `PPT_LOG_DIR` is set |
 
