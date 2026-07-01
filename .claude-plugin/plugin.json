@@ -1,0 +1,18 @@
+{
+  "name": "ppt-generator",
+  "description": "Auto-generate presentations in Claude Code. The MCP server owns prompts, output schemas, and deterministic post-processing (validation, layout, lint, HTML/PPTX render); the client generates the slide content via a prepare/ingest handshake — no server-side LLM.",
+  "version": "0.7.0",
+  "author": {
+    "name": "haandol"
+  },
+  "homepage": "https://github.com/haandol/ppt-generator",
+  "repository": "https://github.com/haandol/ppt-generator",
+  "license": "MIT",
+  "keywords": ["mcp", "presentation", "pptx", "slides", "ppt", "ai"],
+  "mcpServers": {
+    "ppt-generator": {
+      "command": "uv",
+      "args": ["--directory", "${CLAUDE_PLUGIN_ROOT}", "run", "ppt-generator"]
+    }
+  }
+}
