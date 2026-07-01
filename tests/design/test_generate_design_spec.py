@@ -729,7 +729,7 @@ class TestGenerateSlidesDesignSpecWithSlidesService:
         register_design_tools(
             mcp,
             project_service,
-            design_service_factory=lambda slide_type="content", budget_tokens=8192: (
+            design_service_factory=lambda slide_type="content", effort="medium": (
                 design_service
             ),
             slides_service=slides_service,

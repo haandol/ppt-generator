@@ -449,7 +449,7 @@ def mcp_tools_for_modify(project_with_full_slide):
     design_service = MagicMock()
     design_service.last_token_usage = {}
 
-    def factory(slide_type="content", budget_tokens=8192):
+    def factory(slide_type="content", effort="medium"):
         return design_service
 
     register_design_tools(mcp, project_service, design_service_factory=factory)
@@ -543,7 +543,7 @@ class TestModifyComponentTool:
         ds_mock = MagicMock()
         ds_mock.last_token_usage = {}
 
-        def factory(slide_type="content", budget_tokens=8192):
+        def factory(slide_type="content", effort="medium"):
             return ds_mock
 
         register_design_tools(mcp, ps, design_service_factory=factory)

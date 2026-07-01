@@ -104,6 +104,7 @@ docs/adr/
 - [0003 토큰 사용량 추적 및 비용 추정](./project/0003-token-usage-cost-estimation.md)
 - [0004 파이프라인 전체 진행률 보고 및 로깅 강화](./project/0004-progress-reporting-and-logging.md)
 - [0005 MCP Server Stability Improvements](./project/0005-mcp-server-stability.md)
+- [0006 생성 모델 Sonnet 5 전환 + adaptive thinking](./project/0006-sonnet-5-adaptive-thinking.md)
 
 ### script — 발표 스크립트 생성 (deprecated)
 

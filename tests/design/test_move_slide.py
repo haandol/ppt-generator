@@ -494,7 +494,7 @@ class TestMoveSlideToolWith16Pages:
         }
         design_service.generate_design_summary.return_value = _summary
         design_service.generate_design_doc_draft.return_value = (_summary, "", [])
-        design_service_factory = lambda slide_type="content", budget_tokens=8192: (
+        design_service_factory = lambda slide_type="content", effort="medium": (
             design_service
         )  # noqa: E731
 

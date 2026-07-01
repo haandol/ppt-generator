@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, NoReturn
 from ppt_generator.interfaces.constants import BEDROCK_DESIGN_MODEL_ID
 from ppt_generator.interfaces.spec_utils import lint_slide_spec
 from ppt_generator.interfaces.utils import (
-    complexity_to_budget_tokens,
+    complexity_to_effort,
     estimate_cost,
     estimate_slide_complexity,
     format_token_usage,
@@ -226,8 +226,8 @@ def _generate_and_review(
     """슬라이드를 생성하고 리뷰 후 필요시 재생성한다."""
     slide_type = slide_outline.slide_type or "content"
     complexity = estimate_slide_complexity(slide_outline)
-    budget_tokens = complexity_to_budget_tokens(complexity)
-    svc = deps.design_service_factory(slide_type, budget_tokens=budget_tokens)
+    effort = complexity_to_effort(complexity)
+    svc = deps.design_service_factory(slide_type, effort=effort)
     spec = svc.generate_single_slide(
         slide_outline,
         design_summary,
@@ -248,9 +248,7 @@ def _generate_and_review(
             lint_result = lint_slide_spec(spec, stop_on_layer_error=True)
 
             def _regenerate(feedback: str) -> tuple:
-                svc_regen = deps.design_service_factory(
-                    slide_type, budget_tokens=budget_tokens
-                )
+                svc_regen = deps.design_service_factory(slide_type, effort=effort)
                 new = svc_regen.generate_single_slide(
                     slide_outline,
                     design_summary,
@@ -552,7 +550,7 @@ def handle_modify_component(
     idx = slide_index - 1
     spec = project_service.load_design_spec_slide(project_dir, idx)
 
-    svc = deps.design_service_factory("content", budget_tokens=8192)
+    svc = deps.design_service_factory("content", effort="medium")
     backfill_token_usage: dict[str, int] = {}
     backfilled = False
 

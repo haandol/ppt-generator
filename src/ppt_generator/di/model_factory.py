@@ -64,15 +64,15 @@ def build_anthropic_client_args() -> dict[str, Any]:
 # ---- Bedrock model creators ----
 
 
-def create_bedrock_design_model(budget_tokens: int = 8192) -> BedrockModel:
+def create_bedrock_design_model(effort: str = "medium") -> BedrockModel:
     return BedrockModel(
         model_id=BEDROCK_DESIGN_MODEL_ID,
         region_name=BEDROCK_REGION,
         boto_client_config=build_client_config(),
-        temperature=1.0,
         max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
         additional_request_fields={
-            "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
+            "thinking": {"type": "adaptive"},
+            "output_config": {"effort": effort},
         },
     )
 
@@ -81,7 +81,7 @@ def create_bedrock_outline_model(
     max_tokens: int,
     json_schema: dict | None = None,
     json_schema_name: str | None = None,
-    budget_tokens: int = 8192,
+    effort: str = "medium",
 ) -> BedrockModel:
     additional_args: dict[str, Any] = {}
     if json_schema and json_schema_name:
@@ -90,11 +90,11 @@ def create_bedrock_outline_model(
         model_id=BEDROCK_OUTLINE_MODEL_ID,
         region_name=BEDROCK_REGION,
         boto_client_config=build_client_config(),
-        temperature=1.0,
         max_tokens=max_tokens,
         additional_args=additional_args,
         additional_request_fields={
-            "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
+            "thinking": {"type": "adaptive"},
+            "output_config": {"effort": effort},
         },
     )
 
@@ -102,7 +102,7 @@ def create_bedrock_outline_model(
 # ---- Anthropic model creators ----
 
 
-def create_anthropic_design_model(budget_tokens: int = 8192) -> Any:
+def create_anthropic_design_model(effort: str = "medium") -> Any:
     from strands.models.anthropic import AnthropicModel
 
     return AnthropicModel(
@@ -110,8 +110,8 @@ def create_anthropic_design_model(budget_tokens: int = 8192) -> Any:
         model_id=ANTHROPIC_DESIGN_MODEL_ID,
         max_tokens=BEDROCK_DESIGN_MAX_TOKENS,
         params={
-            "temperature": 1.0,
-            "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
+            "thinking": {"type": "adaptive"},
+            "output_config": {"effort": effort},
         },
     )
 
@@ -120,16 +120,16 @@ def create_anthropic_outline_model(
     max_tokens: int,
     json_schema: dict | None = None,
     json_schema_name: str | None = None,
-    budget_tokens: int = 8192,
+    effort: str = "medium",
 ) -> Any:
     from strands.models.anthropic import AnthropicModel
 
     params: dict[str, Any] = {
-        "temperature": 1.0,
-        "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
+        "thinking": {"type": "adaptive"},
+        "output_config": {"effort": effort},
     }
     if json_schema and json_schema_name:
-        params.setdefault("output_config", {})["format"] = {
+        params["output_config"]["format"] = {
             "type": "json_schema",
             "schema": json_schema,
             "name": json_schema_name,
@@ -150,8 +150,10 @@ def create_bedrock_review_model() -> BedrockModel:
         model_id=BEDROCK_DESIGN_MODEL_ID,
         region_name=BEDROCK_REGION,
         boto_client_config=build_client_config(),
-        temperature=1.0,
         max_tokens=BEDROCK_REVIEW_MAX_TOKENS,
+        additional_request_fields={
+            "thinking": {"type": "disabled"},
+        },
     )
 
 
@@ -162,7 +164,7 @@ def create_anthropic_review_model() -> Any:
         client_args=build_anthropic_client_args(),
         model_id=ANTHROPIC_DESIGN_MODEL_ID,
         max_tokens=BEDROCK_REVIEW_MAX_TOKENS,
-        params={"temperature": 1.0},
+        params={"thinking": {"type": "disabled"}},
     )
 
 
@@ -174,10 +176,10 @@ def create_bedrock_visual_qa_model() -> BedrockModel:
         model_id=BEDROCK_DESIGN_MODEL_ID,
         region_name=BEDROCK_REGION,
         boto_client_config=build_client_config(),
-        temperature=1.0,
         max_tokens=BEDROCK_VISUAL_QA_FIX_MAX_TOKENS,
         additional_request_fields={
-            "thinking": {"type": "enabled", "budget_tokens": 2048},
+            "thinking": {"type": "adaptive"},
+            "output_config": {"effort": "low"},
         },
     )
 
@@ -190,8 +192,8 @@ def create_anthropic_visual_qa_model() -> Any:
         model_id=ANTHROPIC_DESIGN_MODEL_ID,
         max_tokens=BEDROCK_VISUAL_QA_FIX_MAX_TOKENS,
         params={
-            "temperature": 1.0,
-            "thinking": {"type": "enabled", "budget_tokens": 2048},
+            "thinking": {"type": "adaptive"},
+            "output_config": {"effort": "low"},
         },
     )
 

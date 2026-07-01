@@ -34,10 +34,10 @@ VISUAL_QA_VIEWPORT_HEIGHT = 720
 
 # --- Design spec generation model ---
 BEDROCK_DESIGN_MODEL_ID = os.environ.get(
-    "BEDROCK_DESIGN_MODEL_ID", "global.anthropic.claude-sonnet-4-6"
+    "BEDROCK_DESIGN_MODEL_ID", "global.anthropic.claude-sonnet-5"
 )
 ANTHROPIC_DESIGN_MODEL_ID = os.environ.get(
-    "ANTHROPIC_DESIGN_MODEL_ID", "claude-sonnet-4-6"
+    "ANTHROPIC_DESIGN_MODEL_ID", "claude-sonnet-5"
 )
 BEDROCK_DESIGN_MAX_TOKENS = int(os.environ.get("BEDROCK_DESIGN_MAX_TOKENS", "64000"))
 BEDROCK_REVIEW_MAX_TOKENS = int(os.environ.get("BEDROCK_REVIEW_MAX_TOKENS", "4096"))
@@ -47,10 +47,10 @@ BEDROCK_VISUAL_QA_FIX_MAX_TOKENS = int(
 
 # --- Outline generation model ---
 BEDROCK_OUTLINE_MODEL_ID = os.environ.get(
-    "BEDROCK_OUTLINE_MODEL_ID", "global.anthropic.claude-sonnet-4-6"
+    "BEDROCK_OUTLINE_MODEL_ID", "global.anthropic.claude-sonnet-5"
 )
 ANTHROPIC_OUTLINE_MODEL_ID = os.environ.get(
-    "ANTHROPIC_OUTLINE_MODEL_ID", "claude-sonnet-4-6"
+    "ANTHROPIC_OUTLINE_MODEL_ID", "claude-sonnet-5"
 )
 BEDROCK_OUTLINE_MAX_TOKENS = int(os.environ.get("BEDROCK_OUTLINE_MAX_TOKENS", "32000"))
 

@@ -4,7 +4,10 @@ import pytest
 
 from ppt_generator.interfaces.constants import COMPONENT_HINT_COMPLEXITY
 from ppt_generator.interfaces.schemas import SlideOutline
-from ppt_generator.interfaces.utils import estimate_slide_complexity
+from ppt_generator.interfaces.utils import (
+    complexity_to_effort,
+    estimate_slide_complexity,
+)
 
 
 class TestEstimateSlideComplexity:
@@ -92,3 +95,20 @@ class TestEstimateSlideComplexity:
             component_hint=hint,
         )
         assert estimate_slide_complexity(slide) == expected
+
+
+class TestComplexityToEffort:
+    """complexity_to_effort 단위 테스트 (adaptive thinking effort 매핑)."""
+
+    @pytest.mark.parametrize(
+        "complexity,expected",
+        [
+            (1, "low"),
+            (2, "low"),
+            (3, "medium"),
+            (4, "medium"),
+            (5, "high"),
+        ],
+    )
+    def test_mapping(self, complexity: int, expected: str) -> None:
+        assert complexity_to_effort(complexity) == expected

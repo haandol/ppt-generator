@@ -165,7 +165,7 @@ def chain_tools(imported_project):
     design_service = MagicMock()
     design_service.last_token_usage = {}
 
-    def factory(slide_type="content", budget_tokens=8192):
+    def factory(slide_type="content", effort="medium"):
         return design_service
 
     register_design_tools(mcp, project_service, design_service_factory=factory)

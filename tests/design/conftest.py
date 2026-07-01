@@ -109,7 +109,7 @@ def _register_tools(
     mcp.tool = tool_decorator
 
     design_service = _build_design_service_mock()
-    factory = lambda slide_type="content", budget_tokens=8192: (  # noqa: E731
+    factory = lambda slide_type="content", effort="medium": (  # noqa: E731
         design_service
     )
 

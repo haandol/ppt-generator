@@ -23,10 +23,10 @@ class DesignServiceLike(Protocol):
 
 
 class DesignServiceFactory(Protocol):
-    """(slide_type, budget_tokens) → DesignService 팩토리."""
+    """(slide_type, effort) → DesignService 팩토리."""
 
     def __call__(
-        self, slide_type: str = "content", budget_tokens: int = 8192
+        self, slide_type: str = "content", effort: str = "medium"
     ) -> DesignServiceLike: ...
 
 

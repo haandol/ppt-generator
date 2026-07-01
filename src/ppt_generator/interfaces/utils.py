@@ -85,13 +85,13 @@ def _layout_plan_has_many_elements(layout_plan: str) -> bool:
     return False
 
 
-def complexity_to_budget_tokens(complexity: int) -> int:
-    """Complexity (1-5) → thinking budget_tokens 매핑."""
+def complexity_to_effort(complexity: int) -> str:
+    """Complexity (1-5) → adaptive thinking effort 매핑."""
     if complexity <= 2:
-        return 4096
+        return "low"
     if complexity <= 4:
-        return 8192
-    return 12288
+        return "medium"
+    return "high"
 
 
 def estimate_spec_complexity(spec: "PptxSlideSpec") -> int:
@@ -116,6 +116,12 @@ def estimate_spec_complexity(spec: "PptxSlideSpec") -> int:
 # Claude model pricing (USD / 1M tokens)
 # https://www.anthropic.com/pricing
 _MODEL_PRICING: dict[str, dict[str, float]] = {
+    "claude-sonnet-5": {
+        "input": 3.0,
+        "output": 15.0,
+        "cache_read": 0.30,
+        "cache_write": 3.75,
+    },
     "claude-sonnet-4-6": {
         "input": 3.0,
         "output": 15.0,
@@ -150,6 +156,8 @@ _MODEL_PRICING: dict[str, dict[str, float]] = {
 
 # model_id → pricing key mapping (strips Bedrock prefixes etc.)
 _MODEL_ID_ALIASES: dict[str, str] = {
+    "global.anthropic.claude-sonnet-5": "claude-sonnet-5",
+    "anthropic.claude-sonnet-5-v1:0": "claude-sonnet-5",
     "global.anthropic.claude-sonnet-4-6": "claude-sonnet-4-6",
     "anthropic.claude-sonnet-4-6-v1:0": "claude-sonnet-4-6",
     "global.anthropic.claude-opus-4-6": "claude-opus-4-6",
@@ -168,7 +176,7 @@ _MODEL_ID_ALIASES: dict[str, str] = {
     "claude-haiku-4-5-20251001": "claude-haiku-4-5",
 }
 
-_DEFAULT_PRICING_KEY = "claude-sonnet-4-6"
+_DEFAULT_PRICING_KEY = "claude-sonnet-5"
 
 
 def _resolve_pricing_key(model_id: str) -> str:

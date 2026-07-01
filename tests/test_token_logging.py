@@ -168,7 +168,7 @@ class TestEstimateCost:
     def test_unknown_model_uses_default(self) -> None:
         usage = {"inputTokens": 1_000_000, "outputTokens": 1_000_000}
         cost = estimate_cost(usage, "unknown-model-id")
-        # 기본값 sonnet-4-6 가격 적용
+        # 기본값 sonnet-5 가격 적용 (sonnet-4-6 와 동일 단가)
         assert cost["input_cost"] == 3.0
 
 
@@ -424,7 +424,7 @@ class TestDesignControllerTokenAggregation:
         register_design_tools(
             mcp,
             project_service,
-            design_service_factory=lambda slide_type="content", budget_tokens=8192: (
+            design_service_factory=lambda slide_type="content", effort="medium": (
                 design_service
             ),
         )
@@ -595,7 +595,7 @@ class TestDesignControllerTokenAggregation:
         register_design_tools(
             mcp,
             project_service,
-            design_service_factory=lambda slide_type="content", budget_tokens=8192: (
+            design_service_factory=lambda slide_type="content", effort="medium": (
                 design_service
             ),
         )
