@@ -65,6 +65,13 @@
 
 각 스킬은 클라이언트가 prepare → 생성 → ingest 순서와 병렬화·확인 규칙을 따르도록 안내합니다.
 
+## Kiro / Codex
+
+Claude Code 외의 하니스에서도 동일한 워크플로우를 스킬처럼 쓸 수 있습니다. Kiro 는
+`.kiro/steering/ppt-generator.md` steering 과 `.kiro/settings/mcp.json` 을, Codex 는
+`AGENTS.md` 와 `~/.codex/config.toml` 의 `[mcp_servers]` 를 씁니다. 설정 방법은
+[kiro-codex.md](kiro-codex.md) 를 참조하세요.
+
 ## Visual QA (선택)
 
 Visual QA 를 사용하려면 Playwright 브라우저 바이너리가 필요합니다:

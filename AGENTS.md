@@ -17,6 +17,7 @@
 ```
 .claude-plugin/plugin.json # Claude Code plugin manifest (runs the MCP server via uv)
 skills/                    # ppt-outline, ppt-design, ppt-modify, ppt-visual-qa (client workflows)
+.kiro/                     # Kiro entry points: steering/ppt-generator.md + settings/mcp.json.example
 src/ppt_generator/
 ├── server.py              # MCP server entry point
 ├── di/                    # Dependency injection (container — wires stateless services)
@@ -145,6 +146,7 @@ Details: [`docs/harness/testing.md`](docs/harness/testing.md)
 | Architecture          | [`docs/harness/architecture.md`](docs/harness/architecture.md) | Pipeline, Controller-Service pattern, parallel processing, token tracking, MCP tool list |
 | Schemas               | [`docs/harness/schemas.md`](docs/harness/schemas.md)     | Domain models, LLM output models, component_hint table |
 | Environment & Config  | [`docs/harness/environment.md`](docs/harness/environment.md) | Environment variables, models used, MCP client config examples |
+| Kiro / Codex Setup    | [`docs/harness/kiro-codex.md`](docs/harness/kiro-codex.md) | Use the workflow as a skill in Kiro (steering) and Codex (AGENTS.md) |
 | Testing               | [`docs/harness/testing.md`](docs/harness/testing.md)         | Test writing rules, patterns, checklist         |
 | ALPS Design Doc       | [`docs/ppt-generator.alps.md`](docs/ppt-generator.alps.md) | Feature list, functional specs, acceptance criteria |
 | ADR Index             | [`docs/adr/README.md`](docs/adr/README.md) | Full ADR list and writing guide                 |

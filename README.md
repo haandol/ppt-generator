@@ -64,6 +64,61 @@ uv sync
 > Replace `/path/to/ppt-generator` with the actual project path. This registers the MCP
 > server only; the workflow skills are Claude Code plugin skills.
 
+### Use it as a skill in Kiro / Codex
+
+The workflow is just the MCP server plus the `prepare_*`/`ingest_*` handshake, so any
+MCP client that can generate JSON can drive it — including **Kiro** and **Codex**. The
+repo ships the entry points each harness loads automatically (Kiro steering at
+`.kiro/steering/ppt-generator.md`, Codex guidance in `AGENTS.md`), so you get the same
+skill-level guidance without duplicating the prompts.
+
+First clone and sync once (no model API keys needed):
+
+```bash
+git clone https://github.com/haandol/ppt-generator.git
+cd ppt-generator
+uv sync
+```
+
+**Kiro** — copy the bundled example and fix the path, then Kiro auto-loads the steering:
+
+```bash
+cp .kiro/settings/mcp.json.example .kiro/settings/mcp.json
+# edit .kiro/settings/mcp.json → replace /path/to/ppt-generator with your clone path
+```
+
+```json
+{
+  "mcpServers": {
+    "ppt-generator": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"],
+      "disabled": false,
+      "autoApprove": ["export_html", "load_project_status", "list_projects"]
+    }
+  }
+}
+```
+
+Use `~/.kiro/settings/mcp.json` instead for a global (all-workspace) registration.
+
+**Codex** — register the MCP server via CLI or `~/.codex/config.toml`:
+
+```bash
+codex mcp add ppt-generator -- uv --directory /path/to/ppt-generator run ppt-generator
+```
+
+```toml
+# ~/.codex/config.toml
+[mcp_servers.ppt-generator]
+command = "uv"
+args = ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"]
+```
+
+Codex reads the repo's `AGENTS.md` for the prepare/ingest workflow guidance. See
+[docs/harness/kiro-codex.md](docs/harness/kiro-codex.md) for the full walkthrough
+(Visual QA setup, custom Codex prompt, per-harness entry-point table).
+
 > For the full list of environment variables and detailed client / plugin configurations, see [docs/harness/environment.md](docs/harness/environment.md).
 
 ## 2. Usage
@@ -209,6 +264,7 @@ uv run pytest                  # Run all tests
 
 - [Architecture](docs/harness/architecture.md) — prepare/ingest handshake, MCP tool list, workflows, project structure
 - [Environment & Config](docs/harness/environment.md) — environment variables, MCP client / plugin config
+- [Kiro / Codex Setup](docs/harness/kiro-codex.md) — use the workflow as a skill in Kiro and Codex
 - [Schemas](docs/harness/schemas.md) — domain models, client output models, component_hint table
 - [Testing](docs/harness/testing.md) — test writing rules and patterns
 - [ALPS Design Document](docs/ppt-generator.alps.md)

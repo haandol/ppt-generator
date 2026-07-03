@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "ppt-generator": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"],
+      "env": {
+        "PPT_LOG_DIR": "/tmp/ppt-generator"
+      },
+      "disabled": false,
+      "autoApprove": ["export_html", "load_project_status", "list_projects"]
+    }
+  }
+}
