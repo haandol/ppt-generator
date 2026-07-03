@@ -14,26 +14,41 @@ the generating. See the ADR index under [`docs/adr/`](docs/adr/) for the design 
 
 1. Python 3.13+
 2. [uv](https://docs.astral.sh/uv/) package manager
-3. An MCP client that can generate JSON (e.g. Claude Code) — no model API keys needed on the server
+3. [Claude Code](https://claude.com/claude-code) (recommended — the plugin bundles the MCP server + workflow skills). Any MCP client that can generate JSON also works — no model API keys needed on the server.
 
-## 1. Installation
+## 1. Install as a Claude Code plugin (recommended)
+
+The repo ships as a Claude Code plugin (manifest at `.claude-plugin/plugin.json`) that
+registers the MCP server and the `ppt-outline` / `ppt-design` / `ppt-modify` /
+`ppt-visual-qa` skills which drive the prepare→generate→ingest workflow.
+
+Add the marketplace and install the plugin from within Claude Code:
+
+```
+/plugin marketplace add haandol/ppt-generator
+/plugin install ppt-generator@ppt-generator
+```
+
+The plugin runs the MCP server via `uv run` against the plugin's own checkout
+(`${CLAUDE_PLUGIN_ROOT}`), so `uv` must be on your `PATH` and the plugin's dependencies
+must be synced. If the server fails to start, sync deps once from the plugin directory:
+
+```bash
+uv sync   # run inside the installed plugin's directory
+```
+
+> No model API keys are required — the client supplies the generation.
+
+### Alternative — clone and register the MCP server directly
+
+If you are not using the Claude Code plugin system (e.g. Kiro / Claude Desktop, or you
+prefer a local clone), clone the repo and register just the MCP server:
 
 ```bash
 git clone https://github.com/haandol/ppt-generator.git
 cd ppt-generator
 uv sync
 ```
-
-## 2. Install the plugin (Claude Code)
-
-The repo ships as a Claude Code plugin (manifest at `.claude-plugin/plugin.json`) with
-skills that drive the prepare→generate→ingest workflow. Install it as a local plugin so
-the MCP server and the `ppt-outline` / `ppt-design` / `ppt-modify` / `ppt-visual-qa`
-skills are available.
-
-Alternatively, register just the MCP server directly.
-
-**Claude Code / Kiro / Claude Desktop** — MCP server config:
 
 ```json
 {
@@ -46,12 +61,12 @@ Alternatively, register just the MCP server directly.
 }
 ```
 
-> Replace `/path/to/ppt-generator` with the actual project path. No model API keys are
-> required — the client supplies the generation.
+> Replace `/path/to/ppt-generator` with the actual project path. This registers the MCP
+> server only; the workflow skills are Claude Code plugin skills.
 
-> For the full list of environment variables and detailed client configurations, see [docs/harness/environment.md](docs/harness/environment.md).
+> For the full list of environment variables and detailed client / plugin configurations, see [docs/harness/environment.md](docs/harness/environment.md).
 
-## 3. Usage
+## 2. Usage
 
 You interact in natural language; the client drives the prepare→generate→ingest handshake
 behind the scenes (guided by the bundled skills). You don't call the `prepare_*`/`ingest_*`
@@ -141,7 +156,7 @@ The MCP server uses stdio communication, so stdout logs cannot be viewed directl
 
 ### Configuration
 
-Add `PPT_LOG_DIR` to the `env` section when registering the MCP server:
+When registering the MCP server directly, add `PPT_LOG_DIR` to the `env` section:
 
 ```json
 {
@@ -156,6 +171,9 @@ Add `PPT_LOG_DIR` to the `env` section when registering the MCP server:
   }
 }
 ```
+
+> When installed as a Claude Code plugin, set `PPT_LOG_DIR` in your Claude Code MCP
+> environment for the `ppt-generator` server. See [docs/harness/environment.md](docs/harness/environment.md).
 
 ### Environment Variables
 
