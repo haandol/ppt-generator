@@ -32,7 +32,7 @@ inclusion: always
 
 ## 편집 (`skills/ppt-modify`)
 
-- 추가/수정: `prepare_slide_edit(action="add"|"update")` → JSON 생성 → `ingest_slide_edit`.
+- 추가/수정: `prepare_slide_edit(action="add"|"update")` → JSON 생성 → 반환된 `edit_context`와 함께 `ingest_slide_edit`.
 - 단일 컴포넌트: `prepare_modify_component` → (imported 슬라이드는 `stage="backfill"`
   먼저: backfill 생성 → `ingest_backfill` → 재시도) → JSON 생성 → `ingest_modify_component`.
 - 이동/삭제: `move_slide` / `delete_slide` (순수 파일 연산, 생성 불필요).

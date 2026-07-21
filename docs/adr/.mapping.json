@@ -25,6 +25,7 @@
         "src/ppt_generator/interfaces/spec_utils/serializer.py",
         "src/ppt_generator/interfaces/text_measurement.py",
         "tests/design/**",
+        "tests/test_prompt_schema_contracts.py",
         "tests/test_slide_spec_output_models.py",
         "tests/test_design_*.py",
         "tests/test_text_measurement.py",
@@ -45,12 +46,14 @@
     "modify": {
       "codePaths": [
         "src/ppt_generator/tools/design/handlers/modification.py",
+        "src/ppt_generator/tools/design/edit_context.py",
         "src/ppt_generator/tools/design/controller.py",
-        "tests/test_modify_component.py",
+        "tests/design/test_modify_component.py",
+        "tests/design/test_modify_design_spec.py",
         "tests/test_backfill_design_doc.py",
         "tests/test_cross_scenario_chain.py",
-        "tests/test_move_slide.py",
-        "tests/test_outline_design_spec_sync.py"
+        "tests/design/test_move_slide.py",
+        "tests/outline/test_outline_design_spec_sync.py"
       ],
       "description": "슬라이드/component 부분 수정 — slide_edit(add/update/delete) + modify_component + imported lazy backfill."
     },
@@ -95,6 +98,7 @@
         "src/ppt_generator/tools/project/**",
         "src/ppt_generator/server.py",
         "src/ppt_generator/di/**",
+        "src/ppt_generator/interfaces/index_validation.py",
         "src/ppt_generator/interfaces/utils.py",
         "src/ppt_generator/interfaces/constants.py",
         "src/ppt_generator/interfaces/protocols.py",

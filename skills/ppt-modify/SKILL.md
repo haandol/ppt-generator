@@ -20,7 +20,7 @@ description: Add, update, delete, move, or make narrow single-component edits to
      imported 프로젝트는 title·content_summary 필수.
    - 반환: `system_prompt`, `user_prompt`, `response_schema`, `action`.
 2. **네가** `response_schema` 대로 슬라이드 spec JSON 을 생성한다.
-3. `mcp__ppt-generator__ingest_slide_edit(project_id, action, slide_index, spec_json, color_theme)` 호출
+3. `mcp__ppt-generator__ingest_slide_edit(project_id, action, slide_index, spec_json, edit_context, color_theme)` 호출. `edit_context`는 1단계 prepare 응답 값을 그대로 전달한다.
    — 같은 action·slide_index 를 넘긴다.
 4. `export_html` → `slides_html_path` 공유.
 

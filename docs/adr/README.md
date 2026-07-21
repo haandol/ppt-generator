@@ -82,6 +82,7 @@ docs/adr/
 ### slides — HTML 미리보기
 
 - [0001 슬라이드별 HTML 파일 분리 + iframe 컨테이너](./slides/0001-per-slide-html-iframe.md)
+- [0002 컨텍스트 안전 HTML 렌더링](./slides/0002-context-safe-html-rendering.md)
 
 ### pptx-export — PPTX 내보내기
 

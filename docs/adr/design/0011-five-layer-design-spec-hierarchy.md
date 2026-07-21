@@ -87,6 +87,13 @@ overflow
 
 `prompts/examples/` 는 LLM 인-컨텍스트 학습용 슬라이드 예시 모음이다. 5단 계층(특히 design_doc.layout 트리 + component_id 링크) 이 충실히 채워진 예시 ≥1 개를 두고, base 프롬프트에서 참조한다.
 
+### 결정 8 — 프롬프트 예시는 실제 응답 계약을 통과해야 한다
+
+프롬프트에 포함되는 JSON 예시는 설명용 의사 JSON이 아니라 해당 슬라이드 타입의 실제
+응답 계약을 만족하는 유효한 예시로 유지한다. content 예시는 Layout, Section,
+Content 링크를 모두 포함하고, title/closing 예시는 해당 타입의 생략 가능 필드 정책을
+따른다. 예시가 응답 스키마와 어긋나면 테스트에서 실패해야 한다.
+
 ## 대안 검토
 
 | 대안 | 채택하지 않은 이유 |
@@ -117,6 +124,8 @@ overflow
 - LLM 응답 schema 가 커져 토큰/지연 약간 증가 (실측 단일 호출 ~3-5%).
 - design_doc Required 로 인해 LLM 출력 실패율이 미미하게 상승 가능 → review/재생성 메커니즘으로 회복.
 - LayoutNode 의 자기 참조 트리는 schema 제약상 flat list + parent_id 로 우회 (직접 nested children 사용 불가).
+- 프롬프트 예시를 계약 테스트 대상으로 유지해야 하므로 예시 변경 시 검증 비용이
+  추가된다.
 
 ## Out of Scope (다른 ADR 에서 다룸)
 

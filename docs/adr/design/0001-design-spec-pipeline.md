@@ -44,6 +44,12 @@ LLM 은 절대 좌표(left/top/width/height) 와 스타일을 가진 PptxSlideSp
 
 `~/.ppt-generator/<UUID>/design_spec/` 아래에 슬라이드별 개별 파일(`slide_NN.json`) 과 디자인 요약(`design_summary.json`) 을 저장한다. CRUD 는 ProjectService 에 위임된 별도 store 에서 전담.
 
+### 렌더 순서 의미 보존
+
+명시적인 렌더 순서가 있는 spec은 HTML과 PPTX 모두 동일한 순서로 요소를 쌓는다.
+명시적인 순서가 하나라도 있으면 요소 종류별 고정 순서로 재배치하지 않는다. 명시적인
+순서가 전혀 없는 기존 spec만 레거시 기본 순서를 사용한다.
+
 ## 대안 검토
 
 | 대안 | 설명 | 채택하지 않은 이유 |
@@ -60,6 +66,8 @@ LLM 은 절대 좌표(left/top/width/height) 와 스타일을 가진 PptxSlideSp
 - **단순성** — PPTX 생성 시 3단계 폴백 체인 대신 SlideBuilder 직접 호출.
 - **속도/비용** — Playwright/추가 LLM 호출 불필요로 wall time 과 비용 모두 감소.
 - **단일 파이프라인** — 레거시 HTML 기반 경로 완전 제거.
+- **렌더 일치성** — 명시된 요소 순서가 HTML 미리보기와 PPTX 최종본에서 동일하게
+  유지된다.
 
 ### Negative / Risks
 

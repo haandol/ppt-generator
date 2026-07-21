@@ -140,6 +140,7 @@ class TextBoxOutput(BaseModel):
     padding_right_px: float | None = None
     padding_top_px: float | None = None
     padding_bottom_px: float | None = None
+    z_index: int | None = None
     grid_cell: str | None = None
     component_id: str | None = None  # design_doc.sections[].components[].id 참조
 
@@ -175,6 +176,7 @@ class ShapeOutput(BaseModel):
     svg_path: str | None = None
     # 결정 14: 기본 shrink_text (높이 고정, 폰트 자동 축소)
     autofit_mode: Literal["expand_height", "shrink_text"] = "shrink_text"
+    z_index: int | None = None
     grid_cell: str | None = None
     component_id: str | None = None  # design_doc.sections[].components[].id 참조
 
@@ -283,6 +285,13 @@ class VisualQAIssue(BaseModel):
         "content_too_dense",
         "unbalanced_spacing",
         "inconsistent_padding",
+        "label_intrusion",
+        "decoration_overlap",
+        "arrow_through_card",
+        "orphan_label_no_arrow",
+        "label_line_overlap",
+        "hidden_decorative_strip",
+        "wrong_z_order",
     ]
     severity: Literal["high", "medium", "low"]
     element_type: Literal["textbox", "shape"]
@@ -297,6 +306,18 @@ class VisualQAOutput(BaseModel):
     has_issues: bool
     issues: list[VisualQAIssue] = Field(default_factory=list)
     overall_quality: Literal["good", "needs_improvement", "poor"]
+
+    @model_validator(mode="after")
+    def derive_summary(self) -> "VisualQAOutput":
+        """이슈 목록을 정본으로 삼아 요약 필드를 정규화한다."""
+        self.has_issues = bool(self.issues)
+        if not self.issues:
+            self.overall_quality = "good"
+        elif any(issue.severity == "high" for issue in self.issues):
+            self.overall_quality = "poor"
+        else:
+            self.overall_quality = "needs_improvement"
+        return self
 
 
 def _convert_flat_layout(flat_nodes: list["LayoutNodeOutput"]) -> list[LayoutNode]:
@@ -457,6 +478,7 @@ class _BaseSlideSpecOutput(BaseModel):
                 padding_right_px=tb.padding_right_px,
                 padding_top_px=tb.padding_top_px,
                 padding_bottom_px=tb.padding_bottom_px,
+                z_index=tb.z_index,
                 grid_cell=tb.grid_cell,
                 component_id=tb.component_id,
             )
@@ -489,6 +511,7 @@ class _BaseSlideSpecOutput(BaseModel):
                 dash_style=s.dash_style,
                 svg_path=s.svg_path,
                 autofit_mode=s.autofit_mode,
+                z_index=s.z_index,
                 grid_cell=s.grid_cell,
                 component_id=s.component_id,
             )
@@ -573,6 +596,8 @@ class DesignReviewIssue(BaseModel):
         "vstack_gap_uniformity",
         "lr_bottom_alignment",
         "same_level_overlap",
+        "peer_font_consistency",
+        "peer_padding_consistency",
     ]
     severity: Literal["high", "medium"]
     description: str
@@ -583,6 +608,12 @@ class DesignReviewOutput(BaseModel):
 
     has_high_severity: bool
     issues: list[DesignReviewIssue] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def derive_high_severity(self) -> "DesignReviewOutput":
+        """검증된 issue 목록에서 high-severity 여부를 계산한다."""
+        self.has_high_severity = any(issue.severity == "high" for issue in self.issues)
+        return self
 
 
 # --- Component-level partial modification ---
@@ -600,6 +631,18 @@ class ComponentModifyOutput(BaseModel):
     textbox: TextBoxOutput | None = None
     shape: ShapeOutput | None = None
     bbox_changed: bool = False
+
+    @model_validator(mode="after")
+    def validate_matching_body(self) -> "ComponentModifyOutput":
+        """element_kind와 일치하는 본문 하나만 허용한다."""
+        if self.element_kind == "textbox":
+            if self.textbox is None or self.shape is not None:
+                raise ValueError(
+                    "element_kind='textbox' requires textbox and forbids shape"
+                )
+        elif self.shape is None or self.textbox is not None:
+            raise ValueError("element_kind='shape' requires shape and forbids textbox")
+        return self
 
 
 class BackfillElementRef(BaseModel):
@@ -661,6 +704,7 @@ def textbox_output_to_dataclass(tb: TextBoxOutput) -> PptxTextBox:
         padding_right_px=tb.padding_right_px,
         padding_top_px=tb.padding_top_px,
         padding_bottom_px=tb.padding_bottom_px,
+        z_index=tb.z_index,
         grid_cell=tb.grid_cell,
         component_id=tb.component_id,
     )
@@ -694,6 +738,7 @@ def shape_output_to_dataclass(s: ShapeOutput) -> PptxShape:
         dash_style=s.dash_style,
         svg_path=s.svg_path,
         autofit_mode=s.autofit_mode,
+        z_index=s.z_index,
         grid_cell=s.grid_cell,
         component_id=s.component_id,
     )

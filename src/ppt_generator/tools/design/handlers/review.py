@@ -11,6 +11,7 @@ import json
 import logging
 from typing import TYPE_CHECKING
 
+from ppt_generator.interfaces.index_validation import require_positive_slide_index
 from ppt_generator.interfaces.spec_utils import lint_slide_spec
 from ppt_generator.tools.design.review_service import DesignReviewService
 
@@ -30,8 +31,9 @@ def handle_prepare_review(
     if deps.review_service is None:
         raise ValueError("Review service is not configured.")
 
+    require_positive_slide_index(slide_index)
     project_service = deps.project_service
-    _, project_dir = project_service.resolve_project_dir(project_id)
+    _, project_dir = project_service.resolve_existing_project_dir(project_id)
     slide_count = project_service.get_design_spec_slide_count(project_dir)
 
     if slide_index < 1 or slide_index > slide_count:
@@ -65,6 +67,14 @@ def handle_ingest_review(
     """
     if deps.review_service is None:
         raise ValueError("Review service is not configured.")
+    require_positive_slide_index(slide_index)
+    project_service = deps.project_service
+    _, project_dir = project_service.resolve_existing_project_dir(project_id)
+    slide_count = project_service.get_design_spec_slide_count(project_dir)
+    if slide_index > slide_count:
+        raise ValueError(
+            f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})"
+        )
 
     review_output = deps.review_service.ingest(review_json)
     high_count = sum(1 for i in review_output.issues if i.severity == "high")

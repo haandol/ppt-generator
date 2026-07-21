@@ -85,7 +85,6 @@ class TestEnsureTextContrast:
     def test_large_text_lower_threshold(self) -> None:
         """대형 텍스트(≥24pt) → 3:1 기준 적용, 더 관대."""
         # 중간 회색 텍스트 + 흰 배경: 4.5:1 미달이지만 3:1 충족
-        gray = "#767676"  # contrast ~4.54:1 with white → passes 4.5 threshold
         # 더 밝은 회색으로 테스트
         light_gray = "#949494"  # contrast ~3.0:1 with white
         result = ensure_text_contrast(light_gray, "#FFFFFF", font_size_pt=24)

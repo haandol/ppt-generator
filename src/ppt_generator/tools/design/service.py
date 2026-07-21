@@ -22,6 +22,7 @@ from typing import NoReturn
 from ppt_generator.interfaces.constants import (
     BACKFILL_DESIGN_DOC_SYSTEM_PROMPT,
     BACKFILL_DESIGN_DOC_USER_PROMPT_TEMPLATE,
+    COMPONENT_MODIFY_SYSTEM_PROMPT,
     COMPONENT_MODIFY_USER_PROMPT_TEMPLATE,
     DESIGN_DOC_DRAFT_USER_PROMPT_TEMPLATE,
     DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE,
@@ -357,12 +358,8 @@ class DesignService:
             slide_spec_json=slide_spec_json,
             instruction=instruction,
         )
-        # 동작 불변: 오프로딩 이전 modify_component 는 design_service_factory("content")
-        # 로 만든 agent 를 재사용했으므로 시스템 프롬프트가 content 디자인 시스템
-        # 프롬프트였다 (COMPONENT_MODIFY_SYSTEM_PROMPT 는 어떤 agent 에도 연결되지
-        # 않은 미사용 상수였다). 프롬프트를 그대로 재현한다.
         return build_llm_task(
-            system_prompt=DESIGN_SPEC_SYSTEM_PROMPTS["content"],
+            system_prompt=COMPONENT_MODIFY_SYSTEM_PROMPT,
             user_prompt=prompt,
             response_schema=ComponentModifyOutput.model_json_schema(),
         )
@@ -436,7 +433,14 @@ class DesignService:
                 new_shape.height_px,
             )
 
-        if output.bbox_changed and new_spec.design_doc is not None:
+        old_bbox = (
+            existing.left_px,
+            existing.top_px,
+            existing.width_px,
+            existing.height_px,
+        )
+        bbox_changed = new_bbox != old_bbox
+        if bbox_changed and new_spec.design_doc is not None:
             updated_layout = _replace_node_bbox(
                 new_spec.design_doc.layout, component_id, new_bbox
             )

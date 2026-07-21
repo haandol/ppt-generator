@@ -6,11 +6,18 @@
 from __future__ import annotations
 
 from ppt_generator.interfaces.schemas import PptxParagraph, PptxTextRun
+from ppt_generator.tools.slides.html_safety import (
+    escape_attr,
+    escape_text,
+    safe_alignment,
+    safe_color,
+    safe_href,
+)
 
 
 def escape_html(text: str) -> str:
     """HTML 특수문자 이스케이프."""
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return escape_text(text)
 
 
 def run_to_html(run: PptxTextRun, *, font_scale: float = 1.0) -> str:
@@ -25,7 +32,9 @@ def run_to_html(run: PptxTextRun, *, font_scale: float = 1.0) -> str:
         )
         styles.append(f"font-size:{size_pt:.2f}pt")
     if run.color:
-        styles.append(f"color:{run.color}")
+        color = safe_color(run.color)
+        if color:
+            styles.append(f"color:{color}")
     if run.bold:
         styles.append("font-weight:bold")
     if run.italic:
@@ -39,8 +48,13 @@ def run_to_html(run: PptxTextRun, *, font_scale: float = 1.0) -> str:
     else:
         inner = text
     if run.href:
-        href = escape_html(run.href)
-        return f'<a href="{href}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline">{inner}</a>'
+        href = safe_href(run.href)
+        if href is not None:
+            return (
+                f'<a href="{escape_attr(href)}" target="_blank" '
+                'rel="noopener noreferrer" '
+                f'style="color:inherit;text-decoration:underline">{inner}</a>'
+            )
     return inner
 
 
@@ -54,8 +68,9 @@ def paragraph_to_html(
     """
     runs_html = "".join(run_to_html(r, font_scale=font_scale) for r in para.runs)
     style_props: list[str] = []
-    if para.alignment:
-        style_props.append(f"text-align:{para.alignment}")
+    alignment = safe_alignment(para.alignment)
+    if alignment:
+        style_props.append(f"text-align:{alignment}")
     if nowrap:
         style_props.append("white-space:nowrap")
 
@@ -64,8 +79,8 @@ def paragraph_to_html(
     if para.bullet_level >= 0:
         indent = 20 * (para.bullet_level + 1)
         li_styles = [f"margin-left:{indent}px"]
-        if para.alignment:
-            li_styles.append(f"text-align:{para.alignment}")
+        if alignment:
+            li_styles.append(f"text-align:{alignment}")
         if nowrap:
             li_styles.append("white-space:nowrap")
         return f'<li style="{";".join(li_styles)}">{runs_html}</li>'

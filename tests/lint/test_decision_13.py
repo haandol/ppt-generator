@@ -6,8 +6,6 @@ from __future__ import annotations
 
 from ppt_generator.interfaces.schemas import (
     DesignDoc,
-    GridCell,
-    GridPlan,
     LayoutNode,
     PptxParagraph,
     PptxShape,
@@ -104,15 +102,15 @@ def _spec_with_leaf_and_element(
     elem_bbox: tuple[float, float, float, float],
 ) -> PptxSlideSpec:
     """leaf bbox 와 그 leaf 를 component_id 로 가리키는 textbox 1 개."""
-    l, t, r, b = leaf_bbox
+    left, t, r, b = leaf_bbox
     el, et, er, eb = elem_bbox
     layout = [
         LayoutNode(
             id="leaf",
             kind="component",
-            left_px=l,
+            left_px=left,
             top_px=t,
-            width_px=r - l,
+            width_px=r - left,
             height_px=b - t,
         ),
     ]

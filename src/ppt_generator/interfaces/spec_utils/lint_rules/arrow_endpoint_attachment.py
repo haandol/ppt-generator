@@ -76,20 +76,20 @@ def _point_near_box_edge(
 def _arrow_endpoints(line: PptxShape) -> list[tuple[float, float, str]]:
     """end_arrow / start_arrow 가 켜진 끝점들의 좌표를 반환.
 
-    line bbox convention 은 렌더러/PPTX 익스포터와 동일하다: height_px<0(↗ flipV)
-    이면 박스가 (left, top+|h|)~(left+w, top) 으로 뒤집혀, 시작점=(left, top+|h|),
-    끝점=(left+w, top) 이다. h>=0 이면 시작=(left, top), 끝=(left+w, top+h).
-    이 flip 을 반영하지 않으면 음수 height 라인의 끝점이 실제 렌더 위치와 최대
-    |h|px 어긋나 부착 검사가 잘못된 좌표로 판정된다.
+    line bbox convention 은 렌더러/PPTX 익스포터와 동일하다: (left, top) 은 항상
+    최소 좌표 모서리이고 박스는 (left, top)~(left+|w|, top+|h|) 를 차지한다.
+    width/height 의 부호는 두 끝점의 대각 방향만 정한다 — 양수면 시작=최소 모서리,
+    끝=최대 모서리이고, 음수면 그 축의 시작/끝이 뒤바뀐다. 이 부호를 반영하지
+    않으면 음수 성분 라인의 끝점이 실제 렌더 위치와 최대 |w|/|h|px 어긋나 부착
+    검사가 잘못된 좌표로 판정된다.
     """
     endpoints: list[tuple[float, float, str]] = []
+    w = line.width_px
     h = line.height_px
-    if h < 0:
-        start_x, start_y = line.left_px, line.top_px + abs(h)
-        end_x, end_y = line.left_px + line.width_px, line.top_px
-    else:
-        start_x, start_y = line.left_px, line.top_px
-        end_x, end_y = line.left_px + line.width_px, line.top_px + h
+    min_x, max_x = line.left_px, line.left_px + abs(w)
+    min_y, max_y = line.top_px, line.top_px + abs(h)
+    start_x, end_x = (min_x, max_x) if w >= 0 else (max_x, min_x)
+    start_y, end_y = (min_y, max_y) if h >= 0 else (max_y, min_y)
     if line.start_arrow:
         endpoints.append((start_x, start_y, "start"))
     if line.end_arrow:

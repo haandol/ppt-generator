@@ -7,10 +7,7 @@ LLM이 design spec을 생성할 때 src를 'slide_01_img_01.png' (images/ prefix
 from __future__ import annotations
 
 import json
-from dataclasses import replace
 from pathlib import Path
-
-import pytest
 
 from ppt_generator.interfaces.constants import PROJECT_IMAGES_DIR, PROJECT_SLIDES_DIR
 from ppt_generator.interfaces.schemas import (

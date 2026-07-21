@@ -47,7 +47,31 @@ description: Generate the design spec (per-slide layout/style) for a deck via th
   (모은 overflow 를 JSON 배열 문자열로; 없으면 "").
 - 그 다음 **반드시** `mcp__ppt-generator__export_html(project_id)` 를 호출하고
   반환된 `slides_html_path` 를 사용자에게 공유한다.
-- 사용자에게 `ppt-visual-qa` (Playwright 필요) 로 시각 품질 검사를 할지 제안한다.
+
+### 4. lint 자동 처리 (경미=자동, 중대=보고)
+
+finalize/export 의 lint 결과를 **경미**와 **중대**로 나눠 다르게 대응한다. 판단이
+애매하면 중대로 취급한다.
+
+**경미 (사용자에게 묻지 않고 알아서 처리)** — 대부분 의도된 레이아웃/장식에서 나오는
+구조적 warning 이라 실제 시각 결함이 아닌 경우가 많다:
+- `grid-cell-uniformity`, `grid-cell-coverage` (의도된 비대칭 강약 레이아웃·다이어그램 장식 도형)
+- `element-out-of-grid-cell`, `textbox-shape-intrusion` (다이어그램 라벨·중첩 컨테이너)
+- `slide-edge-alignment-*`, `arrow-endpoint-attachment`, `sibling-gap-minimum` 등 미세 정렬
+
+처리 방법: 경미 warning 이 있는 슬라이드만 골라 `ppt-visual-qa` 로 **자동 검증**한다
+(`capture_slides(slide_indices=...)` → 스크린샷 Read → 실제 결함 여부 육안 확인).
+- 스크린샷상 실제 결함(텍스트 잘림, 도형 겹침, 화살표 붕 뜸 등)이 보이면
+  `ppt-modify` 의 `prepare_slide_edit(action="update")` 로 **스스로 좌표를 고쳐 재생성**한다.
+- 스크린샷이 깨끗하면 오탐으로 판단하고 그대로 둔다. 무엇을 자동 수정/무시했는지 한 줄로 요약 보고.
+
+**중대 (반드시 사용자에게 보고하고 확인)** — 내용·구조 판단이 필요해 임의로 못 고치는 것:
+- severity `error` (렌더 실패로 이어짐)
+- 정보 손실을 부르는 `overflow` (담지 못한 컨텐츠 → 새 슬라이드 추가 여부는 사용자 몫)
+- 슬라이드의 **메시지·구성 변경**이 필요한 결함 (문구 재작성, 슬라이드 분할 등)
+
+- Playwright(chromium)가 없어 `capture_slides` 가 실패하면 자동 검증을 건너뛰고,
+  경미 warning 목록만 요약해 알린 뒤 넘어간다 (설치는 강요하지 않는다).
 
 ## 선택 — 리뷰
 
@@ -61,4 +85,6 @@ description: Generate the design spec (per-slide layout/style) for a deck via th
 - 항상 `response_schema` 를 정확히 따르는 JSON 을 생성한다. ingest 검증 실패 시 스키마에 맞게 고쳐 재시도.
 - 슬라이드 생성은 병렬로 — 순차로 하면 느리다.
 - 생성/수정/마무리 후에는 항상 `export_html` 을 호출하고 `slides_html_path` 를 공유한다.
-- lint 경고가 있으면 사용자에게 수정할지 물어본다 (임의로 넘기지 않는다).
+- lint 결과는 4단계 기준으로 처리한다 — **경미**한 warning 은 visual QA 로 자동 검증 후
+  실제 결함만 스스로 고치고, **중대**한 건(error·overflow·메시지/구성 변경)은 사용자에게
+  보고하고 확인받는다. 경미 warning 을 아무 검증 없이 그냥 넘기지 않는다.

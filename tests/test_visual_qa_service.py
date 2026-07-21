@@ -179,10 +179,13 @@ class TestVisualQAServiceAnalyze:
         assert "response_schema" in task
 
     def test_ingest_no_issues(self) -> None:
-        """이슈 없는 분석 결과 검증."""
+        """issue 목록이 비어 있으면 상충하는 요약값도 서버가 정상화한다."""
         svc = VisualQAService()
-        result = svc.ingest_analysis(_make_qa_output_json(has_issues=False))
+        result = svc.ingest_analysis(
+            {"has_issues": True, "issues": [], "overall_quality": "poor"}
+        )
         assert result.has_issues is False
+        assert result.overall_quality == "good"
         assert result.issues == []
 
     def test_ingest_with_issues(self) -> None:
@@ -199,9 +202,14 @@ class TestVisualQAServiceAnalyze:
         ]
         svc = VisualQAService()
         result = svc.ingest_analysis(
-            _make_qa_output_json(has_issues=True, issues=issues)
+            {
+                "has_issues": False,
+                "issues": issues,
+                "overall_quality": "good",
+            }
         )
         assert result.has_issues is True
+        assert result.overall_quality == "poor"
         assert len(result.issues) == 1
         assert result.issues[0].issue_type == "text_truncation"
 
@@ -287,51 +295,77 @@ class TestVisualQAServiceFix:
         assert len(result.images) == 1
         assert result.images[0].src == "images/bg.png"
 
-
-class TestVisualQAModels:
-    """Pydantic 모델 테스트."""
-
-    def test_visual_qa_output_no_issues(self) -> None:
-        output = VisualQAOutput(has_issues=False, issues=[], overall_quality="good")
-        assert output.has_issues is False
-
-    def test_visual_qa_output_with_issues(self) -> None:
-        issue = VisualQAIssue(
-            issue_type="text_truncation",
-            severity="high",
-            element_type="textbox",
-            element_index=0,
-            description="단어 중간 줄바꿈",
-            suggested_fix="텍스트박스 너비 확장",
+    def test_fix_rejects_z_index_change_without_layering_issue(self) -> None:
+        current = replace(
+            _make_simple_spec("원문"),
+            speaker_notes="발표 노트",
+            textboxes=[replace(_make_simple_spec("원문").textboxes[0], z_index=1)],
         )
-        output = VisualQAOutput(
-            has_issues=True,
-            issues=[issue],
-            overall_quality="needs_improvement",
-        )
-        assert output.has_issues is True
-        assert len(output.issues) == 1
-        assert output.issues[0].issue_type == "text_truncation"
+        output = SimpleSlideSpecOutput.model_validate_json(_make_fix_output_json())
+        output.textboxes[0].z_index = 9
+        output.textboxes[0].paragraphs[0].runs[0].text = "변조된 문구"
 
-    def test_visual_qa_issue_valid_types(self) -> None:
-        for issue_type in (
-            "text_truncation",
-            "overlap",
-            "overflow",
-            "contrast",
-            "misalignment",
-            "inconsistent_font_size",
-            "inconsistent_spacing",
-            "wrong_vertical_alignment",
-            "arrow_disconnected",
-            "zero_gap",
-        ):
-            issue = VisualQAIssue(
-                issue_type=issue_type,
-                severity="medium",
-                element_type="textbox",
-                element_index=0,
-                description="test",
-                suggested_fix="test",
-            )
-            assert issue.issue_type == issue_type
+        result = VisualQAService().ingest_fix(output.model_dump_json(), current)
+
+        assert result is None
+
+    def test_layering_fix_can_change_z_index_but_preserves_content(self) -> None:
+        current = replace(
+            _make_simple_spec("원문"),
+            speaker_notes="발표 노트",
+            textboxes=[replace(_make_simple_spec("원문").textboxes[0], z_index=1)],
+        )
+        output = SimpleSlideSpecOutput.model_validate_json(_make_fix_output_json())
+        output.textboxes[0].z_index = 9
+        output.textboxes[0].paragraphs[0].runs[0].text = "변조된 문구"
+
+        result = VisualQAService().ingest_fix(
+            output.model_dump_json(),
+            current,
+            [{"issue_type": "wrong_z_order"}],
+        )
+
+        assert result is not None
+        assert result.textboxes[0].z_index == 9
+        assert result.textboxes[0].paragraphs[0].runs[0].text == "원문"
+        assert result.speaker_notes == "발표 노트"
+
+
+@pytest.mark.parametrize(
+    "issue_type",
+    [
+        "text_truncation",
+        "overlap",
+        "overflow",
+        "contrast",
+        "misalignment",
+        "inconsistent_font_size",
+        "inconsistent_spacing",
+        "wrong_vertical_alignment",
+        "arrow_disconnected",
+        "zero_gap",
+        "small_font",
+        "insufficient_padding",
+        "content_too_sparse",
+        "content_too_dense",
+        "unbalanced_spacing",
+        "inconsistent_padding",
+        "label_intrusion",
+        "decoration_overlap",
+        "arrow_through_card",
+        "orphan_label_no_arrow",
+        "label_line_overlap",
+        "hidden_decorative_strip",
+        "wrong_z_order",
+    ],
+)
+def test_visual_qa_issue_valid_types(issue_type: str) -> None:
+    issue = VisualQAIssue(
+        issue_type=issue_type,
+        severity="medium",
+        element_type="textbox",
+        element_index=0,
+        description="test",
+        suggested_fix="test",
+    )
+    assert issue.issue_type == issue_type

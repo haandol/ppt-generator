@@ -45,15 +45,30 @@ class ProjectService:
         """project_id → (project_id, project_dir). 빈 값이면 UUID 자동 생성."""
         if not project_id:
             project_id = str(uuid.uuid4())
-        elif _PROJECT_ID_RE.fullmatch(project_id) is None:
-            raise ValueError(
-                "Invalid project_id. Use 1-128 ASCII letters, numbers, '.', '_', or "
-                "'-', starting with a letter or number."
-            )
+        else:
+            self._validate_project_id(project_id)
         project_dir = PPT_GENERATOR_HOME / project_id
         project_dir.mkdir(parents=True, exist_ok=True)
         _maybe_add_project_log_handler(project_id)
         return project_id, project_dir
+
+    def resolve_existing_project_dir(self, project_id: str) -> tuple[str, Path]:
+        """기존 프로젝트를 부작용 없이 해석한다."""
+        if not project_id:
+            raise ValueError("project_id is required")
+        self._validate_project_id(project_id)
+        project_dir = PPT_GENERATOR_HOME / project_id
+        if not project_dir.is_dir():
+            raise FileNotFoundError(f"프로젝트가 존재하지 않습니다: {project_id}")
+        return project_id, project_dir
+
+    @staticmethod
+    def _validate_project_id(project_id: str) -> None:
+        if _PROJECT_ID_RE.fullmatch(project_id) is None:
+            raise ValueError(
+                "Invalid project_id. Use 1-128 ASCII letters, numbers, '.', '_', or "
+                "'-', starting with a letter or number."
+            )
 
     # --- 아웃라인 (JsonlStore 위임) ---
 

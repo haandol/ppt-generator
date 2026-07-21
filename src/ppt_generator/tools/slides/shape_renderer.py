@@ -17,6 +17,12 @@ from ppt_generator.interfaces.text_measurement import (
     calculate_shrink_font_scale,
     should_apply_nowrap_to_paragraph,
 )
+from ppt_generator.tools.slides.html_safety import (
+    escape_attr,
+    safe_color,
+    safe_image_src,
+    safe_svg_path,
+)
 from ppt_generator.tools.slides.text_renderer import escape_html, paragraph_to_html
 
 
@@ -52,7 +58,7 @@ _ARROW_HALF = 10  # 화살표 머리 높이 (px)
 
 def _line_shape_to_html(shape: PptxShape) -> str:
     """Line shape -> position:absolute <svg> 변환 (화살표/대시 지원)."""
-    stroke_color = shape.border_color or "#ffffff"
+    stroke_color = safe_color(shape.border_color, "#ffffff")
     stroke_width = shape.border_width_pt or 1
 
     w = shape.width_px
@@ -60,25 +66,31 @@ def _line_shape_to_html(shape: PptxShape) -> str:
 
     _SNAP_THRESHOLD = 12
     abs_h_snap = abs(h)
-    if w > 0 and 0 < abs_h_snap <= _SNAP_THRESHOLD:
+    abs_w_snap = abs(w)
+    if abs_w_snap > 0 and 0 < abs_h_snap <= _SNAP_THRESHOLD:
         h = 0
-    elif abs_h_snap > 0 and 0 < w <= _SNAP_THRESHOLD:
+    elif abs_h_snap > 0 and 0 < abs_w_snap <= _SNAP_THRESHOLD:
         w = 0
 
     pad = max(stroke_width * 2, 8)
-    abs_h = abs(h) if h != 0 else 1
-    svg_w = w + pad * 2
-    svg_h = abs_h + pad * 2
+    # bbox 계약: (left, top) 은 항상 최소 좌표 모서리이고 박스는
+    # (left, top)~(left+|w|, top+|h|) 를 차지한다. width/height 의 부호는
+    # 선의 기울기 방향만 정한다 (음수 → 반대 방향 끝점). 어떤 부호 조합이든
+    # 두 끝점이 박스의 올바른 대각 꼭짓점에 오도록 대칭으로 정규화한다.
+    abs_w = abs(w)
+    abs_h = abs(h)
+    # svg 캔버스는 0px 이 되지 않도록 최소 1px 확보 (끝점 좌표엔 실제 |w|/|h| 사용).
+    svg_w = (abs_w or 1) + pad * 2
+    svg_h = (abs_h or 1) + pad * 2
 
-    if h >= 0:
-        x1, y1 = pad, pad
-        x2 = w + pad
-        y2 = h + pad
+    if w >= 0:
+        x1, x2 = pad, abs_w + pad
     else:
-        # Negative height: line goes from bottom-left to top-right (↗)
-        x1, y1 = pad, abs_h + pad
-        x2 = w + pad
-        y2 = pad
+        x1, x2 = abs_w + pad, pad
+    if h >= 0:
+        y1, y2 = pad, abs_h + pad
+    else:
+        y1, y2 = abs_h + pad, pad
 
     dash_attr = ""
     if shape.dash_style == "dash":
@@ -89,7 +101,7 @@ def _line_shape_to_html(shape: PptxShape) -> str:
     defs_parts: list[str] = []
     line_attrs = ""
 
-    line_length = max(w, abs(h), 1)
+    line_length = max(abs_w, abs_h, 1)
     aw = min(_ARROW_SIZE, line_length * 0.6)
     ah = min(_ARROW_HALF, aw * _ARROW_HALF / _ARROW_SIZE)
     ah2 = ah / 2
@@ -116,8 +128,8 @@ def _line_shape_to_html(shape: PptxShape) -> str:
     if defs_parts:
         defs_html = f"<defs>{''.join(defs_parts)}</defs>"
 
-    # 음수 height(flipV) 의미: 박스는 (left, top)~(left+w, top+|h|) 그대로 두되
-    # 라인이 좌하→우상으로 그려진다. container_top은 항상 top_px - pad.
+    # (left, top) 은 최소 좌표 모서리이므로 컨테이너 원점은 부호와 무관하게
+    # 항상 (left - pad, top - pad) 다. 부호는 위에서 끝점 방향으로만 반영했다.
     container_top = shape.top_px - pad
     container_style = (
         f"position:absolute;"
@@ -138,14 +150,13 @@ def _line_shape_to_html(shape: PptxShape) -> str:
 
 def _custom_svg_shape_to_html(shape: PptxShape) -> str:
     """Custom SVG path shape -> position:absolute <svg> 변환."""
-    svg_path = shape.svg_path or ""
-    parts = svg_path.split(" ", 2)
-    if len(parts) < 3:
+    parsed_path = safe_svg_path(shape.svg_path or "")
+    if parsed_path is None:
         return f'<div style="position:absolute;left:{shape.left_px}px;top:{shape.top_px}px;width:{shape.width_px}px;height:{shape.height_px}px;"></div>'
-    vb_w, vb_h, path_d = parts[0], parts[1], parts[2]
+    vb_w, vb_h, path_d = parsed_path
 
-    fill = shape.fill_color or "none"
-    stroke = shape.border_color or "none"
+    fill = safe_color(shape.fill_color, "none")
+    stroke = safe_color(shape.border_color, "none")
     stroke_width = shape.border_width_pt or 0
 
     svg = (
@@ -154,7 +165,7 @@ def _custom_svg_shape_to_html(shape: PptxShape) -> str:
         f'preserveAspectRatio="none" '
         f'style="position:absolute;left:{shape.left_px}px;top:{shape.top_px}px;'
         f'width:{shape.width_px}px;height:{shape.height_px}px;overflow:visible;">'
-        f'<path d="{path_d}" fill="{fill}" stroke="{stroke}" '
+        f'<path d="{escape_attr(path_d)}" fill="{fill}" stroke="{stroke}" '
         f'stroke-width="{stroke_width}" />'
         f"</svg>"
     )
@@ -174,16 +185,23 @@ def _is_image_path(path: str) -> bool:
 
 def _image_shape_to_html(shape: PptxShape) -> str:
     """이미지 경로를 가진 shape -> position:absolute <div><img></div> 변환."""
+    image_src = safe_image_src(shape.svg_path or "")
+    if image_src is None:
+        return ""
     radius_css = ""
     if shape.corner_radius_px:
         radius_css = f"border-radius:{shape.corner_radius_px}px;"
     bg_css = ""
     if shape.fill_color:
-        bg_css = f"background-color:{shape.fill_color};"
+        fill_color = safe_color(shape.fill_color)
+        if fill_color:
+            bg_css = f"background-color:{fill_color};"
     border_css = ""
     if shape.border_color:
         bw = shape.border_width_pt or 1
-        border_css = f"border:{bw}pt solid {shape.border_color};"
+        border_color = safe_color(shape.border_color)
+        if border_color:
+            border_css = f"border:{bw}pt solid {border_color};"
     style = (
         f"position:absolute;"
         f"left:{shape.left_px}px;top:{shape.top_px}px;"
@@ -194,7 +212,7 @@ def _image_shape_to_html(shape: PptxShape) -> str:
     img_radius = radius_css
     return (
         f'<div style="{style}">'
-        f'<img src="{shape.svg_path}" '
+        f'<img src="{escape_attr(image_src)}" '
         f'style="width:100%;height:100%;object-fit:cover;{img_radius}" alt="image" />'
         f"</div>"
     )
@@ -217,10 +235,14 @@ def shape_to_html(shape: PptxShape) -> str:
         f"width:{shape.width_px}px;{height_prop}:{shape.height_px}px;"
     )
     if shape.fill_color:
-        style += f"background-color:{shape.fill_color};"
+        fill_color = safe_color(shape.fill_color)
+        if fill_color:
+            style += f"background-color:{fill_color};"
     if shape.border_color:
         bw = shape.border_width_pt or 1
-        style += f"border:{bw}pt solid {shape.border_color};"
+        border_color = safe_color(shape.border_color)
+        if border_color:
+            style += f"border:{bw}pt solid {border_color};"
     if shape.corner_radius_px:
         style += f"border-radius:{shape.corner_radius_px}px;"
     if shape.shape_type == "rounded_rectangle" and not shape.corner_radius_px:
@@ -285,7 +307,9 @@ def shape_to_html(shape: PptxShape) -> str:
     elif shape.text:
         text_style = ""
         if shape.text_color:
-            text_style += f"color:{shape.text_color};"
+            text_color = safe_color(shape.text_color)
+            if text_color:
+                text_style += f"color:{text_color};"
         if shape.text_size_pt:
             text_style += f"font-size:{shape.text_size_pt}pt;"
         if shape.text_bold:

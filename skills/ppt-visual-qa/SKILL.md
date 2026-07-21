@@ -43,7 +43,8 @@ description: Run visual QA on a generated deck — capture slide screenshots (se
    - `issues_json` 은 이전 단계 `issues` 를 JSON 배열 문자열로.
    - 반환: `response_schema`, `images`.
 2. **네가** 이슈를 반영한 **전체** 슬라이드 spec JSON 을 `response_schema` 대로 생성한다.
-3. `mcp__ppt-generator__ingest_visual_qa_fix(project_id, slide_index, fix_json)` 호출 — 저장·재렌더.
+3. `mcp__ppt-generator__ingest_visual_qa_fix(project_id, slide_index, fix_json, issues_json)` 호출 — 저장·재렌더.
+   - `issues_json` 은 prepare 단계에 전달한 것과 같은 JSON 배열 문자열을 사용한다.
    - `status="fixed"` 면 다음 iteration 에서 이 슬라이드를 다시 캡처·분석해 검증.
    - `status="unfixed"` 면 검증 실패 — 그대로 두거나 재시도.
 

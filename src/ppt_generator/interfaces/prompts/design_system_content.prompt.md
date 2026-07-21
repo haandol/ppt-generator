@@ -333,9 +333,13 @@ Vertical M-row even distribution (safe area 508px = 148~656, gap=28px):
   | 4 |  106   | 148, 282, 416, 550           |
 
 Arrow coordinates:
-- Horizontal (A→B): left=A.left+A.width, top=A.top+A.height/2, width=B.left-A.right, height=0
-- Vertical (A→B): left=A.left+A.width/2, top=A.top+A.height, width=0, height=B.top-A.bottom
-- The arrowhead marks the flow DESTINATION (the target node), not a fixed coordinate corner. For a forward edge A→B drawn small→large coordinates, use end_arrow=true. Min gap between blocks: 28px (arrowhead size=14px).
+- **bbox contract (READ THIS FIRST)**: for a `line`, `left`/`top` is the bbox's MINIMUM corner (the smaller x / smaller y), NOT the arrow's start point. The box always occupies `left ~ left+|width|` and `top ~ top+|height|`. The SIGN of width/height only picks which diagonal the line runs — it never moves the box. So a downward arrow and an upward arrow between the same two points share the SAME `top` (the higher of the two y's); they differ only in the sign of `height`.
+  - Down / rightward (↓ ↘ →): positive height / positive width. `top` = source bottom edge y.
+  - Up / leftward (↑ ↖ ←, e.g. back-edges): NEGATIVE height / NEGATIVE width, but `top`/`left` STILL = the minimum corner (the destination's edge, the smaller coordinate) — do NOT put the source (larger) coordinate in `top`/`left`. Putting the start point in `top` shifts the whole line by |height| and it floats off the node.
+- Horizontal (A→B, A left of B): left=A.right, top=A.top+A.height/2, width=B.left-A.right, height=0
+- Vertical (A→B, A above B): left=A.left+A.width/2, top=A.bottom, width=0, height=B.top-A.bottom
+- Vertical (A→B, A BELOW B, i.e. arrow goes up): left=A.left+A.width/2, top=B.bottom (the higher node's bottom = minimum y), width=0, height=-(A.top-B.bottom). `top` is B's edge, NOT A's.
+- The arrowhead marks the flow DESTINATION (the target node), not a fixed coordinate corner. Use end_arrow=true when the destination is at the max corner, start_arrow=true when it is at the min corner. Min gap between blocks: 28px (arrowhead size=14px).
 - Endpoints must touch block edges exactly — no gap, no penetration.
 
 Cyclic / loop diagrams (ReAct loops, feedback loops, A→B→C→A):

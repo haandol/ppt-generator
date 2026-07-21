@@ -15,6 +15,12 @@ from ppt_generator.interfaces.text_measurement import (
     calculate_shrink_font_scale,
     should_apply_nowrap_to_paragraph,
 )
+from ppt_generator.tools.slides.html_safety import (
+    css_url,
+    escape_attr,
+    safe_color,
+    safe_image_src,
+)
 from ppt_generator.tools.slides.shape_renderer import shape_to_html
 from ppt_generator.tools.slides.text_renderer import (
     escape_html,
@@ -122,7 +128,8 @@ def image_to_html(image: PptxImage, *, image_src: str | None = None) -> str:
         f"width:{image.width_px}px;height:{image.height_px}px;"
         f"{radius_css}"
     )
-    if image_src:
+    safe_src = safe_image_src(image_src) if image_src else None
+    if safe_src:
         style = pos_style + "overflow:hidden;"
         img_radius = (
             f"border-radius:{image.corner_radius_px}px;"
@@ -131,7 +138,7 @@ def image_to_html(image: PptxImage, *, image_src: str | None = None) -> str:
         )
         return (
             f'<div style="{style}">'
-            f'<img src="{image_src}" '
+            f'<img src="{escape_attr(safe_src)}" '
             f'style="width:100%;height:100%;object-fit:contain;{img_radius}" alt="image" />'
             "</div>"
         )
@@ -157,22 +164,20 @@ def spec_to_html_section(
     image_srcs: list[str] | None = None,
 ) -> str:
     """PptxSlideSpec 하나를 <section> HTML로 결정론적 변환."""
-    bg = spec.background_color or "#1a1a2e"
+    bg = safe_color(spec.background_color, "#1a1a2e")
     notes_attr = ""
     if spec.speaker_notes:
-        escaped_notes = (
-            spec.speaker_notes.replace('"', "&quot;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-        )
+        escaped_notes = escape_attr(spec.speaker_notes)
         notes_attr = f' data-speaker-notes="{escaped_notes}"'
 
     bg_image_css = ""
     if spec.background_image_src:
-        bg_image_css = (
-            f"background-image:url({spec.background_image_src});"
-            "background-size:cover;background-position:center;"
-        )
+        safe_bg_src = safe_image_src(spec.background_image_src)
+        if safe_bg_src:
+            bg_image_css = (
+                f"background-image:{css_url(safe_bg_src)};"
+                "background-size:cover;background-position:center;"
+            )
     elif bg_image_base64:
         bg_image_css = (
             f"background-image:url(data:image/png;base64,{bg_image_base64});"

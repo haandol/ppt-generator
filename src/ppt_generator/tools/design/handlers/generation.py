@@ -12,6 +12,7 @@ import logging
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
+from ppt_generator.interfaces.index_validation import require_positive_slide_index
 from ppt_generator.interfaces.spec_utils import lint_design_spec, lint_slide_spec
 from ppt_generator.interfaces.utils import (
     complexity_to_budget_tokens,
@@ -40,8 +41,16 @@ def handle_prepare_design_doc_draft(
     color_theme: str,
 ) -> str:
     """DESIGN.md 초안 생성 태스크를 조립한다. 이미 DESIGN.md 가 있으면 skip."""
+    outline = parse_outline_json(outline_json) if outline_json else None
     project_service = deps.project_service
-    project_id, project_dir = project_service.resolve_project_dir(project_id)
+    if project_id:
+        project_id, project_dir = project_service.resolve_existing_project_dir(
+            project_id
+        )
+    elif outline is not None:
+        project_id, project_dir = project_service.resolve_project_dir()
+    else:
+        raise ValueError("Either outline_json or project_id must be provided.")
 
     # 배경 이미지 선택을 프로젝트 단위로 고정 (미리보기/내보내기 일관성).
     from ppt_generator.interfaces import bg_image_utils
@@ -54,7 +63,8 @@ def handle_prepare_design_doc_draft(
             ensure_ascii=False,
         )
 
-    outline = _load_outline(deps, project_id=project_id, outline_json=outline_json)
+    if outline is None:
+        outline = _load_outline(deps, project_id=project_id, outline_json="")
     task = deps.design_service.prepare_design_doc_draft(outline, color_theme)
     task["project_id"] = project_id
     task["color_theme"] = color_theme
@@ -72,7 +82,7 @@ def handle_ingest_design_doc_draft(
     from ppt_generator.tools.design.design_doc_md import render_design_doc_md
 
     project_service = deps.project_service
-    _, project_dir = project_service.resolve_project_dir(project_id)
+    _, project_dir = project_service.resolve_existing_project_dir(project_id)
 
     summary, tone, page_requests = deps.design_service.ingest_design_doc_draft(
         draft_json
@@ -110,10 +120,20 @@ def handle_prepare_design_slide(
 
     slide_index 는 1-based. outline 은 project 에 저장된 것 또는 전달된 것을 쓴다.
     """
+    require_positive_slide_index(slide_index)
+    outline = parse_outline_json(outline_json) if outline_json else None
     project_service = deps.project_service
-    project_id, project_dir = project_service.resolve_project_dir(project_id)
+    if project_id:
+        project_id, project_dir = project_service.resolve_existing_project_dir(
+            project_id
+        )
+    elif outline is not None:
+        project_id, project_dir = project_service.resolve_project_dir()
+    else:
+        raise ValueError("Either outline_json or project_id must be provided.")
 
-    outline = _load_outline(deps, project_id=project_id, outline_json=outline_json)
+    if outline is None:
+        outline = _load_outline(deps, project_id=project_id, outline_json="")
     if total_slides <= 0:
         total_slides = len(outline.slides)
 
@@ -162,8 +182,9 @@ def handle_ingest_design_slide(
 
     기존 병렬 생성 러너의 슬라이드별 후처리와 동일 (배경색 보정 포함).
     """
+    require_positive_slide_index(slide_index)
     project_service = deps.project_service
-    project_id, project_dir = project_service.resolve_project_dir(project_id)
+    project_id, project_dir = project_service.resolve_existing_project_dir(project_id)
 
     from ppt_generator.interfaces import bg_image_utils
 
@@ -171,11 +192,13 @@ def handle_ingest_design_slide(
 
     idx = slide_index - 1
     outline = _load_outline(deps, project_id=project_id, outline_json="")
+    if slide_index > len(outline.slides):
+        raise ValueError(
+            f"Invalid slide_index: {slide_index} (valid range: 1-{len(outline.slides)})"
+        )
     # 동작 불변: 저장되는 slide_type 은 outline 의 원본 값 그대로 (None/"" 포함).
     # 응답 모델 선택만 ingest_slide 내부에서 `or "content"` 로 정규화한다.
-    raw_slide_type = (
-        outline.slides[idx].slide_type if 0 <= idx < len(outline.slides) else "content"
-    )
+    raw_slide_type = outline.slides[idx].slide_type
 
     spec, overflow = deps.design_service.ingest_slide(
         spec_json, slide_type=raw_slide_type
@@ -229,7 +252,7 @@ def handle_finalize_design_spec(
     LLM 없음. 클라이언트가 각 ingest 에서 모은 overflow 를 overflow_json 으로 넘긴다.
     """
     project_service = deps.project_service
-    _, project_dir = project_service.resolve_project_dir(project_id)
+    _, project_dir = project_service.resolve_existing_project_dir(project_id)
 
     project_service.renumber_design_spec_image_srcs(project_dir)
     project_service.update_step(project_dir, "design_spec")
@@ -348,7 +371,7 @@ def _load_outline(
     if outline_json:
         return parse_outline_json(outline_json)
     if project_id:
-        _, proj_dir = deps.project_service.resolve_project_dir(project_id)
+        _, proj_dir = deps.project_service.resolve_existing_project_dir(project_id)
         raw = deps.project_service.load_outline(proj_dir)
         return parse_outline_json(raw)
     logger.error(

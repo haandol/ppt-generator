@@ -11,8 +11,17 @@ import logging
 from dataclasses import replace
 from typing import TYPE_CHECKING, NoReturn
 
+from ppt_generator.interfaces.index_validation import require_positive_slide_index
 from ppt_generator.interfaces.spec_utils import lint_slide_spec
 from ppt_generator.interfaces.utils import parse_outline_json
+from ppt_generator.tools.design.edit_context import (
+    ProjectSnapshot,
+    SlideEditContext,
+    load_receipt,
+    project_edit_lock,
+    project_revision,
+    save_receipt,
+)
 
 if TYPE_CHECKING:
     from ppt_generator.tools.design.handlers.deps import DesignDeps
@@ -40,8 +49,20 @@ def handle_move(
     to_index: int,
 ) -> str:
     """슬라이드를 from_index → to_index로 이동한다."""
+    if from_index < 1:
+        _raise_validation(
+            "move_slide",
+            f"Invalid from_index: {from_index} (must be >= 1)",
+            from_index=from_index,
+        )
+    if to_index < 1:
+        _raise_validation(
+            "move_slide",
+            f"Invalid to_index: {to_index} (must be >= 1)",
+            to_index=to_index,
+        )
     project_service = deps.project_service
-    _, project_dir = project_service.resolve_project_dir(project_id)
+    _, project_dir = project_service.resolve_existing_project_dir(project_id)
     slide_count = project_service.get_design_spec_slide_count(project_dir)
 
     if from_index < 1 or from_index > slide_count:
@@ -101,8 +122,9 @@ def handle_delete(
     slide_index: int,
 ) -> str:
     """슬라이드를 삭제한다."""
+    require_positive_slide_index(slide_index)
     project_service = deps.project_service
-    _, project_dir = project_service.resolve_project_dir(project_id)
+    _, project_dir = project_service.resolve_existing_project_dir(project_id)
     slide_count = project_service.get_design_spec_slide_count(project_dir)
 
     if slide_index < 1 or slide_index > slide_count:
@@ -150,11 +172,7 @@ def handle_prepare_slide_edit(
     speaker_notes: str,
     color_theme: str,
 ) -> str:
-    """add/update 를 위한 슬라이드 생성 태스크를 조립한다.
-
-    outline 파일 갱신·삽입 등 결정론적 준비는 여기서 수행하고, LLM 생성 태스크를
-    반환한다. slide_index 는 add 의 삽입 위치(1-based, -1=끝) 또는 update 대상.
-    """
+    """add/update 슬라이드 생성 태스크와 불변 편집 컨텍스트를 조립한다."""
     if action not in ("add", "update"):
         _raise_validation(
             "prepare_slide_edit",
@@ -164,9 +182,25 @@ def handle_prepare_slide_edit(
             slide_index=slide_index,
         )
 
+    if not project_id:
+        _raise_validation("prepare_slide_edit", "project_id is required")
+    if action == "add" and slide_index != -1 and slide_index < 1:
+        _raise_validation(
+            "prepare_slide_edit",
+            "add slide_index must be -1 or >= 1",
+            slide_index=slide_index,
+        )
+    if action == "update" and slide_index < 1:
+        _raise_validation(
+            "prepare_slide_edit",
+            "update slide_index must be >= 1",
+            slide_index=slide_index,
+        )
+
     project_service = deps.project_service
-    project_id, project_dir = project_service.resolve_project_dir(project_id)
+    project_id, project_dir = project_service.resolve_existing_project_dir(project_id)
     slide_count = project_service.get_design_spec_slide_count(project_dir)
+    revision = project_revision(project_dir)
 
     from ppt_generator.interfaces import bg_image_utils
 
@@ -205,9 +239,23 @@ def handle_prepare_slide_edit(
             design_summary=design_summary,
         )
 
+    context = SlideEditContext(
+        project_id=project_id,
+        action=action,
+        requested_slide_index=slide_index,
+        target_index=prep.pop("_target_index"),
+        original_slide_count=slide_count,
+        outline=prep.pop("_outline"),
+        color_theme=color_theme,
+        revision=revision,
+    )
+    if project_revision(project_dir) != revision:
+        raise RuntimeError("Project changed while preparing slide edit; retry prepare")
+
     prep["project_id"] = project_id
     prep["action"] = action
     prep["color_theme"] = color_theme
+    prep["edit_context"] = context.to_token()
     return json.dumps(prep, ensure_ascii=False)
 
 
@@ -218,9 +266,10 @@ def handle_ingest_slide_edit(
     action: str,
     slide_index: int,
     spec_json: str,
+    edit_context: str,
     color_theme: str,
 ) -> str:
-    """add/update 로 클라이언트가 생성한 슬라이드 spec 을 검증·저장·렌더한다."""
+    """생성 결과를 검증한 뒤 add/update를 원자적·멱등적으로 커밋한다."""
     if action not in ("add", "update"):
         _raise_validation(
             "ingest_slide_edit",
@@ -229,28 +278,74 @@ def handle_ingest_slide_edit(
             action=action,
         )
 
+    if not project_id:
+        _raise_validation("ingest_slide_edit", "project_id is required")
+    if action == "add" and slide_index != -1 and slide_index < 1:
+        _raise_validation(
+            "ingest_slide_edit",
+            "add slide_index must be -1 or >= 1",
+            slide_index=slide_index,
+        )
+    if action == "update" and slide_index < 1:
+        _raise_validation(
+            "ingest_slide_edit",
+            "update slide_index must be >= 1",
+            slide_index=slide_index,
+        )
+
+    context = SlideEditContext.from_token(edit_context)
+    if (
+        context.project_id != project_id
+        or context.action != action
+        or context.requested_slide_index != slide_index
+    ):
+        raise ValueError("edit_context does not match ingest request")
+
     project_service = deps.project_service
-    _, project_dir = project_service.resolve_project_dir(project_id)
+    _, project_dir = project_service.resolve_existing_project_dir(project_id)
+    with project_edit_lock(project_dir):
+        return _handle_ingest_slide_edit_locked(
+            deps,
+            project_id=project_id,
+            action=action,
+            spec_json=spec_json,
+            context=context,
+            project_dir=project_dir,
+        )
+
+
+def _handle_ingest_slide_edit_locked(
+    deps: DesignDeps,
+    *,
+    project_id: str,
+    action: str,
+    spec_json: str,
+    context: SlideEditContext,
+    project_dir,
+) -> str:
+    """프로젝트별 락 안에서 편집 검증과 커밋을 한 단위로 수행한다."""
+    project_service = deps.project_service
+    previous_result = load_receipt(project_dir, context.operation_id)
+    if previous_result is not None:
+        return json.dumps(previous_result, ensure_ascii=False)
+
+    if project_revision(project_dir) != context.revision:
+        raise ValueError("Stale edit_context: project changed after prepare")
+    slide_count = project_service.get_design_spec_slide_count(project_dir)
+    if slide_count != context.original_slide_count:
+        raise ValueError("Stale edit_context: slide count changed after prepare")
+    idx = context.target_index
+    if action == "add":
+        if idx < 0 or idx > slide_count:
+            raise ValueError(f"Invalid add target index: {idx + 1}")
+    elif idx < 0 or idx >= slide_count:
+        raise ValueError(f"Invalid update target index: {idx + 1}")
 
     from ppt_generator.interfaces import bg_image_utils
 
     bg_image_utils.set_project_seed(project_id)
 
-    # slide_index 가 -1(add, 끝) 이면 outline 삽입 후 실제 위치를 재계산해야 한다.
-    # prepare 에서 이미 outline 을 삽입/갱신했으므로 여기서는 대상 인덱스만 확정한다.
-    outline_count = project_service.get_outline_slide_count(project_dir)
-
-    if action == "add":
-        insert_idx = (
-            (slide_index - 1)
-            if 1 <= slide_index <= outline_count
-            else outline_count - 1
-        )
-        idx = insert_idx
-    else:
-        idx = slide_index - 1
-
-    outline_raw = project_service.load_outline_slide(project_dir, idx)
+    outline_raw = json.dumps(context.outline, ensure_ascii=False)
     outline = parse_outline_json(outline_raw)
     # 동작 불변: 저장 slide_type 은 outline 원본 그대로, 모델 선택만 내부 정규화.
     raw_slide_type = outline.slides[0].slide_type
@@ -273,43 +368,52 @@ def handle_ingest_slide_edit(
     if existing_images:
         spec = replace(spec, images=existing_images)
 
-    if action == "add":
-        project_service.insert_design_spec_slide(project_dir, idx, spec)
-    else:
-        project_service.save_design_spec_slide(project_dir, idx, spec)
-    project_service.renumber_design_spec_image_srcs(project_dir)
-    project_service.update_step(project_dir, "design_spec_modified")
-    project_service.sync_num_slides(project_dir)
-
     slide_html_path: str | None = None
+    html: str | None = None
     if deps.slides_service is not None:
         html = deps.slides_service.render_single_slide_html(
             idx,
             spec,
-            color_theme=color_theme,
+            color_theme=context.color_theme,
             bg_image_policy=project_service.load_bg_image_policy(project_dir),
         )
-        html_path = project_service.save_single_slide_html(project_dir, idx, html)
-        slide_html_path = str(html_path)
-
-    new_count = project_service.get_design_spec_slide_count(project_dir)
-    result: dict = {
-        "design_spec_dir": str(project_dir / "design_spec"),
-        "project_id": project_id,
-        "slide_count": new_count,
-        "slide_index": idx + 1,
-    }
-    if slide_html_path:
-        result["slide_html_path"] = slide_html_path
 
     slide_lint = lint_slide_spec(spec, slide_index=idx + 1, stop_on_layer_error=True)
-    if slide_lint.has_violations:
-        result["lint"] = slide_lint.to_dict()
-        result["lint_suggestion"] = (
-            f"슬라이드 {idx + 1}에서 "
-            f"{len(slide_lint.violations)}건의 lint 위반이 발견되었습니다. "
-            "위반 내용을 확인하고 수정 여부를 결정하세요."
-        )
+    with ProjectSnapshot(project_dir) as snapshot:
+        project_service.sync_outline_to_design_spec_count(project_dir)
+        if action == "add":
+            project_service.insert_outline_slide(project_dir, idx, outline_raw)
+            project_service.shift_slide_images(project_dir, idx, slide_count)
+            project_service.shift_slide_htmls(project_dir, idx)
+            project_service.insert_design_spec_slide(project_dir, idx, spec)
+        else:
+            project_service.save_outline_slide(project_dir, idx, outline_raw)
+            project_service.save_design_spec_slide(project_dir, idx, spec)
+
+        project_service.renumber_design_spec_image_srcs(project_dir)
+        project_service.update_step(project_dir, "design_spec_modified")
+        project_service.sync_num_slides(project_dir)
+        if html is not None:
+            html_path = project_service.save_single_slide_html(project_dir, idx, html)
+            slide_html_path = str(html_path)
+
+        result: dict = {
+            "design_spec_dir": str(project_dir / "design_spec"),
+            "project_id": project_id,
+            "slide_count": project_service.get_design_spec_slide_count(project_dir),
+            "slide_index": idx + 1,
+        }
+        if slide_html_path:
+            result["slide_html_path"] = slide_html_path
+        if slide_lint.has_violations:
+            result["lint"] = slide_lint.to_dict()
+            result["lint_suggestion"] = (
+                f"슬라이드 {idx + 1}에서 "
+                f"{len(slide_lint.violations)}건의 lint 위반이 발견되었습니다. "
+                "위반 내용을 확인하고 수정 여부를 결정하세요."
+            )
+        save_receipt(project_dir, context.operation_id, result)
+        snapshot.commit()
 
     return json.dumps(result, ensure_ascii=False)
 
@@ -331,7 +435,7 @@ def _prepare_add(
     color_theme,
     design_summary,
 ) -> dict:
-    """add: outline 삽입 + 파일 shift 후 슬라이드 생성 태스크 반환."""
+    """add: 파일 변경 없이 새 outline을 기준으로 생성 태스크를 만든다."""
     if not title or not content_summary:
         _raise_validation(
             "prepare_slide_edit.add",
@@ -345,21 +449,22 @@ def _prepare_add(
     insert_idx = (
         (slide_index - 1) if 1 <= slide_index <= slide_count + 1 else slide_count
     )
+    if slide_index != -1 and slide_index > slide_count + 1:
+        _raise_validation(
+            "prepare_slide_edit.add",
+            f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count + 1}, or -1)",
+            slide_index=slide_index,
+            slide_count=slide_count,
+        )
 
-    project_service.sync_outline_to_design_spec_count(project_dir)
-    outline_json = json.dumps(
-        {
-            "title": title,
-            "content_summary": content_summary,
-            "component_hint": component_hint,
-            "slide_type": slide_type,
-            "speaker_notes": speaker_notes,
-        },
-        ensure_ascii=False,
-    )
-    project_service.insert_outline_slide(project_dir, insert_idx, outline_json)
-    project_service.shift_slide_images(project_dir, insert_idx, slide_count)
-    project_service.shift_slide_htmls(project_dir, insert_idx)
+    outline_data = {
+        "title": title,
+        "content_summary": content_summary,
+        "component_hint": component_hint,
+        "slide_type": slide_type,
+        "speaker_notes": speaker_notes,
+    }
+    outline_json = json.dumps(outline_data, ensure_ascii=False)
 
     outline = parse_outline_json(outline_json)
     slide_outline = outline.slides[0]
@@ -368,34 +473,25 @@ def _prepare_add(
     next_outline = None
     new_count = slide_count + 1
     if insert_idx > 0:
-        try:
-            raw = project_service.load_outline_slide(project_dir, insert_idx - 1)
-            prev_outline = parse_outline_json(raw).slides[0]
-        except Exception:
-            logger.warning(
-                "prepare_slide_edit.add: prev adjacent slide load failed",
-                exc_info=True,
-            )
+        prev_outline = _load_outline_for_edit(
+            project_service, project_dir, insert_idx - 1
+        )
     if insert_idx + 1 < new_count:
-        try:
-            raw = project_service.load_outline_slide(project_dir, insert_idx + 1)
-            next_outline = parse_outline_json(raw).slides[0]
-        except Exception:
-            logger.warning(
-                "prepare_slide_edit.add: next adjacent slide load failed",
-                exc_info=True,
-            )
+        next_outline = _load_outline_for_edit(project_service, project_dir, insert_idx)
 
     directives = _directives_for(project_service, project_dir, insert_idx + 1, title)
     task = deps.design_service.prepare_slide(
         slide_outline,
         design_summary=design_summary,
         slide_index=insert_idx + 1,
+        total_slides=new_count,
         color_theme=color_theme,
         prev_outline=prev_outline,
         next_outline=next_outline,
         design_directives=directives,
     )
+    task["_target_index"] = insert_idx
+    task["_outline"] = outline_data
     return task
 
 
@@ -413,7 +509,7 @@ def _prepare_update(
     color_theme,
     design_summary,
 ) -> dict:
-    """update: outline 갱신(옵션) 후 슬라이드 생성 태스크 반환."""
+    """update: 파일 변경 없이 정규화된 outline으로 생성 태스크를 만든다."""
     if slide_index < 1 or slide_index > slide_count:
         _raise_validation(
             "prepare_slide_edit.update",
@@ -435,24 +531,26 @@ def _prepare_update(
             source=metadata.source,
         )
 
-    project_service.sync_outline_to_design_spec_count(project_dir)
-
     if title and content_summary:
-        outline_json = json.dumps(
-            {
-                "title": title,
-                "content_summary": content_summary,
-                "component_hint": component_hint,
-                "slide_type": slide_type,
-                "speaker_notes": speaker_notes,
-            },
-            ensure_ascii=False,
-        )
-        project_service.save_outline_slide(project_dir, idx, outline_json)
-
-    outline_raw = project_service.load_outline_slide(project_dir, idx)
-    outline = parse_outline_json(outline_raw)
-    slide_outline = outline.slides[0]
+        outline_data = {
+            "title": title,
+            "content_summary": content_summary,
+            "component_hint": component_hint,
+            "slide_type": slide_type,
+            "speaker_notes": speaker_notes,
+        }
+        slide_outline = parse_outline_json(
+            json.dumps(outline_data, ensure_ascii=False)
+        ).slides[0]
+    else:
+        slide_outline = _load_outline_for_edit(project_service, project_dir, idx)
+        outline_data = {
+            "title": slide_outline.title,
+            "content_summary": slide_outline.content_summary,
+            "component_hint": slide_outline.component_hint,
+            "slide_type": slide_outline.slide_type,
+            "speaker_notes": slide_outline.speaker_notes,
+        }
     directives = _directives_for(
         project_service, project_dir, slide_index, slide_outline.title
     )
@@ -460,10 +558,30 @@ def _prepare_update(
         slide_outline,
         design_summary=design_summary,
         slide_index=slide_index,
+        total_slides=slide_count,
         color_theme=color_theme,
         design_directives=directives,
     )
+    task["_target_index"] = idx
+    task["_outline"] = outline_data
     return task
+
+
+def _load_outline_for_edit(project_service, project_dir, index: int):
+    """파일이 없는 imported 위치는 기존 동기화 placeholder와 동일하게 취급한다."""
+    try:
+        raw = project_service.load_outline_slide(project_dir, index)
+    except (FileNotFoundError, IndexError):
+        raw = json.dumps(
+            {
+                "title": "",
+                "content_summary": "",
+                "component_hint": "bullets",
+                "slide_type": "content",
+                "speaker_notes": "",
+            }
+        )
+    return parse_outline_json(raw).slides[0]
 
 
 def _directives_for(project_service, project_dir, slide_index: int, title: str) -> str:
@@ -520,7 +638,7 @@ def handle_prepare_modify_component(
         )
 
     project_service = deps.project_service
-    _, project_dir = project_service.resolve_project_dir(project_id)
+    _, project_dir = project_service.resolve_existing_project_dir(project_id)
 
     from ppt_generator.interfaces import bg_image_utils
 
@@ -590,8 +708,14 @@ def handle_ingest_backfill(
     저장 후 available_components 를 반환해 클라이언트가 유효한 component_id 로
     prepare_modify_component 를 다시 호출하게 한다.
     """
+    require_positive_slide_index(slide_index)
     project_service = deps.project_service
-    _, project_dir = project_service.resolve_project_dir(project_id)
+    _, project_dir = project_service.resolve_existing_project_dir(project_id)
+    slide_count = project_service.get_design_spec_slide_count(project_dir)
+    if slide_index > slide_count:
+        raise ValueError(
+            f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})"
+        )
     idx = slide_index - 1
     spec = project_service.load_design_spec_slide(project_dir, idx)
 
@@ -636,8 +760,14 @@ def handle_ingest_modify_component(
     color_theme: str,
 ) -> str:
     """단일 component 부분 수정 결과를 검증·적용·저장·렌더·lint 한다."""
+    require_positive_slide_index(slide_index)
     project_service = deps.project_service
-    _, project_dir = project_service.resolve_project_dir(project_id)
+    _, project_dir = project_service.resolve_existing_project_dir(project_id)
+    slide_count = project_service.get_design_spec_slide_count(project_dir)
+    if slide_index > slide_count:
+        raise ValueError(
+            f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})"
+        )
 
     from ppt_generator.interfaces import bg_image_utils
 

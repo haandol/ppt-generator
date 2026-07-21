@@ -26,6 +26,10 @@ design/0011 가 5단 디자인 스펙 계층(Project / Slide / Layout / Section 
 
 LLM 은 슬라이드 전체 spec(grid_plan, design_doc, textboxes, shapes) + 대상 component_id + 자연어 instruction 을 컨텍스트로 받는다. 토큰 비용이 element-only 방식보다 약간 크지만, 형제 노드의 색·폰트·정렬과 cell 내 다른 element 와의 충돌 회피, design_doc 트리 인식한 bbox 조정이 가능해진다.
 
+부분 수정에는 전체 슬라이드 생성 프롬프트가 아니라 단일 component 수정 전용 시스템
+프롬프트를 사용한다. 전용 프롬프트는 수정 가능 범위, bbox 안전 조건, 필드 보존과
+정확히 하나의 element만 반환하는 계약을 설명한다.
+
 ### 단일 component 만 수정 (v1)
 
 다중 component(예: "3 개 카드 모두 색 통일") 는 LLM 이 여러 번의 modify_component 호출로 풀거나 기존 update action 사용을 안내한다. API/구현이 단순해지고 부분 수정의 명확성(한 번에 한 곳) 이 디버그성 면에서 우월. 다중 수정은 v2 검토.
@@ -51,6 +55,10 @@ LLM 이 수정할 수 있는 것:
 ### 비-design 메타 필드 보존
 
 LLM 이 element 전체를 출력해도, design/0013 결정 3 에 따라 schema 에 없는 z_index / grid_cell / component_id 는 코드가 기존 element 에서 가져와 보존한다.
+
+응답은 element 종류와 일치하는 본문 하나만 포함해야 하며 다른 종류의 본문을 동시에
+포함할 수 없다. `bbox_changed`는 반환된 bbox와 기존 bbox를 비교해 서버가 결정하고,
+LLM의 자체 보고값과 다를 때 서버 계산을 우선한다.
 
 ## 대안 검토
 
@@ -81,6 +89,7 @@ LLM 이 element 전체를 출력해도, design/0013 결정 3 에 따라 schema �
 - LLM 이 대상 외 element 를 (명시 금지에도) 변경하려 시도할 가능성 — Pydantic 응답 모델이 단일 element 만 받도록 강제하므로 자연 차단.
 - bbox 동기화 로직 결함 시 design_doc 트리와 element 가 불일치 — lint 가 즉시 잡지만 직전 결과는 어색할 수 있음.
 - modify_component 와 slide_edit 사용 시점 분기를 사용자(LLM) 가 잘못 고를 위험 — tool docstring 의 명확한 분기 가이드로 완화.
+- 전용 프롬프트와 단일 element 응답 계약을 별도로 유지해야 한다.
 
 ## Out of Scope
 

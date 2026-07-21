@@ -2,7 +2,7 @@
 
 오프로딩 리팩터 이후 슬라이드 단위 변경은 다음으로 나뉜다:
 - delete → delete_slide (LLM 불필요, 단일 도구)
-- add/update → prepare_slide_edit (outline 갱신·파일 shift) + ingest_slide_edit
+- add/update → prepare_slide_edit (읽기 전용) + ingest_slide_edit (원자 커밋)
   (mock ingest_slide 가 (spec, overflow) 를 반환하므로 spec_json 내용은 무의미 —
   서버의 파일/저장/동기화 오케스트레이션만 검증한다).
 HTML 동기화 동작은 TestModifyDesignSpecHtmlSync 에서 별도 검증.
@@ -10,13 +10,234 @@ HTML 동기화 동작은 TestModifyDesignSpecHtmlSync 에서 별도 검증.
 
 from __future__ import annotations
 
+import base64
 import json
 import shutil
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 
 from _helpers import make_design_spec
+from ppt_generator.tools.design.edit_context import project_revision
+
+
+def _prepare_edit(tools: dict, **kwargs) -> str:
+    """prepare 응답에서 ingest에 그대로 전달할 편집 컨텍스트를 꺼낸다."""
+    return json.loads(tools["prepare_slide_edit"](**kwargs))["edit_context"]
+
+
+class TestSlideEditTransaction:
+    def test_prepare_is_read_only(
+        self,
+        mcp_tools: dict,
+        project_with_design_spec: tuple,
+        monkeypatch,
+        tmp_path: Path,
+    ) -> None:
+        import ppt_generator.tools.project.service as svc_module
+
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+        project_id, project_dir = project_with_design_spec
+        before = project_revision(project_dir)
+
+        _prepare_edit(
+            mcp_tools,
+            project_id=project_id,
+            action="add",
+            slide_index=2,
+            title="새 슬라이드",
+            content_summary="내용",
+        )
+
+        assert project_revision(project_dir) == before
+
+    def test_replayed_ingest_is_idempotent(
+        self,
+        mcp_tools: dict,
+        project_with_design_spec: tuple,
+        monkeypatch,
+        tmp_path: Path,
+    ) -> None:
+        import ppt_generator.tools.project.service as svc_module
+
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+        project_id, project_dir = project_with_design_spec
+        context = _prepare_edit(
+            mcp_tools,
+            project_id=project_id,
+            action="add",
+            slide_index=-1,
+            title="새 슬라이드",
+            content_summary="내용",
+        )
+        kwargs = {
+            "project_id": project_id,
+            "action": "add",
+            "slide_index": -1,
+            "spec_json": "{}",
+            "edit_context": context,
+        }
+
+        first = mcp_tools["ingest_slide_edit"](**kwargs)
+        second = mcp_tools["ingest_slide_edit"](**kwargs)
+
+        assert json.loads(second) == json.loads(first)
+        assert (
+            mcp_tools["_project_service"].get_design_spec_slide_count(project_dir) == 4
+        )
+
+    def test_concurrent_replay_is_idempotent(
+        self,
+        mcp_tools: dict,
+        project_with_design_spec: tuple,
+        monkeypatch,
+        tmp_path: Path,
+    ) -> None:
+        import ppt_generator.tools.project.service as svc_module
+
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+        project_id, project_dir = project_with_design_spec
+        context = _prepare_edit(
+            mcp_tools,
+            project_id=project_id,
+            action="add",
+            slide_index=-1,
+            title="새 슬라이드",
+            content_summary="내용",
+        )
+        kwargs = {
+            "project_id": project_id,
+            "action": "add",
+            "slide_index": -1,
+            "spec_json": "{}",
+            "edit_context": context,
+        }
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(
+                executor.map(
+                    lambda _: mcp_tools["ingest_slide_edit"](**kwargs),
+                    range(2),
+                )
+            )
+
+        assert json.loads(results[0]) == json.loads(results[1])
+        assert (
+            mcp_tools["_project_service"].get_design_spec_slide_count(project_dir) == 4
+        )
+
+    def test_tampered_edit_context_is_rejected(
+        self,
+        mcp_tools: dict,
+        project_with_design_spec: tuple,
+        monkeypatch,
+        tmp_path: Path,
+    ) -> None:
+        import ppt_generator.tools.project.service as svc_module
+
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+        project_id, project_dir = project_with_design_spec
+        context = _prepare_edit(
+            mcp_tools,
+            project_id=project_id,
+            action="update",
+            slide_index=1,
+        )
+        padding = "=" * (-len(context) % 4)
+        envelope = json.loads(
+            base64.urlsafe_b64decode(context + padding).decode("utf-8")
+        )
+        envelope["payload"]["target_index"] = 1
+        tampered = (
+            base64.urlsafe_b64encode(
+                json.dumps(envelope, separators=(",", ":")).encode("utf-8")
+            )
+            .decode("ascii")
+            .rstrip("=")
+        )
+
+        with pytest.raises(ValueError, match="signature check failed"):
+            mcp_tools["ingest_slide_edit"](
+                project_id=project_id,
+                action="update",
+                slide_index=1,
+                spec_json="{}",
+                edit_context=tampered,
+            )
+
+        assert (
+            mcp_tools["_project_service"].get_design_spec_slide_count(project_dir) == 3
+        )
+
+    def test_stale_context_is_rejected_before_mutation(
+        self,
+        mcp_tools: dict,
+        project_with_design_spec: tuple,
+        monkeypatch,
+        tmp_path: Path,
+    ) -> None:
+        import ppt_generator.tools.project.service as svc_module
+
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+        project_id, project_dir = project_with_design_spec
+        context = _prepare_edit(
+            mcp_tools,
+            project_id=project_id,
+            action="update",
+            slide_index=1,
+        )
+        (project_dir / "DESIGN.md").write_text("# changed", encoding="utf-8")
+        changed_revision = project_revision(project_dir)
+
+        with pytest.raises(ValueError, match="Stale edit_context"):
+            mcp_tools["ingest_slide_edit"](
+                project_id=project_id,
+                action="update",
+                slide_index=1,
+                spec_json="{}",
+                edit_context=context,
+            )
+
+        assert project_revision(project_dir) == changed_revision
+
+    def test_partial_failure_rolls_back_all_project_files(
+        self,
+        mcp_tools_with_slides: dict,
+        project_with_design_spec: tuple,
+        monkeypatch,
+        tmp_path: Path,
+    ) -> None:
+        import ppt_generator.tools.project.service as svc_module
+
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+        project_id, project_dir = project_with_design_spec
+        context = _prepare_edit(
+            mcp_tools_with_slides,
+            project_id=project_id,
+            action="add",
+            slide_index=2,
+            title="새 슬라이드",
+            content_summary="내용",
+        )
+        before = project_revision(project_dir)
+        project_service = mcp_tools_with_slides["_project_service"]
+        monkeypatch.setattr(
+            project_service,
+            "save_single_slide_html",
+            lambda *args, **kwargs: (_ for _ in ()).throw(OSError("disk full")),
+        )
+
+        with pytest.raises(OSError, match="disk full"):
+            mcp_tools_with_slides["ingest_slide_edit"](
+                project_id=project_id,
+                action="add",
+                slide_index=2,
+                spec_json="{}",
+                edit_context=context,
+            )
+
+        assert project_revision(project_dir) == before
 
 
 class TestModifyDesignSpec:
@@ -38,7 +259,8 @@ class TestModifyDesignSpec:
         if not dest.exists():
             shutil.copytree(project_dir, dest)
 
-        mcp_tools["prepare_slide_edit"](
+        edit_context = _prepare_edit(
+            mcp_tools,
             project_id=project_id,
             action="add",
             slide_index=-1,
@@ -51,6 +273,7 @@ class TestModifyDesignSpec:
                 action="add",
                 slide_index=-1,
                 spec_json="{}",
+                edit_context=edit_context,
             )
         )
         assert result["slide_count"] == 4
@@ -72,7 +295,8 @@ class TestModifyDesignSpec:
         if not dest.exists():
             shutil.copytree(project_dir, dest)
 
-        mcp_tools["prepare_slide_edit"](
+        edit_context = _prepare_edit(
+            mcp_tools,
             project_id=project_id,
             action="add",
             slide_index=2,
@@ -85,6 +309,7 @@ class TestModifyDesignSpec:
                 action="add",
                 slide_index=2,
                 spec_json="{}",
+                edit_context=edit_context,
             )
         )
         assert result["slide_count"] == 4
@@ -116,7 +341,8 @@ class TestModifyDesignSpec:
         )
         project_service.update_outline_slide(dest, 0, updated_slide)
 
-        mcp_tools["prepare_slide_edit"](
+        edit_context = _prepare_edit(
+            mcp_tools,
             project_id=project_id,
             action="update",
             slide_index=1,
@@ -127,6 +353,7 @@ class TestModifyDesignSpec:
                 action="update",
                 slide_index=1,
                 spec_json="{}",
+                edit_context=edit_context,
             )
         )
         assert result["slide_count"] == 3
@@ -173,7 +400,8 @@ class TestModifyDesignSpec:
             shutil.copytree(project_dir, dest)
 
         with pytest.raises(ValueError, match="action must be 'add' or 'update'"):
-            mcp_tools["prepare_slide_edit"](
+            _prepare_edit(
+                mcp_tools,
                 project_id=project_id,
                 action="invalid",
             )
@@ -231,7 +459,8 @@ class TestModifyDesignSpec:
         )
 
         with pytest.raises(ValueError, match="title and content_summary are required"):
-            mcp_tools["prepare_slide_edit"](
+            _prepare_edit(
+                mcp_tools,
                 project_id="no-outline-proj",
                 action="add",
             )
@@ -271,7 +500,8 @@ class TestModifyDesignSpec:
             },
         )
 
-        mcp_tools["prepare_slide_edit"](
+        edit_context = _prepare_edit(
+            mcp_tools,
             project_id="imported-proj",
             action="add",
             slide_index=-1,
@@ -284,6 +514,7 @@ class TestModifyDesignSpec:
                 action="add",
                 slide_index=-1,
                 spec_json="{}",
+                edit_context=edit_context,
             )
         )
         assert result["slide_count"] == 4
@@ -340,7 +571,8 @@ class TestModifyDesignSpec:
         )
         project_service.save_outline_slide(project_dir, 1, slide_data)
 
-        mcp_tools["prepare_slide_edit"](
+        edit_context = _prepare_edit(
+            mcp_tools,
             project_id="generated-proj2",
             action="update",
             slide_index=2,
@@ -351,6 +583,7 @@ class TestModifyDesignSpec:
                 action="update",
                 slide_index=2,
                 spec_json="{}",
+                edit_context=edit_context,
             )
         )
         assert result["slide_count"] == 3
@@ -372,7 +605,8 @@ class TestModifyDesignSpec:
             shutil.copytree(project_dir, dest)
 
         project_service = mcp_tools["_project_service"]
-        mcp_tools["prepare_slide_edit"](
+        edit_context = _prepare_edit(
+            mcp_tools,
             project_id=project_id,
             action="add",
             slide_index=2,
@@ -384,6 +618,7 @@ class TestModifyDesignSpec:
             action="add",
             slide_index=2,
             spec_json="{}",
+            edit_context=edit_context,
         )
 
         outline_data = json.loads(project_service.load_outline(dest))
@@ -419,7 +654,8 @@ class TestModifyDesignSpec:
         )
         project_service.update_outline_slide(dest, 0, updated_slide)
 
-        mcp_tools["prepare_slide_edit"](
+        edit_context = _prepare_edit(
+            mcp_tools,
             project_id=project_id,
             action="update",
             slide_index=1,
@@ -429,6 +665,7 @@ class TestModifyDesignSpec:
             action="update",
             slide_index=1,
             spec_json="{}",
+            edit_context=edit_context,
         )
 
         outline_data = json.loads(project_service.load_outline(dest))
@@ -492,7 +729,8 @@ class TestModifyDesignSpec:
             },
         )
 
-        mcp_tools["prepare_slide_edit"](
+        edit_context = _prepare_edit(
+            mcp_tools,
             project_id="no-outline-proj",
             action="update",
             slide_index=1,
@@ -503,6 +741,7 @@ class TestModifyDesignSpec:
                 action="update",
                 slide_index=1,
                 spec_json="{}",
+                edit_context=edit_context,
             )
         )
         assert result["slide_count"] == 3
@@ -544,7 +783,8 @@ class TestModifyDesignSpec:
         with pytest.raises(
             ValueError, match="title and content_summary are required.*imported"
         ):
-            mcp_tools["prepare_slide_edit"](
+            _prepare_edit(
+                mcp_tools,
                 project_id="imported-proj",
                 action="update",
                 slide_index=1,
@@ -584,7 +824,8 @@ class TestModifyDesignSpec:
             },
         )
 
-        mcp_tools["prepare_slide_edit"](
+        edit_context = _prepare_edit(
+            mcp_tools,
             project_id="imported-proj2",
             action="update",
             slide_index=1,
@@ -597,6 +838,7 @@ class TestModifyDesignSpec:
                 action="update",
                 slide_index=1,
                 spec_json="{}",
+                edit_context=edit_context,
             )
         )
         assert result["slide_count"] == 3
@@ -711,7 +953,8 @@ class TestModifyDesignSpecHtmlSync:
             mcp_tools_with_slides, project_with_design_spec, monkeypatch, tmp_path
         )
 
-        mcp_tools_with_slides["prepare_slide_edit"](
+        edit_context = _prepare_edit(
+            mcp_tools_with_slides,
             project_id=project_id,
             action="add",
             slide_index=2,
@@ -724,6 +967,7 @@ class TestModifyDesignSpecHtmlSync:
                 action="add",
                 slide_index=2,
                 spec_json="{}",
+                edit_context=edit_context,
             )
         )
         assert result["slide_count"] == 4
@@ -862,7 +1106,8 @@ class TestBugFixInsertWorkflow:
         )
         project_service = mcp_tools["_project_service"]
 
-        mcp_tools["prepare_slide_edit"](
+        edit_context = _prepare_edit(
+            mcp_tools,
             project_id=project_id,
             action="add",
             slide_index=2,
@@ -875,6 +1120,7 @@ class TestBugFixInsertWorkflow:
                 action="add",
                 slide_index=2,
                 spec_json="{}",
+                edit_context=edit_context,
             )
         )
         assert result["slide_count"] == 4
@@ -909,7 +1155,8 @@ class TestBugFixInsertWorkflow:
         )
         project_service = mcp_tools["_project_service"]
 
-        mcp_tools["prepare_slide_edit"](
+        edit_context = _prepare_edit(
+            mcp_tools,
             project_id=project_id,
             action="add",
             slide_index=2,
@@ -922,11 +1169,13 @@ class TestBugFixInsertWorkflow:
                 action="add",
                 slide_index=2,
                 spec_json="{}",
+                edit_context=edit_context,
             )
         )
         assert result1["slide_count"] == 4
 
-        mcp_tools["prepare_slide_edit"](
+        edit_context = _prepare_edit(
+            mcp_tools,
             project_id=project_id,
             action="add",
             slide_index=3,
@@ -939,6 +1188,7 @@ class TestBugFixInsertWorkflow:
                 action="add",
                 slide_index=3,
                 spec_json="{}",
+                edit_context=edit_context,
             )
         )
         assert result2["slide_count"] == 5

@@ -50,11 +50,17 @@ PptxSlideSpec 을 새로 만드는 모든 코드 경로는 다음 필드를 명�
 modify_component 같은 도구가 LLM 으로부터 단일 textbox/shape 을 통째로 받아 교체하는 경우, LLM 응답 schema 에 *포함되지 않는* 비-design 메타 필드는 LLM 이 다시 채워주지 않으므로 코드가 기존 element 에서 가져와 보존해야 한다.
 
 대상 필드:
-- `z_index` (rendering order — TextBoxOutput/ShapeOutput Pydantic schema 에 의도적으로 제외; visual_qa_fix 단계에서만 명시 부여)
+- `z_index` (rendering order — 일반 생성·component 수정에서는 기존 값을 보존하고,
+  렌더 순서 결함을 직접 다루는 Visual QA 수정에서만 명시 변경 허용)
 - `grid_cell` (Layout layer link — 부분 수정 도구는 cell 변경 책임 없음)
 - `component_id` (Section layer link — 호출 시 입력값 그대로 유지)
 
 이 원칙은 미래에 추가되는 모든 "element 부분 교체" 도구에 동일하게 적용된다. 새 메타 필드가 schemas 에 추가될 때 해당 필드가 LLM schema 에 포함되지 않으면 자동으로 본 정책 대상이 된다.
+
+전체 슬라이드 수정 도구도 같은 보존 원칙을 적용한다. 수정 응답이 표현하지 않는
+필드는 기존 spec에서 복원하고, 응답이 표현할 수 있는 필드라도 수정 목적과 무관하면
+기존 값을 유지한다. 특히 Visual QA는 issue가 지목한 시각 속성만 변경하고 나머지
+렌더 순서와 계층 링크를 보존한다.
 
 ## 대안 검토
 

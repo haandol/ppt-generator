@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from pptx import Presentation
-from pptx.util import Inches, Pt
+from pptx.util import Inches
 
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
@@ -794,8 +794,6 @@ class TestSpecialElements:
         slide = prs.slides.add_slide(prs.slide_layouts[6])
 
         # CXN connector 추가 (line)
-        from pptx.shapes.connector import Connector
-
         cxn = slide.shapes.add_connector(1, Inches(1), Inches(2), Inches(3), Inches(2))
         # a:ln 에 prstDash val 직접 삽입
         spPr = cxn._element.find(qn("p:spPr"))

@@ -2,6 +2,7 @@ import json
 
 from mcp.server.fastmcp import FastMCP
 
+from ppt_generator.interfaces.index_validation import require_positive_slide_index
 from ppt_generator.tools.project.service import ProjectService
 
 
@@ -140,6 +141,7 @@ def register_project_tools(mcp: FastMCP, project_service: ProjectService) -> Non
         Returns:
             JSON string containing project_id, slide_index, outline_path
         """
+        require_positive_slide_index(slide_index)
         _, project_dir = project_service.resolve_project_dir(project_id)
         idx = slide_index - 1  # 1-based → 0-based
         slide_data = json.dumps(

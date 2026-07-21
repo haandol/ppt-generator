@@ -264,6 +264,28 @@ class TestArrowEndpointAttachment:
             x for x in result.violations if x.rule == "arrow-endpoint-attachment"
         ]
 
+    # 음수 width(↙/↖ flipH) — 부호가 x축 끝점 방향을 뒤집는다.
+    # bbox 최소 모서리는 left 그대로이고, end 는 부호에 따라 대각으로 간다.
+
+    def test_negative_width_end_touches_box_passes(self) -> None:
+        # ↖ 화살표: w<0 이므로 end 는 x 최소쪽(left=200), h<0 이므로 y 최소쪽(top=300).
+        # 박스 우하단 근처(x=200,y=300)에 end 부착.
+        box = self._box(120, 300)  # x[120..220], top y=300 → end (200,300) 부착
+        arrow = self._arrow(200, 300, -60, -80, end_arrow=True)
+        result = lint_slide_spec(slide(shapes=[box, arrow]))
+        assert not [
+            x for x in result.violations if x.rule == "arrow-endpoint-attachment"
+        ]
+
+    def test_negative_width_end_floating_fails(self) -> None:
+        # end=(200,300) 이 어떤 박스에도 안 닿는 진짜 floating.
+        box = self._box(600, 100)
+        arrow = self._arrow(200, 300, -60, -80, end_arrow=True)
+        result = lint_slide_spec(slide(shapes=[box, arrow]))
+        v = [x for x in result.violations if x.rule == "arrow-endpoint-attachment"]
+        assert len(v) == 1
+        assert v[0].current_value["endpoint"] == "end"
+
 
 # ---------------------------------------------------------------------------
 # label-orphan

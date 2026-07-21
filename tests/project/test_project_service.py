@@ -4,9 +4,7 @@ from pathlib import Path
 import pytest
 
 from ppt_generator.interfaces.schemas import (
-    DesignSpec,
     PptxImage,
-    PptxSlideSpec,
     ProjectMetadata,
 )
 from ppt_generator.tools.project.service import ProjectService
@@ -365,6 +363,35 @@ class TestResolveProjectDir:
         assert project_id == existing_id
         assert project_dir == tmp_path / existing_id
         assert project_dir.exists()
+
+    def test_resolves_existing_project_without_writing(
+        self, project_service: ProjectService, tmp_path: Path, monkeypatch
+    ) -> None:
+        import ppt_generator.tools.project.service as svc_module
+
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+        existing = tmp_path / "existing"
+        existing.mkdir()
+
+        project_id, project_dir = project_service.resolve_existing_project_dir(
+            "existing"
+        )
+
+        assert project_id == "existing"
+        assert project_dir == existing
+        assert list(existing.iterdir()) == []
+
+    def test_existing_resolver_does_not_create_missing_project(
+        self, project_service: ProjectService, tmp_path: Path, monkeypatch
+    ) -> None:
+        import ppt_generator.tools.project.service as svc_module
+
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        with pytest.raises(FileNotFoundError, match="missing"):
+            project_service.resolve_existing_project_dir("missing")
+
+        assert not (tmp_path / "missing").exists()
 
     @pytest.mark.parametrize(
         "project_id",

@@ -2,8 +2,19 @@
 
 from __future__ import annotations
 
-from ppt_generator.interfaces.schemas import PptxImage, PptxSlideSpec
+import pytest
+
+from ppt_generator.interfaces.schemas import (
+    PptxImage,
+    PptxParagraph,
+    PptxShape,
+    PptxSlideSpec,
+    PptxTextBox,
+    PptxTextRun,
+)
 from ppt_generator.tools.slides.html_renderer import image_to_html, spec_to_html_section
+from ppt_generator.tools.slides.shape_renderer import shape_to_html
+from ppt_generator.tools.slides.text_renderer import paragraph_to_html, run_to_html
 
 
 class TestImageToHtmlWithSrc:
@@ -168,6 +179,34 @@ class TestSpecToHtmlSectionWithImages:
         assert "<img " in html
         assert "IMAGE</span>" in html
 
+    def test_explicit_z_index_can_place_shape_above_textbox(self):
+        spec = PptxSlideSpec(
+            textboxes=[
+                PptxTextBox(
+                    left_px=0,
+                    top_px=0,
+                    width_px=100,
+                    height_px=30,
+                    z_index=0,
+                    paragraphs=[PptxParagraph(runs=[PptxTextRun(text="behind")])],
+                )
+            ],
+            shapes=[
+                PptxShape(
+                    left_px=0,
+                    top_px=0,
+                    width_px=100,
+                    height_px=30,
+                    z_index=1,
+                    fill_color="#FF0000",
+                )
+            ],
+        )
+
+        html = spec_to_html_section(0, spec)
+
+        assert html.index("behind") < html.index("background-color:#FF0000")
+
 
 class TestBackgroundImageRendering:
     """슬라이드 단위 배경 이미지(`background_image_src`)가 CSS에 적용되는지 검증."""
@@ -204,3 +243,135 @@ class TestBackgroundImageRendering:
 
         assert "background-image" not in html
         assert "background-color:#1A2332" in html
+
+
+class TestHtmlInjectionSafety:
+    def test_attribute_quotes_are_escaped(self):
+        spec = PptxSlideSpec(speaker_notes='" onmouseover="alert(1)<x>')
+        html = spec_to_html_section(0, spec)
+
+        assert 'onmouseover="alert(1)' not in html
+        assert "&quot; onmouseover=&quot;" in html
+
+    def test_dangerous_link_scheme_is_not_clickable(self):
+        html = run_to_html(PptxTextRun(text="click", href="javascript:alert(1)"))
+
+        assert html == "click"
+        assert "<a " not in html
+
+    def test_dangerous_image_sources_render_placeholder(self):
+        image = PptxImage(left_px=0, top_px=0, width_px=100, height_px=100)
+        html = image_to_html(image, image_src='x" onerror="alert(1).png')
+
+        assert "<img " not in html
+        assert "IMAGE</span>" in html
+
+    def test_css_color_injection_is_dropped(self):
+        shape = PptxShape(
+            left_px=0,
+            top_px=0,
+            width_px=100,
+            height_px=100,
+            fill_color='red;background-image:url("javascript:alert(1)")',
+        )
+        html = shape_to_html(shape)
+
+        assert "javascript:" not in html
+        assert "background-image" not in html
+
+    def test_svg_path_cannot_break_out_of_attribute(self):
+        shape = PptxShape(
+            left_px=0,
+            top_px=0,
+            width_px=100,
+            height_px=100,
+            shape_type="custom",
+            svg_path='100 100 M0 0 L10 10" onload="alert(1)',
+        )
+        html = shape_to_html(shape)
+
+        assert "<path " not in html
+        assert "onload=" not in html
+
+    def test_text_content_is_escaped_but_preserved(self):
+        textbox = PptxTextBox(
+            left_px=0,
+            top_px=0,
+            width_px=100,
+            height_px=30,
+            paragraphs=[PptxParagraph(runs=[PptxTextRun(text='<b>"hello"</b>')])],
+        )
+        html = spec_to_html_section(0, PptxSlideSpec(textboxes=[textbox]))
+
+        assert "<b>" not in html
+        assert '&lt;b&gt;"hello"&lt;/b&gt;' in html
+
+    @pytest.mark.parametrize("bullet_level", [-1, 0])
+    def test_paragraph_alignment_injection_is_dropped(self, bullet_level: int) -> None:
+        para = PptxParagraph(
+            runs=[PptxTextRun(text="safe")],
+            bullet_level=bullet_level,
+            alignment='left;background-image:url("javascript:alert(1)")',
+        )
+
+        html = paragraph_to_html(para)
+
+        assert "javascript:" not in html
+        assert "text-align:" not in html
+
+
+class TestLineDirectionEndpoints:
+    """line bbox 계약: (left,top)=최소 모서리, 부호는 끝점 대각 방향만 결정.
+
+    렌더된 <svg> 의 절대 끝점 = 컨테이너 원점(left-pad, top-pad) + svg 내부 좌표.
+    부호가 어떻든 두 끝점이 bbox 의 올바른 대각 꼭짓점(절대좌표)에 와야 한다.
+    """
+
+    import re
+
+    def _abs_endpoints(self, shape):
+        html = shape_to_html(shape)
+        pad = max((shape.border_width_pt or 1) * 2, 8)
+        origin_x = shape.left_px - pad
+        origin_y = shape.top_px - pad
+        m = self.re.search(
+            r'x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)"', html
+        )
+        assert m, html
+        x1, y1, x2, y2 = (float(g) for g in m.groups())
+        return (origin_x + x1, origin_y + y1), (origin_x + x2, origin_y + y2)
+
+    def _line(self, w: float, h: float) -> PptxShape:
+        return PptxShape(
+            left_px=200,
+            top_px=300,
+            width_px=w,
+            height_px=h,
+            shape_type="line",
+            border_color="#1E8C86",
+            border_width_pt=2,
+            end_arrow=True,
+        )
+
+    def test_positive_dims_start_min_end_max(self):
+        p1, p2 = self._abs_endpoints(self._line(60, 80))
+        assert p1 == (200, 300)  # 최소 모서리
+        assert p2 == (260, 380)  # 최대 모서리
+
+    def test_negative_height_flips_y_only(self):
+        # ↗: bbox 는 그대로 (200,300)~(260,380), y 끝점만 뒤바뀐다.
+        p1, p2 = self._abs_endpoints(self._line(60, -80))
+        assert p1 == (200, 380)
+        assert p2 == (260, 300)
+
+    def test_negative_width_flips_x_only(self):
+        # ↙: x 끝점만 뒤바뀐다. top 은 여전히 최소 y.
+        p1, p2 = self._abs_endpoints(self._line(-60, 80))
+        assert p1 == (260, 300)
+        assert p2 == (200, 380)
+
+    def test_both_negative_flips_both(self):
+        # ↖: 두 축 모두 뒤바뀜. bbox 최소 모서리(200,300)는 불변.
+        p1, p2 = self._abs_endpoints(self._line(-60, -80))
+        assert p1 == (260, 380)
+        assert p2 == (200, 300)

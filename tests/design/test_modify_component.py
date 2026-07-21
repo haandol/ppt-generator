@@ -280,17 +280,11 @@ class TestFindElementHelpers:
 # ---------------------------------------------------------------------------
 
 
-class TestModifyComponentPromptInvariance:
-    """동작 불변: prepare_modify_component 이 조립하는 프롬프트/스키마 회귀 가드.
+class TestModifyComponentPrompt:
+    """component 전용 프롬프트와 응답 계약 회귀 가드."""
 
-    오프로딩 이전 modify_component 는 design_service_factory("content") 로 만든
-    agent 를 재사용했으므로 시스템 프롬프트가 content 디자인 시스템 프롬프트였다
-    (COMPONENT_MODIFY_SYSTEM_PROMPT 는 어떤 agent 에도 연결되지 않은 미사용 상수).
-    prepare 가 그 프롬프트를 그대로 재현하는지 잠근다.
-    """
-
-    def test_system_prompt_matches_content_design_prompt(self) -> None:
-        from ppt_generator.interfaces.constants import DESIGN_SPEC_SYSTEM_PROMPTS
+    def test_system_prompt_uses_component_modify_prompt(self) -> None:
+        from ppt_generator.interfaces.constants import COMPONENT_MODIFY_SYSTEM_PROMPT
 
         spec = _full_content_slide()
         task = DesignService().prepare_modify_component(
@@ -300,7 +294,7 @@ class TestModifyComponentPromptInvariance:
             slide_index=1,
             color_theme="dark",
         )
-        assert task["system_prompt"] == DESIGN_SPEC_SYSTEM_PROMPTS["content"]
+        assert task["system_prompt"] == COMPONENT_MODIFY_SYSTEM_PROMPT
 
     def test_user_prompt_contains_instruction_and_target(self) -> None:
         spec = _full_content_slide()
@@ -393,6 +387,22 @@ class TestDesignServiceModifyComponent:
         assert right.left_px == 656
         left = [n for n in new_spec.design_doc.layout if n.id == "left"][0]
         assert left.left_px == 64
+
+    def test_bbox_change_is_derived_when_client_flag_is_false(self) -> None:
+        spec = _full_content_slide()
+        moved = _shape_output_red().model_copy(update={"left_px": 720})
+        new_spec = _ingest(
+            spec,
+            "right.box",
+            ComponentModifyOutput(
+                element_kind="shape",
+                shape=moved,
+                bbox_changed=False,
+            ),
+        )
+        right = [n for n in new_spec.design_doc.layout if n.id == "right"][0]
+        right_box = [c for c in right.children if c.id == "right.box"][0]
+        assert right_box.left_px == 720
 
     def test_design_doc_none_raises(self) -> None:
         spec = PptxSlideSpec(

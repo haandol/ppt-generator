@@ -7,7 +7,6 @@ from pptx.oxml.ns import qn
 
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
-    ExportPptxResponse,
     PptxParagraph,
     PptxShape,
     PptxSlideSpec,
@@ -123,6 +122,47 @@ class TestExportFromDesignSpec:
         fill = slide.background.fill
         assert fill.fore_color.rgb is not None
         assert str(fill.fore_color.rgb) == "1A1A2E"
+
+    def test_explicit_z_index_is_not_overridden_by_textbox_reordering(
+        self, service, tmp_path
+    ):
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    textboxes=[
+                        PptxTextBox(
+                            left_px=10,
+                            top_px=10,
+                            width_px=100,
+                            height_px=40,
+                            z_index=0,
+                            paragraphs=[
+                                PptxParagraph(runs=[PptxTextRun(text="behind")])
+                            ],
+                        )
+                    ],
+                    shapes=[
+                        PptxShape(
+                            left_px=10,
+                            top_px=10,
+                            width_px=100,
+                            height_px=40,
+                            z_index=1,
+                            fill_color="#FF0000",
+                        )
+                    ],
+                )
+            ]
+        )
+
+        with patch.object(service._builder, "ensure_textboxes_on_top") as ensure:
+            response = service.export_from_design_spec(spec, output_dir=tmp_path)
+
+        ensure.assert_not_called()
+        slide = Presentation(response.pptx_path).slides[0]
+        assert slide.shapes[0].has_text_frame
+        assert slide.shapes[0].text == "behind"
+        assert slide.shapes[1].shape_type is not None
 
     def test_multiple_slides(self, service, tmp_path):
         spec = DesignSpec(

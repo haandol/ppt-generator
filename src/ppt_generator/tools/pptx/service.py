@@ -80,7 +80,8 @@ class ExportService:
                         self._builder.set_slide_background_image(slide, bg_bytes)
 
                 self._builder.build_slide_from_spec(slide, spec)
-                self._builder.ensure_textboxes_on_top(slide)
+                if not self._builder.has_explicit_z_index(spec):
+                    self._builder.ensure_textboxes_on_top(slide)
 
                 if spec.speaker_notes:
                     self._builder.set_speaker_notes(slide, spec.speaker_notes)

@@ -13,7 +13,6 @@ from ppt_generator.interfaces.schemas import (
     PptxParagraph,
     PptxShape,
     PptxSlideSpec,
-    PptxTextBox,
     PptxTextRun,
 )
 from ppt_generator.interfaces.spec_utils import lint_slide_spec

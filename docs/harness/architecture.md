@@ -149,7 +149,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 | `prepare_outline` | `ingest_outline` | 아웃라인 프롬프트+스키마 반환 → 생성된 아웃라인 JSON 검증·저장 |
 | `prepare_design_doc_draft` | `ingest_design_doc_draft` | DESIGN.md 초안(테마·톤·서사) 프롬프트 반환 → 초안 저장 (1회, 이미 있으면 `{"skip": true}`) |
 | `prepare_design_slide` | `ingest_design_slide` | 단일 슬라이드 디자인 스펙 프롬프트+스키마+`thinking_budget` 힌트 반환 → 검증·정합화·저장·렌더·lint |
-| `prepare_slide_edit` | `ingest_slide_edit` | 슬라이드 add/update 프롬프트 반환 → 스펙 검증·삽입/갱신·렌더 |
+| `prepare_slide_edit` | `ingest_slide_edit` | 읽기 전용 프롬프트+edit_context 반환 → 스펙 검증·원자적 삽입/갱신·렌더 |
 | `prepare_modify_component` | `ingest_modify_component` | 단일 컴포넌트 부분 수정 프롬프트 반환 → 정확히 한 요소에 적용·렌더 |
 | `prepare_review` | `ingest_review` | 슬라이드 디자인 규칙 리뷰 프롬프트 반환 → 이슈 리포트 (리포트 전용, 자동 재생성 없음) |
 

@@ -10,9 +10,9 @@ import logging
 
 from pptx.oxml.ns import qn
 
-logger = logging.getLogger(__name__)
-
 from ppt_generator.tools.pptx_import.theme_resolver import resolve_scheme_color
+
+logger = logging.getLogger(__name__)
 
 
 class StyleExtractorMixin:

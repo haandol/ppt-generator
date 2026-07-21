@@ -46,6 +46,15 @@ class SlideBuilder:
     """python-pptx 슬라이드에 요소를 배치하는 빌더."""
 
     @staticmethod
+    def has_explicit_z_index(spec: PptxSlideSpec) -> bool:
+        """요소 중 하나라도 명시적 렌더 순서를 갖는지 반환한다."""
+        return any(
+            getattr(element, "z_index", None) is not None
+            for elements in (spec.shapes, spec.images, spec.textboxes)
+            for element in elements
+        )
+
+    @staticmethod
     def remove_placeholders(slide) -> None:
         """슬라이드에서 모든 placeholder shape을 제거한다."""
         sp_tree = slide.shapes._spTree
@@ -153,11 +162,7 @@ class SlideBuilder:
 
     def build_slide_from_spec(self, slide, spec: PptxSlideSpec) -> None:
         """PptxSlideSpec을 python-pptx 슬라이드 요소로 배치."""
-        has_z_index = any(
-            getattr(e, "z_index", None) is not None
-            for lst in (spec.shapes, spec.images, spec.textboxes)
-            for e in lst
-        )
+        has_z_index = self.has_explicit_z_index(spec)
         if has_z_index:
             items: list[tuple[int, str, object]] = []
             for s in spec.shapes:

@@ -10,8 +10,6 @@ import json
 from dataclasses import replace
 from pathlib import Path
 
-import pytest
-
 from ppt_generator.interfaces.constants import PROJECT_IMAGES_DIR
 from ppt_generator.interfaces.schemas import (
     DesignSpec,

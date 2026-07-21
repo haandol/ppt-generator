@@ -62,7 +62,7 @@ Return structured output as DesignReviewOutput:
 - issues: list of violations found (empty list if no violations)
 
 For each issue, provide:
-- rule_id: one of the 7 checklist IDs above
+- rule_id: one of the 9 checklist IDs above
 - severity: "high" or "medium"
 - description: Brief explanation (which elements, what values, why it violates)
 

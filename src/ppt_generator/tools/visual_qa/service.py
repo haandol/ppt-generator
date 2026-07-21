@@ -123,6 +123,7 @@ class VisualQAService:
         self,
         fix_json: str | dict,
         current_spec: PptxSlideSpec,
+        issues: list[dict] | None = None,
     ) -> PptxSlideSpec | None:
         """클라이언트가 생성한 수정 spec JSON 을 검증·정합화한다.
 
@@ -139,13 +140,74 @@ class VisualQAService:
             else:
                 output = model.model_validate(fix_json)
             spec = output.to_dataclass()
-            restore = {}
-            if current_spec.images:
-                restore["images"] = current_spec.images
-            if current_spec.slide_type != "content":
-                restore["slide_type"] = current_spec.slide_type
-            if restore:
-                spec = replace(spec, **restore)
+            if len(spec.textboxes) != len(current_spec.textboxes):
+                raise ValueError("Visual QA fix cannot add or remove textboxes")
+            if len(spec.shapes) != len(current_spec.shapes):
+                raise ValueError("Visual QA fix cannot add or remove shapes")
+
+            issue_types = {
+                issue.get("issue_type")
+                for issue in (issues or [])
+                if isinstance(issue, dict)
+            }
+            can_change_z_index = bool(
+                issue_types & {"wrong_z_order", "hidden_decorative_strip"}
+            )
+            if not can_change_z_index and (
+                any(
+                    fixed.z_index != existing.z_index
+                    for fixed, existing in zip(
+                        spec.textboxes, current_spec.textboxes, strict=True
+                    )
+                )
+                or any(
+                    fixed.z_index != existing.z_index
+                    for fixed, existing in zip(
+                        spec.shapes, current_spec.shapes, strict=True
+                    )
+                )
+            ):
+                raise ValueError(
+                    "Visual QA fix cannot change z_index without a layering issue"
+                )
+
+            textboxes = [
+                replace(
+                    fixed,
+                    paragraphs=existing.paragraphs,
+                    grid_cell=existing.grid_cell,
+                    component_id=existing.component_id,
+                )
+                for fixed, existing in zip(
+                    spec.textboxes, current_spec.textboxes, strict=True
+                )
+            ]
+            shapes = [
+                replace(
+                    fixed,
+                    shape_type=existing.shape_type,
+                    text=existing.text,
+                    paragraphs=existing.paragraphs,
+                    svg_path=existing.svg_path,
+                    grid_cell=existing.grid_cell,
+                    component_id=existing.component_id,
+                )
+                for fixed, existing in zip(
+                    spec.shapes, current_spec.shapes, strict=True
+                )
+            ]
+            spec = replace(
+                spec,
+                textboxes=textboxes,
+                shapes=shapes,
+                images=current_spec.images,
+                slide_type=current_spec.slide_type,
+                speaker_notes=current_spec.speaker_notes,
+                grid_plan=current_spec.grid_plan,
+                design_doc=current_spec.design_doc,
+                background_image_bytes=current_spec.background_image_bytes,
+                background_image_src=current_spec.background_image_src,
+            )
             return clean_slide_spec(spec)
         except Exception:
             logger.exception("디자인 스펙 수정 검증 실패")

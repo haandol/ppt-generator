@@ -48,6 +48,30 @@ MCP 클라이언트(Claude Desktop, Kiro 등)에서 도구를 연쇄 호출할 �
 | update | 대상 인덱스 | 없음 (인라인 `title`/`content_summary` 제공 시 자동 업데이트, 또는 `save_outline_slide`로 사전 수정) | **outline sync** → outline 읽기 → 디자인 스펙 재생성 후 교체 + `num_slides` 동기화 |
 | delete | 대상 인덱스 | 없음 | **outline sync** → 디자인 스펙 제거 + outline 해당 슬라이드 삭제 + HTML 삭제 + `num_slides` 동기화 |
 
+#### prepare 무부작용과 ingest 원자 커밋
+
+생성이 필요한 add/update의 prepare 단계는 현재 프로젝트를 변경하지 않는다. prepare는
+정규화된 편집 의도, 대상 위치, 생성 프롬프트, 응답 스키마와 현재 프로젝트 revision을
+담은 편집 컨텍스트만 반환한다.
+
+ingest는 다음 순서로 처리한다.
+
+1. 편집 컨텍스트와 현재 revision이 일치하는지 확인한다.
+2. 생성 결과를 완전히 검증한다.
+3. outline, design spec, 이미지, HTML, 메타데이터 변경을 하나의 논리적 트랜잭션으로
+   적용한다.
+4. 중간 실패 시 기존 프로젝트 상태로 복원한다.
+5. 동일 편집 컨텍스트가 재전송되면 중복 적용하지 않고 이전 결과를 반환한다.
+
+이 정책은 생성 실패, 클라이언트 재시도, 네트워크 재전송이 프로젝트 파일을 미리
+변경하거나 같은 슬라이드를 두 번 삽입하지 않도록 한다.
+
+#### 인덱스 계약
+
+모든 공개 슬라이드 인덱스는 문서화된 예외값을 제외하고 1-based 양수이며, 파일 I/O
+전에 범위를 검증한다. 유효하지 않은 인덱스는 새 파일을 만들거나 기존 파일을
+변경하지 않고 명확한 오류를 반환한다.
+
 #### move_slide
 
 슬라이드 위치를 변경하는 **별도 도구**. LLM 호출 없이 순수 파일 재정렬만 수행한다.
@@ -113,6 +137,8 @@ prepare_outline → ingest_outline
 | C. 단일 파일 유지 + 부분 읽기 | JSON streaming parser로 필요한 슬라이드만 읽기 | JSON 구조상 부분 수정 불가, 탈락 |
 | D. SQLite 기반 저장 | 슬라이드별 row로 관리 | 파일 기반 통신 원칙에 어긋남, 디버깅 어려움, 탈락 |
 | **E. 파일 기반 통신 + 슬라이드별 파일 + CRUD** | project_id 참조 + 개별 파일 + 슬라이드 CRUD | **채택** |
+| prepare에서 실제 파일을 먼저 이동 | ingest가 단순해짐 | 생성 실패·재시도 시 부분 상태와 중복 삽입이 발생해 제외 |
+| prepare는 읽기 전용, ingest에서 원자 적용 | 재시도 안전성과 실패 격리 | 편집 컨텍스트와 rollback 관리가 필요하지만 채택 |
 
 ### Acceptance Criteria
 
@@ -147,6 +173,7 @@ prepare_outline → ingest_outline
 - `slide_edit`의 add/update 시 디자인 요약 추출을 위한 추가 LLM 호출 필요
 - project_id를 통한 암묵적 파일 의존성으로 디버깅 시 파일 상태 확인 필요
 - 파일 삽입/삭제 시 재번호 로직 필요 (O(n) 파일 rename)
+- 원자 커밋과 재시도 멱등성을 위해 편집 컨텍스트 및 완료 기록을 관리해야 한다.
 
 ## References
 

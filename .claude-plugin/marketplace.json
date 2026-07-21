@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Auto-generate presentations in Claude Code via an MCP server — client-side LLM generation with a prepare/ingest handshake, deterministic layout/lint/HTML/PPTX render on the server.",
-    "version": "0.7.2"
+    "version": "0.7.3"
   },
   "plugins": [
     {
       "name": "ppt-generator",
       "source": ".",
       "description": "Auto-generate presentations in Claude Code. The MCP server owns prompts, output schemas, and deterministic post-processing (validation, layout, lint, HTML/PPTX render); the client generates the slide content via a prepare/ingest handshake — no server-side LLM. Ships ppt-outline / ppt-design / ppt-modify / ppt-visual-qa skills.",
-      "version": "0.7.2",
+      "version": "0.7.3",
       "author": {
         "name": "haandol"
       },

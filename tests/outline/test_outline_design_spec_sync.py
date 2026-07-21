@@ -73,12 +73,14 @@ def _add_slide(
 
     mock ingest_slide 가 고정 spec 을 반환하므로 spec_json 은 "{}" 로 충분하다.
     """
-    tools["prepare_slide_edit"](
-        project_id=project_id,
-        action="add",
-        slide_index=slide_index,
-        title=title,
-        content_summary=content_summary,
+    prepared = json.loads(
+        tools["prepare_slide_edit"](
+            project_id=project_id,
+            action="add",
+            slide_index=slide_index,
+            title=title,
+            content_summary=content_summary,
+        )
     )
     return json.loads(
         tools["ingest_slide_edit"](
@@ -86,6 +88,7 @@ def _add_slide(
             action="add",
             slide_index=slide_index,
             spec_json="{}",
+            edit_context=prepared["edit_context"],
         )
     )
 

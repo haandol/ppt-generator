@@ -1,9 +1,9 @@
 # Design Spec Examples
 
  5단 계층(Project / Slide / Layout / Section / Content)을 충실히 따르는
-슬라이드 design spec 예시 모음. 현재는 인-컨텍스트 학습용 reference 자료이며
-프롬프트 빌더가 자동 주입하지 않는다 (base prompt 가 inline `<examples>` 블록을
-유지). 향후 동적 예시 주입이 필요해지면 이 폴더를 loader 가 읽는다.
+슬라이드 design spec 예시 모음. content 시스템 프롬프트는 이 디렉토리의 정식 예시
+하나를 로드해 기존 inline `<examples>` 블록을 교체한다. 예시는 실제 응답 모델의
+계약 테스트를 통과해야 한다.
 
 각 예시는:
 - `grid_layout` + `cell_assignment` (Layout 계층)
