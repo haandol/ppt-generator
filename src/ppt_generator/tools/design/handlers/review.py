@@ -93,6 +93,7 @@ def handle_ingest_review(
         result["fix_feedback"] = DesignReviewService.format_feedback(review_output)
         result["fix_suggestion"] = (
             f"슬라이드 {slide_index}에 high-severity 이슈가 있습니다. "
-            "prepare_update_slide 로 재생성할 때 fix_feedback 을 함께 반영하세요."
+            "prepare_slide_edit(action='update') 로 재생성할 때 "
+            "fix_feedback 을 함께 반영하세요."
         )
     return json.dumps(result, ensure_ascii=False)

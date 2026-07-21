@@ -1,4 +1,4 @@
-# 레이아웃 계획 단계 추가 (Layout Planning Phase)
+# 아웃라인 내 레이아웃 계획
 
 Date: 2026-04-18
 
@@ -8,79 +8,50 @@ Accepted
 
 ## Context
 
-현재 파이프라인: outline → script → design_spec
+컴포넌트 유형만으로는 슬라이드에 필요한 요소 수, 요소 사이 관계, 배치 방향을
+충분히 전달할 수 없다. 이 정보 없이 디자인 단계가 바로 좌표를 정하면 콘텐츠
+구조를 다시 해석하게 되고, 복잡한 다이어그램에서 겹침이나 잘림이 발생하기 쉽다.
 
-문제점:
-1. design_spec 생성 시 다이어그램/요소 수를 사전에 모르고 바로 생성 → 복잡한 레이아웃에서 겹침/잘림 발생
-2. component_hint만으로 복잡도를 결정하므로, 같은 hint라도 요소 수에 따라 실제 난이도가 다름
-3. 다이어그램을 적극적으로 사용하도록 유도하는 메커니즘이 없음
+레이아웃 계획은 색상, 폰트, 정확한 좌표를 정하는 디자인 명세가 아니다. 어떤
+요소가 몇 개 필요하고 어떤 관계와 방향으로 배치되어야 하는지를 설명하는
+콘텐츠 수준의 계획이다.
+
+## Decision Drivers
+
+- 콘텐츠 구조 결정과 픽셀 배치 결정을 분리해야 한다.
+- 디자인 단계가 요소 수나 관계를 임의로 바꾸지 않게 해야 한다.
+- 별도 생성 단계로 인한 지연과 계약 분산을 피해야 한다.
+- 아웃라인을 수정하거나 재수신할 때 계획 정보가 보존되어야 한다.
 
 ## Decision
 
-outline 이후, script 작성 전에 **레이아웃 계획(layout planning)** 단계를 추가한다.
+레이아웃 계획은 별도 파이프라인 단계나 독립 산출물로 생성하지 않고 각
+슬라이드 아웃라인의 필수 필드로 포함한다.
 
-### 파이프라인 변경
+계획은 요소의 종류와 수, 관계, 배치 방향, 강조 우선순위를 자연어로 설명한다.
+디자인 단계는 이 계획을 입력으로 받아 실제 좌표, 크기, 색상, 폰트를 결정하며
+아웃라인이 정한 요소 구성과 공간 방향을 다시 결정하지 않는다.
 
-```
-outline → layout_plan → script → design_spec
-```
+컴포넌트 힌트는 시각 구조의 범주를 나타내고, 레이아웃 계획은 해당 구조를 이
+슬라이드 콘텐츠에 어떻게 적용할지 구체화한다. 두 값은 함께 저장되고 수정,
+재생성, 디자인 준비 과정에서 그대로 전달된다.
 
-### Layout Plan 단계의 역할
+## Alternatives Considered
 
-1. **다이어그램 적극 활용 결정**: 내용이 시각화 가능한 경우 다이어그램(arch_diagram, process_flow, pipeline 등)을 적극 선택
-2. **요소 수 사전 계산**: 각 슬라이드에 포함될 요소(노드, 화살표, 카드, 행/열 등)의 수를 미리 결정
-3. **레이아웃 스케치**: 요소 배치 방향(가로/세로), 대략적인 영역 분할을 결정
-4. **복잡도 재평가**: 요소 수 + 다이어그램 여부로 실제 complexity를 재산정 → budget_tokens 결정에 활용
-
-### Layout Plan 출력 스키마 (안)
-
-```json
-{
-  "slides": [
-    {
-      "slide_index": 1,
-      "component_hint": "arch_diagram",
-      "element_count": 7,
-      "layout_direction": "horizontal",
-      "regions": ["header", "diagram_area", "footer_note"],
-      "complexity_override": 5,
-      "reasoning": "3-tier 아키텍처 + 네트워크 연결선 → 노드 7개, 화살표 6개"
-    }
-  ]
-}
-```
-
-### Thinking Budget 활용
-
-- Layout plan 단계 자체는 medium budget (5120)으로 실행
-- Layout plan 결과의 `complexity_override` 또는 `element_count` 기반으로 design_spec의 budget_tokens를 동적 결정:
-  - element_count ≥ 6 또는 다이어그램 hint → high (10240)
-  - element_count 3-5 → medium (5120)
-  - element_count ≤ 2 → low (1024)
-
-### 프롬프트 변경
-
-- Outline 프롬프트: 다이어그램 사용을 적극 권장하는 가이드라인 추가
-- Layout plan 전용 시스템 프롬프트: 요소 수/배치 계획에 집중
-
-## Technical Details
-
-### 구현 범위
-
-1. `LayoutPlanService` 신규: outline을 입력받아 layout plan JSON 생성
-2. `layout_plan` 아티팩트 저장: `project_dir/layout_plan/` 디렉토리
-3. 디자인 스펙 생성(prepare_design_slide): layout plan이 있으면 이를 프롬프트 컨텍스트에 반영
-4. `ProjectService`: layout plan CRUD 메서드 추가
-5. outline 프롬프트: 다이어그램 적극 사용 가이드라인 추가
-
-### 하위 호환성
-
-- layout_plan이 없는 기존 프로젝트는 현재처럼 component_hint 기반 complexity 사용 (fallback)
-- MCP tool 추가: `generate_layout_plan(project_id)` — 선택적 호출 가능
+| 대안 | 판단 |
+|------|------|
+| 디자인 단계가 콘텐츠를 보고 요소 수와 방향까지 결정 | 단계 책임이 겹치고 결과 재현성이 낮아 제외 |
+| 별도 레이아웃 계획 생성 도구와 산출물을 둠 | 추가 생성 호출과 동기화 부담이 생겨 제외 |
+| 아웃라인 슬라이드에 계획을 포함 | 콘텐츠 결정과 함께 검토·저장할 수 있어 채택 |
 
 ## Consequences
 
-- 다이어그램 활용도 증가 → 시각적 품질 향상
-- 사전 레이아웃 계획으로 겹침/잘림 감소
-- 파이프라인에 LLM 호출 1회 추가 → 비용/시간 증가 (medium budget이므로 제한적)
-- 기존 프로젝트와의 하위 호환성 유지
+- 아웃라인 응답에는 모든 슬라이드의 레이아웃 계획이 필요하다.
+- 디자인 프롬프트는 계획을 제약 조건으로 사용한다.
+- 계획을 바꾸려면 아웃라인을 수정한 뒤 해당 슬라이드 디자인을 다시 생성한다.
+- 정확한 좌표나 스타일을 계획에 넣지 않도록 프롬프트 경계를 유지해야 한다.
+
+## Related
+
+- [슬라이드 아웃라인 생성](./0001-outline-generation.md)
+- [점진적 구체화 파이프라인](../project/0002-progressive-refinement-pipeline.md)

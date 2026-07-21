@@ -10,7 +10,6 @@
 - **Tech stack**: Python 3.13+ · MCP · Pydantic (output schema + validation) · no server-side LLM
 - **Distribution**: Claude Code plugin (`.claude-plugin/plugin.json`) + skills (`skills/`)
 - **Package manager**: uv · Build: hatchling · Entry point: `ppt_generator.server:main`
-- **ALPS design doc**: [`docs/ppt-generator.alps.md`](docs/ppt-generator.alps.md)
 
 ## Repository Structure
 
@@ -148,5 +147,4 @@ Details: [`docs/harness/testing.md`](docs/harness/testing.md)
 | Environment & Config  | [`docs/harness/environment.md`](docs/harness/environment.md) | Environment variables, models used, MCP client config examples |
 | Kiro / Codex Setup    | [`docs/harness/kiro-codex.md`](docs/harness/kiro-codex.md) | Use the workflow as a skill in Kiro (steering) and Codex (AGENTS.md) |
 | Testing               | [`docs/harness/testing.md`](docs/harness/testing.md)         | Test writing rules, patterns, checklist         |
-| ALPS Design Doc       | [`docs/ppt-generator.alps.md`](docs/ppt-generator.alps.md) | Feature list, functional specs, acceptance criteria |
 | ADR Index             | [`docs/adr/README.md`](docs/adr/README.md) | Full ADR list and writing guide                 |

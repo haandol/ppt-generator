@@ -144,5 +144,4 @@ docs/adr/
 ## 참고
 
 - [Architecture](../harness/architecture.md)
-- [ALPS 설계 문서](../ppt-generator.alps.md)
 - [ADR GitHub](https://adr.github.io/)

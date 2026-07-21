@@ -267,6 +267,5 @@ uv run pytest                  # Run all tests
 - [Kiro / Codex Setup](docs/harness/kiro-codex.md) — use the workflow as a skill in Kiro and Codex
 - [Schemas](docs/harness/schemas.md) — domain models, client output models, component_hint table
 - [Testing](docs/harness/testing.md) — test writing rules and patterns
-- [ALPS Design Document](docs/ppt-generator.alps.md)
 - [ADR](docs/adr/) — Architecture Decision Records (the client-LLM offload decision lives under the `offload/` category)
 - [Contributing Guide](CONTRIBUTING.md)

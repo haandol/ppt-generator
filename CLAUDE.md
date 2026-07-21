@@ -3,7 +3,6 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 에이전트 가이드(구조, 컨벤션, 워크플로우)는 [AGENTS.md](./AGENTS.md)를 참조하세요.
-설계 문서: [`docs/ppt-generator.alps.md`](docs/ppt-generator.alps.md)
 
 ## Quick Reference
 

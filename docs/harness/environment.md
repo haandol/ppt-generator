@@ -77,7 +77,8 @@ Claude Code 외의 하니스에서도 동일한 워크플로우를 스킬처럼 
 Visual QA 를 사용하려면 Playwright 브라우저 바이너리가 필요합니다:
 
 ```bash
-uv sync --group visual-qa && playwright install chromium
+uv sync
+uv run playwright install chromium
 ```
 
 스크린샷 캡처만 서버에서 이뤄지고, 이미지에 대한 비전 분석·수정 JSON 생성은 클라이언트가 담당합니다. Playwright 미설치 시 나머지 기능에는 영향이 없습니다.

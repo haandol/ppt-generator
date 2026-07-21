@@ -1,77 +1,61 @@
-# 슬라이드 아웃라인 생성 (F1)
+# 슬라이드 아웃라인 생성
 
 Date: 2026-02-11
 
 ## Status
 
-Accepted (Updated: layout_type → layout_index, freeform/elements 제거, Claude Sonnet 4.6 Extended Thinking (medium) 사용, component_hint 추가, 개별 JSON 파일 저장 + JSONL/JSON legacy fallback)
+Accepted
 
 ## Context
 
-사용자가 주제를 입력하면 최적의 슬라이드 구성을 빠르게 얻을 수 있도록, LLM이 슬라이드 아웃라인 JSON을 자동 생성해야 한다.
+프레젠테이션 생성의 첫 단계는 주제와 발표 조건을 슬라이드 단위의 구조화된
+계획으로 바꾸는 일이다. 이 결과는 이후 디자인 생성과 편집의 공통 입력이므로,
+클라이언트가 생성한 필드가 검증 과정이나 후처리에서 유실되지 않아야 한다.
 
-파이프라인의 첫 단계로, 이 아웃라인은 이후 스크립트 생성(F2), HTML 슬라이드 생성(F3)의 공통 입력으로 사용된다. speaker_notes는 빈 문자열로 생성되며, F2에서 채워진다.
+아웃라인은 콘텐츠의 주제와 핵심 요점뿐 아니라 슬라이드 유형, 사용할 시각 구조,
+요소 수와 관계를 설명하는 레이아웃 방향, 발표자 노트를 함께 소유한다. 색상,
+폰트, 정확한 좌표와 크기는 디자인 단계의 책임으로 남긴다.
+
+## Decision Drivers
+
+- 생성 계약과 수신 검증 계약이 달라 생기는 데이터 유실을 방지해야 한다.
+- 아웃라인이 결정한 콘텐츠와 공간 방향을 디자인 단계가 다시 결정하지 않아야 한다.
+- 클라이언트가 재전송한 저장 결과도 동일한 계약으로 검증할 수 있어야 한다.
+- 발표 조건과 발표자 정보가 슬라이드 구조를 훼손하지 않고 반영되어야 한다.
 
 ## Decision
 
-`prepare_outline` / `ingest_outline` 도구 쌍을 구현하여, 주제와 슬라이드 수를 입력받아 LLM이 구조화된 JSON 아웃라인을 생성한다. 각 슬라이드에 `layout_index`(PPTX 템플릿 레이아웃 인덱스)와 `component_hint`(시각적 컴포넌트 유형)를 포함하여, HTML 슬라이드 생성 시 레이아웃 골격과 본문 구조를 결정한다.
+아웃라인 생성은 준비와 수신의 두 단계로 나눈다. 준비 단계는 프롬프트와 단일
+응답 스키마를 반환하고, 수신 단계는 같은 모델로 전체 응답을 엄격하게 검증한 뒤
+저장한다. 선언되지 않은 필드는 거부한다.
 
-### Technical Details
+각 슬라이드는 제목, 콘텐츠 요약, 컴포넌트 힌트, 슬라이드 유형, 레이아웃 계획,
+발표자 노트를 포함한다. 슬라이드 인덱스는 저장 결과를 다시 수신할 수 있도록
+허용하되, 서버가 최종 순서에 따라 정규화한다.
 
-- LLM 호출은 MCP 클라이언트가 담당 (서버는 prepare/ingest 로 프롬프트·스키마만 제공, [offload/0001](../offload/0001-client-llm-offload-plugin.md) 참조)
-- 프롬프트: 주제를 기반으로 구조화된 JSON 아웃라인 생성 요청
-- 출력 JSON 스키마: `{ slides: [{ slide_index, title, content_summary, layout_index, component_hint, speaker_notes: "" }] }`
-- 저장 형식: 개별 JSON 파일 (`outline/slide_01.json`, `outline/slide_02.json`, ...) — 슬라이드별 독립 파일, `slide_index` 명시 포함. 하위 호환: `outline.jsonl` → `outline.json` 순으로 fallback 지원
-- `layout_index`: PPTX 템플릿 레이아웃 인덱스 (0=제목, 22=범용 콘텐츠, 21=차트, 87=마무리). 알 수 없는 인덱스는 22로 폴백
-- `component_hint`: 본문 영역의 시각적 구조 힌트 (bullets, two_column, vs_comparison, step_cards, code_block, arch_diagram, pipeline, quote, summary_grid, agenda, info_cards, feature_list, cta, process_flow, quote_code, concept_list)
-- speaker_notes는 빈 문자열로 생성되며, 이후 design_doc 생성 단계에서 채워짐 (별도 스크립트 단계는 폐기, [script/0001](../script/0001-script-generation.md) 참조)
-- 슬라이드 수: `num_slides` 직접 지정 또는 `presentation_minutes` 기반 자동 계산 (1~2분당 1장)
-- **호출 전 필수 확인**: MCP 클라이언트는 호출 전에 사용자에게 `presentation_minutes`(발표 시간)와 `audience_type`(청중 유형)을 반드시 확인해야 함. 기본값 임의 사용 금지.
+발표자 정보가 있으면 제목 슬라이드의 콘텐츠 요약에 추가한다. 이 후처리는 다른
+필드를 그대로 보존해야 하며 레이아웃 계획이나 발표자 노트를 재작성하지 않는다.
 
-### MCP Tool Interface
+슬라이드 수는 명시값 또는 발표 시간으로 정한다. 클라이언트는 생성 전에 발표
+시간과 청중 유형을 사용자에게 확인한다.
 
-| 항목 | 값 |
-|------|-----|
-| Tool | `prepare_outline` → (클라이언트 LLM 생성) → `ingest_outline` |
-| 입력 | `topic: str`, `audience_type: str` ("general"/"technical"/"executive"), `presentation_minutes: int` (3~60), `num_slides: int` (0이면 자동 계산), `project_id: str` (선택) |
-| 출력 | 아웃라인 JSON 문자열 (speaker_notes 비어있음, project_id 포함) |
+## Alternatives Considered
 
-### Acceptance Criteria
-
-1. 주제를 입력하면 구조화된 슬라이드 아웃라인 JSON이 반환된다
-2. 각 슬라이드에 제목(title), 내용 요약(content_summary), 레이아웃 인덱스(layout_index), 컴포넌트 힌트(component_hint)가 포함된다
-3. speaker_notes는 빈 문자열이다
-4. project_id가 자동 생성되어 `~/.ppt-generator/<UUID>/`에 결과물이 저장된다
-
-### Out of Scope
-
-- 문서/PDF 업로드 기반 아웃라인 생성 (Phase 2)
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant Client as MCP Client
-    participant Server as MCP Server
-    participant LLM as 클라이언트 LLM
-
-    User->>Client: "클라우드 트렌드 5장 발표자료"
-    Client->>Server: prepare_outline(topic, audience, minutes)
-    Server-->>Client: 프롬프트 + 출력 스키마
-    Client->>LLM: 아웃라인 생성 요청
-    LLM-->>Client: 슬라이드 아웃라인 JSON (speaker_notes 비어있음)
-    Client->>Server: ingest_outline(outline_json)
-    Server->>Server: 검증 후 개별 파일 저장
-    Server-->>Client: 아웃라인 반환 (project_id 포함)
-```
+| 대안 | 판단 |
+|------|------|
+| 준비 단계는 느슨한 JSON 예시만 제공하고 수신 단계에서 필요한 필드만 추출 | 계약 불일치와 조용한 필드 유실을 만들기 때문에 제외 |
+| 레이아웃 계획과 발표자 노트를 후속 전용 단계에서 생성 | 파이프라인 호출 수가 늘고 콘텐츠 계획이 분산되므로 제외 |
+| 준비와 수신이 하나의 엄격한 모델을 공유 | 계약 드리프트를 즉시 실패로 드러내고 필드 보존을 보장하므로 채택 |
 
 ## Consequences
 
-- 이후 design_doc 생성·HTML 슬라이드 생성의 공통 입력으로 사용된다
-- 주제가 너무 모호한 경우 LLM이 합리적으로 해석하여 생성한다
-- 빈 주제 입력 시 입력 검증 후 에러 반환한다
-- LLM이 유효하지 않은 JSON 반환 시 재시도 또는 에러 반환한다
+- 클라이언트는 반환된 응답 스키마의 모든 필수 필드를 생성해야 한다.
+- 잘못된 형식이나 부분 응답은 저장 전에 명시적으로 거부된다.
+- 디자인 단계는 아웃라인의 콘텐츠, 요소 구성, 공간 방향을 입력으로 받아 좌표와
+  스타일만 결정한다.
+- 아웃라인 계약 변경은 준비 응답과 수신 검증에 동시에 반영된다.
 
 ## Related
 
-- [offload/0001](../offload/0001-client-llm-offload-plugin.md) — outline 생성의 LLM 호출이 prepare/ingest 로 분리됨
-- [script/0001](../script/0001-script-generation.md) — speaker_notes 를 채우던 별도 스크립트 단계(폐기)
+- [레이아웃 계획](./0004-layout-planning-phase.md)
+- [클라이언트 LLM 오프로딩](../offload/0001-client-llm-offload-plugin.md)

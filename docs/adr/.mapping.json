@@ -1,11 +1,12 @@
 {
   "version": 2,
-  "lastSyncedAt": "2026-06-15T00:00:00Z",
+  "lastSyncedAt": "2026-07-21T00:00:00Z",
   "categories": {
     "outline": {
       "codePaths": [
         "src/ppt_generator/tools/outline/**",
         "src/ppt_generator/interfaces/prompts/outline_*",
+        "src/ppt_generator/interfaces/json_schemas.py",
         "tests/outline/**",
         "tests/test_outline_*.py"
       ],
@@ -97,6 +98,7 @@
         "src/ppt_generator/interfaces/utils.py",
         "src/ppt_generator/interfaces/constants.py",
         "src/ppt_generator/interfaces/protocols.py",
+        "tests/project/**",
         "tests/test_project_*.py"
       ],
       "description": "파이프라인 인프라 — 결과물 저장, 진행률 보고, MCP 서버 안정성, DI 컨테이너. (토큰/비용 추적은 offload/0001 로 제거됨)"

@@ -284,7 +284,7 @@ def handle_finalize_design_spec(
         "project_id": project_id,
         "visual_qa_suggestion": (
             "Visual QA를 실행하면 시각적 결함(줄바꿈, 겹침, 잘림 등)을 자동 감지하고 수정합니다. "
-            f"실행하려면 prepare_visual_qa(project_id='{project_id}') 를 호출하세요."
+            f"실행하려면 capture_slides(project_id='{project_id}') 를 호출하세요."
         ),
         "design_doc_suggestion": (
             "디자인 의도(전역 톤, 페이지별 특별 요청)는 DESIGN.md 에서 관리합니다. "
@@ -296,7 +296,7 @@ def handle_finalize_design_spec(
         resp["lint_suggestion"] = (
             f"디자인 lint에서 {lint_result_dict['total_violations']}건의 위반이 발견되었습니다. "
             "위반 내용을 확인하고, 수정이 필요하면 해당 슬라이드를 "
-            "prepare_update_slide/ingest_update_slide 로 수정하세요."
+            "prepare_slide_edit(action='update')/ingest_slide_edit 로 수정하세요."
         )
     if cross_layer_errors:
         resp["cross_layer_errors"] = cross_layer_errors

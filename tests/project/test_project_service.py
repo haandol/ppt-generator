@@ -366,6 +366,35 @@ class TestResolveProjectDir:
         assert project_dir == tmp_path / existing_id
         assert project_dir.exists()
 
+    @pytest.mark.parametrize(
+        "project_id",
+        [
+            "../escape",
+            "nested/project",
+            r"nested\project",
+            "/tmp/absolute",
+            ".",
+            "..",
+            " leading-space",
+            "a" * 129,
+        ],
+    )
+    def test_rejects_unsafe_project_id_before_creating_directory(
+        self,
+        project_service: ProjectService,
+        tmp_path: Path,
+        monkeypatch,
+        project_id: str,
+    ) -> None:
+        import ppt_generator.tools.project.service as svc_module
+
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        with pytest.raises(ValueError, match="Invalid project_id"):
+            project_service.resolve_project_dir(project_id)
+
+        assert list(tmp_path.iterdir()) == []
+
 
 class TestListProjects:
     def test_empty_home(

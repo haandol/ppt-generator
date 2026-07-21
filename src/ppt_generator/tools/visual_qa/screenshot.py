@@ -46,9 +46,12 @@ def capture_screenshots(
                         "height": VISUAL_QA_VIEWPORT_HEIGHT,
                     },
                 )
-                page.goto(f"file://{html_file.resolve()}")
-                page.wait_for_load_state("networkidle")
-                page.screenshot(path=str(png_path))
+                timeout_ms = max(1, SCREENSHOT_TIMEOUT * 1000)
+                page.set_default_timeout(timeout_ms)
+                page.set_default_navigation_timeout(timeout_ms)
+                page.goto(f"file://{html_file.resolve()}", timeout=timeout_ms)
+                page.wait_for_load_state("networkidle", timeout=timeout_ms)
+                page.screenshot(path=str(png_path), timeout=timeout_ms)
                 browser.close()
             logger.info("스크린샷 캡처: %s", png_path)
             return idx, png_path
@@ -64,7 +67,9 @@ def capture_screenshots(
     logger.info(
         "스크린샷 캡처 시작: %d슬라이드 (workers=%d)", len(indices), VISUAL_QA_PARALLEL
     )
-    with ThreadPoolExecutor(max_workers=VISUAL_QA_PARALLEL) as pool:
+    pool = ThreadPoolExecutor(max_workers=VISUAL_QA_PARALLEL)
+    futures = []
+    try:
         futures = [(idx, pool.submit(_capture_one, idx)) for idx in indices]
         for idx, future in futures:
             try:
@@ -78,6 +83,11 @@ def capture_screenshots(
                 path = None
             if path is not None:
                 results[idx] = path
+    finally:
+        for _, future in futures:
+            future.cancel()
+        # 실행 중인 브라우저 작업이 멈춰도 MCP 호출은 timeout 뒤 반환해야 한다.
+        pool.shutdown(wait=False, cancel_futures=True)
     logger.info("스크린샷 캡처 완료: %d/%d 성공", len(results), len(indices))
 
     return results

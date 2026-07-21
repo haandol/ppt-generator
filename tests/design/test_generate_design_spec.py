@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from ppt_generator.interfaces.llm_output_models import DesignDocDraftOutput
 from ppt_generator.interfaces.schemas import (
     OutlineResponse,
     PptxParagraph,
@@ -382,6 +383,13 @@ class TestGenerateSlidesDesignSpec:
         assert result["success_count"] == 1
         assert result["error_count"] == 0
         assert result["slide_count"] == 1
+        suggestion = result["finalize"]["visual_qa_suggestion"]
+        assert "capture_slides" in suggestion
+        assert "prepare_visual_qa" not in suggestion
+        if "lint_suggestion" in result["finalize"]:
+            lint_suggestion = result["finalize"]["lint_suggestion"]
+            assert "prepare_slide_edit" in lint_suggestion
+            assert "prepare_update_slide" not in lint_suggestion
 
     def test_batch_auto_generates_project_id(
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
@@ -862,29 +870,51 @@ class TestIngestDesignDocDraft:
     LLM 호출 없이 순수 파싱만 하므로 DesignService() 를 직접 인스턴스화해 검증한다.
     """
 
+    @staticmethod
+    def _payload(
+        *,
+        background_color: str = "#0B1020",
+        tone: str = "고객 대상, 여백을 넉넉히.",
+        page_requests: list[dict] | None = None,
+    ) -> dict:
+        return {
+            "theme": {
+                "background_color": background_color,
+                "text_colors": ["#FFFFFF", "#A0AEC0"],
+                "title_font_pt": 34,
+                "body_font_pt": 18,
+                "card_fills": ["#15203A"],
+                "card_borders": [],
+                "header_region": {"top_px": 64, "height_px": 64},
+                "content_region": {"top_px": 148, "height_px": 508},
+                "footer_region": {"top_px": 664, "height_px": 24},
+            },
+            "tone": tone,
+            "page_requests": page_requests or [],
+        }
+
+    def test_prepare_uses_same_pydantic_schema(self) -> None:
+        svc = DesignService()
+        outline = OutlineResponse(
+            slides=[SlideOutline(title="표지", content_summary="발표 개요")]
+        )
+
+        task = svc.prepare_design_doc_draft(outline)
+
+        assert task["response_schema"] == DesignDocDraftOutput.model_json_schema()
+
     def test_parses_theme_tone_and_page_requests(self) -> None:
         payload = json.dumps(
-            {
-                "theme": {
-                    "background_color": "#0B1020",
-                    "text_colors": ["#FFFFFF", "#A0AEC0"],
-                    "title_font_pt": 34,
-                    "body_font_pt": 18,
-                    "card_fills": ["#15203A"],
-                    "card_borders": [],
-                    "header_region": {"top_px": 64, "height_px": 64},
-                    "content_region": {"top_px": 148, "height_px": 508},
-                    "footer_region": {"top_px": 664, "height_px": 24},
-                },
-                "tone": "고객 대상, 여백을 넉넉히. 표지에서 크게 열고 제안에서 전환.",
-                "page_requests": [
+            self._payload(
+                tone="고객 대상, 여백을 넉넉히. 표지에서 크게 열고 제안에서 전환.",
+                page_requests=[
                     {
                         "number": 3,
                         "title": "제안",
                         "request": "풀블리드 한 문장으로 전환점을 강조.",
                     }
                 ],
-            },
+            ),
             ensure_ascii=False,
         )
         svc = DesignService()
@@ -901,7 +931,7 @@ class TestIngestDesignDocDraft:
     def test_handles_json_fence(self) -> None:
         payload = (
             "```json\n"
-            + json.dumps({"theme": {"background_color": "#111111"}, "tone": "x"})
+            + json.dumps(self._payload(background_color="#111111", tone="x"))
             + "\n```"
         )
         svc = DesignService()
@@ -911,39 +941,30 @@ class TestIngestDesignDocDraft:
         assert page_requests == []
 
     def test_empty_page_requests_is_valid(self) -> None:
-        payload = json.dumps(
-            {
-                "theme": {"background_color": "#222"},
-                "tone": "절제된 톤",
-                "page_requests": [],
-            }
-        )
+        payload = json.dumps(self._payload(tone="절제된 톤"))
         svc = DesignService()
         _, _, page_requests = svc.ingest_design_doc_draft(payload)
         assert page_requests == []
 
-    def test_malformed_page_request_entries_skipped(self) -> None:
+    def test_rejects_malformed_page_request(self) -> None:
         payload = json.dumps(
-            {
-                "theme": {"background_color": "#333"},
-                "tone": "",
-                "page_requests": [
-                    {"number": 2, "title": "현황", "request": ""},  # 빈 request → 스킵
-                    {
-                        "number": "nope",
-                        "title": "현황",
-                        "request": "유효",
-                    },  # 번호 비정수
-                    "garbage",  # dict 아님 → 스킵
-                ],
-            }
+            self._payload(
+                page_requests=[
+                    {"number": "nope", "title": "현황", "request": "유효"},
+                ]
+            )
         )
         svc = DesignService()
-        _, _, page_requests = svc.ingest_design_doc_draft(payload)
-        # 빈 request 와 garbage 는 빠지고, 번호 비정수 1건만 number=None 으로 남는다.
-        assert len(page_requests) == 1
-        assert page_requests[0].number is None
-        assert page_requests[0].text == "유효"
+        with pytest.raises(ValueError, match="number"):
+            svc.ingest_design_doc_draft(payload)
+
+    def test_rejects_overlapping_regions(self) -> None:
+        payload = self._payload()
+        payload["theme"]["content_region"]["top_px"] = 100
+        svc = DesignService()
+
+        with pytest.raises(ValueError, match="overlaps"):
+            svc.ingest_design_doc_draft(json.dumps(payload))
 
 
 class TestIngestSlideTypeInvariance:

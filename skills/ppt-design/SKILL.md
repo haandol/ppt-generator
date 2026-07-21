@@ -19,7 +19,7 @@ description: Generate the design spec (per-slide layout/style) for a deck via th
 1. `mcp__ppt-generator__prepare_design_doc_draft(project_id, color_theme)` 호출.
    - `{"skip": true}` 가 오면 이미 DESIGN.md 가 있는 것 — 그대로 재사용하고 이 단계를 건너뛴다.
    - 아니면 `system_prompt`, `user_prompt` 를 받아 **네가** 초안 JSON(theme + tone + page_requests)을
-     프롬프트의 output_format 대로 생성한다.
+     반환된 `response_schema` 에 정확히 맞춰 생성한다.
 2. `mcp__ppt-generator__ingest_design_doc_draft(project_id, draft_json, color_theme)` 호출 — DESIGN.md 저장.
 
 사용자가 직접 DESIGN.md 를 편집했다면 이 단계를 건너뛰고 편집본을 그대로 쓴다.

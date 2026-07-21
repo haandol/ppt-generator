@@ -31,7 +31,7 @@ git clone https://github.com/haandol/ppt-generator.git
 cd ppt-generator
 uv sync
 # Visual QA 를 쓸 거면
-uv sync --group visual-qa && playwright install chromium
+uv run playwright install chromium
 ```
 
 등록에 쓸 커맨드는 아래와 같다. `/path/to/ppt-generator` 를 실제 클론 경로로 바꾼다.

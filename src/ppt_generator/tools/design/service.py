@@ -34,6 +34,7 @@ from ppt_generator.interfaces.llm_output_models import (
     BackfillNode,
     ComponentModifyOutput,
     ContentSlideSpecOutput,
+    DesignDocDraftOutput,
     SimpleSlideSpecOutput,
     _BaseSlideSpecOutput,
     shape_output_to_dataclass,
@@ -174,8 +175,7 @@ class DesignService:
     ) -> dict:
         """DESIGN.md 초안(수치 테마 + 톤 + 선별적 페이지 요청) 생성 태스크를 조립한다.
 
-        출력은 프롬프트가 정의하는 자유형 JSON 이므로 엄격한 Pydantic 스키마를 강제하지
-        않는다 (response_schema 없음). 클라이언트는 프롬프트의 output_format 을 따른다.
+        prepare 와 ingest 가 동일한 Pydantic 출력 모델을 사용한다.
         """
         outline_json = self._outline_summary_json(outline)
         prompt = DESIGN_DOC_DRAFT_USER_PROMPT_TEMPLATE.format(
@@ -186,13 +186,14 @@ class DesignService:
         return build_llm_task(
             system_prompt=DESIGN_SPEC_SYSTEM_PROMPTS["content"],
             user_prompt=prompt,
+            response_schema=DesignDocDraftOutput.model_json_schema(),
         )
 
     def ingest_design_doc_draft(self, draft_text: str) -> tuple[dict, str, list]:
         """클라이언트가 생성한 DESIGN.md 초안 JSON 을 파싱한다.
 
-        기존 generate_design_doc_draft 의 파싱과 동일 — 부분/불량 응답에도
-        가능한 만큼 복구한다.
+        prepare 에서 반환한 동일 Pydantic 모델로 검증한다. Markdown JSON fence 는
+        클라이언트 호환을 위해 허용한다.
 
         Returns:
             (design_summary, tone, page_requests)
@@ -203,33 +204,24 @@ class DesignService:
         json_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", raw_text, re.DOTALL)
         if json_match:
             raw_text = json_match.group(1)
-        data = json.loads(raw_text.strip())
-
-        summary = data.get("theme") or {}
-        if not isinstance(summary, dict):
-            summary = {}
-        tone = data.get("tone") or ""
-        if not isinstance(tone, str):
-            tone = ""
-
-        page_requests: list = []
-        for item in data.get("page_requests") or []:
-            if not isinstance(item, dict):
-                continue
-            number = item.get("number")
-            number = number if isinstance(number, int) else None
-            title = str(item.get("title") or "").strip()
-            text = str(item.get("request") or "").strip()
-            if not text:
-                continue
-            page_requests.append(PageRequest(number=number, title=title, text=text))
+        output = self._validate(DesignDocDraftOutput, raw_text.strip())
+        summary = output.theme.model_dump()
+        tone = output.tone.strip()
+        page_requests = [
+            PageRequest(
+                number=item.number,
+                title=item.title.strip(),
+                text=item.request.strip(),
+            )
+            for item in output.page_requests
+        ]
 
         logger.info(
             "design_doc draft ingested: tone=%dchars, page_requests=%d",
             len(tone),
             len(page_requests),
         )
-        return summary, tone.strip(), page_requests
+        return summary, tone, page_requests
 
     @staticmethod
     def extract_design_summary(spec: PptxSlideSpec) -> dict:

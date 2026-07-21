@@ -11,13 +11,14 @@ LLM 호출을 클라이언트로 오프로딩했다. 이 서비스는 두 단계
 """
 
 import logging
+from dataclasses import replace
 
 from ppt_generator.interfaces.constants import (
-    OUTLINE_JSON_SCHEMA,
     OUTLINE_SYSTEM_PROMPT,
     OUTLINE_USER_PROMPT_TEMPLATE,
 )
 from ppt_generator.interfaces.handoff import build_llm_task
+from ppt_generator.interfaces.llm_output_models import OutlineOutput
 from ppt_generator.interfaces.schemas import (
     OutlineRequest,
     OutlineResponse,
@@ -48,7 +49,7 @@ class OutlineService:
         return build_llm_task(
             system_prompt=OUTLINE_SYSTEM_PROMPT,
             user_prompt=user_prompt,
-            response_schema=OUTLINE_JSON_SCHEMA,
+            response_schema=OutlineOutput.model_json_schema(),
         )
 
     def ingest(self, outline_text: str, request: OutlineRequest) -> OutlineResponse:
@@ -62,18 +63,14 @@ class OutlineService:
         Raises:
             ValueError: JSON 파싱 실패 또는 'slides' 배열 누락.
         """
-        data = self._parse_json(outline_text)
-        slides = self._build_slides(data)
+        output = self._parse_json(outline_text)
+        slides = self._build_slides(output)
         slides = self._inject_presenter_info(slides, request)
         return OutlineResponse(slides=slides)
 
-    def _parse_json(self, text: str) -> dict:
+    def _parse_json(self, text: str) -> OutlineOutput:
         data = extract_json_from_response(text)
-
-        if "slides" not in data or not isinstance(data["slides"], list):
-            raise ValueError("JSON does not contain a 'slides' array.")
-
-        return data
+        return OutlineOutput.model_validate(data)
 
     @staticmethod
     def _inject_presenter_info(
@@ -93,32 +90,23 @@ class OutlineService:
         for slide in slides:
             if slide.slide_type == "title":
                 new_summary = f"{slide.content_summary}. {presenter_line}"
-                result.append(
-                    SlideOutline(
-                        title=slide.title,
-                        content_summary=new_summary,
-                        component_hint=slide.component_hint,
-                        speaker_notes=slide.speaker_notes,
-                        slide_type=slide.slide_type,
-                        slide_index=slide.slide_index,
-                    )
-                )
+                result.append(replace(slide, content_summary=new_summary))
             else:
                 result.append(slide)
         return result
 
-    def _build_slides(self, data: dict) -> list[SlideOutline]:
+    def _build_slides(self, output: OutlineOutput) -> list[SlideOutline]:
         slides: list[SlideOutline] = []
-        for i, item in enumerate(data["slides"]):
-            component_hint = item.get("component_hint", "bullets")
-
+        for i, item in enumerate(output.slides):
             slides.append(
                 SlideOutline(
-                    title=item.get("title", ""),
-                    content_summary=item.get("content_summary", ""),
-                    component_hint=component_hint,
-                    slide_type=item.get("slide_type", "content"),
+                    title=item.title,
+                    content_summary=item.content_summary,
+                    component_hint=item.component_hint,
+                    speaker_notes=item.speaker_notes,
+                    slide_type=item.slide_type,
                     slide_index=i,
+                    layout_plan=item.layout_plan,
                 )
             )
         return slides

@@ -1,48 +1,59 @@
-# MCP Server Stability Improvements
+# MCP 서버 안정성과 제한 시간
 
-**Status**: Accepted (verified 2026-05-26: _make_progress_reporter + ThreadPoolExecutor future.result(timeout=…) 정착)
-**Date**: 2026-04-15
+Date: 2026-04-15
+
+## Status
+
+Accepted
 
 ## Context
 
-MCP 서버(stdio transport)가 도구 실행 중 반복적으로 연결 해제(disconnect)되는 문제가 발생한다. 주요 원인 분석 결과 다음 5가지 취약점이 확인되었다:
+stdio 기반 MCP 서버에서 진행 보고, 병렬 작업, 브라우저 자동화가 무기한 대기하면
+클라이언트는 서버 연결이 끊긴 것으로 인식한다. 특히 작업 future에만 제한 시간을
+적용해도 executor 종료가 완료되지 않은 worker를 기다리면 호출 반환은 계속
+지연된다. 브라우저 내부 작업에도 별도 제한 시간이 없으면 worker 자체가 오래
+남을 수 있다.
 
-1. **Event Loop 동기화 문제**: `_make_progress_reporter()`에서 `asyncio.get_running_loop()`으로 캡처한 loop 참조를 worker thread에서 `call_soon_threadsafe`로 사용하는데, task 생성 실패 시 예외가 전파되지 않고 서버가 불안정해짐
-2. **서버 예외 처리 부재**: `server.py`의 `mcp.run()`에 top-level 예외 처리가 없어 초기화 실패 시 조용히 종료됨
-3. **ThreadPoolExecutor 타임아웃 부재**: 병렬 디자인 생성 및 Visual QA에서 LLM 호출이 hang되면 stdio 통신이 블로킹됨
-4. **Playwright 리소스 누수**: Visual QA에서 예외 발생 시 `future.result()` 호출에 타임아웃이 없어 스레드가 무한 대기할 수 있음
-5. **Graceful shutdown 부재**: SIGTERM/SIGINT 처리가 없어 비정상 종료 시 리소스가 정리되지 않음
+## Decision Drivers
+
+- 개별 작업이 멈춰도 MCP 호출이 제한 시간 안에 반환되어야 한다.
+- 한 슬라이드의 실패가 다른 슬라이드 처리를 막지 않아야 한다.
+- 닫힌 이벤트 루프나 종료 중 진행 보고가 서버 프로세스를 중단시키지 않아야 한다.
+- 브라우저와 worker 리소스를 정상 경로와 예외 경로 모두에서 정리해야 한다.
 
 ## Decision
 
-### 1. Progress Reporter 안전성 강화 (`generation.py`)
+병렬 작업은 개별 future에 제한 시간을 적용한다. 시간 초과가 발생하면 완료되지
+않은 작업을 취소하고, executor가 실행 중인 worker 종료를 기다리지 않도록
+종료한다. 따라서 호출자는 정지한 브라우저 작업의 완료를 기다리지 않고 오류를
+받을 수 있다.
 
-`_make_progress_reporter()`에서 `loop.call_soon_threadsafe(loop.create_task, ...)`를 try/except로 감싸 loop가 이미 닫힌 경우 예외를 무시하도록 한다. RuntimeError를 잡아 로그만 남기고 서버 크래시를 방지한다.
+Visual QA는 외부 future 제한 시간뿐 아니라 페이지 생성, 탐색, 로드 대기,
+스크린샷 같은 Playwright 작업에도 같은 제한 시간을 적용한다. 시간 초과한
+슬라이드는 오류로 기록하고 나머지 슬라이드는 계속 처리한다.
 
-### 2. 서버 메인 루프 예외 처리 (`server.py`)
+진행 보고는 캡처한 이벤트 루프가 닫혔거나 task 예약에 실패해도 예외를 서버
+주 흐름으로 전파하지 않는다. 서버 주 루프는 예상하지 못한 예외를 기록하며,
+종료 신호를 받아 실행 중 리소스를 정리한다.
 
-`main()`에서 `mcp.run()` 호출을 try/except로 감싸고, 예상치 못한 예외를 로깅한 후 정상 종료되도록 한다.
+## Alternatives Considered
 
-### 3. ThreadPoolExecutor future에 타임아웃 추가
-
-- `parallel_runner.py`: `future.result(timeout=DESIGN_SPEC_TIMEOUT)`으로 개별 슬라이드 생성에 타임아웃을 건다 (기본 300초).
-- `screenshot.py`: `future.result(timeout=SCREENSHOT_TIMEOUT)`으로 스크린샷 캡처에 타임아웃을 건다 (기본 60초).
-- `service.py` (Visual QA): `asyncio.to_thread` 호출을 `asyncio.wait_for()`로 감싸 전체 phase별 타임아웃을 건다.
-
-### 4. Graceful shutdown 시그널 핸들링 (`server.py`)
-
-SIGTERM/SIGINT에 대한 핸들러를 등록하여 `mcp.run()` 루프를 안전하게 종료하도록 한다.
-
-### 5. 타임아웃 상수 추가 (`constants.py`)
-
-새로운 타임아웃 상수를 `constants.py`에 추가:
-- `DESIGN_SPEC_TIMEOUT`: 300초 (개별 슬라이드 디자인 생성)
-- `SCREENSHOT_TIMEOUT`: 60초 (개별 스크린샷 캡처)
-- `VISUAL_QA_PHASE_TIMEOUT`: 600초 (Visual QA 전체 phase)
+| 대안 | 판단 |
+|------|------|
+| 제한 시간 없이 작업 완료를 기다림 | 한 worker가 전체 MCP 연결을 막을 수 있어 제외 |
+| future에만 제한 시간을 두고 executor의 기본 대기 종료 사용 | 시간 초과 후에도 호출 반환이 지연되어 제외 |
+| future와 브라우저 작업에 제한 시간을 두고 비대기 종료 | 호출 응답성과 부분 실패 격리를 보장해 채택 |
 
 ## Consequences
 
-- 개별 슬라이드 생성이나 스크린샷 캡처가 hang되어도 서버가 정상 동작을 유지
-- event loop 닫힌 후의 progress report 시도가 서버 크래시를 유발하지 않음
-- 시그널 핸들링으로 프로세스 종료 시 리소스가 정리됨
-- 타임아웃 초과 시 해당 슬라이드만 에러로 처리되고 나머지는 정상 진행
+- 정지한 스크린샷 작업이 있어도 호출이 제한 시간 근처에서 반환된다.
+- 실행 중인 worker는 취소 요청 직후 즉시 중단되지 않을 수 있으므로 Playwright
+  자체 제한 시간이 최종 종료 상한을 제공한다.
+- 일부 슬라이드가 실패해도 완료된 결과는 반환할 수 있다.
+- 너무 짧은 제한 시간은 정상적인 느린 환경을 실패로 처리할 수 있어 운영 환경에
+  맞춘 설정이 필요하다.
+
+## Related
+
+- [Visual QA 파이프라인](../visual-qa/0001-visual-qa-pipeline.md)
+- [클라이언트 LLM 오프로딩](../offload/0001-client-llm-offload-plugin.md)

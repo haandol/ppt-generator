@@ -7,8 +7,7 @@
 | Schema                                          | 용도                                                                           |
 | ----------------------------------------------- | ------------------------------------------------------------------------------ |
 | `OutlineRequest` / `OutlineResponse`            | 아웃라인 생성 입출력 (topic, num_slides → slides)                              |
-| `ScriptRequest` / `ScriptResponse`              | 스크립트 생성 입출력 (outline → slides)                                        |
-| `SlideOutline`                                  | 개별 슬라이드 아웃라인 (title, content_summary, component_hint, speaker_notes, slide_index) |
+| `SlideOutline`                                  | 개별 슬라이드 아웃라인 (title, content_summary, component_hint, slide_type, layout_plan, speaker_notes, slide_index) |
 | `SlidesResponse`                                | HTML 슬라이드 생성 출력 (session_id, html)                                     |
 | `ExportPptxResponse`                            | PPTX 내보내기 출력 (pptx_path)                                                 |
 | `PptxTextRun` / `PptxParagraph` / `PptxTextBox` | PPTX 텍스트 요소                                                               |
@@ -20,21 +19,23 @@
 
 | Schema                              | 용도                                                                                           |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `SlideSpecOutput`                   | strands `structured_output_model`용 Pydantic 모델. `to_dataclass()`로 `PptxSlideSpec`으로 변환 |
+| `OutlineOutput` / `SlideOutlineOutput` | 아웃라인 prepare 응답 스키마와 ingest 검증에 함께 사용하는 엄격한 모델                      |
+| `DesignDocDraftOutput`              | DESIGN.md 초안 prepare 응답 스키마와 ingest 검증에 함께 사용하는 엄격한 모델                  |
+| `SlideSpecOutput`                   | 슬라이드 prepare 응답 스키마와 ingest 검증에 사용하는 Pydantic 모델. `to_dataclass()`로 `PptxSlideSpec`으로 변환 |
 | `TextRunOutput` / `ParagraphOutput` | LLM 출력용 텍스트 런/단락                                                                      |
 | `TextBoxOutput` / `ShapeOutput`     | LLM 출력용 텍스트박스/도형                                                                     |
 | `VisualQAIssue` / `VisualQAOutput`  | Visual QA 분석 결과 (이슈 타입, 심각도, 수정 제안)                                             |
 
-## 슬라이드 아웃라인/스크립트 저장
+## 슬라이드 아웃라인 저장
 
-아웃라인과 스크립트는 개별 JSON 파일로 저장됩니다. `outline/slide_01.json`, `script/slide_01.json` 형식이며, `slide_index`가 명시적으로 포함됩니다. Legacy fallback으로 JSONL(`outline.jsonl`) → JSON(`outline.json`) 순서로 지원합니다.
+아웃라인은 개별 JSON 파일로 저장됩니다. `outline/slide_01.json` 형식이며, `slide_index`가 명시적으로 포함됩니다. Legacy fallback으로 JSONL(`outline.jsonl`) → JSON(`outline.json`) 순서로 지원합니다.
 
 ```json
 // outline/slide_01.json
-{"slide_index": 0, "title": "슬라이드 제목", "content_summary": "슬라이드에 담길 핵심 내용 요약", "component_hint": "bullets", "speaker_notes": "", "slide_type": "title"}
+{"slide_index": 0, "title": "슬라이드 제목", "content_summary": "슬라이드에 담길 핵심 내용 요약", "component_hint": "bullets", "slide_type": "title", "layout_plan": "제목을 중앙에 배치하고 핵심 메시지를 한 줄로 강조", "speaker_notes": "발표를 시작하며 주제와 목적을 소개합니다."}
 ```
 
-개별 슬라이드 접근: `load_outline_slide(project_id, slide_index)`, `load_script_slide(project_id, slide_index)`
+개별 슬라이드 저장·수정은 `save_outline_slide(project_id, slide_index, ...)`를 사용하고, 전체 내용 조회는 `load_outline(project_id, include_content=true)`를 사용합니다.
 
 ## component_hint
 

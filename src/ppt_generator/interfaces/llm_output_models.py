@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ppt_generator.interfaces.schemas import (
     DesignDoc,
@@ -24,6 +24,86 @@ from ppt_generator.interfaces.schemas import (
     PptxTextBox,
     PptxTextRun,
 )
+
+
+class SlideOutlineOutput(BaseModel):
+    """클라이언트가 생성하는 단일 슬라이드 아웃라인."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str
+    content_summary: str
+    component_hint: str
+    slide_type: Literal["title", "closing", "content"]
+    layout_plan: str
+    speaker_notes: str
+    slide_index: int | None = None
+
+
+class OutlineOutput(BaseModel):
+    """클라이언트가 생성하는 전체 아웃라인."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    slides: list[SlideOutlineOutput]
+
+
+class DesignRegionOutput(BaseModel):
+    """덱 전체가 공유하는 세로 영역."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    top_px: float = Field(ge=0)
+    height_px: float = Field(gt=0)
+
+
+class DesignThemeOutput(BaseModel):
+    """DESIGN.md 초안의 수치 디자인 시스템."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    background_color: str
+    text_colors: list[str]
+    title_font_pt: int = Field(ge=28, le=36)
+    body_font_pt: int = Field(ge=16, le=22)
+    card_fills: list[str]
+    card_borders: list[str]
+    header_region: DesignRegionOutput
+    content_region: DesignRegionOutput
+    footer_region: DesignRegionOutput
+
+    @model_validator(mode="after")
+    def validate_region_order(self) -> "DesignThemeOutput":
+        header_bottom = self.header_region.top_px + self.header_region.height_px
+        content_bottom = self.content_region.top_px + self.content_region.height_px
+        footer_bottom = self.footer_region.top_px + self.footer_region.height_px
+        if header_bottom > self.content_region.top_px:
+            raise ValueError("header_region overlaps content_region")
+        if content_bottom > self.footer_region.top_px:
+            raise ValueError("content_region overlaps footer_region")
+        if footer_bottom > 688:
+            raise ValueError("footer_region exceeds the 688px safe area")
+        return self
+
+
+class DesignPageRequestOutput(BaseModel):
+    """특정 슬라이드에만 적용할 디자인 요청."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    number: int = Field(ge=1)
+    title: str = Field(min_length=1)
+    request: str = Field(min_length=1)
+
+
+class DesignDocDraftOutput(BaseModel):
+    """DESIGN.md 초안 생성 단계의 전체 출력."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    theme: DesignThemeOutput
+    tone: str
+    page_requests: list[DesignPageRequestOutput]
 
 
 class TextRunOutput(BaseModel):

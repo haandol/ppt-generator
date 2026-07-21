@@ -10,6 +10,8 @@ prepare(태스크 조립)/ingest(클라이언트 JSON 검증·후처리)만 담�
 
 from dataclasses import replace
 from pathlib import Path
+from threading import Event
+from time import monotonic
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -119,6 +121,43 @@ class TestVisualQAServiceCapture:
         ):
             result = svc.capture_screenshots(tmp_path, [0])
             assert result == {}
+
+    def test_timeout_returns_without_waiting_for_worker(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """worker가 멈춰도 executor shutdown이 MCP 호출을 다시 블로킹하지 않는다."""
+        import ppt_generator.tools.visual_qa.screenshot as screenshot_module
+
+        slides_dir = tmp_path / "slides"
+        slides_dir.mkdir()
+        (slides_dir / "slide_01.html").write_text("<html></html>")
+
+        release_worker = Event()
+        mock_pw_ctx = MagicMock()
+        mock_pw_ctx.__enter__ = MagicMock(return_value=mock_pw_ctx)
+        mock_pw_ctx.__exit__ = MagicMock(return_value=False)
+
+        def _blocked_launch(*, headless: bool):
+            release_worker.wait(timeout=1)
+            return MagicMock()
+
+        mock_pw_ctx.chromium.launch.side_effect = _blocked_launch
+        monkeypatch.setattr(screenshot_module, "SCREENSHOT_TIMEOUT", 0.01)
+        monkeypatch.setattr(screenshot_module, "VISUAL_QA_PARALLEL", 1)
+
+        try:
+            started = monotonic()
+            with patch(
+                "ppt_generator.tools.visual_qa.screenshot.sync_playwright",
+                return_value=mock_pw_ctx,
+            ):
+                result = VisualQAService.capture_screenshots(tmp_path, [0])
+            elapsed = monotonic() - started
+
+            assert result == {}
+            assert elapsed < 0.1
+        finally:
+            release_worker.set()
 
 
 class TestVisualQAServiceAnalyze:

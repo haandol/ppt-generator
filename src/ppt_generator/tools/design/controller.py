@@ -63,8 +63,8 @@ def register_design_tools(
 
         No LLM call. If DESIGN.md already exists, returns {"skip": true} — reuse the
         existing design intent (do not regenerate). Otherwise returns system_prompt,
-        user_prompt, and project_id. **Generate the draft JSON (theme + tone +
-        page_requests) following the prompt's output_format, then call
+        user_prompt, response_schema, and project_id. **Generate the draft JSON
+        (theme + tone + page_requests) matching response_schema, then call
         `ingest_design_doc_draft`.**
 
         Call this ONCE before generating slides, so every slide shares one design
@@ -76,7 +76,8 @@ def register_design_tools(
             color_theme: Color theme ("dark" or "light", default: "dark").
 
         Returns:
-            JSON with system_prompt, user_prompt, project_id, color_theme — or {"skip": true}.
+            JSON with system_prompt, user_prompt, response_schema, project_id,
+            color_theme — or {"skip": true}.
         """
         return handle_prepare_design_doc_draft(
             deps,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import shutil
 import uuid
 from datetime import datetime, timezone
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 _log_dir: str | None = None
 _log_fmt: str = "%(asctime)s %(name)s %(levelname)s %(message)s"
 _active_handlers: dict[str, RotatingFileHandler] = {}
+_PROJECT_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
 
 class ProjectService:
@@ -43,6 +45,11 @@ class ProjectService:
         """project_id → (project_id, project_dir). 빈 값이면 UUID 자동 생성."""
         if not project_id:
             project_id = str(uuid.uuid4())
+        elif _PROJECT_ID_RE.fullmatch(project_id) is None:
+            raise ValueError(
+                "Invalid project_id. Use 1-128 ASCII letters, numbers, '.', '_', or "
+                "'-', starting with a letter or number."
+            )
         project_dir = PPT_GENERATOR_HOME / project_id
         project_dir.mkdir(parents=True, exist_ok=True)
         _maybe_add_project_log_handler(project_id)

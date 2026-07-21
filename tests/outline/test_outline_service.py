@@ -10,24 +10,40 @@ import json
 
 import pytest
 
+from ppt_generator.interfaces.llm_output_models import OutlineOutput
 from ppt_generator.interfaces.schemas import OutlineRequest
 from ppt_generator.tools.outline.service import OutlineService
+
+
+def _slide(
+    title: str,
+    content_summary: str,
+    *,
+    slide_type: str = "content",
+    layout_plan: str = "single column",
+    speaker_notes: str = "",
+) -> dict:
+    return {
+        "title": title,
+        "content_summary": content_summary,
+        "component_hint": "bullets",
+        "slide_type": slide_type,
+        "layout_plan": layout_plan,
+        "speaker_notes": speaker_notes,
+    }
+
 
 VALID_OUTLINE_JSON = json.dumps(
     {
         "slides": [
-            {
-                "title": "클라우드 컴퓨팅 트렌드",
-                "content_summary": "핵심 트렌드 소개, 시장 현황 개요",
-            },
-            {
-                "title": "멀티클라우드 전략",
-                "content_summary": "AWS, Azure, GCP 비교 및 하이브리드 접근 방식",
-            },
-            {
-                "title": "감사합니다",
-                "content_summary": "Q&A 시간",
-            },
+            _slide("클라우드 컴퓨팅 트렌드", "핵심 트렌드 소개, 시장 현황 개요"),
+            _slide(
+                "멀티클라우드 전략",
+                "AWS, Azure, GCP 비교 및 하이브리드 접근 방식",
+                layout_plan="horizontal 3 cards",
+                speaker_notes="세 클라우드의 장단점을 비교하겠습니다.",
+            ),
+            _slide("감사합니다", "Q&A 시간", slide_type="closing"),
         ]
     },
     ensure_ascii=False,
@@ -54,8 +70,7 @@ class TestOutlineServicePrepare:
         assert "system_prompt" in task
         assert "user_prompt" in task
         assert "response_schema" in task
-        # 스키마는 slides 배열을 요구한다.
-        assert "slides" in json.dumps(task["response_schema"])
+        assert task["response_schema"] == OutlineOutput.model_json_schema()
 
     def test_prepare_raises_on_empty_topic(self, service):
         request = OutlineRequest(
@@ -117,6 +132,10 @@ class TestOutlineServiceIngest:
             response.slides[1].content_summary
             == "AWS, Azure, GCP 비교 및 하이브리드 접근 방식"
         )
+        assert response.slides[1].layout_plan == "horizontal 3 cards"
+        assert (
+            response.slides[1].speaker_notes == "세 클라우드의 장단점을 비교하겠습니다."
+        )
 
     def test_ingest_parses_json_in_code_block(self, service):
         wrapped = f"여기 결과입니다:\n```json\n{VALID_OUTLINE_JSON}\n```"
@@ -135,24 +154,23 @@ class TestOutlineServiceIngest:
         with pytest.raises(ValueError, match="slides"):
             service.ingest('{"data": []}', request)
 
-    def test_ingest_handles_missing_optional_fields(self, service):
+    def test_ingest_rejects_fields_required_by_prepare_schema(self, service):
         data = {"slides": [{"title": "최소 슬라이드"}]}
         request = OutlineRequest(topic="스크립트 내용", num_slides=5)
-        response = service.ingest(json.dumps(data), request)
-
-        slide = response.slides[0]
-        assert slide.title == "최소 슬라이드"
-        assert slide.content_summary == ""
+        with pytest.raises(ValueError, match="content_summary"):
+            service.ingest(json.dumps(data), request)
 
     def test_ingest_injects_presenter_into_title_slide(self, service):
         data = {
             "slides": [
-                {
-                    "title": "표지",
-                    "content_summary": "발표 개요",
-                    "slide_type": "title",
-                },
-                {"title": "본문", "content_summary": "내용"},
+                _slide(
+                    "표지",
+                    "발표 개요",
+                    slide_type="title",
+                    layout_plan="centered title",
+                    speaker_notes="발표를 시작하겠습니다.",
+                ),
+                _slide("본문", "내용"),
             ]
         }
         request = OutlineRequest(
@@ -169,3 +187,5 @@ class TestOutlineServiceIngest:
         assert "Solutions Architect" in response.slides[0].content_summary
         assert "ACME" in response.slides[0].content_summary
         assert "홍길동" not in response.slides[1].content_summary
+        assert response.slides[0].layout_plan == "centered title"
+        assert response.slides[0].speaker_notes == "발표를 시작하겠습니다."
