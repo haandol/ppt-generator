@@ -252,44 +252,21 @@ class TestLineShapeHtml:
         assert "<svg" in html
         assert "ah-end" in html
 
-    def test_horizontal_snap_short_arrow(self):
-        """width=28, height=10 (하단 화살표 패턴)도 수평선으로 보정되어야 한다."""
-        html = shape_to_html(self._make_line(width_px=28, height_px=10, end_arrow=True))
-        # height=10 <= 12(threshold) → h=0으로 보정 → y 좌표 동일
+    @pytest.mark.parametrize(
+        ("width", "height"),
+        [(28, 10), (48, 10), (10, 56), (200, -10)],
+    )
+    def test_near_axis_diagonal_preserves_both_components(self, width, height):
+        """작은 축 성분도 스냅하지 않고 원래 대각 끝점을 보존한다."""
         import re
 
-        y_vals = re.findall(r'y[12]="([^"]+)"', html)
-        assert len(y_vals) == 2
-        assert y_vals[0] == y_vals[1], "수평선이므로 y1 == y2"
-        assert "ah-end" in html
-
-    def test_horizontal_snap_wide_arrow(self):
-        """width=48, height=10 (상단 화살표 패턴)도 수평선으로 보정되어야 한다."""
-        import re
-
-        html = shape_to_html(self._make_line(width_px=48, height_px=10))
-        y_vals = re.findall(r'y[12]="([^"]+)"', html)
-        assert len(y_vals) == 2
-        assert y_vals[0] == y_vals[1], "수평선이므로 y1 == y2"
-
-    def test_vertical_snap_small_width(self):
-        """width=10, height=56 (수직 대시선 패턴)은 수직선으로 보정되어야 한다."""
-        import re
-
-        shape = PptxShape(
-            left_px=1100,
-            top_px=472,
-            width_px=10,
-            height_px=56,
-            shape_type="line",
-            border_color="#3B4A5C",
-            border_width_pt=1.5,
-            dash_style="dash",
-        )
-        html = shape_to_html(shape)
+        html = shape_to_html(self._make_line(width_px=width, height_px=height))
         x_vals = re.findall(r'x[12]="([^"]+)"', html)
+        y_vals = re.findall(r'y[12]="([^"]+)"', html)
         assert len(x_vals) == 2
-        assert x_vals[0] == x_vals[1], "수직선이므로 x1 == x2"
+        assert len(y_vals) == 2
+        assert abs(float(x_vals[1]) - float(x_vals[0])) == abs(width)
+        assert abs(float(y_vals[1]) - float(y_vals[0])) == abs(height)
 
     def test_short_arrow_scales_down_marker(self):
         """짧은 화살표(line_length < _ARROW_SIZE)에서 화살표 머리가 자동 축소되어야 한다."""
@@ -352,15 +329,6 @@ class TestLineShapeHtml:
         y_vals = re.findall(r'y[12]="([^"]+)"', html)
         assert len(y_vals) == 2
         assert float(y_vals[0]) > float(y_vals[1]), "↗ 대각선이므로 y1 > y2"
-
-    def test_negative_height_snap(self):
-        """음수 height(-10)도 snap threshold 내이면 수평선으로 보정되어야 한다."""
-        import re
-
-        html = shape_to_html(self._make_line(width_px=200, height_px=-10))
-        y_vals = re.findall(r'y[12]="([^"]+)"', html)
-        assert len(y_vals) == 2
-        assert y_vals[0] == y_vals[1], "수평선이므로 y1 == y2"
 
     def test_negative_height_arrow_marker_size(self):
         """음수 height 대각선에서도 화살표 머리 크기가 정상 계산되어야 한다."""
@@ -471,5 +439,5 @@ class TestClipPathShapes:
             fill_color="#4472C4",
         )
         html = shape_to_html(shape)
-        assert "border-radius:50.0px" in html
+        assert "border-radius:50px" in html
         assert "clip-path" not in html

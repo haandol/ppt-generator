@@ -47,7 +47,7 @@ Identify any visual quality issues from the categories below.
 - Do not flag intentional design choices (e.g., overlapping decorative shapes behind text).
 - For `overlap` / `label_intrusion` / `decoration_overlap`: do NOT rely solely on visual inspection — compute the intersection from the design spec JSON coordinates. **Procedure:**
   1. List all filled shapes with `fill_color != null` and `shape_type != "line"`. Mark them as "cards".
-  2. For every textbox, compute `inter = intersection_area(textbox.bbox, card.bbox)` against each card. If `inter / textbox_area >= 0.5` AND the card is not the textbox's intended container (different `grid_cell` or the card is filled and not dashed), flag as `label_intrusion`. Also report which `card_shape_index` is being intruded.
+  2. For every textbox, compute `inter = intersection_area(textbox.bbox, card.bbox)` against each card. If `inter / textbox_area >= 0.5` AND the card is not the textbox's intended container (different `grid_cell` or the card is filled and not dashed), flag as `label_intrusion`. Set the card as `related_element_type="shape"` and `related_element_index`.
   3. For every small shape (ellipse/badge with max dim ≤ 80px and ≤ 4 chars), repeat against every filled card. If `inter / decoration_area >= 0.5` AND the decoration is not centered (within ±20% of card center), flag as `decoration_overlap`.
   4. For every line shape, check if its bbox or endpoint penetrates any card it is not meant to attach to. If yes, flag as `arrow_through_card`.
   5. Background-decorative overlap (a large faint shape behind text) is intentional — do not flag it. The above checks specifically target *foreground* labels and badges that collide with *foreground* cards.

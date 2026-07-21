@@ -555,9 +555,18 @@ class TestModifyComponentTool:
         assert call_kwargs["component_id"] == "right.box"
         assert call_kwargs["instruction"] == "Make the LLM box red"
 
-    def test_ingest_modify_shape_via_tool(self, mcp_tools_for_modify) -> None:
+    def test_ingest_modify_shape_via_tool(
+        self, mcp_tools_for_modify, monkeypatch
+    ) -> None:
         project_id, tools = mcp_tools_for_modify
         ds = tools["_design_service"]
+        monkeypatch.setattr(
+            ProjectService,
+            "renumber_design_spec_image_srcs",
+            lambda *args, **kwargs: pytest.fail(
+                "component modification must not renumber unrelated slides"
+            ),
+        )
         # design_service.ingest_modify_component 가 fill_color 만 바꾼 spec 반환하도록 설정
         spec = _full_content_slide()
         from dataclasses import replace as _replace
@@ -565,6 +574,14 @@ class TestModifyComponentTool:
         new_shapes = list(spec.shapes)
         new_shapes[0] = _replace(new_shapes[0], fill_color="#EF4444")
         ds.ingest_modify_component.return_value = _replace(spec, shapes=new_shapes)
+        prepared = json.loads(
+            tools["prepare_modify_component"](
+                project_id=project_id,
+                slide_index=1,
+                component_id="right.box",
+                instruction="Make the LLM box red",
+            )
+        )
 
         result = json.loads(
             tools["ingest_modify_component"](
@@ -572,6 +589,7 @@ class TestModifyComponentTool:
                 slide_index=1,
                 component_id="right.box",
                 modify_json="{}",
+                edit_context=prepared["edit_context"],
             )
         )
         assert result["project_id"] == project_id

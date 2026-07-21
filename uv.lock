@@ -479,11 +479,10 @@ wheels = [
 
 [[package]]
 name = "ppt-generator"
-version = "0.7.3"
+version = "0.7.4"
 source = { editable = "." }
 dependencies = [
     { name = "mcp" },
-    { name = "playwright" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "python-pptx" },
@@ -494,11 +493,13 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
+visual-qa = [
+    { name = "playwright" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "mcp", specifier = ">=1.28.1" },
-    { name = "playwright" },
     { name = "pydantic", specifier = ">=2" },
     { name = "python-dotenv" },
     { name = "python-pptx", specifier = ">=1.0.2" },
@@ -509,6 +510,7 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
+visual-qa = [{ name = "playwright" }]
 
 [[package]]
 name = "pycparser"

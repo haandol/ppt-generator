@@ -7,11 +7,13 @@ from __future__ import annotations
 
 from ppt_generator.interfaces.schemas import PptxParagraph, PptxTextRun
 from ppt_generator.tools.slides.html_safety import (
+    css_number,
     escape_attr,
     escape_text,
     safe_alignment,
     safe_color,
     safe_href,
+    safe_number,
 )
 
 
@@ -26,10 +28,10 @@ def run_to_html(run: PptxTextRun, *, font_scale: float = 1.0) -> str:
     font_scale 이 1.0 미만이면 shrink_text autofit 으로 폰트를 비례 축소한다.
     """
     styles: list[str] = []
-    if run.font_size_pt:
-        size_pt = (
-            run.font_size_pt * font_scale if font_scale < 1.0 else run.font_size_pt
-        )
+    size_pt = safe_number(run.font_size_pt)
+    scale = safe_number(font_scale, 1.0)
+    if size_pt > 0:
+        size_pt = size_pt * scale if 0 < scale < 1.0 else size_pt
         styles.append(f"font-size:{size_pt:.2f}pt")
     if run.color:
         color = safe_color(run.color)
@@ -76,9 +78,10 @@ def paragraph_to_html(
 
     style_attr = f' style="{";".join(style_props)}"' if style_props else ""
 
-    if para.bullet_level >= 0:
-        indent = 20 * (para.bullet_level + 1)
-        li_styles = [f"margin-left:{indent}px"]
+    bullet_level = safe_number(para.bullet_level, -1)
+    if bullet_level >= 0:
+        indent = 20 * (int(bullet_level) + 1)
+        li_styles = [f"margin-left:{css_number(indent)}px"]
         if alignment:
             li_styles.append(f"text-align:{alignment}")
         if nowrap:

@@ -8,6 +8,7 @@ prepare(태스크 조립)/ingest(클라이언트 JSON 검증·후처리)만 담�
   - prepare_fix / ingest_fix — 수정 spec 검증·정합화
 """
 
+import json
 from dataclasses import replace
 from pathlib import Path
 from threading import Event
@@ -18,19 +19,22 @@ import pytest
 
 from ppt_generator.interfaces.llm_output_models import (
     ParagraphOutput,
-    SimpleSlideSpecOutput,
-    TextBoxOutput,
     TextRunOutput,
     VisualQAIssue,
     VisualQAOutput,
+    VisualQASimpleSlideSpecOutput,
+    VisualQATextBoxOutput,
 )
 from ppt_generator.interfaces.schemas import (
+    DesignSpec,
     PptxImage,
     PptxParagraph,
     PptxSlideSpec,
     PptxTextBox,
     PptxTextRun,
 )
+from ppt_generator.tools.project.service import ProjectService
+from ppt_generator.tools.visual_qa.controller import register_visual_qa_tools
 from ppt_generator.tools.visual_qa.service import VisualQAService
 
 from _helpers import make_slide_spec as _make_spec
@@ -54,10 +58,10 @@ def _make_fix_output_json() -> str:
     slide_type != "content" 슬라이드는 SimpleSlideSpecOutput 을 사용하므로
     grid_layout/design_doc 없이 textbox 만으로 유효하다.
     """
-    output = SimpleSlideSpecOutput(
+    output = VisualQASimpleSlideSpecOutput(
         background_color="#1a1a2e",
         textboxes=[
-            TextBoxOutput(
+            VisualQATextBoxOutput(
                 left_px=40,
                 top_px=40,
                 width_px=700,
@@ -79,8 +83,90 @@ def _make_simple_spec(title: str = "테스트") -> PptxSlideSpec:
     return replace(_make_spec(title), slide_type="title")
 
 
+def _make_matching_fix_output(
+    current: PptxSlideSpec,
+) -> VisualQASimpleSlideSpecOutput:
+    output = VisualQASimpleSlideSpecOutput.model_validate_json(_make_fix_output_json())
+    fixed = output.textboxes[0]
+    existing = current.textboxes[0]
+    fixed.left_px = existing.left_px
+    fixed.top_px = existing.top_px
+    fixed.width_px = existing.width_px
+    fixed.height_px = existing.height_px
+    fixed.z_index = existing.z_index
+    fixed.paragraphs[0].alignment = existing.paragraphs[0].alignment
+    fixed.paragraphs[0].runs[0].text = existing.paragraphs[0].runs[0].text
+    fixed.paragraphs[0].runs[0].font_size_pt = (
+        existing.paragraphs[0].runs[0].font_size_pt
+    )
+    return output
+
+
+def _register_visual_tools(
+    project_service: ProjectService,
+) -> dict[str, object]:
+    mcp = MagicMock()
+    tools: dict[str, object] = {}
+
+    def tool_decorator():
+        def decorator(func):
+            tools[func.__name__] = func
+            return func
+
+        return decorator
+
+    mcp.tool = tool_decorator
+    register_visual_qa_tools(
+        mcp,
+        project_service,
+        VisualQAService(),
+        MagicMock(),
+    )
+    return tools
+
+
+def _setup_visual_project(
+    tmp_path: Path, monkeypatch
+) -> tuple[str, Path, ProjectService, dict[str, object]]:
+    import ppt_generator.tools.project.service as service_module
+
+    monkeypatch.setattr(service_module, "PPT_GENERATOR_HOME", tmp_path)
+    project_id = "visual-project"
+    project_dir = tmp_path / project_id
+    project_dir.mkdir()
+    (project_dir / "project.json").write_text(
+        '{"topic":"visual","num_slides":1,"steps_completed":{}}',
+        encoding="utf-8",
+    )
+    project_service = ProjectService()
+    project_service.save_design_spec(
+        project_dir, DesignSpec(slides=[_make_simple_spec()])
+    )
+    screenshot = project_dir / "screenshots" / "slide_01_v0.png"
+    screenshot.parent.mkdir()
+    screenshot.write_bytes(b"\x89PNG\r\n\x1a\n")
+    return (
+        project_id,
+        project_dir,
+        project_service,
+        _register_visual_tools(project_service),
+    )
+
+
 class TestVisualQAServiceCapture:
     """capture_screenshots 테스트 (Playwright mock)."""
+
+    def test_playwright_package_is_optional(self) -> None:
+        import sys
+
+        import ppt_generator.tools.visual_qa.screenshot as screenshot_module
+
+        with patch.dict(
+            sys.modules,
+            {"playwright": None, "playwright.sync_api": None},
+        ):
+            with pytest.raises(RuntimeError, match="Playwright 패키지가 설치되지"):
+                screenshot_module.sync_playwright()
 
     def test_chromium_not_installed_raises(self, tmp_path: Path) -> None:
         """Chromium 브라우저 바이너리 미설치 시 RuntimeError 발생."""
@@ -213,6 +299,41 @@ class TestVisualQAServiceAnalyze:
         assert len(result.issues) == 1
         assert result.issues[0].issue_type == "text_truncation"
 
+    def test_controller_rejects_out_of_range_analysis_before_ingest(self) -> None:
+        tools: dict = {}
+        mcp = MagicMock()
+
+        def tool_decorator():
+            def decorator(func):
+                tools[func.__name__] = func
+                return func
+
+            return decorator
+
+        mcp.tool = tool_decorator
+        project_service = MagicMock()
+        project_service.resolve_existing_project_dir.return_value = (
+            "project-1",
+            Path("/tmp/project-1"),
+        )
+        project_service.get_design_spec_slide_count.return_value = 1
+        visual_qa_service = MagicMock()
+        register_visual_qa_tools(
+            mcp,
+            project_service,
+            visual_qa_service,
+            MagicMock(),
+        )
+
+        with pytest.raises(ValueError, match="valid range: 1-1"):
+            tools["ingest_visual_qa_analysis"](
+                project_id="project-1",
+                slide_index=2,
+                analysis_json="{}",
+            )
+
+        visual_qa_service.ingest_analysis.assert_not_called()
+
 
 class TestVisualQAServiceFix:
     """prepare_fix / ingest_fix 테스트."""
@@ -244,10 +365,21 @@ class TestVisualQAServiceFix:
     def test_successful_fix(self) -> None:
         """수정 성공: 검증된 JSON 이 PptxSlideSpec 으로 정합화된다."""
         svc = VisualQAService()
-        result = svc.ingest_fix(_make_fix_output_json(), _make_simple_spec())
+        result = svc.ingest_fix(
+            _make_fix_output_json(),
+            _make_simple_spec(),
+            [
+                {
+                    "issue_type": "text_truncation",
+                    "element_type": "textbox",
+                    "element_index": 0,
+                }
+            ],
+        )
         assert result is not None
         assert isinstance(result, PptxSlideSpec)
         assert result.textboxes[0].width_px == 700
+        assert result.textboxes[0].paragraphs[0].runs[0].font_size_pt == 28
 
     def test_fix_failure_returns_none(self) -> None:
         """수정 실패(잘못된 JSON) 시 None 반환."""
@@ -255,6 +387,185 @@ class TestVisualQAServiceFix:
         result = svc.ingest_fix("{ not valid json", _make_simple_spec())
         assert result is None
 
+
+class TestVisualQAControllerContexts:
+    def test_analysis_fix_round_trip(self, tmp_path: Path, monkeypatch) -> None:
+        project_id, project_dir, project_service, tools = _setup_visual_project(
+            tmp_path, monkeypatch
+        )
+        issue = {
+            "issue_type": "text_truncation",
+            "severity": "high",
+            "element_type": "textbox",
+            "element_index": 0,
+            "description": "제목이 잘림",
+            "suggested_fix": "텍스트박스 너비 확장",
+        }
+
+        analysis = json.loads(
+            tools["ingest_visual_qa_analysis"](
+                project_id=project_id,
+                slide_index=1,
+                analysis_json=_make_qa_output_json(True, [issue]),
+            )
+        )
+        prepared = json.loads(
+            tools["prepare_visual_qa_fix"](
+                project_id=project_id,
+                slide_index=1,
+                analysis_context=analysis["analysis_context"],
+                iteration=0,
+            )
+        )
+        monkeypatch.setattr(
+            project_service,
+            "renumber_design_spec_image_srcs",
+            lambda *args, **kwargs: pytest.fail(
+                "visual QA fix must not renumber unrelated slides"
+            ),
+        )
+        fixed = json.loads(
+            tools["ingest_visual_qa_fix"](
+                project_id=project_id,
+                slide_index=1,
+                fix_json=_make_fix_output_json(),
+                fix_context=prepared["fix_context"],
+            )
+        )
+
+        assert fixed["status"] == "fixed"
+        assert Path(fixed["slide_html_path"]).exists()
+        assert (
+            project_service.load_design_spec_slide(project_dir, 0).textboxes[0].width_px
+            == 700
+        )
+
+    def test_unchanged_fix_reports_unresolved_without_saving(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        project_id, project_dir, project_service, tools = _setup_visual_project(
+            tmp_path, monkeypatch
+        )
+        issue = {
+            "issue_type": "overlap",
+            "severity": "high",
+            "element_type": "textbox",
+            "element_index": 0,
+            "description": "구조 변경 없이는 해결 불가",
+            "suggested_fix": "슬라이드 편집으로 재구성",
+        }
+        analysis = json.loads(
+            tools["ingest_visual_qa_analysis"](
+                project_id=project_id,
+                slide_index=1,
+                analysis_json=_make_qa_output_json(True, [issue]),
+            )
+        )
+        prepared = json.loads(
+            tools["prepare_visual_qa_fix"](
+                project_id=project_id,
+                slide_index=1,
+                analysis_context=analysis["analysis_context"],
+                iteration=0,
+            )
+        )
+        current = project_service.load_design_spec_slide(project_dir, 0)
+        monkeypatch.setattr(
+            project_service,
+            "save_design_spec_slide",
+            lambda *args, **kwargs: pytest.fail(
+                "unchanged Visual QA result must not be saved"
+            ),
+        )
+
+        result = json.loads(
+            tools["ingest_visual_qa_fix"](
+                project_id=project_id,
+                slide_index=1,
+                fix_json=_make_matching_fix_output(current).model_dump_json(),
+                fix_context=prepared["fix_context"],
+            )
+        )
+
+        assert result["status"] == "unresolved"
+        assert result["remaining_issues"][0]["issue_type"] == "overlap"
+        assert "slide_html_path" not in result
+
+    def test_rejects_forged_and_stale_analysis_context(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        project_id, project_dir, project_service, tools = _setup_visual_project(
+            tmp_path, monkeypatch
+        )
+        issue = {
+            "issue_type": "overlap",
+            "severity": "high",
+            "element_type": "textbox",
+            "element_index": 0,
+            "description": "겹침",
+            "suggested_fix": "이동",
+        }
+        analysis = json.loads(
+            tools["ingest_visual_qa_analysis"](
+                project_id=project_id,
+                slide_index=1,
+                analysis_json=_make_qa_output_json(True, [issue]),
+            )
+        )
+        context = analysis["analysis_context"]
+        forged = context[:-1] + ("A" if context[-1] != "A" else "B")
+        with pytest.raises(ValueError, match="edit_context"):
+            tools["prepare_visual_qa_fix"](
+                project_id=project_id,
+                slide_index=1,
+                analysis_context=forged,
+                iteration=0,
+            )
+
+        project_service.save_design_spec_slide(
+            project_dir, 0, replace(_make_simple_spec(), background_color="#ffffff")
+        )
+        with pytest.raises(ValueError, match="Stale analysis_context"):
+            tools["prepare_visual_qa_fix"](
+                project_id=project_id,
+                slide_index=1,
+                analysis_context=context,
+                iteration=0,
+            )
+
+    @pytest.mark.parametrize(
+        "target",
+        [
+            {"element_type": "textbox", "element_index": 1},
+            {
+                "element_type": "textbox",
+                "element_index": 0,
+                "related_element_type": "shape",
+                "related_element_index": 0,
+            },
+        ],
+    )
+    def test_rejects_out_of_range_issue_targets(
+        self, tmp_path: Path, monkeypatch, target: dict
+    ) -> None:
+        project_id, _, _, tools = _setup_visual_project(tmp_path, monkeypatch)
+        issue = {
+            "issue_type": "overlap",
+            "severity": "high",
+            "description": "겹침",
+            "suggested_fix": "이동",
+            **target,
+        }
+
+        with pytest.raises(ValueError, match="invalid"):
+            tools["ingest_visual_qa_analysis"](
+                project_id=project_id,
+                slide_index=1,
+                analysis_json=_make_qa_output_json(True, [issue]),
+            )
+
+
+class TestVisualQAServiceFixPreservation:
     def test_fix_preserves_images(self) -> None:
         """수정 시 기존 spec 의 images 가 보존된다."""
         svc = VisualQAService()
@@ -290,7 +601,17 @@ class TestVisualQAServiceFix:
             ],
         )
 
-        result = svc.ingest_fix(_make_fix_output_json(), spec_with_images)
+        result = svc.ingest_fix(
+            _make_fix_output_json(),
+            spec_with_images,
+            [
+                {
+                    "issue_type": "text_truncation",
+                    "element_type": "textbox",
+                    "element_index": 0,
+                }
+            ],
+        )
         assert result is not None
         assert len(result.images) == 1
         assert result.images[0].src == "images/bg.png"
@@ -301,9 +622,13 @@ class TestVisualQAServiceFix:
             speaker_notes="발표 노트",
             textboxes=[replace(_make_simple_spec("원문").textboxes[0], z_index=1)],
         )
-        output = SimpleSlideSpecOutput.model_validate_json(_make_fix_output_json())
+        output = VisualQASimpleSlideSpecOutput.model_validate_json(
+            _make_fix_output_json()
+        )
+        output.textboxes[0].width_px = current.textboxes[0].width_px
+        output.textboxes[0].paragraphs[0].runs[0].font_size_pt = 32
         output.textboxes[0].z_index = 9
-        output.textboxes[0].paragraphs[0].runs[0].text = "변조된 문구"
+        output.textboxes[0].paragraphs[0].runs[0].text = "원문"
 
         result = VisualQAService().ingest_fix(output.model_dump_json(), current)
 
@@ -315,20 +640,143 @@ class TestVisualQAServiceFix:
             speaker_notes="발표 노트",
             textboxes=[replace(_make_simple_spec("원문").textboxes[0], z_index=1)],
         )
-        output = SimpleSlideSpecOutput.model_validate_json(_make_fix_output_json())
+        output = VisualQASimpleSlideSpecOutput.model_validate_json(
+            _make_fix_output_json()
+        )
+        output.textboxes[0].width_px = current.textboxes[0].width_px
+        output.textboxes[0].paragraphs[0].runs[0].font_size_pt = 32
         output.textboxes[0].z_index = 9
-        output.textboxes[0].paragraphs[0].runs[0].text = "변조된 문구"
+        output.textboxes[0].paragraphs[0].runs[0].text = "원문"
 
         result = VisualQAService().ingest_fix(
             output.model_dump_json(),
             current,
-            [{"issue_type": "wrong_z_order"}],
+            [
+                {
+                    "issue_type": "wrong_z_order",
+                    "element_type": "textbox",
+                    "element_index": 0,
+                }
+            ],
         )
 
         assert result is not None
         assert result.textboxes[0].z_index == 9
         assert result.textboxes[0].paragraphs[0].runs[0].text == "원문"
         assert result.speaker_notes == "발표 노트"
+
+    def test_fix_rejects_content_change(self) -> None:
+        current = _make_simple_spec("원문")
+        output = VisualQASimpleSlideSpecOutput.model_validate_json(
+            _make_fix_output_json()
+        )
+        output.textboxes[0].paragraphs[0].runs[0].text = "변조된 문구"
+
+        result = VisualQAService().ingest_fix(
+            output.model_dump_json(),
+            current,
+            [{"issue_type": "overlap"}],
+        )
+
+        assert result is None
+
+    def test_fix_rejects_changes_to_unmentioned_element(self) -> None:
+        first = _make_simple_spec("첫째").textboxes[0]
+        second = replace(
+            first,
+            top_px=140,
+            paragraphs=_make_simple_spec("둘째").textboxes[0].paragraphs,
+        )
+        current = replace(_make_simple_spec("첫째"), textboxes=[first, second])
+        output = VisualQASimpleSlideSpecOutput.model_validate_json(
+            _make_fix_output_json()
+        )
+        output.textboxes[0].paragraphs[0].runs[0].text = "첫째"
+        output.textboxes.append(
+            output.textboxes[0].model_copy(
+                update={
+                    "top_px": 200,
+                    "paragraphs": [
+                        ParagraphOutput(
+                            runs=[
+                                TextRunOutput(text="둘째", font_size_pt=32, bold=True)
+                            ]
+                        )
+                    ],
+                }
+            )
+        )
+
+        result = VisualQAService().ingest_fix(
+            output.model_dump_json(),
+            current,
+            [
+                {
+                    "issue_type": "misalignment",
+                    "element_type": "textbox",
+                    "element_index": 0,
+                }
+            ],
+        )
+
+        assert result is None
+
+    @pytest.mark.parametrize(
+        ("issue_type", "field_name", "value"),
+        [
+            ("small_font", "font_size_pt", 36),
+            ("contrast", "color", "#ffffff"),
+        ],
+    )
+    def test_fix_allows_only_matching_run_style(
+        self, issue_type: str, field_name: str, value: object
+    ) -> None:
+        current = _make_simple_spec()
+        output = _make_matching_fix_output(current)
+        setattr(output.textboxes[0].paragraphs[0].runs[0], field_name, value)
+
+        result = VisualQAService().ingest_fix(
+            output.model_dump_json(),
+            current,
+            [
+                {
+                    "issue_type": issue_type,
+                    "element_type": "textbox",
+                    "element_index": 0,
+                }
+            ],
+        )
+
+        assert result is not None
+        assert getattr(result.textboxes[0].paragraphs[0].runs[0], field_name) == value
+
+    @pytest.mark.parametrize(
+        ("issue_type", "field_name", "value"),
+        [
+            ("small_font", "color", "#ffffff"),
+            ("contrast", "font_size_pt", 36),
+        ],
+    )
+    def test_fix_rejects_unrelated_run_style(
+        self, issue_type: str, field_name: str, value: object
+    ) -> None:
+        current = _make_simple_spec()
+        output = _make_matching_fix_output(current)
+        setattr(output.textboxes[0].paragraphs[0].runs[0], field_name, value)
+
+        result = VisualQAService().ingest_fix(
+            output.model_dump_json(),
+            current,
+            [
+                {
+                    "issue_type": issue_type,
+                    "element_type": "textbox",
+                    "element_index": 0,
+                }
+            ],
+        )
+
+        assert result is None
 
 
 @pytest.mark.parametrize(

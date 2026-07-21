@@ -64,14 +64,29 @@ class DesignReviewService:
     @staticmethod
     def format_feedback(review_output: DesignReviewOutput) -> str:
         """리뷰 이슈를 재생성 프롬프트에 추가할 피드백 텍스트로 변환한다."""
+        return DesignReviewService.format_issue_feedback(
+            [
+                {
+                    "severity": issue.severity,
+                    "rule_id": issue.rule_id,
+                    "description": issue.description,
+                }
+                for issue in review_output.issues
+            ]
+        )
+
+    @staticmethod
+    def format_issue_feedback(issues: list[dict]) -> str:
+        """lint와 LLM 리뷰 이슈를 함께 재생성 피드백으로 변환한다."""
         lines = [
             "<design_review_feedback>",
             "The previous generation had the following rule violations. "
             "Fix ALL of them in the regenerated output:",
         ]
-        for issue in review_output.issues:
+        for issue in issues:
             lines.append(
-                f"- [{issue.severity.upper()}] {issue.rule_id}: {issue.description}"
+                f"- [{str(issue['severity']).upper()}] "
+                f"{issue['rule_id']}: {issue['description']}"
             )
         lines.append("</design_review_feedback>")
         return "\n".join(lines)

@@ -36,7 +36,8 @@ description: Generate the design spec (per-slide layout/style) for a deck via th
 2. **네가** `response_schema` 를 정확히 따르는 슬라이드 spec JSON 을 생성한다.
    - `thinking_budget` 이 크면(복잡한 다이어그램 등) 더 신중하게 사고한다.
    - content 슬라이드는 grid_layout·cell_assignment·design_doc 이 required 다 (스키마가 강제).
-3. `mcp__ppt-generator__ingest_design_slide(project_id, slide_index=i, spec_json)` 호출.
+3. `mcp__ppt-generator__ingest_design_slide(project_id, slide_index=i, spec_json, generation_context)` 호출.
+   - `generation_context` 는 같은 `prepare_design_slide` 응답의 opaque token을 그대로 사용한다.
    - 반환에 `overflow` 가 있으면 담지 못한 컨텐츠다 — 모아 두었다가 finalize 에 넘기거나
      새 슬라이드로 추가할지 사용자와 상의한다.
    - `lint` 가 있으면 위반 목록이다.
@@ -76,7 +77,7 @@ finalize/export 의 lint 결과를 **경미**와 **중대**로 나눠 다르게 
 ## 선택 — 리뷰
 
 디자인 규칙 위반을 LLM 관점으로 점검하려면: 슬라이드마다
-`prepare_review(project_id, slide_index)` → 리뷰 JSON 생성 → `ingest_review(...)`.
+`prepare_review(project_id, slide_index)` → 리뷰 JSON 생성 → 반환된 `review_context`와 함께 `ingest_review(...)`.
 `has_high_severity` 이고 고칠 거면 반환된 `fix_feedback` 을 `prepare_slide_edit(action="update")`
 의 재생성에 반영한다 (`ppt-modify` 스킬).
 

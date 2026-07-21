@@ -4,7 +4,7 @@ Date: 2026-04-02
 
 ## Status
 
-Accepted
+Accepted (2026-07-21)
 
 ## Context
 
@@ -55,6 +55,10 @@ Accepted
 관리한다. 프롬프트가 요구하는 규칙은 모두 스키마가 표현할 수 있어야 한다.
 `has_high_severity`는 LLM이 제공한 값을 신뢰하지 않고 검증된 issue 목록의 severity에서
 서버가 계산한다.
+
+rule별 허용 severity는 체크리스트의 정식 계약으로 스키마가 검증한다. 기계적 lint가
+이미 감지한 이슈를 LLM이 반복하지 않도록 한 경우, ingest 결과는 prepare에서 검증한
+lint 이슈와 LLM 이슈를 합쳐 최종 high 여부와 fix 피드백을 계산한다.
 
 ### Alternatives Considered
 

@@ -4,7 +4,7 @@ Date: 2026-05-26 (rolled up earlier grid-first + progressive abstraction ADRs; �
 
 ## Status
 
-Accepted
+Accepted (2026-07-21)
 
 ## Context
 
@@ -62,6 +62,8 @@ Section/group 노드는 자식보다 *먼저* bbox 를 결정한다. 자식 bbox
 ### 결정 4 — speaker_notes 는 발표 narrative 전용
 
 이전엔 speaker_notes 에 슬라이드 구조 설명("다이어그램 외곽의 점선 박스가...") 과 발표 narrative 가 섞였다. 5단 계층에서 구조 설명의 자리는 Section 트리 (description, layout_summary) 다. speaker_notes 는 청중에게 말할 narrative 만 담는다 (1-3 short paragraphs, 대화체).
+슬라이드에 배치하지 못한 보충 콘텐츠를 speaker_notes로 이동하지 않으며, 해당 내용은
+구조화된 overflow로 보고해 upstream 콘텐츠 결정으로 돌려보낸다.
 
 ### 결정 5 — design_doc 은 content 슬라이드에서 Required, title/closing 은 Optional
 

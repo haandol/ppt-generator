@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 from ppt_generator.interfaces.constants import LINT_ARROW_ATTACH_TOLERANCE_PX
+from ppt_generator.interfaces.line_geometry import line_endpoints
 from ppt_generator.interfaces.schemas import PptxShape, PptxSlideSpec
 from ppt_generator.interfaces.spec_utils.lint_types import (
     LintViolation,
@@ -84,12 +85,12 @@ def _arrow_endpoints(line: PptxShape) -> list[tuple[float, float, str]]:
     검사가 잘못된 좌표로 판정된다.
     """
     endpoints: list[tuple[float, float, str]] = []
-    w = line.width_px
-    h = line.height_px
-    min_x, max_x = line.left_px, line.left_px + abs(w)
-    min_y, max_y = line.top_px, line.top_px + abs(h)
-    start_x, end_x = (min_x, max_x) if w >= 0 else (max_x, min_x)
-    start_y, end_y = (min_y, max_y) if h >= 0 else (max_y, min_y)
+    (start_x, start_y), (end_x, end_y) = line_endpoints(
+        line.left_px,
+        line.top_px,
+        line.width_px,
+        line.height_px,
+    )
     if line.start_arrow:
         endpoints.append((start_x, start_y, "start"))
     if line.end_arrow:

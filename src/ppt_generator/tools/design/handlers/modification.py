@@ -7,16 +7,20 @@ move/delete 는 LLM 이 필요 없어 단일 도구로 유지된다.
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 from dataclasses import replace
 from typing import TYPE_CHECKING, NoReturn
 
 from ppt_generator.interfaces.index_validation import require_positive_slide_index
 from ppt_generator.interfaces.spec_utils import lint_slide_spec
+from ppt_generator.interfaces.spec_utils.serializer import slide_spec_to_json
 from ppt_generator.interfaces.utils import parse_outline_json
 from ppt_generator.tools.design.edit_context import (
     ProjectSnapshot,
     SlideEditContext,
+    decode_signed_context,
+    encode_signed_context,
     load_receipt,
     project_edit_lock,
     project_revision,
@@ -63,56 +67,60 @@ def handle_move(
         )
     project_service = deps.project_service
     _, project_dir = project_service.resolve_existing_project_dir(project_id)
-    slide_count = project_service.get_design_spec_slide_count(project_dir)
+    with project_edit_lock(project_dir):
+        slide_count = project_service.get_design_spec_slide_count(project_dir)
 
-    if from_index < 1 or from_index > slide_count:
-        _raise_validation(
-            "move_slide",
-            f"Invalid from_index: {from_index} (valid range: 1-{slide_count})",
-            project_id=project_id,
-            from_index=from_index,
-            slide_count=slide_count,
-        )
-    if to_index < 1 or to_index > slide_count:
-        _raise_validation(
-            "move_slide",
-            f"Invalid to_index: {to_index} (valid range: 1-{slide_count})",
-            project_id=project_id,
-            to_index=to_index,
-            slide_count=slide_count,
-        )
-    if from_index == to_index:
+        if from_index > slide_count:
+            _raise_validation(
+                "move_slide",
+                f"Invalid from_index: {from_index} (valid range: 1-{slide_count})",
+                project_id=project_id,
+                from_index=from_index,
+                slide_count=slide_count,
+            )
+        if to_index > slide_count:
+            _raise_validation(
+                "move_slide",
+                f"Invalid to_index: {to_index} (valid range: 1-{slide_count})",
+                project_id=project_id,
+                to_index=to_index,
+                slide_count=slide_count,
+            )
+        if from_index == to_index:
+            return json.dumps(
+                {
+                    "project_id": project_id,
+                    "slide_count": slide_count,
+                    "from_index": from_index,
+                    "to_index": to_index,
+                    "message": "No move needed (same position)",
+                },
+                ensure_ascii=False,
+            )
+
+        from_idx = from_index - 1
+        to_idx = to_index - 1
+        with ProjectSnapshot(project_dir) as snapshot:
+            project_service.sync_outline_to_design_spec_count(project_dir)
+            project_service.move_outline_slide(project_dir, from_idx, to_idx)
+            project_service.move_slide_images(
+                project_dir, from_idx, to_idx, slide_count
+            )
+            project_service.move_design_spec_slide(project_dir, from_idx, to_idx)
+            project_service.move_slide_html(project_dir, from_idx, to_idx)
+            project_service.renumber_design_spec_image_srcs(project_dir)
+            project_service.update_step(project_dir, "design_spec_modified")
+            snapshot.commit()
+
         return json.dumps(
             {
                 "project_id": project_id,
                 "slide_count": slide_count,
                 "from_index": from_index,
                 "to_index": to_index,
-                "message": "No move needed (same position)",
             },
             ensure_ascii=False,
         )
-
-    from_idx = from_index - 1
-    to_idx = to_index - 1
-
-    project_service.sync_outline_to_design_spec_count(project_dir)
-    project_service.move_outline_slide(project_dir, from_idx, to_idx)
-    project_service.move_slide_images(project_dir, from_idx, to_idx, slide_count)
-    project_service.move_design_spec_slide(project_dir, from_idx, to_idx)
-    project_service.move_slide_html(project_dir, from_idx, to_idx)
-    project_service.renumber_design_spec_image_srcs(project_dir)
-    project_service.update_step(project_dir, "design_spec_modified")
-
-    return json.dumps(
-        {
-            "project_id": project_id,
-            "slide_count": slide_count,
-            "from_index": from_index,
-            "to_index": to_index,
-        },
-        ensure_ascii=False,
-    )
 
 
 def handle_delete(
@@ -255,7 +263,7 @@ def handle_prepare_slide_edit(
     prep["project_id"] = project_id
     prep["action"] = action
     prep["color_theme"] = color_theme
-    prep["edit_context"] = context.to_token()
+    prep["edit_context"] = context.to_token(project_dir)
     return json.dumps(prep, ensure_ascii=False)
 
 
@@ -293,7 +301,9 @@ def handle_ingest_slide_edit(
             slide_index=slide_index,
         )
 
-    context = SlideEditContext.from_token(edit_context)
+    project_service = deps.project_service
+    _, project_dir = project_service.resolve_existing_project_dir(project_id)
+    context = SlideEditContext.from_token(edit_context, project_dir)
     if (
         context.project_id != project_id
         or context.action != action
@@ -301,8 +311,6 @@ def handle_ingest_slide_edit(
     ):
         raise ValueError("edit_context does not match ingest request")
 
-    project_service = deps.project_service
-    _, project_dir = project_service.resolve_existing_project_dir(project_id)
     with project_edit_lock(project_dir):
         return _handle_ingest_slide_edit_locked(
             deps,
@@ -639,6 +647,7 @@ def handle_prepare_modify_component(
 
     project_service = deps.project_service
     _, project_dir = project_service.resolve_existing_project_dir(project_id)
+    revision = project_revision(project_dir)
 
     from ppt_generator.interfaces import bg_image_utils
 
@@ -675,6 +684,10 @@ def handle_prepare_modify_component(
         task["component_id"] = component_id
         task["instruction"] = instruction
         task["stage"] = "backfill"
+        if project_revision(project_dir) != revision:
+            raise RuntimeError(
+                "Project changed while preparing component backfill; retry prepare"
+            )
         logger.info(
             "prepare_modify_component: backfill task | project_id=%r slide_index=%d",
             project_id,
@@ -693,6 +706,23 @@ def handle_prepare_modify_component(
     task["slide_index"] = slide_index
     task["component_id"] = component_id
     task["stage"] = "modify"
+    task["edit_context"] = encode_signed_context(
+        {
+            "kind": "component_modify",
+            "version": 1,
+            "project_id": project_id,
+            "slide_index": slide_index,
+            "component_id": component_id,
+            "color_theme": color_theme,
+            "revision": revision,
+            "target_fingerprint": _component_fingerprint(spec),
+        },
+        project_dir,
+    )
+    if project_revision(project_dir) != revision:
+        raise RuntimeError(
+            "Project changed while preparing component edit; retry prepare"
+        )
     return json.dumps(task, ensure_ascii=False)
 
 
@@ -757,72 +787,94 @@ def handle_ingest_modify_component(
     slide_index: int,
     component_id: str,
     modify_json: str,
+    edit_context: str,
     color_theme: str,
 ) -> str:
     """단일 component 부분 수정 결과를 검증·적용·저장·렌더·lint 한다."""
     require_positive_slide_index(slide_index)
     project_service = deps.project_service
     _, project_dir = project_service.resolve_existing_project_dir(project_id)
-    slide_count = project_service.get_design_spec_slide_count(project_dir)
-    if slide_index > slide_count:
-        raise ValueError(
-            f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})"
+    with project_edit_lock(project_dir):
+        context = decode_signed_context(edit_context, project_dir)
+        expected = {
+            "kind": "component_modify",
+            "version": 1,
+            "project_id": project_id,
+            "slide_index": slide_index,
+            "component_id": component_id,
+            "color_theme": color_theme,
+        }
+        if any(context.get(key) != value for key, value in expected.items()):
+            raise ValueError("edit_context does not match component ingest request")
+        previous_result = load_receipt(project_dir, context["operation_id"])
+        if previous_result is not None:
+            return json.dumps(previous_result, ensure_ascii=False)
+        if project_revision(project_dir) != context.get("revision"):
+            raise ValueError("Stale edit_context: project changed after prepare")
+
+        slide_count = project_service.get_design_spec_slide_count(project_dir)
+        if slide_index > slide_count:
+            raise ValueError(
+                f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})"
+            )
+
+        from ppt_generator.interfaces import bg_image_utils
+
+        bg_image_utils.set_project_seed(project_id)
+        idx = slide_index - 1
+        spec = project_service.load_design_spec_slide(project_dir, idx)
+        if _component_fingerprint(spec) != context.get("target_fingerprint"):
+            raise ValueError(
+                "Stale edit_context: target component changed after prepare"
+            )
+
+        new_spec = deps.design_service.ingest_modify_component(
+            spec=spec,
+            component_id=component_id,
+            output_json=modify_json,
+        )
+        if spec.images:
+            new_spec = replace(new_spec, images=spec.images)
+        kind, elem_idx, _ = _find_modified_element(new_spec, component_id)
+        slide_lint = lint_slide_spec(
+            new_spec, slide_index=slide_index, stop_on_layer_error=True
         )
 
-    from ppt_generator.interfaces import bg_image_utils
+        html: str | None = None
+        if deps.slides_service is not None:
+            html = deps.slides_service.render_single_slide_html(
+                idx,
+                new_spec,
+                color_theme=color_theme,
+                bg_image_policy=project_service.load_bg_image_policy(project_dir),
+            )
 
-    bg_image_utils.set_project_seed(project_id)
+        result: dict = {
+            "project_id": project_id,
+            "slide_index": slide_index,
+            "component_id": component_id,
+            "modified_element": {"type": kind, "index": elem_idx},
+        }
+        if slide_lint.has_violations:
+            result["lint"] = slide_lint.to_dict()
+            result["lint_suggestion"] = (
+                f"슬라이드 {slide_index}에서 "
+                f"{len(slide_lint.violations)}건의 lint 위반이 발견되었습니다. "
+                "추가 수정이 필요한지 확인하세요."
+            )
 
-    idx = slide_index - 1
-    spec = project_service.load_design_spec_slide(project_dir, idx)
+        with ProjectSnapshot(project_dir) as snapshot:
+            project_service.save_design_spec_slide(project_dir, idx, new_spec)
+            project_service.update_step(project_dir, "design_spec_modified")
+            if html is not None:
+                html_path = project_service.save_single_slide_html(
+                    project_dir, idx, html
+                )
+                result["slide_html_path"] = str(html_path)
+            save_receipt(project_dir, context["operation_id"], result)
+            snapshot.commit()
 
-    new_spec = deps.design_service.ingest_modify_component(
-        spec=spec,
-        component_id=component_id,
-        output_json=modify_json,
-    )
-
-    if spec.images:
-        new_spec = replace(new_spec, images=spec.images)
-
-    project_service.save_design_spec_slide(project_dir, idx, new_spec)
-    project_service.renumber_design_spec_image_srcs(project_dir)
-    project_service.update_step(project_dir, "design_spec_modified")
-
-    kind, elem_idx, _ = _find_modified_element(new_spec, component_id)
-
-    slide_html_path: str | None = None
-    if deps.slides_service is not None:
-        html = deps.slides_service.render_single_slide_html(
-            idx,
-            new_spec,
-            color_theme=color_theme,
-            bg_image_policy=project_service.load_bg_image_policy(project_dir),
-        )
-        html_path = project_service.save_single_slide_html(project_dir, idx, html)
-        slide_html_path = str(html_path)
-
-    result: dict = {
-        "project_id": project_id,
-        "slide_index": slide_index,
-        "component_id": component_id,
-        "modified_element": {"type": kind, "index": elem_idx},
-    }
-    if slide_html_path:
-        result["slide_html_path"] = slide_html_path
-
-    slide_lint = lint_slide_spec(
-        new_spec, slide_index=slide_index, stop_on_layer_error=True
-    )
-    if slide_lint.has_violations:
-        result["lint"] = slide_lint.to_dict()
-        result["lint_suggestion"] = (
-            f"슬라이드 {slide_index}에서 "
-            f"{len(slide_lint.violations)}건의 lint 위반이 발견되었습니다. "
-            "추가 수정이 필요한지 확인하세요."
-        )
-
-    return json.dumps(result, ensure_ascii=False)
+        return json.dumps(result, ensure_ascii=False)
 
 
 def _list_available_components(spec) -> list[dict]:
@@ -859,3 +911,8 @@ def _find_modified_element(spec, component_id: str) -> tuple[str, int, object]:
         if s.component_id == component_id:
             return ("shape", i, s)
     raise ValueError(f"component_id missing after modification: {component_id}")
+
+
+def _component_fingerprint(spec) -> str:
+    """현재 슬라이드와 component 링크의 안정적인 fingerprint."""
+    return hashlib.sha256(slide_spec_to_json(spec).encode("utf-8")).hexdigest()

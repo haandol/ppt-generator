@@ -22,6 +22,7 @@ attachment 가 별도로 본다.
 from __future__ import annotations
 
 from ppt_generator.interfaces.constants import LINT_ARROW_ATTACH_TOLERANCE_PX
+from ppt_generator.interfaces.line_geometry import line_endpoints
 from ppt_generator.interfaces.schemas import LayoutNode, PptxShape, PptxSlideSpec
 from ppt_generator.interfaces.spec_utils.lint_types import (
     LintViolation,
@@ -69,13 +70,12 @@ def _arrow_endpoints(
     박스가 뒤집혀 start=(left, top+|h|), end=(left+w, top). end_arrow 면 화살촉이
     end 에, start_arrow 면 start 에.
     """
-    h = line.height_px
-    if h < 0:
-        start = (line.left_px, line.top_px + abs(h))
-        end = (line.left_px + line.width_px, line.top_px)
-    else:
-        start = (line.left_px, line.top_px)
-        end = (line.left_px + line.width_px, line.top_px + h)
+    start, end = line_endpoints(
+        line.left_px,
+        line.top_px,
+        line.width_px,
+        line.height_px,
+    )
     if line.start_arrow and not line.end_arrow:
         return end, start  # tail=end, head=start
     # end_arrow (또는 양쪽/없음 — 기본 end 를 head 로)

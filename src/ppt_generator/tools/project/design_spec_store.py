@@ -161,3 +161,22 @@ class DesignSpecStore:
         if not spec_dir.exists():
             return 0
         return len(list(spec_dir.glob("slide_*.json")))
+
+    def validate_contiguous_design_spec(
+        self,
+        project_dir: Path,
+        expected_count: int | None = None,
+    ) -> int:
+        """slide_01..slide_N 파일이 누락 없이 연속인지 검증한다."""
+        spec_dir = self._design_spec_dir(project_dir)
+        files = sorted_slide_files(spec_dir)
+        count = len(files)
+        required_count = count if expected_count is None else expected_count
+        expected_names = [slide_filename(index) for index in range(required_count)]
+        actual_names = [path.name for path in files]
+        if actual_names != expected_names:
+            raise ValueError(
+                "Design spec slide files are not contiguous: "
+                f"expected {expected_names}, found {actual_names}"
+            )
+        return count

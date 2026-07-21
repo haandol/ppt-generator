@@ -125,12 +125,14 @@ def _run_batch(
     results: list[dict] = []
     all_overflow: list[dict] = []
     for i in indices:
-        _run(
-            tools["prepare_design_slide"](
-                project_id=resolved_project_id,
-                slide_index=i,
-                total_slides=total_slides,
-                color_theme=color_theme,
+        prepared = json.loads(
+            _run(
+                tools["prepare_design_slide"](
+                    project_id=resolved_project_id,
+                    slide_index=i,
+                    total_slides=total_slides,
+                    color_theme=color_theme,
+                )
             )
         )
         try:
@@ -139,6 +141,7 @@ def _run_batch(
                     project_id=resolved_project_id,
                     slide_index=i,
                     spec_json="{}",
+                    generation_context=prepared["generation_context"],
                     color_theme=color_theme,
                 )
             )
@@ -260,6 +263,24 @@ class TestGenerateSlidesDesignSpec:
             encoding="utf-8",
         )
         return "batch-proj"
+
+    def test_invalid_inline_outline_does_not_create_project(
+        self, mcp_tools: dict, tmp_path: Path, monkeypatch
+    ) -> None:
+        import ppt_generator.tools.project.service as svc_module
+
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+
+        with pytest.raises(ValueError):
+            mcp_tools["prepare_design_slide"](
+                project_id="",
+                slide_index=1,
+                outline_json="{invalid",
+                total_slides=1,
+                color_theme="dark",
+            )
+
+        assert list(tmp_path.iterdir()) == []
 
     def test_batch_generates_all_slides(
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
@@ -438,22 +459,13 @@ class TestGenerateSlidesDesignSpec:
 
         design_service.ingest_slide.side_effect = side_effect
 
-        result = _run_batch(
-            mcp_tools,
-            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-            total_slides=5,
-            project_id=project_id,
-        )
-        assert result["success_count"] == 4
-        assert result["error_count"] == 1
-
-        failed = [r for r in result["results"] if r["status"] == "error"]
-        assert len(failed) == 1
-        assert failed[0]["slide_index"] == 3
-        assert "LLM 호출 실패" in failed[0]["error"]
-
-        succeeded = [r for r in result["results"] if r["status"] == "success"]
-        assert len(succeeded) == 4
+        with pytest.raises(ValueError, match="not contiguous"):
+            _run_batch(
+                mcp_tools,
+                outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+                total_slides=5,
+                project_id=project_id,
+            )
 
     def test_batch_with_slide_indices(
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
@@ -486,22 +498,110 @@ class TestGenerateSlidesDesignSpec:
         self, mcp_tools: dict, tmp_path: Path, monkeypatch
     ) -> None:
         project_id = self._setup_project(tmp_path, monkeypatch)
-        result = _run_batch(
-            mcp_tools,
-            outline_json=SAMPLE_BATCH_OUTLINE_JSON,
-            total_slides=5,
-            project_id=project_id,
-            slide_indices="1,3,5",
-        )
-        assert result["success_count"] == 3
-        assert result["error_count"] == 0
-        assert len(result["results"]) == 3
-        assert [r["slide_index"] for r in result["results"]] == [1, 3, 5]
+        with pytest.raises(ValueError, match="not contiguous"):
+            _run_batch(
+                mcp_tools,
+                outline_json=SAMPLE_BATCH_OUTLINE_JSON,
+                total_slides=5,
+                project_id=project_id,
+                slide_indices="1,3,5",
+            )
 
         design_doc_path = tmp_path / project_id / "DESIGN.md"
         assert design_doc_path.exists()
         # 인덱스 1 이 포함되므로 초안을 ingest(저장)한다.
         assert mcp_tools["_design_service"].ingest_design_doc_draft.called
+
+    def test_inline_outline_context_controls_ingest_model(
+        self, mcp_tools: dict, tmp_path: Path, monkeypatch
+    ) -> None:
+        project_id = self._setup_project(tmp_path, monkeypatch)
+        stored_outline = json.dumps(
+            {
+                "slides": [
+                    {
+                        "title": "stored",
+                        "content_summary": "stored content",
+                        "slide_type": "content",
+                    }
+                ]
+            }
+        )
+        project_service = mcp_tools["_project_service"]
+        project_service.save_outline(tmp_path / project_id, stored_outline)
+        inline_outline = json.dumps(
+            {
+                "slides": [
+                    {
+                        "title": "inline",
+                        "content_summary": "inline title",
+                        "slide_type": "title",
+                    }
+                ]
+            }
+        )
+        prepared = json.loads(
+            mcp_tools["prepare_design_slide"](
+                project_id=project_id,
+                slide_index=1,
+                outline_json=inline_outline,
+                total_slides=1,
+                color_theme="dark",
+            )
+        )
+
+        mcp_tools["ingest_design_slide"](
+            project_id=project_id,
+            slide_index=1,
+            spec_json="{}",
+            generation_context=prepared["generation_context"],
+            color_theme="dark",
+        )
+
+        assert (
+            mcp_tools["_design_service"].ingest_slide.call_args.kwargs["slide_type"]
+            == "title"
+        )
+
+    def test_generation_context_rejects_target_change(
+        self, mcp_tools: dict, tmp_path: Path, monkeypatch
+    ) -> None:
+        project_id = self._setup_project(tmp_path, monkeypatch)
+        project_service = mcp_tools["_project_service"]
+        project_service.save_outline(
+            tmp_path / project_id,
+            json.dumps(
+                {
+                    "slides": [
+                        {
+                            "title": "one",
+                            "content_summary": "content",
+                            "slide_type": "content",
+                        }
+                    ]
+                }
+            ),
+        )
+        prepared = json.loads(
+            mcp_tools["prepare_design_slide"](
+                project_id=project_id,
+                slide_index=1,
+                total_slides=1,
+                color_theme="dark",
+            )
+        )
+        project_service.create_design_spec_slide(
+            tmp_path / project_id, 0, make_slide_spec("changed")
+        )
+
+        with pytest.raises(ValueError, match="target slide changed"):
+            mcp_tools["ingest_design_slide"](
+                project_id=project_id,
+                slide_index=1,
+                spec_json="{}",
+                generation_context=prepared["generation_context"],
+                color_theme="dark",
+            )
 
     def test_batch_slide_indices_without_index_zero(
         self, mcp_tools: dict, tmp_path: Path, monkeypatch

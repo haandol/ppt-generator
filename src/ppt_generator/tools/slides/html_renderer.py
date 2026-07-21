@@ -16,10 +16,13 @@ from ppt_generator.interfaces.text_measurement import (
     should_apply_nowrap_to_paragraph,
 )
 from ppt_generator.tools.slides.html_safety import (
+    css_number,
     css_url,
     escape_attr,
+    safe_base64_data,
     safe_color,
     safe_image_src,
+    safe_number,
 )
 from ppt_generator.tools.slides.shape_renderer import shape_to_html
 from ppt_generator.tools.slides.text_renderer import (
@@ -41,19 +44,25 @@ __all__ = [
 
 def textbox_to_html(tb: PptxTextBox) -> str:
     """PptxTextBox -> position:absolute <div> 변환."""
-    pl = tb.padding_left_px or 0
-    pr = tb.padding_right_px or 0
-    pt_ = tb.padding_top_px or 0
-    pb = tb.padding_bottom_px or 0
+    left = safe_number(tb.left_px)
+    top = safe_number(tb.top_px)
+    width = safe_number(tb.width_px)
+    height = safe_number(tb.height_px)
+    pl = safe_number(tb.padding_left_px)
+    pr = safe_number(tb.padding_right_px)
+    pt_ = safe_number(tb.padding_top_px)
+    pb = safe_number(tb.padding_bottom_px)
     style = (
         f"position:absolute;"
-        f"left:{tb.left_px}px;top:{tb.top_px}px;"
-        f"width:{tb.width_px}px;height:{tb.height_px}px;"
-        f"padding:{pt_}px {pr}px {pb}px {pl}px;box-sizing:border-box;"
+        f"left:{css_number(left)}px;top:{css_number(top)}px;"
+        f"width:{css_number(width)}px;height:{css_number(height)}px;"
+        f"padding:{css_number(pt_)}px {css_number(pr)}px "
+        f"{css_number(pb)}px {css_number(pl)}px;box-sizing:border-box;"
         f"overflow:visible;"
     )
-    if tb.line_spacing_pt:
-        style += f"line-height:{tb.line_spacing_pt}pt;"
+    line_spacing = safe_number(tb.line_spacing_pt)
+    if line_spacing > 0:
+        style += f"line-height:{css_number(line_spacing)}pt;"
     if tb.vertical_alignment == "middle":
         style += "display:flex;flex-direction:column;justify-content:center;"
     elif tb.vertical_alignment == "bottom":
@@ -61,21 +70,24 @@ def textbox_to_html(tb: PptxTextBox) -> str:
 
     # 불릿 그룹핑
     has_bullets = any(p.bullet_level >= 0 for p in tb.paragraphs)
-    usable_w = tb.width_px - pl - pr
+    usable_w = width - pl - pr
 
     # shrink_text autofit: 텍스트가 박스 높이를 넘으면 폰트를 비례 축소해
     # 헤더/푸터가 넘쳐 이웃과 겹치거나 잘리는 것을 막는다. 박스에 들어가면 scale=1.0.
     # PPTX 빌더(slide_builder)와 동일한 공유 헬퍼를 사용한다.
-    font_scale = calculate_shrink_font_scale(
-        tb.paragraphs,
-        tb.width_px,
-        tb.height_px,
-        line_spacing_pt=tb.line_spacing_pt,
-        padding_left_px=pl,
-        padding_right_px=pr,
-        padding_top_px=pt_,
-        padding_bottom_px=pb,
-    )
+    try:
+        font_scale = calculate_shrink_font_scale(
+            tb.paragraphs,
+            width,
+            height,
+            line_spacing_pt=line_spacing or None,
+            padding_left_px=pl,
+            padding_right_px=pr,
+            padding_top_px=pt_,
+            padding_bottom_px=pb,
+        )
+    except (TypeError, ValueError, OverflowError):
+        font_scale = 1.0
 
     inner_parts: list[str] = []
     if has_bullets:
@@ -97,7 +109,10 @@ def textbox_to_html(tb: PptxTextBox) -> str:
             )
     else:
         for para in tb.paragraphs:
-            apply_nowrap = should_apply_nowrap_to_paragraph(para, usable_w)
+            try:
+                apply_nowrap = should_apply_nowrap_to_paragraph(para, usable_w)
+            except (TypeError, ValueError, OverflowError):
+                apply_nowrap = False
             inner_parts.append(
                 paragraph_to_html(para, nowrap=apply_nowrap, font_scale=font_scale)
             )
@@ -119,23 +134,24 @@ _IMAGE_ICON_SVG = (
 
 def image_to_html(image: PptxImage, *, image_src: str | None = None) -> str:
     """PptxImage -> position:absolute <div> 변환."""
+    left = safe_number(image.left_px)
+    top = safe_number(image.top_px)
+    width = safe_number(image.width_px)
+    height = safe_number(image.height_px)
+    radius = safe_number(image.corner_radius_px)
     radius_css = ""
-    if image.corner_radius_px:
-        radius_css = f"border-radius:{image.corner_radius_px}px;"
+    if radius > 0:
+        radius_css = f"border-radius:{css_number(radius)}px;"
     pos_style = (
         f"position:absolute;"
-        f"left:{image.left_px}px;top:{image.top_px}px;"
-        f"width:{image.width_px}px;height:{image.height_px}px;"
+        f"left:{css_number(left)}px;top:{css_number(top)}px;"
+        f"width:{css_number(width)}px;height:{css_number(height)}px;"
         f"{radius_css}"
     )
     safe_src = safe_image_src(image_src) if image_src else None
     if safe_src:
         style = pos_style + "overflow:hidden;"
-        img_radius = (
-            f"border-radius:{image.corner_radius_px}px;"
-            if image.corner_radius_px
-            else ""
-        )
+        img_radius = f"border-radius:{css_number(radius)}px;" if radius > 0 else ""
         return (
             f'<div style="{style}">'
             f'<img src="{escape_attr(safe_src)}" '
@@ -178,17 +194,18 @@ def spec_to_html_section(
                 f"background-image:{css_url(safe_bg_src)};"
                 "background-size:cover;background-position:center;"
             )
-    elif bg_image_base64:
+    elif bg_image_base64 and (safe_bg_data := safe_base64_data(bg_image_base64)):
         bg_image_css = (
-            f"background-image:url(data:image/png;base64,{bg_image_base64});"
+            f"background-image:url(data:image/png;base64,{safe_bg_data});"
             "background-size:cover;background-position:center;"
         )
 
     srcs = image_srcs or []
 
     parts: list[str] = []
+    safe_slide_index = css_number(slide_index)
     parts.append(
-        f'<section id="slide-{slide_index}"{notes_attr}>'
+        f'<section id="slide-{safe_slide_index}"{notes_attr}>'
         f'<div style="position:absolute;top:0;left:0;right:0;bottom:0;'
         f'background-color:{bg};{bg_image_css}overflow:hidden;">'
     )
@@ -202,16 +219,16 @@ def spec_to_html_section(
 
     if has_z_index:
         # z_index 순으로 모든 요소를 통합 렌더링
-        render_items: list[tuple[int, str]] = []
+        render_items: list[tuple[float, str]] = []
         for shape in spec.shapes:
-            z = shape.z_index if shape.z_index is not None else 0
+            z = safe_number(shape.z_index)
             render_items.append((z, shape_to_html(shape)))
         for i, image in enumerate(spec.images):
             src = srcs[i] if i < len(srcs) else None
-            z = image.z_index if image.z_index is not None else 0
+            z = safe_number(image.z_index)
             render_items.append((z, image_to_html(image, image_src=src)))
         for tb in spec.textboxes:
-            z = tb.z_index if tb.z_index is not None else 0
+            z = safe_number(tb.z_index)
             render_items.append((z, textbox_to_html(tb)))
         render_items.sort(key=lambda x: x[0])
         for _, html in render_items:

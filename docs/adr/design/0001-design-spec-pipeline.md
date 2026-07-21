@@ -4,7 +4,7 @@ Date: 2026-02-13
 
 ## Status
 
-Accepted
+Accepted (2026-07-21)
 
 ## Context
 
@@ -39,6 +39,14 @@ LLM 은 절대 좌표(left/top/width/height) 와 스타일을 가진 PptxSlideSp
 - `prepare_slide_edit` / `ingest_slide_edit` — 개별 슬라이드 추가/수정 (modify/0001).
 - `load_design_spec` — 저장된 디자인 스펙 로드.
 - `export_html` / `export_pptx` — design_spec 을 받아 결정론적 변환.
+
+prepare와 ingest는 같은 outline revision과 slide type에 결속된다. prepare가 인라인
+outline을 허용하는 경우 그 정규화된 입력과 응답 schema를 서명 컨텍스트에 담고,
+ingest는 저장된 다른 outline로 모델을 다시 선택하지 않는다.
+
+finalize는 기대한 1부터 N까지의 슬라이드 파일이 빠짐없이 존재할 때만 컨테이너와
+덱 단위 결과를 만든다. 파일 개수만으로 연속성을 추정하지 않으며 sparse 또는 중복
+인덱스는 명확한 오류로 보고한다.
 
 ### 영속화 위치
 

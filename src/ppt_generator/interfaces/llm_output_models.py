@@ -140,7 +140,6 @@ class TextBoxOutput(BaseModel):
     padding_right_px: float | None = None
     padding_top_px: float | None = None
     padding_bottom_px: float | None = None
-    z_index: int | None = None
     grid_cell: str | None = None
     component_id: str | None = None  # design_doc.sections[].components[].id 참조
 
@@ -176,7 +175,6 @@ class ShapeOutput(BaseModel):
     svg_path: str | None = None
     # 결정 14: 기본 shrink_text (높이 고정, 폰트 자동 축소)
     autofit_mode: Literal["expand_height", "shrink_text"] = "shrink_text"
-    z_index: int | None = None
     grid_cell: str | None = None
     component_id: str | None = None  # design_doc.sections[].components[].id 참조
 
@@ -296,8 +294,18 @@ class VisualQAIssue(BaseModel):
     severity: Literal["high", "medium", "low"]
     element_type: Literal["textbox", "shape"]
     element_index: int = Field(ge=0)
+    related_element_type: Literal["textbox", "shape"] | None = None
+    related_element_index: int | None = Field(default=None, ge=0)
     description: str
     suggested_fix: str
+
+    @model_validator(mode="after")
+    def validate_related_element(self) -> "VisualQAIssue":
+        if (self.related_element_type is None) != (self.related_element_index is None):
+            raise ValueError(
+                "related_element_type and related_element_index must be set together"
+            )
+        return self
 
 
 class VisualQAOutput(BaseModel):
@@ -478,7 +486,7 @@ class _BaseSlideSpecOutput(BaseModel):
                 padding_right_px=tb.padding_right_px,
                 padding_top_px=tb.padding_top_px,
                 padding_bottom_px=tb.padding_bottom_px,
-                z_index=tb.z_index,
+                z_index=getattr(tb, "z_index", None),
                 grid_cell=tb.grid_cell,
                 component_id=tb.component_id,
             )
@@ -511,7 +519,7 @@ class _BaseSlideSpecOutput(BaseModel):
                 dash_style=s.dash_style,
                 svg_path=s.svg_path,
                 autofit_mode=s.autofit_mode,
-                z_index=s.z_index,
+                z_index=getattr(s, "z_index", None),
                 grid_cell=s.grid_cell,
                 component_id=s.component_id,
             )
@@ -582,6 +590,32 @@ class SimpleSlideSpecOutput(_BaseSlideSpecOutput):
     design_doc: DesignDocOutput | None = None
 
 
+class VisualQATextBoxOutput(TextBoxOutput):
+    """Visual QA에서만 렌더 순서 수정을 허용하는 텍스트박스."""
+
+    z_index: int | None = None
+
+
+class VisualQAShapeOutput(ShapeOutput):
+    """Visual QA에서만 렌더 순서 수정을 허용하는 도형."""
+
+    z_index: int | None = None
+
+
+class VisualQAContentSlideSpecOutput(ContentSlideSpecOutput):
+    """Visual QA용 content 응답 모델."""
+
+    textboxes: list[VisualQATextBoxOutput] = Field(default_factory=list)
+    shapes: list[VisualQAShapeOutput] = Field(default_factory=list)
+
+
+class VisualQASimpleSlideSpecOutput(SimpleSlideSpecOutput):
+    """Visual QA용 title/closing 응답 모델."""
+
+    textboxes: list[VisualQATextBoxOutput] = Field(default_factory=list)
+    shapes: list[VisualQAShapeOutput] = Field(default_factory=list)
+
+
 # --- Design Review models ---
 
 
@@ -601,6 +635,23 @@ class DesignReviewIssue(BaseModel):
     ]
     severity: Literal["high", "medium"]
     description: str
+
+    @model_validator(mode="after")
+    def validate_rule_severity(self) -> "DesignReviewIssue":
+        allowed: dict[str, set[str]] = {
+            "font_size_floor": {"high"},
+            "lr_font_consistency": {"high", "medium"},
+            "vstack_overlap": {"high"},
+            "vstack_height_uniformity": {"medium"},
+            "vstack_gap_uniformity": {"medium"},
+            "lr_bottom_alignment": {"medium"},
+            "same_level_overlap": {"high"},
+            "peer_font_consistency": {"high", "medium"},
+            "peer_padding_consistency": {"medium"},
+        }
+        if self.severity not in allowed[self.rule_id]:
+            raise ValueError(f"{self.rule_id} does not allow severity {self.severity}")
+        return self
 
 
 class DesignReviewOutput(BaseModel):
@@ -704,7 +755,7 @@ def textbox_output_to_dataclass(tb: TextBoxOutput) -> PptxTextBox:
         padding_right_px=tb.padding_right_px,
         padding_top_px=tb.padding_top_px,
         padding_bottom_px=tb.padding_bottom_px,
-        z_index=tb.z_index,
+        z_index=getattr(tb, "z_index", None),
         grid_cell=tb.grid_cell,
         component_id=tb.component_id,
     )
@@ -738,7 +789,7 @@ def shape_output_to_dataclass(s: ShapeOutput) -> PptxShape:
         dash_style=s.dash_style,
         svg_path=s.svg_path,
         autofit_mode=s.autofit_mode,
-        z_index=s.z_index,
+        z_index=getattr(s, "z_index", None),
         grid_cell=s.grid_cell,
         component_id=s.component_id,
     )

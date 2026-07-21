@@ -254,6 +254,7 @@ class TestImportBackfillModifyChain:
                 slide_index=1,
                 component_id="right.box",
                 modify_json=modify_output.model_dump_json(),
+                edit_context=prep2["edit_context"],
             )
         )
         assert result2["component_id"] == "right.box"

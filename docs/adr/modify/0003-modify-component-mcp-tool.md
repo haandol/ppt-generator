@@ -4,7 +4,7 @@ Date: 2026-05-26
 
 ## Status
 
-Accepted
+Accepted (2026-07-21)
 
 ## Context
 
@@ -20,7 +20,12 @@ design/0011 가 5단 디자인 스펙 계층(Project / Slide / Layout / Section 
 
 ## Decision
 
-`modify_component(project_id, slide_index, component_id, instruction, color_theme)` MCP 도구를 추가한다. 한 호출당 정확히 1 개의 component leaf 를 수정하고, 다른 모든 것(다른 element, grid_plan, background, speaker_notes, design_doc 트리 구조) 은 byte-equal 로 보존한다.
+부분 수정은 `prepare_modify_component` / `ingest_modify_component` 쌍으로 제공한다.
+prepare는 생성 프롬프트와 응답 스키마뿐 아니라 프로젝트 revision, 슬라이드 위치,
+component 식별자와 대상 fingerprint를 묶은 서명 컨텍스트를 반환한다. ingest는 이
+컨텍스트를 검증한 뒤 한 호출당 정확히 1 개의 component leaf 를 수정하고, 다른 모든
+것(다른 element, grid_plan, background, speaker_notes, design_doc 트리 구조) 은
+byte-equal 로 보존한다.
 
 ### LLM 입력은 슬라이드 전체 + 대상 component_id
 
@@ -51,6 +56,11 @@ LLM 이 수정할 수 있는 것:
 ### 후처리
 
 수정 직후 (1) 변경된 슬라이드만 lint 재검증해 위반 있으면 응답에 포함 (재생성 자동 안 함, 호출자가 결정), (2) 단일 슬라이드 HTML 재렌더해 path 반환, (3) `steps_completed` 에 modify 단계 갱신. 기존 slide_edit 후처리와 동일한 패턴.
+
+검증, lint와 HTML 렌더링은 파일 변경 전에 완료한다. 디자인 스펙, HTML, 메타데이터와
+멱등 영수증은 프로젝트 락 안에서 하나의 트랜잭션으로 저장하며 중간 실패 시 모두
+복원한다. 대상 component는 design tree의 유일한 leaf 하나와 렌더 요소 하나에 각각
+정확히 연결되어야 한다.
 
 ### 비-design 메타 필드 보존
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted (2026-07-21)
 
 ## Context
 
@@ -21,20 +21,29 @@ Playwright + Claude Vision 기반의 Visual QA 파이프라인을 opt-in MCP too
 
 | Issue Type | Description |
 |---|---|
-| `word_break` | 단어 중간 줄바꿈 (특히 한/영 제목) |
 | `text_truncation` | 텍스트 컨테이너 경계에서 잘림 |
 | `overlap` | 의도하지 않은 요소 겹침 |
+| `label_intrusion` | 짧은 다이어그램 라벨이 형제 도형을 침범 |
+| `decoration_overlap` | 배지·아이콘 장식이 무관한 카드와 겹침 |
+| `arrow_through_card` | 화살표가 대상이 아닌 카드를 관통 |
+| `orphan_label_no_arrow` | 흐름 라벨에 대응하는 화살표가 없음 |
 | `overflow` | 텍스트가 박스 밖으로 넘침 |
 | `contrast` | 텍스트-배경 간 대비 부족 |
 | `misalignment` | 같은 행/열 정렬 불일치 |
+| `arrow_disconnected` | 화살표 끝점이 연결 대상 edge에 닿지 않음 |
 | `wrong_vertical_alignment` | 동일 행 peer 카드에 "middle" 사용으로 콘텐츠 시작 위치 불일치 |
 | `inconsistent_font_size` | 같은 레벨 peer 요소 간 폰트 크기 불일치 |
+| `inconsistent_padding` | 동일 행 peer 요소의 내부 padding 불일치 |
 | `inconsistent_spacing` | peer 요소 간 간격 불일치 |
-| `arrow_disconnected` | 화살표 시작/끝점이 연결 대상 블록 edge에 닿지 않음 (gap 또는 penetration) |
+| `zero_gap` | 인접 요소 사이 여백이 없거나 지나치게 작음 |
 | `small_font` | 본문/카드 텍스트가 14pt 미만으로 가독성 저하 |
 | `insufficient_padding` | shape/textbox 내 텍스트와 경계 사이 여백 부족 (padding < 8px) |
 | `content_too_sparse` | 슬라이드 콘텐츠가 본문 영역의 30% 미만만 차지하여 과도한 여백 |
 | `content_too_dense` | 요소가 과밀하거나 폰트/패딩이 권장 최소값 이하로 축소됨 |
+| `unbalanced_spacing` | 반복 요소의 광학적 간격과 밀도가 불균형 |
+| `label_line_overlap` | 텍스트 라벨이 화살표·연결선과 겹침 |
+| `hidden_decorative_strip` | 장식 스트립이 더 큰 도형 뒤에 가려짐 |
+| `wrong_z_order` | 의도한 시각 계층과 렌더 순서가 불일치 |
 
 ## Changes
 
@@ -43,7 +52,7 @@ Playwright + Claude Vision 기반의 Visual QA 파이프라인을 opt-in MCP too
 - `interfaces/llm_output_models.py`: `VisualQAIssue`, `VisualQAOutput` Pydantic 모델 추가
 - `interfaces/prompts/visual_qa_analysis.prompt.md`: 스크린샷 분석 시스템 프롬프트
 - `interfaces/prompts/visual_qa_fix.prompt.md`: 디자인 스펙 수정 시스템 프롬프트
-- `interfaces/prompts/design_system_content.prompt.md`: Arrow endpoint snapping 규칙 추가
+- `interfaces/prompts/design_system_content.prompt.md`: 방향 무관 Arrow endpoint 계약 추가
 - `tools/visual_qa/__init__.py`, `controller.py`, `service.py`: 새 모듈
 - `di/model_factory.py`: visual_qa 모델 생성 함수 추가
 - `di/container.py`: `create_visual_qa_service` 메서드 추가
@@ -65,7 +74,7 @@ for iteration in range(max_iterations):
 ## Scope Constraints
 
 - **분석(analysis)**: 시각적 렌더링 이슈만 감지. 슬라이드 콘텐츠(텍스트 문구, 데이터 값, 서술 흐름, 언어 선택)는 절대 지적하지 않는다.
-- **수정(fix)**: 시각적 속성(위치, 크기, 폰트 크기, 색상, 정렬)만 변경. 텍스트 내용 자체를 수정하지 않는다. `word_break`/`overflow`를 리사이징/리포지셔닝으로 해결할 수 없으면 폰트 크기를 줄인다.
+- **수정(fix)**: 시각적 속성(위치, 크기, 폰트 크기, 색상, 정렬)만 변경. 텍스트 내용 자체를 수정하지 않는다. `text_truncation`/`overflow`를 리사이징/리포지셔닝으로 해결할 수 없으면 폰트 크기를 줄인다.
 
 ## Contract Integrity
 
@@ -79,9 +88,19 @@ for iteration in range(max_iterations):
 
 수정 단계는 다음 보존 규칙을 따른다.
 
+- 분석 이슈는 현재 슬라이드의 요소 종류와 인덱스 범위까지 서버가 검증한다.
+- fix prepare는 검증된 이슈, 프로젝트·슬라이드 식별자와 현재 spec revision을 서명한
+  컨텍스트로 반환한다. fix ingest는 재전달된 자유 형식 이슈가 아니라 이 컨텍스트로
+  변경 권한과 stale 여부를 판단한다.
 - 시각 결함과 무관한 슬라이드 필드는 기존 값을 보존한다.
-- 렌더 순서 결함은 `z_index` 변경 또는 배열 순서 변경으로 수정할 수 있다.
-- 기존 `z_index`는 명시적으로 수정 대상으로 지정되지 않은 요소에서 보존한다.
+- 텍스트박스, 도형과 이미지의 수 및 배열 순서를 보존한다.
+- 요소의 immutable content와 component identity가 같은 인덱스에서 일치하지 않으면
+  재정렬 또는 구조 변경으로 간주해 거부한다.
+- 렌더 순서 결함은 검증된 이슈 목록에 레이어 관련 이슈가 있을 때만 `z_index`를
+  변경해 수정한다. 배열 순서 변경은 요소 정체성을 훼손할 수 있어 허용하지 않는다.
+- 기존 `z_index`는 레이어 관련 이슈가 없는 수정에서 보존한다.
+- 배경색 등 슬라이드 전역 속성과 요소별 시각 속성은 해당 issue type이 허용한 경우에만
+  변경한다.
 - 위치·스타일 수정으로 해결할 수 없는 경우에도 텍스트 문구, 데이터, 발표자 노트는
   변경하지 않는다. 해결 불가능한 이슈는 미수정 상태로 보고한다.
 

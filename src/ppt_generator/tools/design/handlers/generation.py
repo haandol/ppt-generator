@@ -7,17 +7,28 @@ LLM 생성은 클라이언트가 수행한다. 서버는 프롬프트 조립(pre
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
-from dataclasses import replace
+from dataclasses import asdict, replace
 from typing import TYPE_CHECKING
 
 from ppt_generator.interfaces.index_validation import require_positive_slide_index
+from ppt_generator.interfaces.llm_output_models import (
+    ContentSlideSpecOutput,
+    SimpleSlideSpecOutput,
+)
+from ppt_generator.interfaces.schemas import SlideOutline
 from ppt_generator.interfaces.spec_utils import lint_design_spec, lint_slide_spec
 from ppt_generator.interfaces.utils import (
     complexity_to_budget_tokens,
     estimate_slide_complexity,
     parse_outline_json,
+)
+from ppt_generator.tools.design.edit_context import (
+    decode_signed_context,
+    encode_signed_context,
+    project_edit_lock,
 )
 from ppt_generator.tools.slides.service import SlidesService
 
@@ -167,6 +178,21 @@ def handle_prepare_design_slide(
     )
     task["project_id"] = project_id
     task["slide_index"] = slide_index
+    task["generation_context"] = encode_signed_context(
+        {
+            "kind": "design_slide_generation",
+            "version": 1,
+            "project_id": project_id,
+            "slide_index": slide_index,
+            "total_slides": total_slides,
+            "color_theme": color_theme,
+            "outline": asdict(slide_outline),
+            "slide_type": slide_outline.slide_type,
+            "schema_identity": _slide_schema_identity(slide_outline.slide_type),
+            "target_revision": _slide_revision(project_dir, idx),
+        },
+        project_dir,
+    )
     return json.dumps(task, ensure_ascii=False)
 
 
@@ -176,6 +202,7 @@ def handle_ingest_design_slide(
     project_id: str,
     slide_index: int,
     spec_json: str,
+    generation_context: str,
     color_theme: str,
 ) -> str:
     """클라이언트가 생성한 슬라이드 spec 을 검증·정합화·저장·렌더·lint 한다.
@@ -186,19 +213,60 @@ def handle_ingest_design_slide(
     project_service = deps.project_service
     project_id, project_dir = project_service.resolve_existing_project_dir(project_id)
 
+    idx = slide_index - 1
+    context = decode_signed_context(generation_context, project_dir)
+    expected = {
+        "kind": "design_slide_generation",
+        "version": 1,
+        "project_id": project_id,
+        "slide_index": slide_index,
+        "color_theme": color_theme,
+    }
+    if any(context.get(key) != value for key, value in expected.items()):
+        raise ValueError("generation_context does not match ingest request")
+    try:
+        slide_outline = SlideOutline(**context["outline"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("Invalid generation_context outline") from exc
+    if context.get("slide_type") != slide_outline.slide_type:
+        raise ValueError("Invalid generation_context slide_type")
+    expected_schema = _slide_schema_identity(slide_outline.slide_type)
+    if context.get("schema_identity") != expected_schema:
+        raise ValueError("Stale generation_context: response schema changed")
+
+    with project_edit_lock(project_dir):
+        if context.get("target_revision") != _slide_revision(project_dir, idx):
+            raise ValueError(
+                "Stale generation_context: target slide changed after prepare"
+            )
+        return _ingest_design_slide_locked(
+            deps,
+            project_id=project_id,
+            project_dir=project_dir,
+            slide_index=slide_index,
+            spec_json=spec_json,
+            raw_slide_type=slide_outline.slide_type,
+            color_theme=color_theme,
+        )
+
+
+def _ingest_design_slide_locked(
+    deps: DesignDeps,
+    *,
+    project_id: str,
+    project_dir,
+    slide_index: int,
+    spec_json: str,
+    raw_slide_type: str,
+    color_theme: str,
+) -> str:
+    """서명 컨텍스트 검증 뒤 대상 슬라이드 결과를 저장한다."""
+    project_service = deps.project_service
+    idx = slide_index - 1
+
     from ppt_generator.interfaces import bg_image_utils
 
     bg_image_utils.set_project_seed(project_id)
-
-    idx = slide_index - 1
-    outline = _load_outline(deps, project_id=project_id, outline_json="")
-    if slide_index > len(outline.slides):
-        raise ValueError(
-            f"Invalid slide_index: {slide_index} (valid range: 1-{len(outline.slides)})"
-        )
-    # 동작 불변: 저장되는 slide_type 은 outline 의 원본 값 그대로 (None/"" 포함).
-    # 응답 모델 선택만 ingest_slide 내부에서 `or "content"` 로 정규화한다.
-    raw_slide_type = outline.slides[idx].slide_type
 
     spec, overflow = deps.design_service.ingest_slide(
         spec_json, slide_type=raw_slide_type
@@ -254,9 +322,17 @@ def handle_finalize_design_spec(
     project_service = deps.project_service
     _, project_dir = project_service.resolve_existing_project_dir(project_id)
 
+    try:
+        expected_count = len(
+            _load_outline(deps, project_id=project_id, outline_json="").slides
+        )
+    except (FileNotFoundError, ValueError):
+        expected_count = None
+    slide_count = project_service.validate_contiguous_design_spec(
+        project_dir, expected_count
+    )
     project_service.renumber_design_spec_image_srcs(project_dir)
     project_service.update_step(project_dir, "design_spec")
-    slide_count = project_service.get_design_spec_slide_count(project_dir)
 
     slides_html_path: str | None = None
     if deps.slides_service is not None and slide_count > 0:
@@ -379,3 +455,26 @@ def _load_outline(
         "Either outline_json or project_id must be provided."
     )
     raise ValueError("Either outline_json or project_id must be provided.")
+
+
+def _schema_identity(schema: dict) -> str:
+    encoded = json.dumps(
+        schema, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _slide_schema_identity(slide_type: str | None) -> str:
+    model = (
+        ContentSlideSpecOutput
+        if (slide_type or "content") == "content"
+        else SimpleSlideSpecOutput
+    )
+    return _schema_identity(model.model_json_schema())
+
+
+def _slide_revision(project_dir, idx: int) -> str:
+    path = project_dir / "design_spec" / f"slide_{idx + 1:02d}.json"
+    if not path.exists():
+        return "missing"
+    return hashlib.sha256(path.read_bytes()).hexdigest()

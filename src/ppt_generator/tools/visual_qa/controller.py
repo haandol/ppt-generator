@@ -6,6 +6,7 @@ iteration 루프(분석→수정→재캡처)는 클라이언트(스킬)가 오�
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from pathlib import Path
@@ -14,6 +15,13 @@ from mcp.server.fastmcp import FastMCP
 
 from ppt_generator.interfaces.constants import VISUAL_QA_MAX_ITERATIONS
 from ppt_generator.interfaces.index_validation import require_positive_slide_index
+from ppt_generator.interfaces.spec_utils.serializer import slide_spec_to_json
+from ppt_generator.tools.design.edit_context import (
+    ProjectSnapshot,
+    decode_signed_context,
+    encode_signed_context,
+    project_edit_lock,
+)
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
 from ppt_generator.tools.visual_qa.service import VisualQAService
@@ -44,6 +52,9 @@ def register_visual_qa_tools(
 
     def _screenshot_path(project_dir: Path, idx: int, iteration: int) -> Path:
         return project_dir / "screenshots" / f"slide_{idx + 1:02d}_v{iteration}.png"
+
+    def _spec_fingerprint(spec) -> str:
+        return hashlib.sha256(slide_spec_to_json(spec).encode("utf-8")).hexdigest()
 
     @mcp.tool()
     def capture_slides(
@@ -152,7 +163,20 @@ def register_visual_qa_tools(
                 f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})"
             )
         analysis = visual_qa_service.ingest_analysis(analysis_json)
+        spec = project_service.load_design_spec_slide(project_dir, slide_index - 1)
+        visual_qa_service.validate_issue_targets(analysis, spec)
         issues = [i.model_dump() for i in analysis.issues]
+        analysis_context = encode_signed_context(
+            {
+                "kind": "visual_qa_analysis",
+                "version": 1,
+                "project_id": project_id,
+                "slide_index": slide_index,
+                "spec_fingerprint": _spec_fingerprint(spec),
+                "issues": issues,
+            },
+            project_dir,
+        )
         return json.dumps(
             {
                 "project_id": project_id,
@@ -160,6 +184,7 @@ def register_visual_qa_tools(
                 "has_issues": analysis.has_issues,
                 "overall_quality": analysis.overall_quality,
                 "issues": issues,
+                "analysis_context": analysis_context,
             },
             ensure_ascii=False,
         )
@@ -168,7 +193,7 @@ def register_visual_qa_tools(
     def prepare_visual_qa_fix(
         project_id: str,
         slide_index: int,
-        issues_json: str,
+        analysis_context: str,
         iteration: int = 0,
     ) -> str:
         """Prepares the fix task for a slide with detected issues. No LLM call.
@@ -179,7 +204,7 @@ def register_visual_qa_tools(
         Args:
             project_id: Target project ID (required).
             slide_index: 1-based slide position.
-            issues_json: JSON array of issues from ingest_visual_qa_analysis.
+            analysis_context: Opaque context returned by ingest_visual_qa_analysis.
             iteration: Iteration counter matching the capture (default 0).
 
         Returns:
@@ -199,13 +224,34 @@ def register_visual_qa_tools(
                 f"screenshot not found for slide {slide_index} (iteration {iteration})."
             )
         spec = project_service.load_design_spec_slide(project_dir, idx)
-        try:
-            issues = json.loads(issues_json) if issues_json else []
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"invalid issues_json: {exc}") from exc
+        context = decode_signed_context(analysis_context, project_dir)
+        if (
+            context.get("kind") != "visual_qa_analysis"
+            or context.get("version") != 1
+            or context.get("project_id") != project_id
+            or context.get("slide_index") != slide_index
+        ):
+            raise ValueError("analysis_context does not match fix request")
+        if context.get("spec_fingerprint") != _spec_fingerprint(spec):
+            raise ValueError("Stale analysis_context: slide changed after analysis")
+        issues = context.get("issues")
+        if not isinstance(issues, list):
+            raise ValueError("Invalid analysis_context issues")
         task = visual_qa_service.prepare_fix(png_path, spec, issues)
         task["project_id"] = project_id
         task["slide_index"] = slide_index
+        task["fix_context"] = encode_signed_context(
+            {
+                "kind": "visual_qa_fix",
+                "version": 1,
+                "project_id": project_id,
+                "slide_index": slide_index,
+                "iteration": iteration,
+                "spec_fingerprint": _spec_fingerprint(spec),
+                "issues": issues,
+            },
+            project_dir,
+        )
         return json.dumps(task, ensure_ascii=False)
 
     @mcp.tool()
@@ -213,7 +259,7 @@ def register_visual_qa_tools(
         project_id: str,
         slide_index: int,
         fix_json: str,
-        issues_json: str = "",
+        fix_context: str,
     ) -> str:
         """Ingests the client-generated fix: validate, save, re-render HTML.
 
@@ -224,63 +270,77 @@ def register_visual_qa_tools(
             project_id: Target project ID (required).
             slide_index: 1-based slide position.
             fix_json: The corrected slide spec JSON generated by the client.
-            issues_json: The same issue array passed to prepare_visual_qa_fix.
+            fix_context: Opaque context returned by prepare_visual_qa_fix.
 
         Returns:
-            JSON with status ("fixed" | "unfixed"), slide_html_path.
+            JSON with status ("fixed" | "unfixed" | "unresolved"), slide_html_path.
         """
         require_positive_slide_index(slide_index)
         _, project_dir = project_service.resolve_existing_project_dir(project_id)
-        slide_count = project_service.get_design_spec_slide_count(project_dir)
-        if slide_index > slide_count:
-            raise ValueError(
-                f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})"
-            )
-        idx = slide_index - 1
-        current_spec = project_service.load_design_spec_slide(project_dir, idx)
-        try:
-            issues = json.loads(issues_json) if issues_json else []
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"invalid issues_json: {exc}") from exc
-        if not isinstance(issues, list) or any(
-            not isinstance(issue, dict) for issue in issues
-        ):
-            raise ValueError("issues_json must be a JSON array of objects")
+        with project_edit_lock(project_dir):
+            slide_count = project_service.get_design_spec_slide_count(project_dir)
+            if slide_index > slide_count:
+                raise ValueError(
+                    f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})"
+                )
+            idx = slide_index - 1
+            current_spec = project_service.load_design_spec_slide(project_dir, idx)
+            context = decode_signed_context(fix_context, project_dir)
+            if (
+                context.get("kind") != "visual_qa_fix"
+                or context.get("version") != 1
+                or context.get("project_id") != project_id
+                or context.get("slide_index") != slide_index
+            ):
+                raise ValueError("fix_context does not match ingest request")
+            if context.get("spec_fingerprint") != _spec_fingerprint(current_spec):
+                raise ValueError("Stale fix_context: slide changed after fix prepare")
+            issues = context.get("issues")
+            if not isinstance(issues, list):
+                raise ValueError("Invalid fix_context issues")
 
-        fixed = visual_qa_service.ingest_fix(fix_json, current_spec, issues)
-        if fixed is None:
+            fixed = visual_qa_service.ingest_fix(fix_json, current_spec, issues)
+            if fixed is None:
+                return json.dumps(
+                    {
+                        "project_id": project_id,
+                        "slide_index": slide_index,
+                        "status": "unfixed",
+                    },
+                    ensure_ascii=False,
+                )
+            if fixed == current_spec:
+                return json.dumps(
+                    {
+                        "project_id": project_id,
+                        "slide_index": slide_index,
+                        "status": "unresolved",
+                        "remaining_issues": issues,
+                    },
+                    ensure_ascii=False,
+                )
+
+            design_summary = project_service.load_design_summary(project_dir)
+            color_theme = (design_summary or {}).get("color_theme", "dark")
+            bg_image_policy = project_service.load_bg_image_policy(project_dir)
+            html = SlidesService.render_single_slide_html(
+                idx, fixed, color_theme=color_theme, bg_image_policy=bg_image_policy
+            )
+            with ProjectSnapshot(project_dir) as snapshot:
+                project_service.save_design_spec_slide(project_dir, idx, fixed)
+                hp = project_service.save_single_slide_html(project_dir, idx, html)
+                project_service.update_step(project_dir, "design_spec_modified")
+                snapshot.commit()
+
             return json.dumps(
                 {
                     "project_id": project_id,
                     "slide_index": slide_index,
-                    "status": "unfixed",
+                    "status": "fixed",
+                    "slide_html_path": str(hp),
                 },
                 ensure_ascii=False,
             )
-
-        project_service.save_design_spec_slide(project_dir, idx, fixed)
-        project_service.renumber_design_spec_image_srcs(project_dir)
-
-        design_summary = project_service.load_design_summary(project_dir)
-        color_theme = (design_summary or {}).get("color_theme", "dark")
-        bg_image_policy = project_service.load_bg_image_policy(project_dir)
-
-        slide_html_path: str | None = None
-        html = SlidesService.render_single_slide_html(
-            idx, fixed, color_theme=color_theme, bg_image_policy=bg_image_policy
-        )
-        hp = project_service.save_single_slide_html(project_dir, idx, html)
-        slide_html_path = str(hp)
-
-        return json.dumps(
-            {
-                "project_id": project_id,
-                "slide_index": slide_index,
-                "status": "fixed",
-                "slide_html_path": slide_html_path,
-            },
-            ensure_ascii=False,
-        )
 
     @mcp.tool()
     def finalize_visual_qa(project_id: str) -> str:

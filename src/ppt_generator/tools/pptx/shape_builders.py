@@ -22,6 +22,7 @@ from ppt_generator.interfaces.constants import (
     PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU,
     PX_TO_EMU,
 )
+from ppt_generator.interfaces.line_geometry import line_endpoints
 from ppt_generator.interfaces.schemas import PptxShape
 from ppt_generator.interfaces.text_measurement import calculate_shrink_font_scale
 from ppt_generator.tools.pptx.freeform_builder import add_freeform_from_svg
@@ -73,9 +74,6 @@ _DASH_STYLE_MAP = {
     "dash": "dash",
     "dot": "sysDot",
 }
-
-# 수평/수직 스냅 임계값 (px): 이 값 이하면 의도하지 않은 오차로 판단
-_SNAP_THRESHOLD = 12
 
 # rounded_rectangle 기본 라운딩 (corner_radius_px가 null일 때, HTML 렌더러와 동일)
 _ROUNDED_RECT_DEFAULT_RADIUS_PX = 8.0
@@ -270,26 +268,11 @@ def add_connector_from_spec(slide, shape_spec: PptxShape) -> None:
     python-pptx 의 add_connector 가 begin/end 좌표 비교로 flipH/flipV 를 자동
     설정하므로 호출자는 begin/end 좌표만 정확히 넘기면 된다.
     """
-    w = shape_spec.width_px
-    h = shape_spec.height_px
-    abs_w = abs(w)
-    abs_h = abs(h)
-    if abs_w > 0 and 0 < abs_h <= _SNAP_THRESHOLD:
-        h = 0  # 수평선 보정
-        abs_h = 0
-    elif abs_h > 0 and 0 < abs_w <= _SNAP_THRESHOLD:
-        w = 0  # 수직선 보정
-        abs_w = 0
-
-    min_x, max_x = shape_spec.left_px, shape_spec.left_px + abs_w
-    min_y, max_y = shape_spec.top_px, shape_spec.top_px + abs_h
-    begin_px = (
-        min_x if w >= 0 else max_x,
-        min_y if h >= 0 else max_y,
-    )
-    end_px = (
-        max_x if w >= 0 else min_x,
-        max_y if h >= 0 else min_y,
+    begin_px, end_px = line_endpoints(
+        shape_spec.left_px,
+        shape_spec.top_px,
+        shape_spec.width_px,
+        shape_spec.height_px,
     )
 
     begin_x = Inches(begin_px[0] * EXPORT_PX_TO_INCHES_X)

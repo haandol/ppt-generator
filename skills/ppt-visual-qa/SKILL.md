@@ -34,24 +34,27 @@ description: Run visual QA on a generated deck — capture slide screenshots (se
    `response_schema` 대로 분석 JSON 을 생성한다.
 3. `mcp__ppt-generator__ingest_visual_qa_analysis(project_id, slide_index, analysis_json)` 호출.
    - 반환의 `has_issues` 가 false 면 이 슬라이드는 통과 — 다음 iteration 대상에서 제외.
-   - true 면 `issues` 를 다음 단계로 넘긴다.
+   - true 면 `analysis_context` 를 다음 단계로 넘긴다.
 
 ### 3. 수정 (이슈 있는 슬라이드만, 병렬)
 
 이슈가 있는 각 슬라이드에 대해:
-1. `mcp__ppt-generator__prepare_visual_qa_fix(project_id, slide_index, issues_json, iteration=n)` 호출.
-   - `issues_json` 은 이전 단계 `issues` 를 JSON 배열 문자열로.
-   - 반환: `response_schema`, `images`.
+1. `mcp__ppt-generator__prepare_visual_qa_fix(project_id, slide_index, analysis_context, iteration=n)` 호출.
+   - `analysis_context` 는 이전 분석 ingest가 반환한 opaque token.
+   - 반환: `response_schema`, `images`, `fix_context`.
 2. **네가** 이슈를 반영한 **전체** 슬라이드 spec JSON 을 `response_schema` 대로 생성한다.
-3. `mcp__ppt-generator__ingest_visual_qa_fix(project_id, slide_index, fix_json, issues_json)` 호출 — 저장·재렌더.
-   - `issues_json` 은 prepare 단계에 전달한 것과 같은 JSON 배열 문자열을 사용한다.
+3. `mcp__ppt-generator__ingest_visual_qa_fix(project_id, slide_index, fix_json, fix_context)` 호출 — 저장·재렌더.
    - `status="fixed"` 면 다음 iteration 에서 이 슬라이드를 다시 캡처·분석해 검증.
    - `status="unfixed"` 면 검증 실패 — 그대로 두거나 재시도.
+   - `status="unresolved"` 면 허용된 시각 속성만으로 해결할 수 없어 원본을 보존한 상태다.
+     반환된 `remaining_issues` 를 최종 보고에 포함하고 반복 대상에서 제외한다.
 
 ### 4. 마무리
 
 - 반복이 끝나면 `mcp__ppt-generator__finalize_visual_qa(project_id)` 를 1회 호출.
 - 반환된 `slides_html_path` 를 사용자에게 공유한다.
+- 최대 반복에 도달했는데 마지막 분석에 이슈가 남았거나 `unresolved`가 반환된 슬라이드는
+  슬라이드 번호와 잔여 이슈를 사용자에게 명시한다.
 
 ## 규칙
 

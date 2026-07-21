@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import replace
+from dataclasses import fields, replace
 from pathlib import Path
 
 from ppt_generator.interfaces.constants import (
@@ -24,17 +24,70 @@ from ppt_generator.interfaces.constants import (
 )
 from ppt_generator.interfaces.handoff import build_llm_task
 from ppt_generator.interfaces.llm_output_models import (
-    ContentSlideSpecOutput,
-    SimpleSlideSpecOutput,
+    VisualQAContentSlideSpecOutput,
     VisualQAOutput,
+    VisualQASimpleSlideSpecOutput,
     _BaseSlideSpecOutput,
 )
 from ppt_generator.interfaces.schemas import PptxSlideSpec
-from ppt_generator.interfaces.spec_utils import clean_slide_spec
 from ppt_generator.interfaces.spec_utils.serializer import slide_spec_to_json
 from ppt_generator.tools.visual_qa.screenshot import capture_screenshots
 
 logger = logging.getLogger(__name__)
+
+_GEOMETRY_FIELDS = {"left_px", "top_px", "width_px", "height_px"}
+_PADDING_FIELDS = {
+    "padding_left_px",
+    "padding_right_px",
+    "padding_top_px",
+    "padding_bottom_px",
+}
+_FONT_FIELDS = {"text_size_pt"}
+_TEXT_FLOW_FIELDS = {
+    "text_size_pt",
+    "line_spacing_pt",
+    "vertical_alignment",
+    "autofit_mode",
+}
+_COLOR_FIELDS = {
+    "fill_color",
+    "border_color",
+    "text_color",
+}
+_ISSUE_ALLOWED_FIELDS: dict[str, set[str]] = {
+    "text_truncation": _GEOMETRY_FIELDS | _PADDING_FIELDS | _TEXT_FLOW_FIELDS,
+    "overlap": _GEOMETRY_FIELDS,
+    "label_intrusion": _GEOMETRY_FIELDS,
+    "decoration_overlap": _GEOMETRY_FIELDS,
+    "arrow_through_card": _GEOMETRY_FIELDS,
+    "orphan_label_no_arrow": _GEOMETRY_FIELDS,
+    "overflow": _GEOMETRY_FIELDS | _PADDING_FIELDS | _TEXT_FLOW_FIELDS,
+    "contrast": _COLOR_FIELDS,
+    "misalignment": _GEOMETRY_FIELDS,
+    "arrow_disconnected": _GEOMETRY_FIELDS,
+    "wrong_vertical_alignment": {"vertical_alignment"},
+    "inconsistent_font_size": _FONT_FIELDS,
+    "inconsistent_padding": _PADDING_FIELDS,
+    "inconsistent_spacing": _GEOMETRY_FIELDS,
+    "zero_gap": _GEOMETRY_FIELDS,
+    "small_font": _FONT_FIELDS,
+    "insufficient_padding": _GEOMETRY_FIELDS | _PADDING_FIELDS,
+    "content_too_sparse": _GEOMETRY_FIELDS | _PADDING_FIELDS | _TEXT_FLOW_FIELDS,
+    "content_too_dense": _GEOMETRY_FIELDS | _PADDING_FIELDS | _TEXT_FLOW_FIELDS,
+    "unbalanced_spacing": _GEOMETRY_FIELDS,
+    "label_line_overlap": _GEOMETRY_FIELDS,
+    "hidden_decorative_strip": {"z_index"},
+    "wrong_z_order": {"z_index"},
+}
+_ISSUE_ALLOWED_RUN_FIELDS: dict[str, set[str]] = {
+    "text_truncation": {"font_size_pt"},
+    "overflow": {"font_size_pt"},
+    "contrast": {"color"},
+    "inconsistent_font_size": {"font_size_pt"},
+    "small_font": {"font_size_pt"},
+    "content_too_sparse": {"font_size_pt"},
+    "content_too_dense": {"font_size_pt"},
+}
 
 
 class VisualQAService:
@@ -89,6 +142,32 @@ class VisualQAService:
             return VisualQAOutput.model_validate_json(analysis_json)
         return VisualQAOutput.model_validate(analysis_json)
 
+    @staticmethod
+    def validate_issue_targets(
+        analysis: VisualQAOutput, current_spec: PptxSlideSpec
+    ) -> None:
+        """분석 이슈의 요소 참조가 현재 슬라이드 범위 안인지 검증한다."""
+        counts = {
+            "textbox": len(current_spec.textboxes),
+            "shape": len(current_spec.shapes),
+        }
+        for issue in analysis.issues:
+            if issue.element_index >= counts[issue.element_type]:
+                raise ValueError(
+                    f"Visual QA issue references invalid {issue.element_type} "
+                    f"index {issue.element_index}"
+                )
+            if (
+                issue.related_element_type is not None
+                and issue.related_element_index is not None
+                and issue.related_element_index >= counts[issue.related_element_type]
+            ):
+                raise ValueError(
+                    "Visual QA issue references invalid related "
+                    f"{issue.related_element_type} index "
+                    f"{issue.related_element_index}"
+                )
+
     # ------------------------------------------------------------------
     # Phase 3: 디자인 스펙 수정 (prepare/ingest)
     # ------------------------------------------------------------------
@@ -110,7 +189,9 @@ class VisualQAService:
         )
         slide_type = current_spec.slide_type or "content"
         model: type[_BaseSlideSpecOutput] = (
-            ContentSlideSpecOutput if slide_type == "content" else SimpleSlideSpecOutput
+            VisualQAContentSlideSpecOutput
+            if slide_type == "content"
+            else VisualQASimpleSlideSpecOutput
         )
         return build_llm_task(
             system_prompt=VISUAL_QA_FIX_SYSTEM_PROMPT,
@@ -127,12 +208,14 @@ class VisualQAService:
     ) -> PptxSlideSpec | None:
         """클라이언트가 생성한 수정 spec JSON 을 검증·정합화한다.
 
-        기존 fix_design_spec 의 후처리와 동일 — Pydantic 검증 → to_dataclass →
-        images/slide_type 복원 → clean_slide_spec. 검증 실패 시 None.
+        Pydantic 검증 → to_dataclass → 필드 보존/권한 검증을 적용한다.
+        검증 실패 시 None.
         """
         slide_type = current_spec.slide_type or "content"
         model: type[_BaseSlideSpecOutput] = (
-            ContentSlideSpecOutput if slide_type == "content" else SimpleSlideSpecOutput
+            VisualQAContentSlideSpecOutput
+            if slide_type == "content"
+            else VisualQASimpleSlideSpecOutput
         )
         try:
             if isinstance(fix_json, str):
@@ -144,6 +227,24 @@ class VisualQAService:
                 raise ValueError("Visual QA fix cannot add or remove textboxes")
             if len(spec.shapes) != len(current_spec.shapes):
                 raise ValueError("Visual QA fix cannot add or remove shapes")
+            if any(
+                _textbox_identity(fixed) != _textbox_identity(existing)
+                for fixed, existing in zip(
+                    spec.textboxes, current_spec.textboxes, strict=True
+                )
+            ):
+                raise ValueError(
+                    "Visual QA fix cannot change or reorder textbox content"
+                )
+            if any(
+                _shape_identity(fixed) != _shape_identity(existing)
+                for fixed, existing in zip(
+                    spec.shapes, current_spec.shapes, strict=True
+                )
+            ):
+                raise ValueError("Visual QA fix cannot change or reorder shape content")
+
+            _validate_issue_scoped_changes(spec, current_spec, issues or [])
 
             issue_types = {
                 issue.get("issue_type")
@@ -170,11 +271,21 @@ class VisualQAService:
                 raise ValueError(
                     "Visual QA fix cannot change z_index without a layering issue"
                 )
+            if (
+                "contrast" not in issue_types
+                and spec.background_color != current_spec.background_color
+            ):
+                raise ValueError(
+                    "Visual QA fix cannot change background_color without "
+                    "a contrast issue"
+                )
 
             textboxes = [
                 replace(
                     fixed,
-                    paragraphs=existing.paragraphs,
+                    paragraphs=_preserve_paragraph_content(
+                        fixed.paragraphs, existing.paragraphs
+                    ),
                     grid_cell=existing.grid_cell,
                     component_id=existing.component_id,
                 )
@@ -187,7 +298,9 @@ class VisualQAService:
                     fixed,
                     shape_type=existing.shape_type,
                     text=existing.text,
-                    paragraphs=existing.paragraphs,
+                    paragraphs=_preserve_paragraph_content(
+                        fixed.paragraphs, existing.paragraphs
+                    ),
                     svg_path=existing.svg_path,
                     grid_cell=existing.grid_cell,
                     component_id=existing.component_id,
@@ -208,7 +321,175 @@ class VisualQAService:
                 background_image_bytes=current_spec.background_image_bytes,
                 background_image_src=current_spec.background_image_src,
             )
-            return clean_slide_spec(spec)
+            return spec
         except Exception:
             logger.exception("디자인 스펙 수정 검증 실패")
             return None
+
+
+def _paragraph_text_identity(paragraphs) -> tuple:
+    return tuple(
+        tuple((run.text, run.href) for run in paragraph.runs)
+        for paragraph in paragraphs
+    )
+
+
+def _textbox_identity(textbox) -> tuple:
+    return (
+        textbox.component_id,
+        textbox.grid_cell,
+        _paragraph_text_identity(textbox.paragraphs),
+    )
+
+
+def _shape_identity(shape) -> tuple:
+    return (
+        shape.component_id,
+        shape.grid_cell,
+        shape.shape_type,
+        shape.text,
+        shape.svg_path,
+        _paragraph_text_identity(shape.paragraphs),
+    )
+
+
+def _preserve_paragraph_content(fixed_paragraphs, existing_paragraphs):
+    """Visual 스타일은 적용하되 텍스트·링크·목록 구조는 기존 값을 보존한다."""
+    return [
+        replace(
+            fixed_paragraph,
+            bullet_level=existing_paragraph.bullet_level,
+            runs=[
+                replace(fixed_run, text=existing_run.text, href=existing_run.href)
+                for fixed_run, existing_run in zip(
+                    fixed_paragraph.runs,
+                    existing_paragraph.runs,
+                    strict=True,
+                )
+            ],
+        )
+        for fixed_paragraph, existing_paragraph in zip(
+            fixed_paragraphs,
+            existing_paragraphs,
+            strict=True,
+        )
+    ]
+
+
+def _validate_issue_scoped_changes(
+    fixed_spec: PptxSlideSpec,
+    current_spec: PptxSlideSpec,
+    issues: list[dict],
+) -> None:
+    """서명된 issue가 지목한 요소와 필드에만 시각 변경을 허용한다."""
+    field_permissions: dict[tuple[str, int], set[str]] = {}
+    run_permissions: dict[tuple[str, int], set[str]] = {}
+    for issue in issues:
+        if not isinstance(issue, dict):
+            continue
+        issue_type = str(issue.get("issue_type"))
+        allowed_fields = _ISSUE_ALLOWED_FIELDS.get(issue_type, set())
+        allowed_run_fields = _ISSUE_ALLOWED_RUN_FIELDS.get(issue_type, set())
+        _grant_issue_permission(
+            field_permissions,
+            issue.get("element_type"),
+            issue.get("element_index"),
+            allowed_fields,
+        )
+        _grant_issue_permission(
+            field_permissions,
+            issue.get("related_element_type"),
+            issue.get("related_element_index"),
+            allowed_fields,
+        )
+        _grant_issue_permission(
+            run_permissions,
+            issue.get("element_type"),
+            issue.get("element_index"),
+            allowed_run_fields,
+        )
+        _grant_issue_permission(
+            run_permissions,
+            issue.get("related_element_type"),
+            issue.get("related_element_index"),
+            allowed_run_fields,
+        )
+
+    for element_type, fixed_items, current_items in (
+        ("textbox", fixed_spec.textboxes, current_spec.textboxes),
+        ("shape", fixed_spec.shapes, current_spec.shapes),
+    ):
+        for index, (fixed, current) in enumerate(
+            zip(fixed_items, current_items, strict=True)
+        ):
+            changed = {
+                field.name
+                for field in fields(current)
+                if field.name != "paragraphs"
+                if getattr(fixed, field.name) != getattr(current, field.name)
+            }
+            disallowed = changed - field_permissions.get((element_type, index), set())
+            if disallowed:
+                raise ValueError(
+                    f"Visual QA fix cannot change {element_type}[{index}] fields "
+                    f"outside detected issues: {sorted(disallowed)}"
+                )
+            _validate_paragraph_style_changes(
+                fixed.paragraphs,
+                current.paragraphs,
+                element_type=element_type,
+                element_index=index,
+                allowed_run_fields=run_permissions.get((element_type, index), set()),
+            )
+
+
+def _validate_paragraph_style_changes(
+    fixed_paragraphs,
+    current_paragraphs,
+    *,
+    element_type: str,
+    element_index: int,
+    allowed_run_fields: set[str],
+) -> None:
+    for paragraph_index, (fixed_paragraph, current_paragraph) in enumerate(
+        zip(fixed_paragraphs, current_paragraphs, strict=True)
+    ):
+        changed_paragraph_fields = {
+            field.name
+            for field in fields(current_paragraph)
+            if field.name != "runs"
+            if getattr(fixed_paragraph, field.name)
+            != getattr(current_paragraph, field.name)
+        }
+        if changed_paragraph_fields:
+            raise ValueError(
+                f"Visual QA fix cannot change {element_type}[{element_index}] "
+                f"paragraph[{paragraph_index}] fields outside detected issues: "
+                f"{sorted(changed_paragraph_fields)}"
+            )
+        for run_index, (fixed_run, current_run) in enumerate(
+            zip(fixed_paragraph.runs, current_paragraph.runs, strict=True)
+        ):
+            changed_run_fields = {
+                field.name
+                for field in fields(current_run)
+                if getattr(fixed_run, field.name) != getattr(current_run, field.name)
+            }
+            disallowed = changed_run_fields - allowed_run_fields
+            if disallowed:
+                raise ValueError(
+                    f"Visual QA fix cannot change {element_type}[{element_index}] "
+                    f"paragraph[{paragraph_index}].run[{run_index}] fields outside "
+                    f"detected issues: {sorted(disallowed)}"
+                )
+
+
+def _grant_issue_permission(
+    permissions: dict[tuple[str, int], set[str]],
+    element_type,
+    element_index,
+    allowed: set[str],
+) -> None:
+    if element_type not in {"textbox", "shape"} or not isinstance(element_index, int):
+        return
+    permissions.setdefault((element_type, element_index), set()).update(allowed)

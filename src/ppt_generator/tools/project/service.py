@@ -296,6 +296,13 @@ class ProjectService:
             return doc.design_summary
         return self.design_spec_store.load_design_summary(project_dir)
 
+    def validate_contiguous_design_spec(
+        self, project_dir: Path, expected_count: int | None = None
+    ) -> int:
+        return self.design_spec_store.validate_contiguous_design_spec(
+            project_dir, expected_count
+        )
+
     # --- DESIGN.md (사람이 편집하는 디자인 의도 단일 소스) ---
 
     def save_design_doc_md(self, project_dir: Path, text: str) -> None:

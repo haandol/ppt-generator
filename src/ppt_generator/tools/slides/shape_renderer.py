@@ -12,15 +12,18 @@ from ppt_generator.interfaces.constants import (
     PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU,
     PX_TO_EMU,
 )
+from ppt_generator.interfaces.line_geometry import line_endpoints
 from ppt_generator.interfaces.schemas import PptxShape
 from ppt_generator.interfaces.text_measurement import (
     calculate_shrink_font_scale,
     should_apply_nowrap_to_paragraph,
 )
 from ppt_generator.tools.slides.html_safety import (
+    css_number,
     escape_attr,
     safe_color,
     safe_image_src,
+    safe_number,
     safe_svg_path,
 )
 from ppt_generator.tools.slides.text_renderer import escape_html, paragraph_to_html
@@ -59,18 +62,14 @@ _ARROW_HALF = 10  # 화살표 머리 높이 (px)
 def _line_shape_to_html(shape: PptxShape) -> str:
     """Line shape -> position:absolute <svg> 변환 (화살표/대시 지원)."""
     stroke_color = safe_color(shape.border_color, "#ffffff")
-    stroke_width = shape.border_width_pt or 1
+    stroke_width = safe_number(shape.border_width_pt, 1.0)
+    if stroke_width <= 0:
+        stroke_width = 1.0
 
-    w = shape.width_px
-    h = shape.height_px
-
-    _SNAP_THRESHOLD = 12
-    abs_h_snap = abs(h)
-    abs_w_snap = abs(w)
-    if abs_w_snap > 0 and 0 < abs_h_snap <= _SNAP_THRESHOLD:
-        h = 0
-    elif abs_h_snap > 0 and 0 < abs_w_snap <= _SNAP_THRESHOLD:
-        w = 0
+    left = safe_number(shape.left_px)
+    top = safe_number(shape.top_px)
+    w = safe_number(shape.width_px)
+    h = safe_number(shape.height_px)
 
     pad = max(stroke_width * 2, 8)
     # bbox 계약: (left, top) 은 항상 최소 좌표 모서리이고 박스는
@@ -83,20 +82,19 @@ def _line_shape_to_html(shape: PptxShape) -> str:
     svg_w = (abs_w or 1) + pad * 2
     svg_h = (abs_h or 1) + pad * 2
 
-    if w >= 0:
-        x1, x2 = pad, abs_w + pad
-    else:
-        x1, x2 = abs_w + pad, pad
-    if h >= 0:
-        y1, y2 = pad, abs_h + pad
-    else:
-        y1, y2 = abs_h + pad, pad
+    (x1, y1), (x2, y2) = line_endpoints(pad, pad, w, h)
 
     dash_attr = ""
     if shape.dash_style == "dash":
-        dash_attr = f' stroke-dasharray="{stroke_width * 4},{stroke_width * 3}"'
+        dash_attr = (
+            f' stroke-dasharray="{css_number(stroke_width * 4)},'
+            f'{css_number(stroke_width * 3)}"'
+        )
     elif shape.dash_style == "dot":
-        dash_attr = f' stroke-dasharray="{stroke_width},{stroke_width * 2}"'
+        dash_attr = (
+            f' stroke-dasharray="{css_number(stroke_width)},'
+            f'{css_number(stroke_width * 2)}"'
+        )
 
     defs_parts: list[str] = []
     line_attrs = ""
@@ -108,18 +106,24 @@ def _line_shape_to_html(shape: PptxShape) -> str:
 
     if shape.end_arrow:
         defs_parts.append(
-            f'<marker id="ah-end" markerWidth="{aw}" markerHeight="{ah}" '
-            f'refX="{aw}" refY="{ah2}" orient="auto" markerUnits="userSpaceOnUse">'
-            f'<polygon points="0 0, {aw} {ah2}, 0 {ah}" fill="{stroke_color}" />'
+            f'<marker id="ah-end" markerWidth="{css_number(aw)}" '
+            f'markerHeight="{css_number(ah)}" '
+            f'refX="{css_number(aw)}" refY="{css_number(ah2)}" '
+            f'orient="auto" markerUnits="userSpaceOnUse">'
+            f'<polygon points="0 0, {css_number(aw)} {css_number(ah2)}, '
+            f'0 {css_number(ah)}" fill="{stroke_color}" />'
             f"</marker>"
         )
         line_attrs += ' marker-end="url(#ah-end)"'
 
     if shape.start_arrow:
         defs_parts.append(
-            f'<marker id="ah-start" markerWidth="{aw}" markerHeight="{ah}" '
-            f'refX="0" refY="{ah2}" orient="auto" markerUnits="userSpaceOnUse">'
-            f'<polygon points="{aw} 0, 0 {ah2}, {aw} {ah}" fill="{stroke_color}" />'
+            f'<marker id="ah-start" markerWidth="{css_number(aw)}" '
+            f'markerHeight="{css_number(ah)}" '
+            f'refX="0" refY="{css_number(ah2)}" '
+            f'orient="auto" markerUnits="userSpaceOnUse">'
+            f'<polygon points="{css_number(aw)} 0, 0 {css_number(ah2)}, '
+            f'{css_number(aw)} {css_number(ah)}" fill="{stroke_color}" />'
             f"</marker>"
         )
         line_attrs += ' marker-start="url(#ah-start)"'
@@ -130,20 +134,23 @@ def _line_shape_to_html(shape: PptxShape) -> str:
 
     # (left, top) 은 최소 좌표 모서리이므로 컨테이너 원점은 부호와 무관하게
     # 항상 (left - pad, top - pad) 다. 부호는 위에서 끝점 방향으로만 반영했다.
-    container_top = shape.top_px - pad
+    container_top = top - pad
     container_style = (
         f"position:absolute;"
-        f"left:{shape.left_px - pad}px;top:{container_top}px;"
-        f"width:{svg_w}px;height:{svg_h}px;"
+        f"left:{css_number(left - pad)}px;top:{css_number(container_top)}px;"
+        f"width:{css_number(svg_w)}px;height:{css_number(svg_h)}px;"
         f"overflow:visible;pointer-events:none;"
     )
 
     return (
         f'<svg style="{container_style}" '
-        f'width="{svg_w}" height="{svg_h}" xmlns="http://www.w3.org/2000/svg">'
+        f'width="{css_number(svg_w)}" height="{css_number(svg_h)}" '
+        f'xmlns="http://www.w3.org/2000/svg">'
         f"{defs_html}"
-        f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
-        f'stroke="{stroke_color}" stroke-width="{stroke_width}"{dash_attr}{line_attrs} />'
+        f'<line x1="{css_number(x1)}" y1="{css_number(y1)}" '
+        f'x2="{css_number(x2)}" y2="{css_number(y2)}" '
+        f'stroke="{stroke_color}" stroke-width="{css_number(stroke_width)}"'
+        f"{dash_attr}{line_attrs} />"
         f"</svg>"
     )
 
@@ -152,21 +159,28 @@ def _custom_svg_shape_to_html(shape: PptxShape) -> str:
     """Custom SVG path shape -> position:absolute <svg> 변환."""
     parsed_path = safe_svg_path(shape.svg_path or "")
     if parsed_path is None:
-        return f'<div style="position:absolute;left:{shape.left_px}px;top:{shape.top_px}px;width:{shape.width_px}px;height:{shape.height_px}px;"></div>'
+        return (
+            f'<div style="position:absolute;left:{css_number(shape.left_px)}px;'
+            f"top:{css_number(shape.top_px)}px;"
+            f"width:{css_number(shape.width_px)}px;"
+            f'height:{css_number(shape.height_px)}px;"></div>'
+        )
     vb_w, vb_h, path_d = parsed_path
 
     fill = safe_color(shape.fill_color, "none")
     stroke = safe_color(shape.border_color, "none")
-    stroke_width = shape.border_width_pt or 0
+    stroke_width = max(safe_number(shape.border_width_pt), 0)
 
     svg = (
         f'<svg xmlns="http://www.w3.org/2000/svg" '
-        f'viewBox="0 0 {vb_w} {vb_h}" '
+        f'viewBox="0 0 {css_number(vb_w)} {css_number(vb_h)}" '
         f'preserveAspectRatio="none" '
-        f'style="position:absolute;left:{shape.left_px}px;top:{shape.top_px}px;'
-        f'width:{shape.width_px}px;height:{shape.height_px}px;overflow:visible;">'
+        f'style="position:absolute;left:{css_number(shape.left_px)}px;'
+        f"top:{css_number(shape.top_px)}px;"
+        f"width:{css_number(shape.width_px)}px;"
+        f'height:{css_number(shape.height_px)}px;overflow:visible;">'
         f'<path d="{escape_attr(path_d)}" fill="{fill}" stroke="{stroke}" '
-        f'stroke-width="{stroke_width}" />'
+        f'stroke-width="{css_number(stroke_width)}" />'
         f"</svg>"
     )
     return svg
@@ -188,9 +202,14 @@ def _image_shape_to_html(shape: PptxShape) -> str:
     image_src = safe_image_src(shape.svg_path or "")
     if image_src is None:
         return ""
+    left = safe_number(shape.left_px)
+    top = safe_number(shape.top_px)
+    width = safe_number(shape.width_px)
+    height = safe_number(shape.height_px)
+    radius = max(safe_number(shape.corner_radius_px), 0)
     radius_css = ""
-    if shape.corner_radius_px:
-        radius_css = f"border-radius:{shape.corner_radius_px}px;"
+    if radius:
+        radius_css = f"border-radius:{css_number(radius)}px;"
     bg_css = ""
     if shape.fill_color:
         fill_color = safe_color(shape.fill_color)
@@ -198,14 +217,16 @@ def _image_shape_to_html(shape: PptxShape) -> str:
             bg_css = f"background-color:{fill_color};"
     border_css = ""
     if shape.border_color:
-        bw = shape.border_width_pt or 1
+        bw = safe_number(shape.border_width_pt, 1.0)
+        if bw <= 0:
+            bw = 1.0
         border_color = safe_color(shape.border_color)
         if border_color:
-            border_css = f"border:{bw}pt solid {border_color};"
+            border_css = f"border:{css_number(bw)}pt solid {border_color};"
     style = (
         f"position:absolute;"
-        f"left:{shape.left_px}px;top:{shape.top_px}px;"
-        f"width:{shape.width_px}px;height:{shape.height_px}px;"
+        f"left:{css_number(left)}px;top:{css_number(top)}px;"
+        f"width:{css_number(width)}px;height:{css_number(height)}px;"
         f"{bg_css}{border_css}{radius_css}"
         f"overflow:hidden;padding:0;box-sizing:border-box;"
     )
@@ -227,30 +248,37 @@ def shape_to_html(shape: PptxShape) -> str:
     if shape.shape_type == "custom" and shape.svg_path:
         return _custom_svg_shape_to_html(shape)
 
+    left = safe_number(shape.left_px)
+    top = safe_number(shape.top_px)
+    width = safe_number(shape.width_px)
+    height = safe_number(shape.height_px)
     expand = getattr(shape, "autofit_mode", None) == "expand_height"
     height_prop = "min-height" if expand else "height"
     style = (
         f"position:absolute;"
-        f"left:{shape.left_px}px;top:{shape.top_px}px;"
-        f"width:{shape.width_px}px;{height_prop}:{shape.height_px}px;"
+        f"left:{css_number(left)}px;top:{css_number(top)}px;"
+        f"width:{css_number(width)}px;{height_prop}:{css_number(height)}px;"
     )
     if shape.fill_color:
         fill_color = safe_color(shape.fill_color)
         if fill_color:
             style += f"background-color:{fill_color};"
     if shape.border_color:
-        bw = shape.border_width_pt or 1
+        bw = safe_number(shape.border_width_pt, 1.0)
+        if bw <= 0:
+            bw = 1.0
         border_color = safe_color(shape.border_color)
         if border_color:
-            style += f"border:{bw}pt solid {border_color};"
-    if shape.corner_radius_px:
-        style += f"border-radius:{shape.corner_radius_px}px;"
+            style += f"border:{css_number(bw)}pt solid {border_color};"
+    radius = max(safe_number(shape.corner_radius_px), 0)
+    if radius:
+        style += f"border-radius:{css_number(radius)}px;"
     if shape.shape_type == "rounded_rectangle" and not shape.corner_radius_px:
         style += "border-radius:8px;"
     if shape.shape_type == "ellipse":
         style += "border-radius:50%;"
     if shape.shape_type == "flowchart_terminator":
-        style += f"border-radius:{min(shape.width_px, shape.height_px) / 2}px;"
+        style += f"border-radius:{css_number(min(width, height) / 2)}px;"
 
     clip_path = _CLIP_PATH_MAP.get(shape.shape_type)
     if clip_path:
@@ -260,14 +288,18 @@ def shape_to_html(shape: PptxShape) -> str:
 
     default_lr = PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU / PX_TO_EMU
     default_tb = PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU / PX_TO_EMU
-    pl = shape.padding_left_px if shape.padding_left_px is not None else default_lr
-    pr = shape.padding_right_px if shape.padding_right_px is not None else default_lr
-    pt_ = shape.padding_top_px if shape.padding_top_px is not None else default_tb
-    pb = shape.padding_bottom_px if shape.padding_bottom_px is not None else default_tb
-    style += f"padding:{pt_}px {pr}px {pb}px {pl}px;box-sizing:border-box;"
+    pl = safe_number(shape.padding_left_px, default_lr)
+    pr = safe_number(shape.padding_right_px, default_lr)
+    pt_ = safe_number(shape.padding_top_px, default_tb)
+    pb = safe_number(shape.padding_bottom_px, default_tb)
+    style += (
+        f"padding:{css_number(pt_)}px {css_number(pr)}px "
+        f"{css_number(pb)}px {css_number(pl)}px;box-sizing:border-box;"
+    )
 
-    if shape.line_spacing_pt:
-        style += f"line-height:{shape.line_spacing_pt}pt;"
+    line_spacing = safe_number(shape.line_spacing_pt)
+    if line_spacing > 0:
+        style += f"line-height:{css_number(line_spacing)}pt;"
 
     if shape.text and not shape.paragraphs:
         style += "display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;"
@@ -278,7 +310,7 @@ def shape_to_html(shape: PptxShape) -> str:
 
     inner = ""
     if shape.paragraphs:
-        usable_w = shape.width_px - pl - pr
+        usable_w = width - pl - pr
         # shrink_text autofit: 필요 높이가 박스 높이를 초과하면 폰트를 비례 축소한다.
         # expand_height 는 박스가 늘어나므로 축소 불필요.
         font_scale = 1.0
@@ -287,19 +319,25 @@ def shape_to_html(shape: PptxShape) -> str:
             # 불필요하게 축소하지 않는다. 축소 하한은 절대 10pt(가독성 floor).
             # PPTX 빌더(shape_builders)와 동일한 공유 헬퍼를 사용해 두 출력의
             # 폰트 크기가 일치하도록 한다.
-            font_scale = calculate_shrink_font_scale(
-                shape.paragraphs,
-                shape.width_px,
-                shape.height_px,
-                line_spacing_pt=shape.line_spacing_pt,
-                padding_left_px=pl,
-                padding_right_px=pr,
-                padding_top_px=pt_,
-                padding_bottom_px=pb,
-            )
+            try:
+                font_scale = calculate_shrink_font_scale(
+                    shape.paragraphs,
+                    width,
+                    height,
+                    line_spacing_pt=line_spacing or None,
+                    padding_left_px=pl,
+                    padding_right_px=pr,
+                    padding_top_px=pt_,
+                    padding_bottom_px=pb,
+                )
+            except (TypeError, ValueError, OverflowError):
+                font_scale = 1.0
         para_parts: list[str] = []
         for para in shape.paragraphs:
-            apply_nowrap = should_apply_nowrap_to_paragraph(para, usable_w)
+            try:
+                apply_nowrap = should_apply_nowrap_to_paragraph(para, usable_w)
+            except (TypeError, ValueError, OverflowError):
+                apply_nowrap = False
             para_parts.append(
                 paragraph_to_html(para, nowrap=apply_nowrap, font_scale=font_scale)
             )
@@ -310,8 +348,9 @@ def shape_to_html(shape: PptxShape) -> str:
             text_color = safe_color(shape.text_color)
             if text_color:
                 text_style += f"color:{text_color};"
-        if shape.text_size_pt:
-            text_style += f"font-size:{shape.text_size_pt}pt;"
+        text_size = safe_number(shape.text_size_pt)
+        if text_size > 0:
+            text_style += f"font-size:{css_number(text_size)}pt;"
         if shape.text_bold:
             text_style += "font-weight:bold;"
         escaped = escape_html(shape.text).replace("\n", "<br>")

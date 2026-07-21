@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from ppt_generator.interfaces.line_geometry import line_endpoints
 from ppt_generator.interfaces.schemas import (
     PptxImage,
     PptxParagraph,
@@ -12,7 +13,12 @@ from ppt_generator.interfaces.schemas import (
     PptxTextBox,
     PptxTextRun,
 )
-from ppt_generator.tools.slides.html_renderer import image_to_html, spec_to_html_section
+from ppt_generator.tools.slides.html_renderer import (
+    image_to_html,
+    spec_to_html_section,
+    textbox_to_html,
+)
+from ppt_generator.tools.slides.html_safety import safe_image_src
 from ppt_generator.tools.slides.shape_renderer import shape_to_html
 from ppt_generator.tools.slides.text_renderer import paragraph_to_html, run_to_html
 
@@ -244,6 +250,24 @@ class TestBackgroundImageRendering:
         assert "background-image" not in html
         assert "background-color:#1A2332" in html
 
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            "not-base64);background-image:url(javascript:alert(1))",
+            "%%%%",
+            "Zm9v===",
+        ],
+    )
+    def test_invalid_background_base64_is_dropped(self, payload):
+        html = spec_to_html_section(
+            0,
+            PptxSlideSpec(background_color="#FFFFFF"),
+            bg_image_base64=payload,
+        )
+
+        assert "data:image" not in html
+        assert "javascript:" not in html
+
 
 class TestHtmlInjectionSafety:
     def test_attribute_quotes_are_escaped(self):
@@ -259,12 +283,13 @@ class TestHtmlInjectionSafety:
         assert html == "click"
         assert "<a " not in html
 
-    def test_dangerous_image_sources_render_placeholder(self):
+    def test_escapable_image_source_stays_inside_src_attribute(self):
         image = PptxImage(left_px=0, top_px=0, width_px=100, height_px=100)
         html = image_to_html(image, image_src='x" onerror="alert(1).png')
 
-        assert "<img " not in html
-        assert "IMAGE</span>" in html
+        assert "<img " in html
+        assert 'src="x&quot; onerror=&quot;alert(1).png"' in html
+        assert '" onerror="' not in html
 
     def test_css_color_injection_is_dropped(self):
         shape = PptxShape(
@@ -318,6 +343,58 @@ class TestHtmlInjectionSafety:
 
         assert "javascript:" not in html
         assert "text-align:" not in html
+
+    def test_numeric_fields_are_finite_and_cannot_inject_css(self):
+        payload = '0;background-image:url("javascript:alert(1)")'
+        textbox = PptxTextBox(
+            left_px=payload,
+            top_px=float("nan"),
+            width_px=float("inf"),
+            height_px=30,
+            padding_left_px=payload,
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="safe", font_size_pt=payload)])
+            ],
+        )
+        shape = PptxShape(
+            left_px=payload,
+            top_px=0,
+            width_px=100,
+            height_px=payload,
+            shape_type="line",
+            border_width_pt=payload,
+        )
+        image = PptxImage(
+            left_px=payload,
+            top_px=0,
+            width_px=float("nan"),
+            height_px=100,
+            corner_radius_px=payload,
+        )
+
+        html = "\n".join(
+            [
+                textbox_to_html(textbox),
+                shape_to_html(shape),
+                image_to_html(image),
+            ]
+        )
+
+        assert "javascript:" not in html
+        assert "nan" not in html.lower()
+        assert "inf" not in html.lower()
+
+    @pytest.mark.parametrize(
+        ("source", "expected"),
+        [
+            ("./images/a.png", "./images/a.png"),
+            ("images/team's-photo.png", "images/team's-photo.png"),
+            ("images/%2e%2e/secret.png", None),
+            ("images/%252e%252e/secret.png", None),
+        ],
+    )
+    def test_relative_image_path_normalization(self, source, expected):
+        assert safe_image_src(source) == expected
 
 
 class TestLineDirectionEndpoints:
@@ -375,3 +452,15 @@ class TestLineDirectionEndpoints:
         p1, p2 = self._abs_endpoints(self._line(-60, -80))
         assert p1 == (260, 380)
         assert p2 == (200, 300)
+
+    @pytest.mark.parametrize(
+        ("width", "height", "expected"),
+        [
+            (60, 80, ((200, 300), (260, 380))),
+            (60, -80, ((200, 380), (260, 300))),
+            (-60, 80, ((260, 300), (200, 380))),
+            (-60, -80, ((260, 380), (200, 300))),
+        ],
+    )
+    def test_shared_endpoint_contract(self, width, height, expected):
+        assert line_endpoints(200, 300, width, height) == expected

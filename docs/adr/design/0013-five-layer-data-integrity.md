@@ -4,7 +4,7 @@ Date: 2026-05-26 (split from 0011 결정 7/8/11)
 
 ## Status
 
-Accepted
+Accepted (2026-07-21)
 
 ## Context
 
@@ -56,6 +56,9 @@ modify_component 같은 도구가 LLM 으로부터 단일 textbox/shape 을 통�
 - `component_id` (Section layer link — 호출 시 입력값 그대로 유지)
 
 이 원칙은 미래에 추가되는 모든 "element 부분 교체" 도구에 동일하게 적용된다. 새 메타 필드가 schemas 에 추가될 때 해당 필드가 LLM schema 에 포함되지 않으면 자동으로 본 정책 대상이 된다.
+
+일반 생성과 component 수정 응답 schema에는 `z_index`를 노출하지 않는다. 렌더 순서
+수정 권한이 필요한 Visual QA만 별도 응답 schema로 이 필드를 표현한다.
 
 전체 슬라이드 수정 도구도 같은 보존 원칙을 적용한다. 수정 응답이 표현하지 않는
 필드는 기존 spec에서 복원하고, 응답이 표현할 수 있는 필드라도 수정 목적과 무관하면

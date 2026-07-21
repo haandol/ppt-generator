@@ -5,8 +5,7 @@ from __future__ import annotations
 import logging
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from pathlib import Path
-
-from playwright.sync_api import sync_playwright
+from typing import Any
 
 from ppt_generator.interfaces.constants import (
     SCREENSHOT_TIMEOUT,
@@ -16,6 +15,18 @@ from ppt_generator.interfaces.constants import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def sync_playwright() -> Any:
+    """선택 의존성인 Playwright를 캡처 시점에만 로드한다."""
+    try:
+        from playwright.sync_api import sync_playwright as playwright_factory
+    except ImportError as exc:
+        raise RuntimeError(
+            "Playwright 패키지가 설치되지 않았습니다. "
+            "`uv sync --group visual-qa`로 Visual QA 의존성을 설치하세요."
+        ) from exc
+    return playwright_factory()
 
 
 def capture_screenshots(
@@ -56,7 +67,10 @@ def capture_screenshots(
             logger.info("스크린샷 캡처: %s", png_path)
             return idx, png_path
         except Exception as exc:
-            if "executable doesn't exist" in str(exc).lower():
+            message = str(exc).lower()
+            if "playwright 패키지가 설치되지 않았습니다" in message:
+                raise
+            if "executable doesn't exist" in message:
                 raise RuntimeError(
                     "Chromium 브라우저가 설치되지 않았습니다.\n"
                     "설치: playwright install chromium"

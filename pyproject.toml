@@ -1,11 +1,10 @@
 [project]
 name = "ppt-generator"
-version = "0.7.3"
+version = "0.7.4"
 description = "자동 프레젠테이션 생성 MCP 서버 (LLM 생성은 클라이언트로 오프로딩)"
 requires-python = ">=3.13"
 dependencies = [
     "mcp>=1.28.1",
-    "playwright",
     "python-dotenv",
     "python-pptx>=1.0.2",
     "pydantic>=2",
@@ -18,6 +17,9 @@ ppt-generator = "ppt_generator.server:main"
 dev = [
     "pytest",
     "ruff",
+]
+visual-qa = [
+    "playwright",
 ]
 
 [tool.pytest.ini_options]

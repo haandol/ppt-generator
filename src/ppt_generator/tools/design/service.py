@@ -347,8 +347,9 @@ class DesignService:
                 "(content slides only). Use prepare_slide_edit(action='update') "
                 "for title/closing/imported slides."
             )
-        # 존재/모호 검증 (결정 12). 결과 kind 는 ingest 에서 재검증.
+        # element와 design tree leaf가 각각 하나인지 검증한다.
         _find_element_by_component_id(spec, component_id)
+        _find_layout_leaf_by_id(spec.design_doc.layout, component_id)
 
         slide_spec_json = slide_spec_to_json(spec)
         prompt = COMPONENT_MODIFY_USER_PROMPT_TEMPLATE.format(
@@ -381,6 +382,7 @@ class DesignService:
                 "(content slides only)."
             )
         kind, idx, existing = _find_element_by_component_id(spec, component_id)
+        _find_layout_leaf_by_id(spec.design_doc.layout, component_id)
         output = self._validate(ComponentModifyOutput, output_json)
 
         if output.element_kind != kind:
@@ -447,7 +449,7 @@ class DesignService:
             new_design_doc = replace(new_spec.design_doc, layout=updated_layout)
             new_spec = replace(new_spec, design_doc=new_design_doc)
 
-        return clean_slide_spec(new_spec)
+        return new_spec
 
     # ------------------------------------------------------------------
     # 검증 헬퍼
@@ -580,6 +582,34 @@ def _find_element_by_component_id(
             f"elements: {locs}. component_id must be unique within a slide."
         )
     return matches[0]
+
+
+def _find_layout_leaf_by_id(nodes: list[LayoutNode], component_id: str) -> LayoutNode:
+    """design tree에서 id가 일치하는 유일한 component leaf를 찾는다."""
+    matches: list[LayoutNode] = []
+
+    def _walk(node: LayoutNode) -> None:
+        if node.id == component_id:
+            matches.append(node)
+        for child in node.children:
+            _walk(child)
+
+    for root in nodes:
+        _walk(root)
+    if not matches:
+        raise ValueError(
+            f"component_id not found in design_doc.layout: {component_id!r}"
+        )
+    if len(matches) > 1:
+        raise ValueError(
+            f"component_id {component_id!r} is ambiguous in design_doc.layout"
+        )
+    node = matches[0]
+    if node.kind != "component" or node.children:
+        raise ValueError(
+            f"component_id {component_id!r} must reference a component leaf"
+        )
+    return node
 
 
 def _replace_node_bbox(

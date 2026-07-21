@@ -10,7 +10,7 @@ class SlideQAResult:
     """단일 슬라이드의 QA 결과."""
 
     slide_index: int
-    status: str  # "pass", "fixed", "unfixed", "error"
+    status: str  # "pass", "fixed", "unfixed", "unresolved", "error"
     issues_found: list[str] = field(default_factory=list)
     iterations: int = 0
 

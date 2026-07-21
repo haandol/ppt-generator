@@ -11,7 +11,10 @@ from ppt_generator.interfaces.constants import (
     PX_TO_EMU,
 )
 from ppt_generator.interfaces.schemas import PptxParagraph, PptxShape, PptxTextRun
-from ppt_generator.tools.pptx.shape_builders import add_auto_shape_from_spec
+from ppt_generator.tools.pptx.shape_builders import (
+    add_auto_shape_from_spec,
+    add_connector_from_spec,
+)
 
 
 # ── padding: text 경로 ─────────────────────────────────────────
@@ -291,3 +294,21 @@ class TestCompactLabelNoWrap:
 
         tf = slide.shapes[0].text_frame
         assert tf.word_wrap is True
+
+
+class TestConnectorEndpoints:
+    def test_near_axis_diagonal_is_not_snapped(self, blank_slide):
+        spec = PptxShape(
+            left_px=100,
+            top_px=200,
+            width_px=100,
+            height_px=10,
+            shape_type="line",
+            end_arrow=True,
+        )
+
+        add_connector_from_spec(blank_slide, spec)
+
+        connector = blank_slide.shapes[0]
+        assert connector.width > 0
+        assert connector.height > 0

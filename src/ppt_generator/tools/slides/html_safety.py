@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import html
 import math
+import posixpath
 import re
-from urllib.parse import quote, urlsplit
+from typing import Any
+from urllib.parse import quote, unquote, urlsplit
 
 _COLOR_RE = re.compile(
     r"(?:#[0-9a-fA-F]{3,8}|"
@@ -14,8 +18,8 @@ _COLOR_RE = re.compile(
 )
 _SVG_PATH_RE = re.compile(r"[MmLlHhVvCcSsQqTtAaZz0-9eE+.,\s-]+")
 _DATA_IMAGE_RE = re.compile(
-    r"data:image/(?:png|jpeg|jpg|gif|webp|svg\+xml);base64,"
-    r"[A-Za-z0-9+/=\s]+",
+    r"data:image/(?P<subtype>png|jpeg|jpg|gif|webp);base64,"
+    r"(?P<data>[A-Za-z0-9+/=\s]+)",
     re.IGNORECASE,
 )
 _ALIGNMENTS = {"left", "center", "right"}
@@ -33,7 +37,7 @@ def escape_attr(value: str) -> str:
 
 def safe_href(value: str) -> str | None:
     """클릭 가능한 링크로 허용된 URL만 반환한다."""
-    if any(char in value for char in "\"'<>") or any(ord(char) < 32 for char in value):
+    if any(char in value for char in "<>") or any(ord(char) < 32 for char in value):
         return None
     try:
         parsed = urlsplit(value.strip())
@@ -49,12 +53,16 @@ def safe_image_src(value: str) -> str | None:
     candidate = value.strip()
     if not candidate:
         return None
-    if any(char in candidate for char in "\"'<>") or any(
+    if any(char in candidate for char in "<>") or any(
         ord(char) < 32 for char in candidate
     ):
         return None
-    if _DATA_IMAGE_RE.fullmatch(candidate):
-        return candidate
+    data_match = _DATA_IMAGE_RE.fullmatch(candidate)
+    if data_match:
+        normalized = safe_base64_data(data_match.group("data"))
+        if normalized is None:
+            return None
+        return f"data:image/{data_match.group('subtype').lower()};base64,{normalized}"
     try:
         parsed = urlsplit(candidate)
     except ValueError:
@@ -63,10 +71,57 @@ def safe_image_src(value: str) -> str | None:
         return candidate
     if parsed.scheme or parsed.netloc or candidate.startswith(("/", "\\")):
         return None
-    normalized = candidate.replace("\\", "/")
-    if any(part in {"", ".", ".."} for part in normalized.split("/")):
+    decoded_path = parsed.path
+    for _ in range(4):
+        next_path = unquote(decoded_path)
+        if next_path == decoded_path:
+            break
+        decoded_path = next_path
+    if any(ord(char) < 32 for char in decoded_path):
+        return None
+    decoded_path = decoded_path.replace("\\", "/")
+    if decoded_path.startswith("/"):
+        return None
+    parts = [part for part in decoded_path.split("/") if part not in {"", "."}]
+    if not parts or any(part == ".." for part in parts):
+        return None
+    normalized = posixpath.normpath(decoded_path)
+    if normalized in {"", ".", ".."} or normalized.startswith("../"):
         return None
     return candidate
+
+
+def safe_number(value: Any, fallback: float = 0.0) -> float:
+    """렌더링에 사용할 유한한 숫자만 반환한다."""
+    if isinstance(value, bool):
+        return fallback
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return fallback
+    return number if math.isfinite(number) else fallback
+
+
+def css_number(value: Any, fallback: float = 0.0) -> str:
+    """유한 숫자를 CSS/SVG에 안전한 10진 문자열로 직렬화한다."""
+    number = safe_number(value, fallback)
+    if number == 0:
+        return "0"
+    return format(number, ".15g")
+
+
+def safe_base64_data(value: str) -> str | None:
+    """base64를 엄격히 검증하고 공백 없는 표준 인코딩으로 정규화한다."""
+    compact = "".join(value.split())
+    if not compact:
+        return None
+    try:
+        decoded = base64.b64decode(compact, validate=True)
+    except (ValueError, binascii.Error):
+        return None
+    if not decoded:
+        return None
+    return base64.b64encode(decoded).decode("ascii")
 
 
 def safe_color(value: str | None, fallback: str = "") -> str:
