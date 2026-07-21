@@ -26,7 +26,10 @@ from ppt_generator.interfaces.schemas import (
     PptxSlideSpec,
     PptxTextBox,
 )
-from ppt_generator.interfaces.text_measurement import calculate_shrink_font_scale
+from ppt_generator.interfaces.text_measurement import (
+    calculate_shrink_font_scale,
+    scaled_line_spacing_pt,
+)
 from ppt_generator.tools.pptx.shape_builders import (
     add_auto_shape_from_spec,
     add_connector_from_spec,
@@ -265,8 +268,13 @@ class SlideBuilder:
 
         format_paragraphs(tf, tb.paragraphs, font_scale=font_scale)
 
-        if tb.line_spacing_pt:
-            apply_line_spacing(tf, tb.line_spacing_pt, tb.paragraphs)
+        # shrink 로 폰트를 축소했으면 line_spacing 도 같은 비율로 축소해야
+        # 소비 높이가 실제로 줄어 오버플로가 해소된다 (HTML 렌더러와 공유 헬퍼).
+        effective_line_spacing = scaled_line_spacing_pt(tb.line_spacing_pt, font_scale)
+        if effective_line_spacing:
+            apply_line_spacing(
+                tf, effective_line_spacing, tb.paragraphs, font_scale=font_scale
+            )
 
         if tb.vertical_alignment:
             apply_vertical_alignment(tf, tb.vertical_alignment)

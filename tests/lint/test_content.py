@@ -805,7 +805,11 @@ class TestShapeAutofitDefault:
 
 
 class TestTextOverflowSkipShrinkText:
-    """text-overflow rule 이 shrink_text shape 의 height 검사를 스킵하는지."""
+    """text-overflow rule 의 shrink_text shape 처리.
+
+    shrink 로 해소 가능한 넘침은 경고하지 않고(폰트 자동 축소로 실제로 들어감),
+    폰트 최소 축소(10pt)로도 안 들어가는 잔여 넘침만 경고한다.
+    """
 
     def _long_card(self, autofit_mode: str) -> PptxShape:
         return PptxShape(
@@ -828,15 +832,52 @@ class TestTextOverflowSkipShrinkText:
             autofit_mode=autofit_mode,
         )
 
-    def test_shrink_text_shape_no_overflow_warning(self) -> None:
+    def _shrinkable_card(self) -> PptxShape:
+        # 여러 줄이지만 10pt 까지 축소하면 박스에 들어가는 케이스.
+        return PptxShape(
+            left_px=64,
+            top_px=148,
+            width_px=900,
+            height_px=360,
+            shape_type="rounded_rectangle",
+            fill_color="#1E293B",
+            line_spacing_pt=22.0,
+            padding_left_px=32,
+            padding_right_px=32,
+            padding_top_px=26,
+            padding_bottom_px=26,
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="x = foo(bar)", font_size_pt=15)])
+                for _ in range(16)
+            ],
+            autofit_mode="shrink_text",
+        )
+
+    def test_shrink_text_resolvable_no_warning(self) -> None:
+        # shrink 로 박스 안에 들어가는 케이스는 경고하지 않는다.
+        spec = PptxSlideSpec(
+            background_color="#000",
+            slide_type="content",
+            shapes=[self._shrinkable_card()],
+        )
+        result = lint_slide_spec(spec)
+        overflows = [v for v in result.violations if v.rule == "text-overflow"]
+        assert overflows == []
+
+    def test_shrink_text_unresolvable_flags(self) -> None:
+        # 10pt 까지 축소해도 안 들어가는 잔여 넘침은 경고한다 (PPTX 삐져나옴 방지).
         spec = PptxSlideSpec(
             background_color="#000",
             slide_type="content",
             shapes=[self._long_card("shrink_text")],
         )
         result = lint_slide_spec(spec)
-        overflows = [v for v in result.violations if v.rule == "text-overflow"]
-        assert overflows == []
+        overflows = [
+            v
+            for v in result.violations
+            if v.rule == "text-overflow" and v.element_type == "shape"
+        ]
+        assert overflows, "shrink 하한에서도 넘치는 shape 는 경고되어야 함"
 
     def test_expand_height_shape_still_flags(self) -> None:
         spec = PptxSlideSpec(

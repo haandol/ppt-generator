@@ -241,8 +241,17 @@ def calculate_autofit_font_scale(
     return max(scale, min_scale)
 
 
-# shrink_text autofit 시 폰트 축소 판정에 쓰는 높이 여유 (text-overflow lint 와 동일).
+# lint(text-overflow) 가 "넘쳤다" 고 경고하기까지 허용하는 높이 여유.
+# 폰트 메트릭이 브라우저/PowerPoint 실제 렌더와 다를 수 있으므로, 경계 케이스에서
+# 노이즈 경고를 줄이려 15% 여유를 둔다. 이 여유는 "경고 판정" 에만 쓴다.
 AUTOFIT_HEIGHT_TOLERANCE = 1.15
+
+# shrink_text autofit 이 폰트를 축소할 때 맞추는 목표 높이 여유.
+# PPTX 는 도형에 클리핑이 없어 넘친 텍스트가 그대로 박스 밖으로 삐져나온다
+# (HTML 은 overflow:hidden 으로 가려질 뿐 실제로는 넘친다). 따라서 축소 목표는
+# 실제 박스 높이(1.0) 여야 넘침이 없다 — lint tolerance(1.15) 를 축소 목표로 쓰면
+# 박스보다 15% 큰 높이까지 허용해 그만큼 하단으로 새어 나온다.
+AUTOFIT_SHRINK_TARGET_TOLERANCE = 1.0
 
 
 def max_paragraph_font_pt(
@@ -271,12 +280,16 @@ def calculate_shrink_font_scale(
     padding_right_px: float = 0.0,
     padding_top_px: float = 0.0,
     padding_bottom_px: float = 0.0,
-    height_tolerance: float = AUTOFIT_HEIGHT_TOLERANCE,
+    height_tolerance: float = AUTOFIT_SHRINK_TARGET_TOLERANCE,
 ) -> float:
     """shrink_text autofit 폰트 축소 비율을 계산한다.
 
     필요 높이가 box_height_px(× height_tolerance)를 넘으면 1.0 미만의 scale 을
     반환한다. 축소 하한은 paragraph 내 최대 폰트 기준 절대 10pt 다.
+
+    height_tolerance 기본값은 실제 박스(1.0) 다 — PPTX 는 클리핑이 없어 축소 목표를
+    박스보다 크게 잡으면 그만큼 텍스트가 박스 밖으로 삐져나온다. lint 의 경고
+    tolerance(1.15) 와 다르며, 축소는 실제 박스에 맞춰야 넘침이 없다.
 
     HTML 렌더러(shape_renderer/html_renderer)와 PPTX 빌더(shape_builders/
     slide_builder)가 동일한 폰트 크기를 산출하도록 이 헬퍼를 공유한다.
@@ -293,8 +306,101 @@ def calculate_shrink_font_scale(
         padding_top_px=padding_top_px,
         padding_bottom_px=padding_bottom_px,
     )
+    # 상하 padding 은 폰트/줄간격 축소로 줄지 않는 고정분이다. 축소 대상은 텍스트
+    # 줄 높이(required_h - padding)뿐이므로, padding 을 양변에서 빼고 텍스트분끼리
+    # 비율을 잡아야 축소 후 실제 소비 높이가 박스에 수렴한다 (padding 을 포함해
+    # 비율을 잡으면 다행 텍스트에서 여전히 미세하게 넘친다).
+    fixed_padding = padding_top_px + padding_bottom_px
+    text_required_h = required_h - fixed_padding
+    text_available_h = box_height_px * height_tolerance - fixed_padding
     return calculate_autofit_font_scale(
-        required_h,
-        box_height_px * height_tolerance,
+        text_required_h,
+        text_available_h,
         max_font_pt=max_paragraph_font_pt(paragraphs),
     )
+
+
+def scaled_line_spacing_pt(
+    line_spacing_pt: float | None, font_scale: float
+) -> float | None:
+    """shrink_text autofit 시 line_spacing 도 폰트와 같은 비율로 축소한다.
+
+    줄 높이가 폰트와 함께 줄어야 소비 높이가 실제로 감소해 autofit 이
+    오버플로를 해소한다 (line_spacing 을 상수로 두면 폰트만 줄고 줄 높이는
+    그대로라 다행 텍스트가 계속 넘친다). HTML·PPTX 두 출력 경로가 이 헬퍼를
+    공유해 동일한 줄 높이를 산출한다.
+    """
+    if not line_spacing_pt or line_spacing_pt <= 0:
+        return line_spacing_pt
+    if not (0 < font_scale < 1.0):
+        return line_spacing_pt
+    return line_spacing_pt * font_scale
+
+
+def required_height_after_shrink(
+    paragraphs: list["PptxParagraph"],
+    box_width_px: float,
+    box_height_px: float,
+    line_spacing_pt: float | None = None,
+    padding_left_px: float = 0.0,
+    padding_right_px: float = 0.0,
+    padding_top_px: float = 0.0,
+    padding_bottom_px: float = 0.0,
+) -> float:
+    """shrink_text autofit 을 적용한 *뒤* 실제 소비 높이(px)를 산출한다.
+
+    폰트 축소 비율(font_scale)과 그에 맞춰 축소된 line_spacing 을 반영해 다시
+    필요 높이를 잰다. 축소 하한(폰트 절대 10pt) 때문에 scale 이 하한에 걸리면
+    축소해도 여전히 박스를 넘을 수 있으며, 그 잔여 넘침이 이 값에 드러난다.
+    lint(text-overflow) 가 shrink_text shape 의 "축소 후에도 남는" 넘침만
+    잡도록 이 헬퍼를 공유한다.
+    """
+    if not paragraphs:
+        return 0.0
+
+    scale = calculate_shrink_font_scale(
+        paragraphs,
+        box_width_px,
+        box_height_px,
+        line_spacing_pt=line_spacing_pt,
+        padding_left_px=padding_left_px,
+        padding_right_px=padding_right_px,
+        padding_top_px=padding_top_px,
+        padding_bottom_px=padding_bottom_px,
+    )
+    effective_ls = scaled_line_spacing_pt(line_spacing_pt, scale)
+    scaled_paras = _scale_paragraph_fonts(paragraphs, scale)
+    return calculate_required_height(
+        scaled_paras,
+        box_width_px,
+        line_spacing_pt=effective_ls,
+        padding_left_px=padding_left_px,
+        padding_right_px=padding_right_px,
+        padding_top_px=padding_top_px,
+        padding_bottom_px=padding_bottom_px,
+    )
+
+
+def _scale_paragraph_fonts(
+    paragraphs: list["PptxParagraph"], font_scale: float
+) -> list["PptxParagraph"]:
+    """run 폰트 크기에 font_scale 을 적용한 사본 paragraph 리스트를 만든다.
+
+    측정 전용 — 원본을 변형하지 않는다. scale 이 1.0 이면 원본을 그대로 돌려준다.
+    """
+    if not (0 < font_scale < 1.0):
+        return paragraphs
+
+    from dataclasses import replace
+
+    scaled: list["PptxParagraph"] = []
+    for para in paragraphs:
+        new_runs = []
+        for r in para.runs:
+            size = getattr(r, "font_size_pt", None)
+            if size:
+                new_runs.append(replace(r, font_size_pt=size * font_scale))
+            else:
+                new_runs.append(r)
+        scaled.append(replace(para, runs=new_runs))
+    return scaled

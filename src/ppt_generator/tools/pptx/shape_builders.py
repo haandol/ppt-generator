@@ -24,7 +24,10 @@ from ppt_generator.interfaces.constants import (
 )
 from ppt_generator.interfaces.line_geometry import line_endpoints
 from ppt_generator.interfaces.schemas import PptxShape
-from ppt_generator.interfaces.text_measurement import calculate_shrink_font_scale
+from ppt_generator.interfaces.text_measurement import (
+    calculate_shrink_font_scale,
+    scaled_line_spacing_pt,
+)
 from ppt_generator.tools.pptx.freeform_builder import add_freeform_from_svg
 from ppt_generator.tools.pptx.text_formatter import (
     apply_line_spacing,
@@ -224,8 +227,18 @@ def add_auto_shape_from_spec(slide, shape_spec: PptxShape) -> None:
 
         format_paragraphs(tf, shape_spec.paragraphs, font_scale=font_scale)
 
-        if shape_spec.line_spacing_pt:
-            apply_line_spacing(tf, shape_spec.line_spacing_pt, shape_spec.paragraphs)
+        # shrink_text 로 폰트를 축소했으면 line_spacing 도 같은 비율로 축소해야
+        # 소비 높이가 실제로 줄어 오버플로가 해소된다 (HTML 렌더러와 공유 헬퍼).
+        effective_line_spacing = scaled_line_spacing_pt(
+            shape_spec.line_spacing_pt, font_scale
+        )
+        if effective_line_spacing:
+            apply_line_spacing(
+                tf,
+                effective_line_spacing,
+                shape_spec.paragraphs,
+                font_scale=font_scale,
+            )
 
         apply_vertical_alignment(tf, shape_spec.vertical_alignment or "top")
 

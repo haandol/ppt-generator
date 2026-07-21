@@ -136,12 +136,17 @@ def apply_line_spacing(
     text_frame,
     line_spacing_pt: float,
     paragraphs: list[PptxParagraph] | None = None,
+    font_scale: float = 1.0,
 ) -> None:
     """줄간격을 적용한다.
 
     paragraph 스펙이 제공되면, 해당 paragraph 내 최대 font_size_pt보다
     line_spacing_pt가 작은 경우 해당 paragraph에는 줄간격을 적용하지 않는다.
     (PPTX line_spacing은 절대값이므로 폰트보다 작으면 텍스트가 겹침)
+
+    font_scale 이 1.0 미만이면 shrink_text autofit 이 폰트를 축소한 상태이므로,
+    겹침 가드도 축소된 폰트(font × font_scale) 기준으로 비교한다. line_spacing_pt
+    인자는 이미 축소된 값을 받는다.
     """
     tf_paras = list(text_frame.paragraphs)
     for i, para in enumerate(tf_paras):
@@ -150,7 +155,7 @@ def apply_line_spacing(
                 (r.font_size_pt for r in paragraphs[i].runs if r.font_size_pt),
                 default=0,
             )
-            if max_font and line_spacing_pt < max_font * 1.2:
+            if max_font and line_spacing_pt < max_font * font_scale * 1.2:
                 continue
         para.line_spacing = Pt(line_spacing_pt)
 

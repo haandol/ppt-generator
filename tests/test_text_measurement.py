@@ -10,8 +10,10 @@ from ppt_generator.interfaces.text_measurement import (
     calculate_autofit_font_scale,
     calculate_required_height,
     calculate_required_height_simple_text,
+    calculate_shrink_font_scale,
     estimate_paragraph_wrapped_lines,
     estimate_text_width_px,
+    scaled_line_spacing_pt,
 )
 
 # ---------------------------------------------------------------------------
@@ -245,3 +247,97 @@ class TestCalculateAutofitFontScale:
     def test_zero_values(self) -> None:
         assert calculate_autofit_font_scale(0, 100) == 1.0
         assert calculate_autofit_font_scale(100, 0) == 1.0
+
+
+class TestScaledLineSpacing:
+    def test_none_passthrough(self) -> None:
+        assert scaled_line_spacing_pt(None, 0.5) is None
+
+    def test_zero_passthrough(self) -> None:
+        assert scaled_line_spacing_pt(0, 0.5) == 0
+
+    def test_no_scale_when_full(self) -> None:
+        # scale == 1.0 이면 축소하지 않는다
+        assert scaled_line_spacing_pt(22.0, 1.0) == 22.0
+
+    def test_no_scale_when_gt_one(self) -> None:
+        # 비정상적으로 1 초과여도 원본 유지
+        assert scaled_line_spacing_pt(22.0, 1.5) == 22.0
+
+    def test_scales_down(self) -> None:
+        assert scaled_line_spacing_pt(22.0, 0.8) == pytest.approx(17.6, rel=1e-3)
+
+
+class TestShrinkConvergesWithLineSpacing:
+    """다행 텍스트 + 명시적 line_spacing 에서 shrink 가 실제로 오버플로를 해소하는지.
+
+    line_spacing 을 상수로 두면 폰트만 줄고 줄 높이는 그대로라 축소 후에도
+    소비 높이가 박스를 넘던 회귀(design/0014, 2026-07-21)에 대한 가드.
+    """
+
+    def _many_lines(self, n: int, font_pt: int = 15) -> list[PptxParagraph]:
+        return [
+            PptxParagraph(
+                runs=[PptxTextRun(text="x = foo(bar)", font_size_pt=font_pt)],
+                bullet_level=-1,
+            )
+            for _ in range(n)
+        ]
+
+    def test_shrink_then_scaled_spacing_fits_box(self) -> None:
+        paras = self._many_lines(19)
+        w, h, ls = 960.0, 428.0, 22.0
+        pad_lr, pad_tb = 32.0, 26.0
+
+        scale = calculate_shrink_font_scale(
+            paras,
+            w,
+            h,
+            line_spacing_pt=ls,
+            padding_left_px=pad_lr,
+            padding_right_px=pad_lr,
+            padding_top_px=pad_tb,
+            padding_bottom_px=pad_tb,
+        )
+        assert scale < 1.0  # 축소가 필요한 케이스
+
+        eff_ls = scaled_line_spacing_pt(ls, scale)
+        consumed = calculate_required_height(
+            paras,
+            w,
+            line_spacing_pt=eff_ls,
+            padding_left_px=pad_lr,
+            padding_right_px=pad_lr,
+            padding_top_px=pad_tb,
+            padding_bottom_px=pad_tb,
+        )
+        # 축소된 line_spacing 으로 다시 재면 박스 높이(+15% 여유) 안에 든다.
+        assert consumed <= h * 1.15 + 0.5
+
+    def test_padding_excluded_from_scale_ratio(self) -> None:
+        # 상하 padding 이 큰 케이스에서도 텍스트분만 축소해 수렴하는지
+        # (폰트 하한 10pt 에 걸리지 않는 범위). padding 을 비율에 포함하면
+        # 축소 후에도 미세하게 넘치므로, 텍스트분만 축소하는지를 검증한다.
+        paras = self._many_lines(9, font_pt=16)
+        w, h, ls = 600.0, 260.0, 24.0
+        pad_tb = 40.0
+
+        scale = calculate_shrink_font_scale(
+            paras,
+            w,
+            h,
+            line_spacing_pt=ls,
+            padding_top_px=pad_tb,
+            padding_bottom_px=pad_tb,
+        )
+        assert scale < 1.0
+        assert scale > 10.0 / 16.0  # 폰트 하한에 걸리지 않는 케이스
+        eff_ls = scaled_line_spacing_pt(ls, scale)
+        consumed = calculate_required_height(
+            paras,
+            w,
+            line_spacing_pt=eff_ls,
+            padding_top_px=pad_tb,
+            padding_bottom_px=pad_tb,
+        )
+        assert consumed <= h * 1.15 + 0.5

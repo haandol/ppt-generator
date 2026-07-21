@@ -12,9 +12,10 @@ from ppt_generator.interfaces.text_measurement import (
     calculate_required_height,
     calculate_required_height_simple_text,
     estimate_text_width_px,
+    required_height_after_shrink,
 )
 
-_TEXT_OVERFLOW_TOLERANCE = 1.15  # 15% 여유 허용
+_TEXT_OVERFLOW_TOLERANCE = 1.15  # 15% 여유 허용 (폰트 메트릭 추정 오차 흡수)
 
 
 def check_text_overflow(spec: PptxSlideSpec, result: SlideLintResult) -> None:
@@ -70,13 +71,6 @@ def _check_shapes(spec: PptxSlideSpec, result: SlideLintResult) -> None:
         if is_decorative(shape):
             continue
 
-        # autofit_mode="shrink_text" 인 shape 는 폰트가 자동 축소되어 높이 초과가
-        # 시각적으로 발생하지 않는다. 의도된 동작이므로 height 검사 스킵.
-        # (단어 폭 검사 _check_shapes_width_overflow 는 별개로 유지 — 단일 단어가
-        # 너무 길면 shrink_text 도 살리지 못하는 케이스가 있다.)
-        if shape.autofit_mode == "shrink_text":
-            continue
-
         has_paragraphs = any(
             run.text.strip() for para in shape.paragraphs for run in para.runs
         )
@@ -90,6 +84,42 @@ def _check_shapes(spec: PptxSlideSpec, result: SlideLintResult) -> None:
         pad_t = shape.padding_top_px or 0.0
         pad_b = shape.padding_bottom_px or 0.0
         shape_h = abs(shape.height_px)
+
+        # autofit_mode="shrink_text" 인 shape 는 폰트가 자동 축소되지만, 축소 하한
+        # (절대 10pt) 에 걸리면 축소해도 여전히 박스를 넘을 수 있다. PPTX 는 도형
+        # 클리핑이 없어 그 잔여 넘침이 박스 밖으로 삐져나오므로, "축소 후에도 남는"
+        # 넘침을 검사한다 (paragraphs 경로만 — simple text 는 shrink 대상 아님).
+        if shape.autofit_mode == "shrink_text" and has_paragraphs:
+            residual_h = required_height_after_shrink(
+                shape.paragraphs,
+                abs(shape.width_px),
+                shape_h,
+                line_spacing_pt=shape.line_spacing_pt,
+                padding_left_px=pad_l,
+                padding_right_px=pad_r,
+                padding_top_px=pad_t,
+                padding_bottom_px=pad_b,
+            )
+            if residual_h > shape_h * _TEXT_OVERFLOW_TOLERANCE:
+                result.violations.append(
+                    LintViolation(
+                        rule="text-overflow",
+                        severity="warning",
+                        message=(
+                            f"shape 텍스트가 폰트 최소 축소(10pt) 후에도 높이를 "
+                            f"초과함 (필요 {residual_h:.0f}px > 가용 {shape_h:.0f}px). "
+                            f"텍스트를 줄이거나 박스를 키워야 합니다."
+                        ),
+                        element_index=idx,
+                        element_type="shape",
+                        current_value={
+                            "required_height": round(residual_h),
+                            "available_height": round(shape_h),
+                        },
+                        expected=f"<= {shape_h:.0f}px",
+                    )
+                )
+            continue
 
         if has_paragraphs:
             required_h = calculate_required_height(

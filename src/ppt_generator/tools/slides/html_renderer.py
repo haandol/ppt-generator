@@ -13,6 +13,7 @@ from ppt_generator.interfaces.schemas import (
 )
 from ppt_generator.interfaces.text_measurement import (
     calculate_shrink_font_scale,
+    scaled_line_spacing_pt,
     should_apply_nowrap_to_paragraph,
 )
 from ppt_generator.tools.slides.html_safety import (
@@ -61,12 +62,6 @@ def textbox_to_html(tb: PptxTextBox) -> str:
         f"overflow:visible;"
     )
     line_spacing = safe_number(tb.line_spacing_pt)
-    if line_spacing > 0:
-        style += f"line-height:{css_number(line_spacing)}pt;"
-    if tb.vertical_alignment == "middle":
-        style += "display:flex;flex-direction:column;justify-content:center;"
-    elif tb.vertical_alignment == "bottom":
-        style += "display:flex;flex-direction:column;justify-content:flex-end;"
 
     # 불릿 그룹핑
     has_bullets = any(p.bullet_level >= 0 for p in tb.paragraphs)
@@ -88,6 +83,16 @@ def textbox_to_html(tb: PptxTextBox) -> str:
         )
     except (TypeError, ValueError, OverflowError):
         font_scale = 1.0
+
+    # 폰트를 축소했으면 line-height 도 같은 비율로 축소해야 소비 높이가 실제로 줄어
+    # 오버플로가 해소된다 (shape_renderer 와 동일한 공유 헬퍼).
+    if line_spacing > 0:
+        effective_ls = scaled_line_spacing_pt(line_spacing, font_scale) or line_spacing
+        style += f"line-height:{css_number(effective_ls)}pt;"
+    if tb.vertical_alignment == "middle":
+        style += "display:flex;flex-direction:column;justify-content:center;"
+    elif tb.vertical_alignment == "bottom":
+        style += "display:flex;flex-direction:column;justify-content:flex-end;"
 
     inner_parts: list[str] = []
     if has_bullets:

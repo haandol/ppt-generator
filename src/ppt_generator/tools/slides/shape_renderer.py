@@ -16,6 +16,7 @@ from ppt_generator.interfaces.line_geometry import line_endpoints
 from ppt_generator.interfaces.schemas import PptxShape
 from ppt_generator.interfaces.text_measurement import (
     calculate_shrink_font_scale,
+    scaled_line_spacing_pt,
     should_apply_nowrap_to_paragraph,
 )
 from ppt_generator.tools.slides.html_safety import (
@@ -298,8 +299,33 @@ def shape_to_html(shape: PptxShape) -> str:
     )
 
     line_spacing = safe_number(shape.line_spacing_pt)
+
+    # shrink_text autofit: 필요 높이가 박스 높이를 초과하면 폰트를 비례 축소한다.
+    # expand_height 는 박스가 늘어나므로 축소 불필요. paragraphs 경로에서만 산출하며
+    # line-height 도 같은 비율로 축소해야 소비 높이가 실제로 줄어 오버플로가 해소된다.
+    font_scale = 1.0
+    if shape.paragraphs and not expand:
+        # text-overflow lint 와 동일한 15% 여유를 두어, 경계 케이스에서
+        # 불필요하게 축소하지 않는다. 축소 하한은 절대 10pt(가독성 floor).
+        # PPTX 빌더(shape_builders)와 동일한 공유 헬퍼를 사용해 두 출력의
+        # 폰트 크기가 일치하도록 한다.
+        try:
+            font_scale = calculate_shrink_font_scale(
+                shape.paragraphs,
+                width,
+                height,
+                line_spacing_pt=line_spacing or None,
+                padding_left_px=pl,
+                padding_right_px=pr,
+                padding_top_px=pt_,
+                padding_bottom_px=pb,
+            )
+        except (TypeError, ValueError, OverflowError):
+            font_scale = 1.0
+
     if line_spacing > 0:
-        style += f"line-height:{css_number(line_spacing)}pt;"
+        effective_ls = scaled_line_spacing_pt(line_spacing, font_scale) or line_spacing
+        style += f"line-height:{css_number(effective_ls)}pt;"
 
     if shape.text and not shape.paragraphs:
         style += "display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;"
@@ -311,27 +337,6 @@ def shape_to_html(shape: PptxShape) -> str:
     inner = ""
     if shape.paragraphs:
         usable_w = width - pl - pr
-        # shrink_text autofit: 필요 높이가 박스 높이를 초과하면 폰트를 비례 축소한다.
-        # expand_height 는 박스가 늘어나므로 축소 불필요.
-        font_scale = 1.0
-        if not expand:
-            # text-overflow lint 와 동일한 15% 여유를 두어, 경계 케이스에서
-            # 불필요하게 축소하지 않는다. 축소 하한은 절대 10pt(가독성 floor).
-            # PPTX 빌더(shape_builders)와 동일한 공유 헬퍼를 사용해 두 출력의
-            # 폰트 크기가 일치하도록 한다.
-            try:
-                font_scale = calculate_shrink_font_scale(
-                    shape.paragraphs,
-                    width,
-                    height,
-                    line_spacing_pt=line_spacing or None,
-                    padding_left_px=pl,
-                    padding_right_px=pr,
-                    padding_top_px=pt_,
-                    padding_bottom_px=pb,
-                )
-            except (TypeError, ValueError, OverflowError):
-                font_scale = 1.0
         para_parts: list[str] = []
         for para in shape.paragraphs:
             try:
