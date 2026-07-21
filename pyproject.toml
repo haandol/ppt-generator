@@ -4,7 +4,7 @@ version = "0.7.1"
 description = "자동 프레젠테이션 생성 MCP 서버 (LLM 생성은 클라이언트로 오프로딩)"
 requires-python = ">=3.13"
 dependencies = [
-    "mcp",
+    "mcp>=1.28.1",
     "playwright",
     "python-dotenv",
     "python-pptx>=1.0.2",
