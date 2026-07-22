@@ -328,6 +328,10 @@ class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
         flip_h = xfrm is not None and xfrm.get("flipH") == "1"
         flip_v = xfrm is not None and xfrm.get("flipV") == "1"
 
+        # bentConnector(꺾인 커넥터) 감지: 직선 대신 직각(elbow) 폴리라인으로 렌더
+        prst = self._read_prst(shape)
+        elbow_points = self._bent_connector_points(prst, flip_h, flip_v)
+
         ln = spPr.find(qn("a:ln")) if spPr is not None else None
         tail_arrow = False
         head_arrow = False
@@ -358,6 +362,23 @@ class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
 
         width_px = self._emu_to_px_x(width_emu)
         height_px = self._emu_to_px_y(height_emu)
+
+        if elbow_points is not None:
+            # elbow 커넥터: 폴리라인 꼭짓점이 이미 flip 을 반영하므로 직선용 flip/방향
+            # 로직을 건너뛴다. 화살표는 첫/끝 꼭짓점(start/end)에 그대로 매핑된다.
+            return PptxShape(
+                left_px=self._emu_to_px_x(left_emu),
+                top_px=self._emu_to_px_y(top_emu),
+                width_px=width_px,
+                height_px=height_px,
+                shape_type="line",
+                border_color=border_color,
+                border_width_pt=border_width,
+                end_arrow=tail_arrow,
+                start_arrow=head_arrow,
+                dash_style=dash_style,
+                elbow_points=elbow_points,
+            )
 
         # PPTX 커넥터의 실제 시작/끝 좌표 계산:
         # 기본: start=(left,top), end=(left+w,top+h)
@@ -399,6 +420,40 @@ class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
             start_arrow=head_arrow,
             dash_style=dash_style,
         )
+
+    @staticmethod
+    def _bent_connector_points(
+        prst: str | None, flip_h: bool, flip_v: bool
+    ) -> list[list[float]] | None:
+        """bentConnector prst → bbox 정규화 폴리라인 꼭짓점 (elbow). 아니면 None.
+
+        OOXML 기본 기하(avLst 미지정=50%), unflipped 기준:
+        - bentConnector2: L자, (0,0)→(1,0)→(1,1)  (수평 후 수직)
+        - bentConnector3: Z자, (0,0)→(.5,0)→(.5,1)→(1,1)  (중간 50% 에서 꺾임)
+        - bentConnector4/5 도 근사(중간 꺾임 2~3회)로 처리.
+        flipH 는 x(fx→1-fx), flipV 는 y(fy→1-fy) 를 미러링한다.
+        """
+        if not prst or not prst.startswith("bentConnector"):
+            return None
+        base: list[tuple[float, float]]
+        if prst == "bentConnector2":
+            base = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]
+        elif prst == "bentConnector3":
+            base = [(0.0, 0.0), (0.5, 0.0), (0.5, 1.0), (1.0, 1.0)]
+        elif prst in ("bentConnector4", "bentConnector5"):
+            base = [
+                (0.0, 0.0),
+                (0.5, 0.0),
+                (0.5, 0.5),
+                (1.0, 0.5),
+                (1.0, 1.0),
+            ]
+        else:
+            return None
+        pts = [
+            [1.0 - fx if flip_h else fx, 1.0 - fy if flip_v else fy] for fx, fy in base
+        ]
+        return pts
 
     # ── 이미지 추출 ──
 

@@ -169,6 +169,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
                 start_arrow=s.get("start_arrow", False),
                 dash_style=s.get("dash_style"),
                 svg_path=s.get("svg_path"),
+                elbow_points=s.get("elbow_points"),
                 autofit_mode=s.get("autofit_mode", "expand_height"),
                 z_index=s.get("z_index"),
                 grid_cell=s.get("grid_cell"),

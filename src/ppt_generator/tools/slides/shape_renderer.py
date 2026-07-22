@@ -60,12 +60,103 @@ _ARROW_SIZE = 14  # 화살표 머리 길이 (px)
 _ARROW_HALF = 10  # 화살표 머리 높이 (px)
 
 
+def _elbow_connector_to_html(
+    shape: PptxShape, stroke_color: str, stroke_width: float
+) -> str:
+    """꺾인 커넥터를 직각 <polyline> 로 렌더 (화살표/대시 지원).
+
+    elbow_points 는 bbox 대비 정규화 좌표([[fx,fy],...])다. bbox(left/top/width/height)
+    로 실제 픽셀 좌표를 만들고, 화살표 마커·대시는 직선 커넥터와 동일 규칙으로 적용한다.
+    """
+    left = safe_number(shape.left_px)
+    top = safe_number(shape.top_px)
+    w = abs(safe_number(shape.width_px))
+    h = abs(safe_number(shape.height_px))
+
+    pad = max(stroke_width * 2, 8)
+    svg_w = (w or 1) + pad * 2
+    svg_h = (h or 1) + pad * 2
+
+    pts = []
+    for p in shape.elbow_points or []:
+        try:
+            fx = safe_number(p[0])
+            fy = safe_number(p[1])
+        except (IndexError, TypeError):
+            continue
+        pts.append((pad + fx * w, pad + fy * h))
+    if len(pts) < 2:
+        return ""
+    points_attr = " ".join(f"{css_number(x)},{css_number(y)}" for x, y in pts)
+
+    dash_attr = ""
+    if shape.dash_style == "dash":
+        dash_attr = (
+            f' stroke-dasharray="{css_number(stroke_width * 4)},'
+            f'{css_number(stroke_width * 3)}"'
+        )
+    elif shape.dash_style == "dot":
+        dash_attr = (
+            f' stroke-dasharray="{css_number(stroke_width)},'
+            f'{css_number(stroke_width * 2)}"'
+        )
+
+    line_length = max(w, h, 1)
+    aw = min(_ARROW_SIZE, line_length * 0.6)
+    ah = min(_ARROW_HALF, aw * _ARROW_HALF / _ARROW_SIZE)
+    ah2 = ah / 2
+    defs_parts: list[str] = []
+    line_attrs = ""
+    if shape.end_arrow:
+        defs_parts.append(
+            f'<marker id="ah-end" markerWidth="{css_number(aw)}" '
+            f'markerHeight="{css_number(ah)}" '
+            f'refX="{css_number(aw)}" refY="{css_number(ah2)}" '
+            f'orient="auto" markerUnits="userSpaceOnUse">'
+            f'<polygon points="0 0, {css_number(aw)} {css_number(ah2)}, '
+            f'0 {css_number(ah)}" fill="{stroke_color}" /></marker>'
+        )
+        line_attrs += ' marker-end="url(#ah-end)"'
+    if shape.start_arrow:
+        defs_parts.append(
+            f'<marker id="ah-start" markerWidth="{css_number(aw)}" '
+            f'markerHeight="{css_number(ah)}" '
+            f'refX="0" refY="{css_number(ah2)}" '
+            f'orient="auto" markerUnits="userSpaceOnUse">'
+            f'<polygon points="{css_number(aw)} 0, 0 {css_number(ah2)}, '
+            f'{css_number(aw)} {css_number(ah)}" fill="{stroke_color}" /></marker>'
+        )
+        line_attrs += ' marker-start="url(#ah-start)"'
+    defs_html = f"<defs>{''.join(defs_parts)}</defs>" if defs_parts else ""
+
+    container_style = (
+        f"position:absolute;"
+        f"left:{css_number(left - pad)}px;top:{css_number(top - pad)}px;"
+        f"width:{css_number(svg_w)}px;height:{css_number(svg_h)}px;"
+        f"overflow:visible;pointer-events:none;"
+    )
+    return (
+        f'<svg style="{container_style}" '
+        f'width="{css_number(svg_w)}" height="{css_number(svg_h)}" '
+        f'xmlns="http://www.w3.org/2000/svg">'
+        f"{defs_html}"
+        f'<polyline points="{points_attr}" fill="none" '
+        f'stroke="{stroke_color}" stroke-width="{css_number(stroke_width)}"'
+        f"{dash_attr}{line_attrs} />"
+        f"</svg>"
+    )
+
+
 def _line_shape_to_html(shape: PptxShape) -> str:
     """Line shape -> position:absolute <svg> 변환 (화살표/대시 지원)."""
     stroke_color = safe_color(shape.border_color, "#ffffff")
     stroke_width = safe_number(shape.border_width_pt, 1.0)
     if stroke_width <= 0:
         stroke_width = 1.0
+
+    # 꺾인 커넥터(elbow): 정규화 폴리라인 꼭짓점을 직각 polyline 으로 렌더
+    if getattr(shape, "elbow_points", None):
+        return _elbow_connector_to_html(shape, stroke_color, stroke_width)
 
     left = safe_number(shape.left_px)
     top = safe_number(shape.top_px)

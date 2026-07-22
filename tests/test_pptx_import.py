@@ -1576,6 +1576,85 @@ class TestGroupZOrderPreserved:
             assert label.z_index >= max(others)
 
 
+class TestBentConnector:
+    """꺾인 커넥터(bentConnector) → 직각 elbow 폴리라인 (import/0003)."""
+
+    def _bent(self, prst: str, flip_h=False, flip_v=False):
+        from pptx.oxml.ns import qn
+        from pptx.oxml import parse_xml
+        from pptx.util import Inches
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        # cxnSp 를 직접 구성 (python-pptx 는 connector add 시 straight 만 지원)
+        sp_tree = slide.shapes._spTree
+        flip_attr = ""
+        if flip_h:
+            flip_attr += ' flipH="1"'
+        if flip_v:
+            flip_attr += ' flipV="1"'
+        xml = (
+            '<p:cxnSp xmlns:p="http://schemas.openxmlformats.org/presentationml/'
+            '2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/'
+            '2006/main"><p:nvCxnSpPr><p:cNvPr id="99" name="C"/><p:cNvCxnSpPr/>'
+            "<p:nvPr/></p:nvCxnSpPr><p:spPr>"
+            f'<a:xfrm{flip_attr}><a:off x="914400" y="914400"/>'
+            '<a:ext cx="1828800" cy="914400"/></a:xfrm>'
+            f'<a:prstGeom prst="{prst}"><a:avLst/></a:prstGeom>'
+            '<a:ln w="12700"><a:solidFill><a:srgbClr val="000000"/></a:solidFill>'
+            '<a:tailEnd type="triangle"/></a:ln></p:spPr></p:cxnSp>'
+        )
+        sp_tree.append(parse_xml(xml))
+        return prs, slide
+
+    def test_bent_connector2_becomes_elbow_polyline(self):
+        prs, slide = self._bent("bentConnector2")
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        conn = [s for s in spec.shapes if s.shape_type == "line" and s.elbow_points]
+        assert len(conn) == 1
+        assert conn[0].elbow_points == [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]
+        assert conn[0].end_arrow is True
+
+    def test_bent_connector3_has_two_bends(self):
+        prs, slide = self._bent("bentConnector3")
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        conn = [s for s in spec.shapes if s.shape_type == "line" and s.elbow_points]
+        assert conn[0].elbow_points == [
+            [0.0, 0.0],
+            [0.5, 0.0],
+            [0.5, 1.0],
+            [1.0, 1.0],
+        ]
+
+    def test_flip_h_mirrors_x(self):
+        prs, slide = self._bent("bentConnector2", flip_h=True)
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        conn = [s for s in spec.shapes if s.shape_type == "line" and s.elbow_points]
+        # x 좌표가 미러링됨
+        assert conn[0].elbow_points == [[1.0, 0.0], [0.0, 0.0], [0.0, 1.0]]
+
+    def test_elbow_renders_polyline_with_arrow(self):
+        from ppt_generator.tools.slides.shape_renderer import shape_to_html
+
+        shape = PptxShape(
+            left_px=100,
+            top_px=100,
+            width_px=200,
+            height_px=100,
+            shape_type="line",
+            border_color="#000000",
+            border_width_pt=1.0,
+            end_arrow=True,
+            elbow_points=[[0.0, 0.0], [0.5, 0.0], [0.5, 1.0], [1.0, 1.0]],
+        )
+        html = shape_to_html(shape)
+        assert "<polyline" in html
+        assert "marker-end" in html
+
+
 class TestRunImportPptxEndToEnd:
     """run_import_pptx 전체 경로(임포트→저장→HTML)로 충실도 수정이 살아있는지 검증."""
 

@@ -164,6 +164,10 @@ class PptxShape:
     svg_path: str | None = (
         None  # SVG path data for custom freeform shapes (shape_type="custom")
     )
+    # 꺾인 커넥터(bentConnector)의 폴리라인 꼭짓점. bbox(left/top/width/height) 대비
+    # 정규화 좌표 [[fx, fy], ...] (0~1). shape_type="line" 과 함께 쓰이며, 값이 있으면
+    # 직선 대신 직각(elbow) 폴리라인으로 렌더한다. end_arrow/start_arrow/dash_style 적용.
+    elbow_points: list[list[float]] | None = None
     # 결정 14: shape autofit 기본은 "shrink_text" (높이 고정, 폰트 자동 축소).
     # expand_height 는 height 가 늘어나며 sibling 과 충돌하기 쉬워 grid 균일성을 깬다.
     # shrink_text 는 카드 높이 통일을 보장하고, 폰트가 작아져도 font-range lint 가
