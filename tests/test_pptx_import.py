@@ -1362,12 +1362,14 @@ class TestAutofitExtraction:
         spec = reader.read_slide(slide, 0, 1)
         assert spec.textboxes[0].autofit_font_scale == 0.9
 
-    def test_no_autofit_field_defaults_to_shrink(self):
-        # autofit 자식이 아예 없으면 shrink (LLM 생성 슬라이드 기본 동작).
+    def test_no_autofit_field_defaults_to_none(self):
+        # autofit 자식이 아예 없으면 OOXML 기본은 noAutofit(축소 없음)이다.
+        # 임포트는 원본 레이아웃이 확정된 상태이므로 렌더러가 폰트를 재축소하면
+        # 원본보다 작아진다(import/0003). LLM 생성 기본값 "shrink" 와 반대.
         prs, slide = self._make_textbox(None)
         reader = SlideReader(1.0, 1.0, prs)
         spec = reader.read_slide(slide, 0, 1)
-        assert spec.textboxes[0].autofit == "shrink"
+        assert spec.textboxes[0].autofit == "none"
 
     def test_autofit_none_skips_shrink_in_render(self):
         """autofit="none" 텍스트박스는 박스를 넘겨도 폰트가 축소되지 않아야 한다."""
@@ -1387,6 +1389,285 @@ class TestAutofitExtraction:
         html = textbox_to_html(tb_none)
         # 36pt 가 그대로 유지 (축소되지 않음)
         assert "font-size:36.00pt" in html
+
+
+class TestLineSpacingExtraction:
+    """줄간격 추출: 직접 배수 지정 + placeholder 상속(lnSpc) 해석 (import/0003)."""
+
+    def test_direct_multiple_spacing_converts_to_pt(self):
+        # 문단에 배수 줄간격(0.9)이 직접 지정되면 폰트 크기(20pt)와 곱해 pt 로 환산.
+        from pptx.util import Inches, Pt
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        tb = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1))
+        para = tb.text_frame.paragraphs[0]
+        run = para.add_run()
+        run.text = "본문"
+        run.font.size = Pt(20)
+        para.line_spacing = 0.9  # 배수
+
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        assert spec.textboxes[0].line_spacing_pt == pytest.approx(18.0)  # 0.9 * 20
+
+    def test_inherited_line_spacing_from_master_title_style(self):
+        # 문단에 직접 줄간격이 없고 title placeholder 이면, 마스터 titleStyle 의
+        # lnSpc(spcPct)를 상속 폰트 크기와 곱해 pt 로 환산해야 한다.
+        from ppt_generator.tools.pptx_import.theme_resolver import DefaultRunProps
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        tb = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1))
+        tb.text_frame.paragraphs[0].add_run().text = "제목"
+
+        reader = SlideReader(1.0, 1.0, prs)
+        # 마스터 titleStyle 레벨0 에 90% 줄간격 + 36pt 를 주입
+        reader._master_tx_styles = {
+            "titleStyle": {0: DefaultRunProps(font_size_pt=36, line_spacing_pct=0.9)}
+        }
+        reader._layout_def_rpr = {}
+        # title placeholder(type=1) 로 해석
+        ls = reader._extract_line_spacing(
+            tb.text_frame, placeholder_type=1, placeholder_idx=0
+        )
+        assert ls == pytest.approx(32.4)  # 0.9 * 36
+
+    def test_no_spacing_anywhere_returns_none(self):
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        tb = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1))
+        tb.text_frame.paragraphs[0].add_run().text = "plain"
+
+        reader = SlideReader(1.0, 1.0, prs)
+        assert reader._extract_line_spacing(tb.text_frame) is None
+
+
+class TestChartExtraction:
+    """차트 → 벡터 도형 변환 (import/0003). 이미지 래스터화 대신 SVG 도형으로 재현."""
+
+    def _slide_with_chart(self, chart_type, cats, series):
+        from pptx.chart.data import CategoryChartData
+        from pptx.util import Inches
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        cd = CategoryChartData()
+        cd.categories = cats
+        for name, vals in series:
+            cd.add_series(name, vals)
+        slide.shapes.add_chart(
+            chart_type, Inches(1), Inches(1), Inches(4), Inches(3), cd
+        )
+        return prs, slide
+
+    def test_column_chart_becomes_bars_proportional_to_values(self):
+        from pptx.enum.chart import XL_CHART_TYPE
+
+        prs, slide = self._slide_with_chart(
+            XL_CHART_TYPE.COLUMN_CLUSTERED, ["A", "B", "C"], [("S", (1.0, 2.0, 3.0))]
+        )
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        bars = [s for s in spec.shapes if s.shape_type == "rectangle"]
+        assert len(bars) == 3
+        heights = [b.height_px for b in bars]
+        # 값 1:2:3 → 막대 높이도 1:2:3 비율
+        assert heights[1] == pytest.approx(heights[0] * 2, rel=0.02)
+        assert heights[2] == pytest.approx(heights[0] * 3, rel=0.02)
+
+    def test_doughnut_chart_becomes_arc_slices_with_hole(self):
+        from pptx.enum.chart import XL_CHART_TYPE
+
+        prs, slide = self._slide_with_chart(
+            XL_CHART_TYPE.DOUGHNUT, ["A", "B"], [("S", (0.75, 0.25))]
+        )
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        slices = [s for s in spec.shapes if s.shape_type == "custom" and s.svg_path]
+        assert len(slices) == 2
+        # 도넛 슬라이스는 arc(A) 명령을 두 번(바깥호+안쪽호) 포함한다.
+        assert all(s.svg_path.count("A") >= 2 for s in slices)
+        # 슬라이스마다 채움색이 있고 서로 다르다.
+        assert slices[0].fill_color and slices[1].fill_color
+
+    def test_line_chart_becomes_custom_polyline(self):
+        from pptx.enum.chart import XL_CHART_TYPE
+
+        prs, slide = self._slide_with_chart(
+            XL_CHART_TYPE.LINE, ["A", "B", "C"], [("S", (1.0, 3.0, 2.0))]
+        )
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        lines = [s for s in spec.shapes if s.shape_type == "custom" and s.svg_path]
+        assert len(lines) == 1
+        # 3개 점 → M + L + L
+        assert lines[0].svg_path.count("L") == 2
+        assert lines[0].border_color is not None
+
+
+class TestChartArcPath:
+    """도넛/파이 슬라이스 SVG path 생성 순수 함수."""
+
+    def test_full_pie_slice_has_no_hole_commands(self):
+        from ppt_generator.tools.pptx_import.chart_extractors import _arc_path
+        import math
+
+        # 90도 파이 조각 (hole=0): 중심에서 시작하는 부채꼴
+        d = _arc_path(50, 50, 50, 0, -math.pi / 2, 0)
+        assert d.startswith("M 50 50")  # 중심에서 시작
+        assert d.count("A") == 1
+
+    def test_doughnut_slice_has_outer_and_inner_arcs(self):
+        from ppt_generator.tools.pptx_import.chart_extractors import _arc_path
+        import math
+
+        d = _arc_path(50, 50, 50, 35, -math.pi / 2, 0)
+        assert d.count("A") == 2  # 바깥호 + 안쪽호
+        assert d.endswith("Z")
+
+
+class TestRunImportPptxEndToEnd:
+    """run_import_pptx 전체 경로(임포트→저장→HTML)로 충실도 수정이 살아있는지 검증."""
+
+    def _pptx_with_chart(self, tmp_path) -> str:
+        from pptx import Presentation
+        from pptx.chart.data import CategoryChartData
+        from pptx.enum.chart import XL_CHART_TYPE
+        from pptx.util import Inches
+
+        prs = Presentation()
+        for _ in range(2):  # design_summary 가 slides[1] 폴백을 쓰므로 2장 이상
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            cd = CategoryChartData()
+            cd.categories = ["A", "B", "C"]
+            cd.add_series("S", (1.0, 2.0, 3.0))
+            slide.shapes.add_chart(
+                XL_CHART_TYPE.COLUMN_CLUSTERED,
+                Inches(1),
+                Inches(1),
+                Inches(4),
+                Inches(3),
+                cd,
+            )
+        path = tmp_path / "chart_deck.pptx"
+        prs.save(str(path))
+        return str(path)
+
+    def test_import_renders_chart_as_bars_in_html(self, tmp_path):
+        import json
+
+        from ppt_generator.di.container import DIContainer
+        from ppt_generator.tools.pptx_import.controller import run_import_pptx
+
+        pptx = self._pptx_with_chart(tmp_path)
+        c = DIContainer(project_root=tmp_path)
+        result = run_import_pptx(
+            pptx, "chart-proj", c.import_service, c.project_service, c.slides_service
+        )
+        project_dir = Path(result["slides_html_path"]).parent
+
+        spec = json.loads((project_dir / "design_spec" / "slide_01.json").read_text())
+        bars = [s for s in spec["shapes"] if s["shape_type"] == "rectangle"]
+        assert len(bars) == 3  # 차트가 3개 막대 도형으로 변환돼 저장됨
+
+        html = (project_dir / "slides" / "slide_01.html").read_text()
+        assert html.count("<div") >= 3  # 막대들이 HTML 에 렌더됨
+
+
+class TestChartNoFillSkipped:
+    """series 가 noFill(투명)인 차트는 렌더하지 않는다 (import/0003).
+
+    원본이 차트를 데이터 컨테이너로만 두고 실제 막대는 별도 도형(굵은 line)으로
+    그린 경우, 차트를 색칠해 그리면 진짜 막대와 중복된다.
+    """
+
+    def _chart_slide(self, series_nofill: bool):
+        from pptx.chart.data import CategoryChartData
+        from pptx.enum.chart import XL_CHART_TYPE
+        from pptx.oxml.ns import qn
+        from pptx.util import Inches
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        cd = CategoryChartData()
+        cd.categories = ["A", "B", "C"]
+        cd.add_series("S", (1.0, 2.0, 3.0))
+        gf = slide.shapes.add_chart(
+            XL_CHART_TYPE.COLUMN_CLUSTERED,
+            Inches(1),
+            Inches(1),
+            Inches(4),
+            Inches(3),
+            cd,
+        )
+        if series_nofill:
+            # 첫 series 에 <c:spPr><a:noFill/></c:spPr> 주입
+            from pptx.oxml import parse_xml
+
+            ser = gf.chart._chartSpace.findall(".//" + qn("c:ser"))[0]
+            spPr = parse_xml(
+                '<c:spPr xmlns:c="http://schemas.openxmlformats.org/'
+                'drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/'
+                'drawingml/2006/main"><a:noFill/></c:spPr>'
+            )
+            # c:ser 자식 순서상 idx/order 뒤에 삽입
+            ser.insert(2, spPr)
+        return prs, slide
+
+    def test_nofill_series_chart_is_not_rendered(self):
+        prs, slide = self._chart_slide(series_nofill=True)
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        bars = [s for s in spec.shapes if s.shape_type == "rectangle"]
+        assert bars == []  # noFill 차트 → 막대 렌더 생략
+
+    def test_filled_series_chart_still_renders(self):
+        prs, slide = self._chart_slide(series_nofill=False)
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        bars = [s for s in spec.shapes if s.shape_type == "rectangle"]
+        assert len(bars) == 3  # 기본 채움 차트는 그대로 렌더
+
+
+class TestGradientBorderApproximation:
+    """그라데이션 테두리(a:ln>a:gradFill)를 첫 stop 색으로 근사 (import/0003).
+
+    python-pptx 의 shape.line API 접근이 gradFill 을 solidFill 로 변형하므로,
+    API 접근 전에 XML 에서 gradient 첫 stop 을 추출해야 색이 유지된다.
+    """
+
+    def _round_rect_grad_border(self):
+        from pptx.enum.shapes import MSO_SHAPE
+        from pptx.oxml.ns import qn
+        from pptx.oxml import parse_xml
+        from pptx.util import Inches
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        sp = slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE, Inches(1), Inches(1), Inches(3), Inches(1)
+        )
+        spPr = sp._element.find(qn("p:spPr"))
+        # 기존 ln 제거 후 gradient ln 주입
+        for ln in spPr.findall(qn("a:ln")):
+            spPr.remove(ln)
+        ln = parse_xml(
+            '<a:ln xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+            'w="19050"><a:gradFill><a:gsLst>'
+            '<a:gs pos="40000"><a:srgbClr val="2A39F5"/></a:gs>'
+            '<a:gs pos="100000"><a:srgbClr val="00D692"/></a:gs>'
+            "</a:gsLst></a:gradFill></a:ln>"
+        )
+        spPr.append(ln)
+        return prs, slide, sp
+
+    def test_gradient_border_uses_first_stop_color(self):
+        prs, slide, sp = self._round_rect_grad_border()
+        reader = SlideReader(1.0, 1.0, prs)
+        color, width = reader._extract_line_style(sp)
+        assert color == "#2A39F5"  # 첫 stop
+        assert width == pytest.approx(1.5)  # 19050 EMU / 12700
 
 
 class TestFontNamePreserved:
@@ -1415,3 +1696,41 @@ class TestFontNamePreserved:
             PptxTextRun(text="Brand", font_size_pt=24, font_name="Amazon Ember Display")
         )
         assert "font-family:'Amazon Ember Display'" in html
+
+    def test_placeholder_inherits_layout_latin_over_theme_major(self):
+        # title placeholder 의 run 에 폰트가 없고 layout lstStyle 이 특정 latin 을
+        # 지정하면, theme major 로 폴백하지 않고 layout 폰트를 상속해야 한다.
+        # (theme major 가 "Heavy" 계열이면 글자 폭이 달라져 줄바꿈이 틀어진다 — import/0003)
+        from pptx.oxml.ns import qn
+        from pptx.oxml import parse_xml
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[5])  # Title Only
+        title = slide.shapes.title
+        title.text_frame.text = "Heading"
+        ph_idx = title.placeholder_format.idx
+
+        # layout placeholder 에 lstStyle > lvl1pPr > defRPr latin 주입
+        layout = slide.slide_layout
+        for ph in layout.placeholders:
+            if ph.placeholder_format.idx == ph_idx:
+                txBody = ph._element.find(qn("p:txBody"))
+                for old in txBody.findall(qn("a:lstStyle")):
+                    txBody.remove(old)
+                lst = parse_xml(
+                    '<a:lstStyle xmlns:a="http://schemas.openxmlformats.org/'
+                    'drawingml/2006/main"><a:lvl1pPr><a:defRPr>'
+                    '<a:latin typeface="Amazon Ember Display"/>'
+                    "</a:defRPr></a:lvl1pPr></a:lstStyle>"
+                )
+                txBody.insert(1, lst)
+                break
+
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        title_tb = next(
+            tb
+            for tb in spec.textboxes
+            if tb.paragraphs and "Heading" in tb.paragraphs[0].runs[0].text
+        )
+        assert title_tb.paragraphs[0].runs[0].font_name == "Amazon Ember Display"

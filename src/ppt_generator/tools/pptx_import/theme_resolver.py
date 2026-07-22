@@ -21,11 +21,49 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DefaultRunProps:
-    """OOXML 상속 체인에서 추출한 기본 run 서식."""
+    """OOXML 상속 체인에서 추출한 기본 run 서식.
+
+    line_spacing_pct / line_spacing_pt 는 해당 레벨의 a:pPr > a:lnSpc 에서 온다.
+    lnSpc 는 run 이 아니라 문단(pPr) 속성이지만, 폰트 크기와 같은 상속 체인
+    (layout lstStyle → master txStyle)을 타므로 함께 캐시한다.
+    - spcPct(백분율 배수, 예 90% → 0.9) → line_spacing_pct
+    - spcPts(절대 pt) → line_spacing_pt
+    둘 중 하나만 설정된다. pct 는 렌더 시 폰트 크기와 곱해 pt 로 환산한다.
+    """
 
     font_size_pt: int | None = None
     color: str | None = None
     bold: bool | None = None
+    font_name: str | None = None
+    line_spacing_pct: float | None = None
+    line_spacing_pt: float | None = None
+
+
+def extract_line_spacing_from_ppr(
+    pPr_el: Element | None,
+) -> tuple[float | None, float | None]:
+    """a:pPr > a:lnSpc 에서 (배수 pct, 절대 pt) 를 추출한다.
+
+    Returns:
+        (line_spacing_pct, line_spacing_pt). lnSpc 가 없으면 (None, None).
+        spcPct 는 100000 단위(90000 → 0.9), spcPts 는 100 단위(1200 → 12pt).
+    """
+    if pPr_el is None:
+        return None, None
+    ln_spc = pPr_el.find(qn("a:lnSpc"))
+    if ln_spc is None:
+        return None, None
+    spc_pct = ln_spc.find(qn("a:spcPct"))
+    if spc_pct is not None:
+        val = spc_pct.get("val")
+        if val is not None:
+            return int(val) / 100000, None
+    spc_pts = ln_spc.find(qn("a:spcPts"))
+    if spc_pts is not None:
+        val = spc_pts.get("val")
+        if val is not None:
+            return None, int(val) / 100
+    return None, None
 
 
 # Office 기본 테마 색상 폴백 매핑
@@ -128,7 +166,17 @@ def extract_props_from_rpr(
     if b is not None:
         bold = b == "1" or b.lower() == "true"
     color = extract_color_from_rpr(rpr_el, theme_color_map)
-    return DefaultRunProps(font_size_pt=font_size_pt, color=color, bold=bold)
+    # 명시적 latin 폰트명 (예: "Amazon Ember Display"). "+mj-lt"/"+mn-lt" 는
+    # 테마 참조이므로 폰트명으로 저장하지 않고, 상속 소비 측의 테마 폴백에 맡긴다.
+    font_name: str | None = None
+    latin = rpr_el.find(qn("a:latin"))
+    if latin is not None:
+        tf = latin.get("typeface")
+        if tf and not tf.startswith("+"):
+            font_name = tf
+    return DefaultRunProps(
+        font_size_pt=font_size_pt, color=color, bold=bold, font_name=font_name
+    )
 
 
 def extract_theme_fonts_for_master(master) -> dict[str, str]:
@@ -268,7 +316,11 @@ def extract_master_tx_styles(
                     continue
                 def_rPr = lvl_pPr.find(qn("a:defRPr"))
                 if def_rPr is not None:
-                    level_map[lvl_idx] = extract_props_from_rpr(def_rPr, theme_map)
+                    props = extract_props_from_rpr(def_rPr, theme_map)
+                    pct, pts = extract_line_spacing_from_ppr(lvl_pPr)
+                    props.line_spacing_pct = pct
+                    props.line_spacing_pt = pts
+                    level_map[lvl_idx] = props
             result[style_name] = level_map
     except Exception:
         logger.debug("마스터 txStyles 추출 실패", exc_info=True)

@@ -79,12 +79,18 @@ def run_to_html(run: PptxTextRun, *, font_scale: float = 1.0) -> str:
 
 
 def paragraph_to_html(
-    para: PptxParagraph, *, nowrap: bool = False, font_scale: float = 1.0
+    para: PptxParagraph,
+    *,
+    nowrap: bool = False,
+    font_scale: float = 1.0,
+    line_height_pt: float | None = None,
 ) -> str:
     """PptxParagraph -> HTML 변환.
 
     nowrap=True 이면 white-space:nowrap을 적용하여 PPT의 한 줄 레이아웃을 유지한다.
     font_scale 이 1.0 미만이면 모든 run 의 폰트를 비례 축소한다 (shrink_text autofit).
+    line_height_pt 가 주어지면 <p>/<li> 에 직접 line-height 를 적용한다 — 전역 CSS
+    `p{line-height:1.5}` 가 컨테이너 상속을 덮어쓰는 것을 막기 위함이다 (import/0003).
     """
     runs_html = "".join(run_to_html(r, font_scale=font_scale) for r in para.runs)
     style_props: list[str] = []
@@ -93,6 +99,8 @@ def paragraph_to_html(
         style_props.append(f"text-align:{alignment}")
     if nowrap:
         style_props.append("white-space:nowrap")
+    if line_height_pt and line_height_pt > 0:
+        style_props.append(f"line-height:{css_number(line_height_pt)}pt")
 
     style_attr = f' style="{";".join(style_props)}"' if style_props else ""
 
@@ -104,5 +112,7 @@ def paragraph_to_html(
             li_styles.append(f"text-align:{alignment}")
         if nowrap:
             li_styles.append("white-space:nowrap")
+        if line_height_pt and line_height_pt > 0:
+            li_styles.append(f"line-height:{css_number(line_height_pt)}pt")
         return f'<li style="{";".join(li_styles)}">{runs_html}</li>'
     return f"<p{style_attr}>{runs_html}</p>"

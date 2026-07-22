@@ -464,3 +464,50 @@ class TestLineDirectionEndpoints:
     )
     def test_shared_endpoint_contract(self, width, height, expected):
         assert line_endpoints(200, 300, width, height) == expected
+
+
+class TestCustomSvgStrokeScaling:
+    """custom(freeform) SVG 는 viewBox 가 도형 원본 좌표계(EMU)라 실제 렌더 박스로
+    축소될 때 stroke-width 가 함께 축소돼 선이 소멸한다. non-scaling-stroke 로
+    화면 픽셀 단위 선폭을 유지해야 라인아트 아이콘이 원본처럼 보인다 (import/0003)."""
+
+    def _icon(self) -> PptxShape:
+        # 실제 임포트 사례와 유사: 거대한 viewBox(EMU) + 작은 렌더 박스 + 얇은 선
+        return PptxShape(
+            left_px=100,
+            top_px=100,
+            width_px=108,
+            height_px=113,
+            shape_type="custom",
+            fill_color=None,
+            border_color="#232F3E",
+            border_width_pt=1.5,
+            svg_path="315407 331499 M0 0 L315407 331499",
+        )
+
+    def test_stroke_uses_non_scaling_vector_effect(self):
+        html = shape_to_html(self._icon())
+        assert 'vector-effect="non-scaling-stroke"' in html
+
+    def test_stroke_width_kept_as_pixel_value_not_viewbox_scaled(self):
+        # stroke-width 는 pt 값(1.5)을 그대로 px 선폭으로 사용 (viewBox 스케일 미적용).
+        html = shape_to_html(self._icon())
+        assert 'stroke-width="1.5"' in html
+        assert 'stroke="#232F3E"' in html
+
+    def test_fill_only_shape_omits_stroke(self):
+        # 테두리 없는 fill 도형은 stroke 속성을 넣지 않는다 (느낌표 등).
+        shape = PptxShape(
+            left_px=0,
+            top_px=0,
+            width_px=8,
+            height_px=35,
+            shape_type="custom",
+            fill_color="#000000",
+            border_color=None,
+            svg_path="22529 102990 M0 0 L22529 102990 Z",
+        )
+        html = shape_to_html(shape)
+        assert "stroke=" not in html
+        assert "vector-effect" not in html
+        assert 'fill="#000000"' in html

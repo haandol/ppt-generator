@@ -172,6 +172,19 @@ def _custom_svg_shape_to_html(shape: PptxShape) -> str:
     stroke = safe_color(shape.border_color, "none")
     stroke_width = max(safe_number(shape.border_width_pt), 0)
 
+    # viewBox 는 도형의 원본 좌표계(EMU 단위, 예: 315407×331499)이고 실제 렌더 박스는
+    # width_px×height_px(예: 108×113)다. preserveAspectRatio="none" 로 매핑되면
+    # stroke-width 도 viewBox 스케일만큼 축소돼 라인아트 선이 사실상 소멸한다.
+    # vector-effect="non-scaling-stroke" 는 stroke-width 를 viewBox 스케일과
+    # 무관하게 화면 픽셀 단위로 해석하므로, line shape 와 동일하게 pt 값을 px 선폭으로
+    # 그대로 쓸 수 있다 (Chromium 등 최신 브라우저 지원).
+    stroke_attr = ""
+    if stroke != "none":
+        stroke_attr = (
+            f' stroke="{stroke}" stroke-width="{css_number(stroke_width)}" '
+            f'vector-effect="non-scaling-stroke"'
+        )
+
     svg = (
         f'<svg xmlns="http://www.w3.org/2000/svg" '
         f'viewBox="0 0 {css_number(vb_w)} {css_number(vb_h)}" '
@@ -180,8 +193,7 @@ def _custom_svg_shape_to_html(shape: PptxShape) -> str:
         f"top:{css_number(shape.top_px)}px;"
         f"width:{css_number(shape.width_px)}px;"
         f'height:{css_number(shape.height_px)}px;overflow:visible;">'
-        f'<path d="{escape_attr(path_d)}" fill="{fill}" stroke="{stroke}" '
-        f'stroke-width="{css_number(stroke_width)}" />'
+        f'<path d="{escape_attr(path_d)}" fill="{fill}"{stroke_attr} />'
         f"</svg>"
     )
     return svg

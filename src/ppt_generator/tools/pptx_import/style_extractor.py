@@ -41,6 +41,31 @@ class StyleExtractorMixin:
             return resolve_scheme_color(scheme, self._theme_color_map)
         return None
 
+    def _color_from_grad_first_stop(self, container) -> str | None:
+        """container(a:ln 또는 spPr) 안의 a:gradFill 첫 gradient stop 색을 근사.
+
+        그라데이션을 CSS 로 완전 재현하지 않고 첫 stop 을 단색으로 근사한다
+        (import/0003). custom SVG stroke 근사와 동일한 전략. srgbClr → schemeClr 순.
+        """
+        if container is None:
+            return None
+        grad = container.find(qn("a:gradFill"))
+        if grad is None:
+            return None
+        gs_lst = grad.find(qn("a:gsLst"))
+        if gs_lst is None:
+            return None
+        first_gs = gs_lst.find(qn("a:gs"))
+        if first_gs is None:
+            return None
+        srgb = first_gs.find(qn("a:srgbClr"))
+        if srgb is not None and srgb.get("val"):
+            return f"#{srgb.get('val')}"
+        scheme = first_gs.find(qn("a:schemeClr"))
+        if scheme is not None:
+            return resolve_scheme_color(scheme, self._theme_color_map)
+        return None
+
     def _extract_fill_color(self, shape) -> str | None:
         # python-pptx API로 시도 (RGB 색상)
         try:
@@ -68,6 +93,10 @@ class StyleExtractorMixin:
                     scheme = solid.find(qn("a:schemeClr"))
                     if scheme is not None:
                         return resolve_scheme_color(scheme, self._theme_color_map)
+                # gradFill 채움 → 첫 stop 색으로 근사
+                grad_color = self._color_from_grad_first_stop(spPr)
+                if grad_color:
+                    return grad_color
         except Exception:
             logger.debug("fill color XML 파싱 실패", exc_info=True)
         # p:style/a:fillRef 폴백 (테마 스타일 참조 도형)
@@ -87,25 +116,36 @@ class StyleExtractorMixin:
         border_color: str | None = None
         border_width: float | None = None
         # XML에서 a:ln/a:noFill을 먼저 확인 (python-pptx API가 XML을 변형하기 전에)
-        # python-pptx의 shape.line.color 접근 시 <a:noFill/>이 <a:solidFill/>로
-        # 변형되므로, API 접근 전에 noFill 여부를 확인해야 함
+        # python-pptx의 shape.line.color 접근 시 <a:noFill/>·<a:gradFill/>이
+        # <a:solidFill/>로 변형되므로, API 접근 전에 noFill·gradFill 을 확인해야 한다.
         try:
             spPr = shape._element.find(qn("p:spPr"))
             if spPr is not None:
                 ln = spPr.find(qn("a:ln"))
-                if ln is not None and ln.find(qn("a:noFill")) is not None:
-                    return None, None
+                if ln is not None:
+                    if ln.find(qn("a:noFill")) is not None:
+                        return None, None
+                    # 그라데이션 테두리 → 첫 stop 색 근사 (API 접근 전에 추출).
+                    # API 가 gradFill 을 solidFill 로 덮어쓰기 전에 잡아야 한다 (import/0003).
+                    grad_color = self._color_from_grad_first_stop(ln)
+                    if grad_color:
+                        border_color = grad_color
+                        w_attr = ln.get("w")
+                        if w_attr is not None:
+                            border_width = round(int(w_attr) / 12700, 1)
         except Exception:
-            logger.debug("line noFill 확인 실패", exc_info=True)
-        # python-pptx API로 시도
-        try:
-            line = shape.line
-            if line.color and line.color.rgb:
-                border_color = f"#{line.color.rgb}"
-            if line.width is not None:
-                border_width = round(line.width.pt, 1)
-        except (AttributeError, TypeError):
-            logger.debug("line style API 추출 실패", exc_info=True)
+            logger.debug("line noFill/gradFill 확인 실패", exc_info=True)
+        # python-pptx API로 시도 (그라데이션에서 이미 색을 잡았으면 건너뜀 —
+        # API 접근이 gradFill 을 solidFill 로 변형하므로 재접근하지 않는다)
+        if border_color is None:
+            try:
+                line = shape.line
+                if line.color and line.color.rgb:
+                    border_color = f"#{line.color.rgb}"
+                if line.width is not None:
+                    border_width = round(line.width.pt, 1)
+            except (AttributeError, TypeError):
+                logger.debug("line style API 추출 실패", exc_info=True)
         # API 실패 시 XML 직접 파싱 (테마 색상 등)
         if border_color is None:
             try:
@@ -126,6 +166,9 @@ class StyleExtractorMixin:
                                     border_color = resolve_scheme_color(
                                         scheme, self._theme_color_map
                                     )
+                        # 그라데이션 테두리 → 첫 stop 색으로 근사 (import/0003)
+                        if border_color is None:
+                            border_color = self._color_from_grad_first_stop(ln)
                         if border_width is None:
                             w_attr = ln.get("w")
                             if w_attr is not None:

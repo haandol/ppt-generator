@@ -18,6 +18,7 @@ from ppt_generator.interfaces.schemas import (
     PptxShape,
     PptxTextBox,
 )
+from ppt_generator.tools.pptx_import.chart_extractors import ChartExtractorMixin
 from ppt_generator.tools.pptx_import.compound_extractors import CompoundExtractorMixin
 from ppt_generator.tools.pptx_import.ooxml_utils import (
     SHAPE_TYPE_REVERSE_MAP,
@@ -27,7 +28,7 @@ from ppt_generator.tools.pptx_import.ooxml_utils import (
 logger = logging.getLogger(__name__)
 
 
-class ShapeExtractorMixin(CompoundExtractorMixin):
+class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
     """도형별 추출 기능을 제공하는 mixin 클래스.
 
     SlideReader에서 상속하여 사용한다.
@@ -120,7 +121,9 @@ class ShapeExtractorMixin(CompoundExtractorMixin):
             return
 
         if shape_type == MSO_SHAPE_TYPE.CHART:
-            warnings.append(f"차트 요소는 미지원입니다 (name={shape.name})")
+            # 차트를 이미지 대신 벡터 도형으로 재현 (import/0003). 미지원 유형이면
+            # _extract_chart 가 경고를 남기고 False 를 반환하므로 그대로 스킵한다.
+            self._extract_chart(shape, textboxes, shapes, warnings)
             return
 
         if shape_type == MSO_SHAPE_TYPE.MEDIA:
@@ -144,7 +147,11 @@ class ShapeExtractorMixin(CompoundExtractorMixin):
                         width_px=self._emu_to_px_x(shape.width),
                         height_px=self._emu_to_px_y(shape.height),
                         paragraphs=paragraphs,
-                        line_spacing_pt=self._extract_line_spacing(tf),
+                        line_spacing_pt=self._extract_line_spacing(
+                            tf,
+                            placeholder_type=ph_type,
+                            placeholder_idx=ph_idx,
+                        ),
                         vertical_alignment=self._extract_vertical_alignment(tf),
                         autofit=ph_autofit_mode,
                         autofit_font_scale=ph_autofit_scale,

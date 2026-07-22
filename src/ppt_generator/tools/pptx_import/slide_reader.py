@@ -36,6 +36,7 @@ from ppt_generator.tools.pptx_import.style_extractor import StyleExtractorMixin
 from ppt_generator.tools.pptx_import.text_extractor import TextExtractorMixin
 from ppt_generator.tools.pptx_import.theme_resolver import (
     DefaultRunProps,
+    extract_line_spacing_from_ppr,
     extract_master_tx_styles,
     extract_props_from_rpr,
     extract_theme_color_map,
@@ -333,9 +334,11 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
                         continue
                     def_rPr = lvl_pPr.find(qn("a:defRPr"))
                     if def_rPr is not None:
-                        level_map[lvl_idx] = extract_props_from_rpr(
-                            def_rPr, self._theme_color_map
-                        )
+                        props = extract_props_from_rpr(def_rPr, self._theme_color_map)
+                        pct, pts = extract_line_spacing_from_ppr(lvl_pPr)
+                        props.line_spacing_pct = pct
+                        props.line_spacing_pt = pts
+                        level_map[lvl_idx] = props
                 if level_map:
                     self._layout_def_rpr[ph_idx] = level_map
         except Exception:

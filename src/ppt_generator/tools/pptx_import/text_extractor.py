@@ -84,6 +84,7 @@ class TextExtractorMixin:
         font_size: int | None = None
         color: str | None = None
         bold: bool | None = None
+        font_name: str | None = None
 
         # 1) paragraph a:pPr > a:defRPr
         pPr = paragraph._p.find(qn("a:pPr"))
@@ -96,6 +97,8 @@ class TextExtractorMixin:
                 color = para_props.color
             if para_props.bold is not None:
                 bold = para_props.bold
+            if para_props.font_name is not None:
+                font_name = para_props.font_name
 
         # 2) layout placeholder lstStyle > lvlNpPr > defRPr
         if placeholder_idx is not None and placeholder_idx in self._layout_def_rpr:
@@ -108,6 +111,8 @@ class TextExtractorMixin:
                     color = layout_props.color
                 if bold is None and layout_props.bold is not None:
                     bold = layout_props.bold
+                if font_name is None and layout_props.font_name is not None:
+                    font_name = layout_props.font_name
 
         # 3) master p:txStyles > titleStyle/bodyStyle/otherStyle > lvlNpPr > defRPr
         style_name = (
@@ -124,8 +129,12 @@ class TextExtractorMixin:
                 color = master_props.color
             if bold is None and master_props.bold is not None:
                 bold = master_props.bold
+            if font_name is None and master_props.font_name is not None:
+                font_name = master_props.font_name
 
-        return DefaultRunProps(font_size_pt=font_size, color=color, bold=bold)
+        return DefaultRunProps(
+            font_size_pt=font_size, color=color, bold=bold, font_name=font_name
+        )
 
     def _extract_runs(
         self,
@@ -206,9 +215,12 @@ class TextExtractorMixin:
             if font.name and font.name.lower() in MONOSPACE_FONTS:
                 font_family = "monospace"
 
-            # 원본 폰트명 보존: run 에 명시된 latin 폰트 → 없으면 테마 폰트로 폴백.
-            # (title 계열 placeholder 는 major, 그 외는 minor 를 상속)
-            font_name = font.name
+            # 원본 폰트명 보존 (상속 우선순위):
+            # run 명시 latin → layout/master placeholder 상속(inherited.font_name)
+            # → 테마 폰트 폴백. 상속 단계를 건너뛰고 곧장 테마 major 로 가면
+            # layout 이 지정한 실제 폰트(예: title 의 "Amazon Ember Display")를 놓치고
+            # theme major("...Heavy")로 잘못 폴백해 글자 폭이 달라진다 (import/0003).
+            font_name = font.name or inherited.font_name
             if not font_name:
                 theme_fonts = getattr(self, "_theme_fonts", {})
                 if placeholder_type in (1, 3, 15):
@@ -327,16 +339,83 @@ class TextExtractorMixin:
             return "left"
         return ALIGN_REVERSE_MAP.get(paragraph.alignment) or "left"
 
-    @staticmethod
-    def _extract_line_spacing(text_frame) -> float | None:
-        """텍스트 프레임의 줄간격(pt)을 추출. 첫 번째 paragraph 기준."""
+    def _extract_line_spacing(
+        self,
+        text_frame,
+        placeholder_type: int | None = None,
+        placeholder_idx: int | None = None,
+    ) -> float | None:
+        """텍스트 프레임의 줄간격(pt)을 추출. 첫 번째 paragraph 기준.
+
+        1) 문단에 직접 지정된 줄간격: 절대(pt)면 그대로, 배수(예 0.9)면 폰트 크기와 곱해 pt 환산.
+        2) 직접 지정이 없으면(placeholder 상속) layout lstStyle → master txStyle 의
+           lnSpc 를 해석한다. spcPct(배수)는 상속 폰트 크기와 곱해 pt 로 환산한다.
+           원본 마스터가 90% 줄간격을 지정했는데 이를 놓치면 렌더러 기본 1.5 가 적용돼
+           텍스트가 세로로 퍼져 박스를 넘친다 (import/0003).
+        """
         for para in text_frame.paragraphs:
             spacing = para.line_spacing
             if spacing is not None:
+                # 절대 pt (Length) — .pt 접근 가능
                 try:
                     return float(spacing.pt)
                 except (AttributeError, TypeError):
-                    logger.debug("줄간격 추출 실패", exc_info=True)
+                    pass
+                # 배수 (float) — 상속 폰트 크기와 곱해 pt 로 환산
+                if isinstance(spacing, (int, float)):
+                    font_pt = self._first_run_font_pt(
+                        para, placeholder_type, placeholder_idx
+                    )
+                    if font_pt:
+                        return float(spacing) * font_pt
+            break  # 첫 문단만 기준 (기존 동작 유지)
+
+        # placeholder 상속 lnSpc 해석
+        return self._resolve_inherited_line_spacing(placeholder_type, placeholder_idx)
+
+    def _first_run_font_pt(
+        self,
+        paragraph,
+        placeholder_type: int | None,
+        placeholder_idx: int | None,
+    ) -> int | None:
+        """문단 첫 run 의 유효 폰트 크기(pt). 직접 지정 → 상속 순으로 해석."""
+        for run in paragraph.runs:
+            sz = run.font.size
+            if sz is not None:
+                try:
+                    return round(sz.pt)
+                except (AttributeError, TypeError):
+                    pass
+            break
+        inherited = self._resolve_inherited_props(
+            paragraph, placeholder_type, placeholder_idx, 0
+        )
+        return inherited.font_size_pt
+
+    def _resolve_inherited_line_spacing(
+        self,
+        placeholder_type: int | None,
+        placeholder_idx: int | None,
+    ) -> float | None:
+        """layout lstStyle → master txStyle 상속 체인에서 레벨 0 lnSpc 를 pt 로 해석."""
+        for props in (
+            self._layout_def_rpr.get(placeholder_idx, {}).get(0)
+            if placeholder_idx is not None
+            else None,
+            self._master_tx_styles.get(
+                PH_TYPE_TO_TXSTYLE.get(placeholder_type, "otherStyle")
+                if placeholder_type is not None
+                else "otherStyle",
+                {},
+            ).get(0),
+        ):
+            if props is None:
+                continue
+            if props.line_spacing_pt is not None:
+                return props.line_spacing_pt
+            if props.line_spacing_pct is not None and props.font_size_pt is not None:
+                return props.line_spacing_pct * props.font_size_pt
         return None
 
     @staticmethod
@@ -362,7 +441,11 @@ class TextExtractorMixin:
               PPT 가 저장한 실제 축소율을 그대로 적용 (fontScale 없으면 100%).
               PowerPoint 는 normAutofit 을 재계산하지 않고 저장된 스케일을 쓰므로,
               우리도 렌더러 재계산 대신 이 값을 적용해야 원본과 일치한다.
-        - 없음 → ("shrink", None) : 박스 초과 시 폰트 축소 (LLM 생성 슬라이드 기본)
+        - 없음 → ("none", None) : OOXML 명세상 autofit 자식이 없으면 기본은
+              noAutofit(축소 없이 넘침 허용)이다. 임포트는 원본 레이아웃이 이미
+              확정된 상태이므로 렌더러가 폰트를 재축소하면 원본보다 작아진다
+              (import/0001 "임포트 시 autofit 비활성화" 결정). LLM 생성 슬라이드의
+              기본값("shrink")과 반대라는 점에 주의 — 이 함수는 임포트 전용이다.
         """
         try:
             bodyPr = text_frame._txBody.find(qn("a:bodyPr"))
@@ -379,4 +462,4 @@ class TextExtractorMixin:
                     return "none", scale
         except Exception:
             logger.debug("autofit 추출 실패", exc_info=True)
-        return "shrink", None
+        return "none", None

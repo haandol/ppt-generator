@@ -95,9 +95,14 @@ def textbox_to_html(tb: PptxTextBox) -> str:
 
     # 폰트를 축소했으면 line-height 도 같은 비율로 축소해야 소비 높이가 실제로 줄어
     # 오버플로가 해소된다 (shape_renderer 와 동일한 공유 헬퍼).
+    # line-height 는 컨테이너 div 뿐 아니라 각 <p>/<li> 에도 직접 적용해야 한다.
+    # 전역 CSS 의 `p{line-height:1.5}` 가 컨테이너 상속을 덮어써서, div 에만 걸면
+    # 실제 문단은 1.5 로 렌더돼 줄이 벌어지고 박스를 넘친다 (import/0003).
+    para_line_height_pt: float | None = None
     if line_spacing > 0:
         effective_ls = scaled_line_spacing_pt(line_spacing, font_scale) or line_spacing
         style += f"line-height:{css_number(effective_ls)}pt;"
+        para_line_height_pt = effective_ls
     if tb.vertical_alignment == "middle":
         style += "display:flex;flex-direction:column;justify-content:center;"
     elif tb.vertical_alignment == "bottom":
@@ -107,7 +112,9 @@ def textbox_to_html(tb: PptxTextBox) -> str:
     if has_bullets:
         bullet_items: list[str] = []
         for para in tb.paragraphs:
-            html = paragraph_to_html(para, font_scale=font_scale)
+            html = paragraph_to_html(
+                para, font_scale=font_scale, line_height_pt=para_line_height_pt
+            )
             if para.bullet_level >= 0:
                 bullet_items.append(html)
             else:
@@ -153,7 +160,12 @@ def textbox_to_html(tb: PptxTextBox) -> str:
             except (TypeError, ValueError, OverflowError):
                 apply_nowrap = force_nowrap
             inner_parts.append(
-                paragraph_to_html(para, nowrap=apply_nowrap, font_scale=font_scale)
+                paragraph_to_html(
+                    para,
+                    nowrap=apply_nowrap,
+                    font_scale=font_scale,
+                    line_height_pt=para_line_height_pt,
+                )
             )
 
     return f'<div style="{style}">{"".join(inner_parts)}</div>'
