@@ -131,11 +131,51 @@ def extract_props_from_rpr(
     return DefaultRunProps(font_size_pt=font_size_pt, color=color, bold=bold)
 
 
-def extract_theme_color_map(presentation: Presentation) -> dict[str, str]:
-    """프레젠테이션 테마에서 실제 색상 맵을 추출."""
+def extract_theme_fonts_for_master(master) -> dict[str, str]:
+    """마스터 테마의 fontScheme 에서 major(+mj-lt)/minor(+mn-lt) latin 폰트를 추출.
+
+    Returns:
+        {"major": "<폰트명>", "minor": "<폰트명>"} (없으면 빈 dict).
+        placeholder 나 run 에 명시적 폰트가 없을 때의 상속 폴백으로 사용한다.
+    """
+    fonts: dict[str, str] = {}
+    try:
+        theme_part = None
+        for rel in master.part.rels.values():
+            if "theme" in rel.reltype:
+                theme_part = rel.target_part
+                break
+        if theme_part is None:
+            return fonts
+
+        from xml.etree.ElementTree import fromstring
+
+        theme_xml = fromstring(theme_part.blob)
+        ns = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main"}
+        font_scheme = theme_xml.find(".//a:fontScheme", ns)
+        if font_scheme is None:
+            return fonts
+        major = font_scheme.find("a:majorFont/a:latin", ns)
+        minor = font_scheme.find("a:minorFont/a:latin", ns)
+        major_tf = major.get("typeface") if major is not None else None
+        minor_tf = minor.get("typeface") if minor is not None else None
+        if major_tf:
+            fonts["major"] = major_tf
+        if minor_tf:
+            fonts["minor"] = minor_tf
+    except Exception:
+        logger.debug("테마 폰트 추출 실패", exc_info=True)
+    return fonts
+
+
+def extract_theme_color_map_for_master(master) -> dict[str, str]:
+    """특정 슬라이드 마스터의 테마에서 실제 색상 맵을 추출.
+
+    프레젠테이션에 마스터가 여러 개인 경우(다크/라이트 테마 혼재 등) 각 슬라이드가
+    소속된 마스터의 clrScheme + clrMap 을 사용해야 배경/텍스트 색이 올바르게 해석된다.
+    """
     color_map: dict[str, str] = {}
     try:
-        master = presentation.slide_masters[0]
         theme_part = None
         for rel in master.part.rels.values():
             if "theme" in rel.reltype:
@@ -183,22 +223,39 @@ def extract_theme_color_map(presentation: Presentation) -> dict[str, str]:
     return color_map
 
 
+def extract_theme_color_map(presentation: Presentation) -> dict[str, str]:
+    """프레젠테이션 첫 마스터의 테마 색상 맵을 추출 (하위 호환용).
+
+    슬라이드별 정확한 색상 해석에는 extract_theme_color_map_for_master() 를 사용한다.
+    """
+    try:
+        return extract_theme_color_map_for_master(presentation.slide_masters[0])
+    except Exception:
+        logger.debug("테마 색상 맵 추출 실패, 폴백 사용", exc_info=True)
+        return {}
+
+
 def extract_master_tx_styles(
     presentation: Presentation,
+    master=None,
 ) -> dict[str, dict[int, DefaultRunProps]]:
     """마스터의 p:txStyles에서 titleStyle/bodyStyle/otherStyle의 레벨별 기본 서식을 추출.
+
+    master 를 넘기면 해당 마스터를, 없으면 첫 마스터를 사용한다. 멀티 마스터
+    프레젠테이션에서는 슬라이드가 소속된 마스터를 넘겨야 서식이 올바르게 상속된다.
 
     Returns:
         {"titleStyle": {0: props, 1: props, ...}, "bodyStyle": {...}, "otherStyle": {...}}
     """
     result: dict[str, dict[int, DefaultRunProps]] = {}
     try:
-        master = presentation.slide_masters[0]
+        if master is None:
+            master = presentation.slide_masters[0]
         txStyles = master.element.find(qn("p:txStyles"))
         if txStyles is None:
             return result
 
-        theme_map = extract_theme_color_map(presentation)
+        theme_map = extract_theme_color_map_for_master(master)
 
         for style_name in ("titleStyle", "bodyStyle", "otherStyle"):
             style_el = txStyles.find(qn(f"p:{style_name}"))

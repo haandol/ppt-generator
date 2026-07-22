@@ -39,6 +39,8 @@ from ppt_generator.tools.pptx_import.theme_resolver import (
     extract_master_tx_styles,
     extract_props_from_rpr,
     extract_theme_color_map,
+    extract_theme_color_map_for_master,
+    extract_theme_fonts_for_master,
     resolve_scheme_color,
 )
 
@@ -66,9 +68,31 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
         self._scale_y = scale_y
         self._theme_color_map: dict[str, str] = {}
         self._master_tx_styles: dict[str, dict[int, DefaultRunProps]] = {}
+        self._presentation_width: int = 0
+        self._presentation_height: int = 0
+        # 멀티 마스터 지원: 마스터별 색상맵/서식을 캐시하고, 슬라이드마다 소속
+        # 마스터에 맞는 것을 활성화한다. (첫 마스터 값은 기본 폴백으로 유지)
+        self._theme_map_by_master: dict[int, dict[str, str]] = {}
+        self._tx_styles_by_master: dict[int, dict[str, dict[int, DefaultRunProps]]] = {}
+        self._theme_fonts_by_master: dict[int, dict[str, str]] = {}
+        # 현재 활성 슬라이드의 테마 폰트 (major/minor) — run 에 명시 폰트가 없을 때 폴백
+        self._theme_fonts: dict[str, str] = {}
         if presentation is not None:
+            self._presentation_width = presentation.slide_width or 0
+            self._presentation_height = presentation.slide_height or 0
             self._theme_color_map = extract_theme_color_map(presentation)
             self._master_tx_styles = extract_master_tx_styles(presentation)
+            for master in presentation.slide_masters:
+                key = id(master._element)
+                self._theme_map_by_master[key] = extract_theme_color_map_for_master(
+                    master
+                )
+                self._tx_styles_by_master[key] = extract_master_tx_styles(
+                    presentation, master
+                )
+                self._theme_fonts_by_master[key] = extract_theme_fonts_for_master(
+                    master
+                )
         self._layout_def_rpr: dict[int, dict[int, DefaultRunProps]] = {}
         self._default_bg_color: str | None = None
 
@@ -107,6 +131,7 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
         total_slides: int,
     ) -> PptxSlideSpec:
         """단일 슬라이드 → PptxSlideSpec 변환."""
+        self._activate_master_theme(slide)
         self._cache_layout_def_rpr(slide)
         background_color = self._extract_background_color(slide)
         background_image_bytes = self._extract_background_image_bytes(slide)
@@ -116,6 +141,66 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
         warnings: list[str] = []
 
         z_counter = 0
+
+        # 1) 레이아웃/마스터의 정적 요소(로고, "Thank you!", 저작권 등 비-placeholder
+        #    텍스트박스·그림·도형)를 먼저 상속한다. placeholder 는 슬라이드가 오버라이드
+        #    하므로 제외하고, full-bleed 배경 그림도 배경으로 이미 처리하므로 제외한다.
+        # 슬라이드 자체 텍스트를 미리 등록해, 레이아웃·마스터에서 동일 텍스트(저작권 등)를
+        # 중복 상속하지 않도록 한다.
+        seen_static_text: set = set()
+        try:
+            for sh in slide.shapes:
+                if getattr(sh, "has_text_frame", False) and sh.text_frame.text.strip():
+                    seen_static_text.add("".join(sh.text_frame.text.split()))
+        except Exception:
+            logger.debug("슬라이드 텍스트 사전 스캔 실패", exc_info=True)
+
+        for source in (
+            getattr(slide, "slide_layout", None),
+            getattr(getattr(slide, "slide_layout", None), "slide_master", None),
+        ):
+            if source is None:
+                continue
+            for shape in self._static_inherited_shapes(source):
+                # 레이아웃·마스터 중복 방지: 동일 텍스트 요소는 한 번만 상속
+                if (
+                    getattr(shape, "has_text_frame", False)
+                    and shape.text_frame.text.strip()
+                ):
+                    key = "".join(shape.text_frame.text.split())
+                    if key in seen_static_text:
+                        continue
+                    seen_static_text.add(key)
+                else:
+                    # 그림 등: 위치+크기로 중복 판정 (같은 로고가 레이아웃·마스터에 중복)
+                    pos_key = (
+                        round((shape.left or 0) / 9525),
+                        round((shape.top or 0) / 9525),
+                        round((shape.width or 0) / 9525),
+                        round((shape.height or 0) / 9525),
+                    )
+                    if pos_key in seen_static_text:
+                        continue
+                    seen_static_text.add(pos_key)
+                prev_counts = (len(textboxes), len(shapes), len(images))
+                try:
+                    self._extract_shape(shape, textboxes, shapes, images, warnings)
+                except Exception:
+                    logger.debug(
+                        "상속 요소 추출 실패 (name=%s)",
+                        getattr(shape, "name", "?"),
+                        exc_info=True,
+                    )
+                for lst, prev_len in (
+                    (textboxes, prev_counts[0]),
+                    (shapes, prev_counts[1]),
+                    (images, prev_counts[2]),
+                ):
+                    for idx in range(prev_len, len(lst)):
+                        lst[idx] = replace(lst[idx], z_index=z_counter)
+                        z_counter += 1
+
+        # 2) 슬라이드 자체 요소 (상속 요소 위에 렌더됨)
         for shape in slide.shapes:
             prev_counts = (len(textboxes), len(shapes), len(images))
             try:
@@ -164,6 +249,66 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
             speaker_notes=speaker_notes,
             slide_type=slide_type,
         )
+
+    def _static_inherited_shapes(self, source) -> list:
+        """레이아웃/마스터에서 슬라이드로 상속할 정적 요소를 선별.
+
+        - placeholder 는 제외 (슬라이드가 값을 오버라이드)
+        - full-bleed 배경 그림은 제외 (배경으로 이미 처리)
+        - 텍스트 없는 빈 도형/장식은 제외 (노이즈 방지)
+        - 로고 그림, 정적 텍스트박스("Thank you!", 저작권 등)만 포함
+        """
+        from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+        result = []
+        slide_w = self._presentation_width
+        slide_h = self._presentation_height
+        try:
+            for shape in source.shapes:
+                if getattr(shape, "is_placeholder", False):
+                    continue
+                st = getattr(shape, "shape_type", None)
+                if st == MSO_SHAPE_TYPE.PICTURE:
+                    # full-bleed 배경 그림 제외
+                    w = shape.width or 0
+                    h = shape.height or 0
+                    if (
+                        slide_w
+                        and slide_h
+                        and w >= slide_w * 0.95
+                        and h >= slide_h * 0.95
+                    ):
+                        continue
+                    result.append(shape)
+                    continue
+                # 텍스트가 있는 도형/텍스트박스만 (빈 장식 도형 제외)
+                if getattr(shape, "has_text_frame", False):
+                    if shape.text_frame.text.strip():
+                        result.append(shape)
+        except Exception:
+            logger.debug("상속 요소 선별 실패", exc_info=True)
+        return result
+
+    # ── 마스터 테마 활성화 ──
+
+    def _activate_master_theme(self, slide: Slide) -> None:
+        """슬라이드가 소속된 마스터의 색상맵/서식을 활성화한다.
+
+        멀티 마스터(다크/라이트 혼재) 프레젠테이션에서 각 슬라이드가 올바른
+        테마 색상으로 배경/텍스트를 해석하도록 한다.
+        """
+        try:
+            master = slide.slide_layout.slide_master
+            key = id(master._element)
+            theme_map = self._theme_map_by_master.get(key)
+            if theme_map:
+                self._theme_color_map = theme_map
+            tx_styles = self._tx_styles_by_master.get(key)
+            if tx_styles is not None:
+                self._master_tx_styles = tx_styles
+            self._theme_fonts = self._theme_fonts_by_master.get(key, {})
+        except Exception:
+            logger.debug("마스터 테마 활성화 실패", exc_info=True)
 
     # ── 레이아웃 캐시 ──
 
@@ -222,9 +367,14 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
         return self._default_bg_color or self._theme_color_map.get("bg1")
 
     def _extract_background_image_bytes(self, slide: Slide) -> bytes:
-        """슬라이드 배경의 blipFill 이미지 바이트를 추출.
+        """슬라이드 배경 이미지 바이트를 추출.
 
-        slide → layout → master 순서로 탐색. 최초 발견 시 반환.
+        slide → layout → master 순서로 탐색하며, 각 소스에서 두 가지 형태를 본다:
+        1) <p:bg> 의 blipFill (명시적 배경 이미지)
+        2) full-bleed 그림 도형 (레이아웃/마스터에 배경처럼 깔린 <pic>)
+
+        많은 템플릿이 그라데이션/브랜드 배경을 <p:bg> 가 아니라 슬라이드 전체를 덮는
+        그림 도형으로 넣기 때문에 후자도 배경으로 취급해야 원본과 일치한다.
         """
         for source in (
             slide,
@@ -233,32 +383,75 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
         ):
             if source is None:
                 continue
-            try:
-                bg = source.background
-                bg_el = bg._element if hasattr(bg, "_element") else bg
-                p_bg = bg_el.find(qn("p:bg")) if bg_el.tag != qn("p:bg") else bg_el
-                if p_bg is None:
+            # 1) <p:bg> blipFill
+            blob = self._bg_blip_bytes(source)
+            if blob:
+                return blob
+            # 2) full-bleed 그림 도형 (slide 자체는 사용자 콘텐츠이므로 제외,
+            #    레이아웃/마스터에서만 배경 그림으로 간주)
+            if source is not slide:
+                blob = self._full_bleed_picture_bytes(source)
+                if blob:
+                    return blob
+        return b""
+
+    def _bg_blip_bytes(self, source) -> bytes:
+        """source.background 의 <p:bg> blipFill 이미지 바이트."""
+        try:
+            bg = source.background
+            bg_el = bg._element if hasattr(bg, "_element") else bg
+            p_bg = bg_el.find(f".//{qn('p:bg')}")
+            if p_bg is None:
+                return b""
+            blip = p_bg.find(f".//{qn('a:blip')}")
+            if blip is None:
+                return b""
+            embed_id = blip.get(qn("r:embed"))
+            if not embed_id:
+                return b""
+            part = getattr(source, "part", None)
+            if part is None:
+                return b""
+            return part.related_part(embed_id).blob
+        except Exception:
+            logger.debug("배경 blipFill 추출 실패", exc_info=True)
+            return b""
+
+    def _full_bleed_picture_bytes(self, source) -> bytes:
+        """레이아웃/마스터에서 슬라이드 전체를 덮는 그림 도형의 이미지 바이트.
+
+        좌상단 근처에서 시작해 캔버스의 대부분(≥95%)을 덮는 그림을 배경으로 본다.
+        """
+        try:
+            from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+            slide_w = self._presentation_width
+            slide_h = self._presentation_height
+            if not slide_w or not slide_h:
+                return b""
+            for shape in source.shapes:
+                if shape.shape_type != MSO_SHAPE_TYPE.PICTURE:
                     continue
-                blip = p_bg.find(f".//{qn('a:blip')}")
-                if blip is None:
-                    continue
-                embed_id = blip.get(qn("r:embed"))
-                if not embed_id:
-                    continue
-                # source.part에서 관계로 이미지 part 조회
-                part = getattr(source, "part", None)
-                if part is None:
+                left = shape.left or 0
+                top = shape.top or 0
+                width = shape.width or 0
+                height = shape.height or 0
+                covers = (
+                    width >= slide_w * 0.95
+                    and height >= slide_h * 0.95
+                    and left <= slide_w * 0.05
+                    and top <= slide_h * 0.05
+                )
+                if not covers:
                     continue
                 try:
-                    image_part = part.related_part(embed_id)
-                    return image_part.blob
+                    return shape.image.blob
                 except Exception:
-                    logger.debug(
-                        "관계 ID로 이미지 파트 조회 실패: %s", embed_id, exc_info=True
-                    )
-            except Exception:
-                logger.debug("배경 blipFill 추출 실패", exc_info=True)
-        return b""
+                    logger.debug("full-bleed 그림 blob 추출 실패", exc_info=True)
+            return b""
+        except Exception:
+            logger.debug("full-bleed 그림 배경 추출 실패", exc_info=True)
+            return b""
 
     def _try_extract_bg_fill(self, bg) -> str | None:
         """background 객체에서 solid fill 색상을 XML 직접 파싱으로 추출."""

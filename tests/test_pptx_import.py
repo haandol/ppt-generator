@@ -1227,3 +1227,191 @@ class TestImageSrcSerialization:
         img = loaded.slides[0].images[0]
         assert img.image_bytes == png_bytes
         assert img.src == "images/slide_01_img_01.png"
+
+
+# ── 소프트 줄바꿈(<a:br>) / 라인 도형 / 배경 그림 회귀 방지 ──
+
+
+def _add_textbox_with_br(slide, texts: list[str]):
+    """runs 사이에 <a:br> 을 넣은 텍스트박스를 추가한다."""
+    from pptx.oxml import parse_xml
+    from pptx.util import Inches
+
+    tb = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1))
+    para = tb.text_frame.paragraphs[0]
+    for i, t in enumerate(texts):
+        if i > 0:
+            para._p.append(
+                parse_xml(
+                    '<a:br xmlns:a="http://schemas.openxmlformats.org/'
+                    'drawingml/2006/main"/>'
+                )
+            )
+        para.add_run().text = t
+    return tb
+
+
+class TestSoftLineBreak:
+    """<a:br>(문단 내 소프트 줄바꿈) 보존 회귀 방지.
+
+    python-pptx 의 paragraph.runs 는 <a:br> 을 건너뛰므로, 단순히 run 을 이어붙이면
+    "Complex"+"re-architecting" 처럼 단어가 붙는다. 개행이 보존되어야 한다.
+    """
+
+    def test_br_preserved_as_newline(self):
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        _add_textbox_with_br(slide, ["Complex", "re-architecting"])
+
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+
+        joined = "".join(
+            r.text for tb in spec.textboxes for p in tb.paragraphs for r in p.runs
+        )
+        assert joined == "Complex\nre-architecting"
+
+    def test_br_renders_as_html_br(self):
+        from ppt_generator.tools.slides.text_renderer import run_to_html
+
+        html = run_to_html(
+            PptxTextRun(
+                text="Complex\nre-architecting",
+                font_size_pt=16,
+                color="#FFFFFF",
+                bold=True,
+            )
+        )
+        assert "<br>" in html
+        assert "Complexre-architecting" not in html
+
+
+class TestLineAutoShape:
+    """prst="line" AutoShape 추출 시 크래시 없이 line 도형으로 처리."""
+
+    def test_line_prst_does_not_crash(self):
+        from pptx.oxml.ns import qn
+        from pptx.util import Inches
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        # prstGeom prst="line" 인 도형을 강제로 삽입
+        sp = slide.shapes.add_shape(1, Inches(1), Inches(1), Inches(2), Inches(0))
+        prstGeom = sp._element.find(qn("p:spPr")).find(qn("a:prstGeom"))
+        prstGeom.set("prst", "line")
+
+        reader = SlideReader(1.0, 1.0, prs)
+        # 예외 없이 완료되어야 한다
+        spec = reader.read_slide(slide, 0, 1)
+        assert any(s.shape_type == "line" for s in spec.shapes)
+
+
+class TestAutofitExtraction:
+    """<a:bodyPr> autofit 모드 추출 및 렌더러 shrink 스킵."""
+
+    def _make_textbox(self, autofit_tag: str | None):
+        from pptx.oxml import parse_xml
+        from pptx.oxml.ns import qn
+        from pptx.util import Inches
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        tb = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(0.5))
+        tb.text_frame.paragraphs[0].add_run().text = "긴 제목 텍스트"
+        bodyPr = tb.text_frame._txBody.find(qn("a:bodyPr"))
+        # 기존 autofit 자식 제거 후 지정 태그 삽입
+        for child in list(bodyPr):
+            bodyPr.remove(child)
+        if autofit_tag:
+            bodyPr.append(
+                parse_xml(
+                    f'<a:{autofit_tag} xmlns:a="http://schemas.openxmlformats.org/'
+                    'drawingml/2006/main"/>'
+                )
+            )
+        return prs, slide
+
+    def test_no_autofit_extracted_as_none(self):
+        prs, slide = self._make_textbox("noAutofit")
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        assert spec.textboxes[0].autofit == "none"
+
+    def test_sp_autofit_extracted_as_resize(self):
+        prs, slide = self._make_textbox("spAutoFit")
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        assert spec.textboxes[0].autofit == "resize"
+
+    def test_norm_autofit_without_scale_keeps_full_size(self):
+        # fontScale 없는 normAutofit → 축소 안 함(PowerPoint 기본). mode="none".
+        prs, slide = self._make_textbox("normAutofit")
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        assert spec.textboxes[0].autofit == "none"
+        assert spec.textboxes[0].autofit_font_scale is None
+
+    def test_norm_autofit_with_scale_extracted(self):
+        # fontScale="90000" → 0.9 스케일이 그대로 적용된다.
+        from pptx.oxml.ns import qn
+
+        prs, slide = self._make_textbox("normAutofit")
+        bodyPr = slide.shapes[-1].text_frame._txBody.find(qn("a:bodyPr"))
+        bodyPr.find(qn("a:normAutofit")).set("fontScale", "90000")
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        assert spec.textboxes[0].autofit_font_scale == 0.9
+
+    def test_no_autofit_field_defaults_to_shrink(self):
+        # autofit 자식이 아예 없으면 shrink (LLM 생성 슬라이드 기본 동작).
+        prs, slide = self._make_textbox(None)
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        assert spec.textboxes[0].autofit == "shrink"
+
+    def test_autofit_none_skips_shrink_in_render(self):
+        """autofit="none" 텍스트박스는 박스를 넘겨도 폰트가 축소되지 않아야 한다."""
+        from ppt_generator.tools.slides.html_renderer import textbox_to_html
+
+        # 작은 박스에 큰 폰트 — shrink 모드라면 축소될 상황
+        big_text = PptxTextRun(text="아주 긴 제목 " * 5, font_size_pt=36, color="#000")
+        para = PptxParagraph(runs=[big_text])
+        tb_none = PptxTextBox(
+            left_px=0,
+            top_px=0,
+            width_px=200,
+            height_px=40,
+            paragraphs=[para],
+            autofit="none",
+        )
+        html = textbox_to_html(tb_none)
+        # 36pt 가 그대로 유지 (축소되지 않음)
+        assert "font-size:36.00pt" in html
+
+
+class TestFontNamePreserved:
+    """원본 폰트명 보존 및 CSS font-family 렌더링."""
+
+    def test_font_name_extracted(self):
+        from pptx.util import Inches, Pt
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        tb = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1))
+        run = tb.text_frame.paragraphs[0].add_run()
+        run.text = "Brand"
+        run.font.name = "Amazon Ember Display"
+        run.font.size = Pt(24)
+
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        r = spec.textboxes[0].paragraphs[0].runs[0]
+        assert r.font_name == "Amazon Ember Display"
+
+    def test_font_name_renders_css_family(self):
+        from ppt_generator.tools.slides.text_renderer import run_to_html
+
+        html = run_to_html(
+            PptxTextRun(text="Brand", font_size_pt=24, font_name="Amazon Ember Display")
+        )
+        assert "font-family:'Amazon Ember Display'" in html

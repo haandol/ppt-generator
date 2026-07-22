@@ -255,16 +255,24 @@ class SlideBuilder:
 
         # shrink_text autofit: 텍스트가 박스 높이를 넘으면 폰트를 비례 축소한다
         # (HTML 렌더러 textbox_to_html 과 동일). 헤더/푸터가 넘쳐 잘리는 것을 막는다.
-        font_scale = calculate_shrink_font_scale(
-            tb.paragraphs,
-            tb.width_px,
-            tb.height_px,
-            line_spacing_pt=tb.line_spacing_pt,
-            padding_left_px=tb.padding_left_px or 0,
-            padding_right_px=tb.padding_right_px or 0,
-            padding_top_px=tb.padding_top_px or 0,
-            padding_bottom_px=tb.padding_bottom_px or 0,
-        )
+        # autofit_font_scale(normAutofit 저장 스케일) 우선, 다음으로 none/resize 는
+        # 원본 크기 유지 (HTML 렌더러와 동일 정책).
+        explicit_scale = getattr(tb, "autofit_font_scale", None)
+        if explicit_scale is not None:
+            font_scale = explicit_scale
+        elif getattr(tb, "autofit", "shrink") != "shrink":
+            font_scale = 1.0
+        else:
+            font_scale = calculate_shrink_font_scale(
+                tb.paragraphs,
+                tb.width_px,
+                tb.height_px,
+                line_spacing_pt=tb.line_spacing_pt,
+                padding_left_px=tb.padding_left_px or 0,
+                padding_right_px=tb.padding_right_px or 0,
+                padding_top_px=tb.padding_top_px or 0,
+                padding_bottom_px=tb.padding_bottom_px or 0,
+            )
 
         format_paragraphs(tf, tb.paragraphs, font_scale=font_scale)
 

@@ -43,8 +43,26 @@ def run_to_html(run: PptxTextRun, *, font_scale: float = 1.0) -> str:
         styles.append("font-style:italic")
     if run.font_family == "monospace":
         styles.append("font-family:'Source Code Pro',Consolas,'Courier New',monospace")
+    elif getattr(run, "font_name", None):
+        # 원본 폰트명 보존 + 안전한 fallback 체인. 폰트가 설치/웹폰트로 있으면 원본과
+        # 동일하게, 없으면 sans-serif 계열로 대체된다.
+        safe_name = run.font_name.replace("'", "").replace('"', "")
+        styles.append(
+            f"font-family:'{safe_name}','Noto Sans KR','Malgun Gothic',"
+            "'Apple SD Gothic Neo',sans-serif"
+        )
 
-    text = escape_html(run.text)
+    # run.text 내 개행(\n)은 PPTX 의 <a:br>(문단 내 소프트 줄바꿈)에서 유래한다.
+    # HTML 에서는 개행이 공백으로 접히므로 명시적 <br> 로 변환해 줄바꿈을 보존한다.
+    # 탭/연속 공백(코드 블록 들여쓰기 등)도 HTML 에서 접히므로 &nbsp; 로 보존한다.
+    def _preserve_ws(part: str) -> str:
+        escaped = escape_html(part)
+        escaped = escaped.replace("\t", "&nbsp;&nbsp;&nbsp;&nbsp;")
+        # 연속된 공백 2개 이상은 첫 칸만 일반 공백, 나머지는 &nbsp; (줄바꿈 지점 유지)
+        escaped = escaped.replace("  ", " &nbsp;")
+        return escaped
+
+    text = "<br>".join(_preserve_ws(part) for part in run.text.split("\n"))
     if styles:
         inner = f'<span style="{";".join(styles)}">{text}</span>'
     else:

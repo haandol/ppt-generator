@@ -13,6 +13,7 @@ from ppt_generator.interfaces.schemas import (
 )
 from ppt_generator.interfaces.text_measurement import (
     calculate_shrink_font_scale,
+    estimate_text_width_px,
     scaled_line_spacing_pt,
     should_apply_nowrap_to_paragraph,
 )
@@ -70,19 +71,27 @@ def textbox_to_html(tb: PptxTextBox) -> str:
     # shrink_text autofit: 텍스트가 박스 높이를 넘으면 폰트를 비례 축소해
     # 헤더/푸터가 넘쳐 이웃과 겹치거나 잘리는 것을 막는다. 박스에 들어가면 scale=1.0.
     # PPTX 빌더(slide_builder)와 동일한 공유 헬퍼를 사용한다.
-    try:
-        font_scale = calculate_shrink_font_scale(
-            tb.paragraphs,
-            width,
-            height,
-            line_spacing_pt=line_spacing or None,
-            padding_left_px=pl,
-            padding_right_px=pr,
-            padding_top_px=pt_,
-            padding_bottom_px=pb,
-        )
-    except (TypeError, ValueError, OverflowError):
+    # autofit_font_scale(normAutofit 의 저장된 스케일)이 있으면 그대로 적용한다.
+    # autofit="none"(noAutofit) / "resize"(spAutoFit) 는 축소 없이 원본 크기 유지.
+    explicit_scale = getattr(tb, "autofit_font_scale", None)
+    if explicit_scale is not None:
+        font_scale = explicit_scale
+    elif getattr(tb, "autofit", "shrink") != "shrink":
         font_scale = 1.0
+    else:
+        try:
+            font_scale = calculate_shrink_font_scale(
+                tb.paragraphs,
+                width,
+                height,
+                line_spacing_pt=line_spacing or None,
+                padding_left_px=pl,
+                padding_right_px=pr,
+                padding_top_px=pt_,
+                padding_bottom_px=pb,
+            )
+        except (TypeError, ValueError, OverflowError):
+            font_scale = 1.0
 
     # 폰트를 축소했으면 line-height 도 같은 비율로 축소해야 소비 높이가 실제로 줄어
     # 오버플로가 해소된다 (shape_renderer 와 동일한 공유 헬퍼).
@@ -113,11 +122,36 @@ def textbox_to_html(tb: PptxTextBox) -> str:
                 f'<ul style="list-style:disc;padding-left:20px;margin:0">{"".join(bullet_items)}</ul>'
             )
     else:
+        # autofit="none"(PPTX noAutofit) 단일 문단이 박스 폭을 "근소하게"(≤1.25배)
+        # 초과하는 경우만 nowrap 을 강제한다. 원본이 한 줄로 넘치도록 의도한 케이스
+        # (예: 타이틀 "AWS HealthImaging")를 PPT 처럼 한 줄로 렌더하기 위함이다.
+        # 폭을 크게 초과하는 텍스트(원본도 여러 줄로 wrap)는 nowrap 하지 않는다.
+        force_nowrap = False
+        if (
+            getattr(tb, "autofit", "shrink") == "none"
+            and len(tb.paragraphs) == 1
+            and not any("\n" in r.text for r in tb.paragraphs[0].runs)
+        ):
+            try:
+                est_w = sum(
+                    estimate_text_width_px(
+                        r.text,
+                        (r.font_size_pt or 16) * font_scale,
+                        r.font_family == "monospace",
+                    )
+                    for r in tb.paragraphs[0].runs
+                    if r.text
+                )
+                force_nowrap = est_w <= usable_w * 1.25
+            except (TypeError, ValueError, OverflowError):
+                force_nowrap = False
         for para in tb.paragraphs:
             try:
-                apply_nowrap = should_apply_nowrap_to_paragraph(para, usable_w)
+                apply_nowrap = force_nowrap or should_apply_nowrap_to_paragraph(
+                    para, usable_w
+                )
             except (TypeError, ValueError, OverflowError):
-                apply_nowrap = False
+                apply_nowrap = force_nowrap
             inner_parts.append(
                 paragraph_to_html(para, nowrap=apply_nowrap, font_scale=font_scale)
             )
@@ -157,10 +191,13 @@ def image_to_html(image: PptxImage, *, image_src: str | None = None) -> str:
     if safe_src:
         style = pos_style + "overflow:hidden;"
         img_radius = f"border-radius:{css_number(radius)}px;" if radius > 0 else ""
+        # 원형/둥근 클리핑(radius>0)은 프레임을 채워야 크롭이 자연스럽다(PPT 그림 채우기).
+        # 일반 이미지는 왜곡 방지를 위해 contain 유지.
+        object_fit = "cover" if radius > 0 else "contain"
         return (
             f'<div style="{style}">'
             f'<img src="{escape_attr(safe_src)}" '
-            f'style="width:100%;height:100%;object-fit:contain;{img_radius}" alt="image" />'
+            f'style="width:100%;height:100%;object-fit:{object_fit};{img_radius}" alt="image" />'
             "</div>"
         )
     style = (

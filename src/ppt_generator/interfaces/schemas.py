@@ -81,6 +81,9 @@ class PptxTextRun:
     italic: bool = False
     font_family: str | None = None
     href: str | None = None
+    # 원본 폰트 이름 (예: "Amazon Ember Display"). import 시 보존해 CSS/PPTX 에
+    # 실제 폰트를 지정한다. font_family("monospace" sentinel)와 독립적이다.
+    font_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -107,6 +110,13 @@ class PptxTextBox:
     padding_right_px: float | None = None
     padding_top_px: float | None = None
     padding_bottom_px: float | None = None
+    # autofit 모드: "shrink"=박스 초과 시 폰트 축소(기본, LLM 생성 슬라이드용),
+    # "none"=축소 없이 넘침 허용(PPTX noAutofit), "resize"=박스가 텍스트에 맞춤(spAutoFit).
+    # import 시 <a:bodyPr> 에서 추출. "none"/"resize" 는 렌더 시 shrink 를 건너뛴다.
+    autofit: str = "shrink"
+    # normAutofit 의 fontScale(0~1). PPTX 가 저장한 실제 축소율을 그대로 적용한다.
+    # 값이 있으면 렌더러의 재계산 shrink 대신 이 비율을 쓴다(PowerPoint 실제 동작).
+    autofit_font_scale: float | None = None
     z_index: int | None = None  # rendering order (lower = behind, higher = front)
     grid_cell: str | None = None  # GridPlan cell id this element belongs to
     component_id: str | None = (

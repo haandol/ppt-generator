@@ -129,12 +129,14 @@ class ShapeExtractorMixin(CompoundExtractorMixin):
 
         if hasattr(shape, "text_frame"):
             ph_type, ph_idx = self._get_placeholder_info(shape)
+            tf = shape.text_frame
             paragraphs = self._extract_paragraphs(
-                shape.text_frame,
+                tf,
                 placeholder_type=ph_type,
                 placeholder_idx=ph_idx,
             )
             if paragraphs:
+                ph_autofit_mode, ph_autofit_scale = self._extract_autofit(tf)
                 textboxes.append(
                     PptxTextBox(
                         left_px=self._emu_to_px_x(shape.left),
@@ -142,6 +144,14 @@ class ShapeExtractorMixin(CompoundExtractorMixin):
                         width_px=self._emu_to_px_x(shape.width),
                         height_px=self._emu_to_px_y(shape.height),
                         paragraphs=paragraphs,
+                        line_spacing_pt=self._extract_line_spacing(tf),
+                        vertical_alignment=self._extract_vertical_alignment(tf),
+                        autofit=ph_autofit_mode,
+                        autofit_font_scale=ph_autofit_scale,
+                        padding_left_px=self._emu_to_px_padding(tf.margin_left),
+                        padding_right_px=self._emu_to_px_padding(tf.margin_right),
+                        padding_top_px=self._emu_to_px_padding(tf.margin_top),
+                        padding_bottom_px=self._emu_to_px_padding(tf.margin_bottom),
                     )
                 )
 
@@ -152,6 +162,7 @@ class ShapeExtractorMixin(CompoundExtractorMixin):
         paragraphs = self._extract_paragraphs(tf)
         line_spacing = self._extract_line_spacing(tf)
         vertical_alignment = self._extract_vertical_alignment(tf)
+        autofit_mode, autofit_scale = self._extract_autofit(tf)
 
         return PptxTextBox(
             left_px=self._emu_to_px_x(shape.left),
@@ -161,6 +172,8 @@ class ShapeExtractorMixin(CompoundExtractorMixin):
             paragraphs=paragraphs,
             line_spacing_pt=line_spacing,
             vertical_alignment=vertical_alignment,
+            autofit=autofit_mode,
+            autofit_font_scale=autofit_scale,
             padding_left_px=self._emu_to_px_padding(tf.margin_left),
             padding_right_px=self._emu_to_px_padding(tf.margin_right),
             padding_top_px=self._emu_to_px_padding(tf.margin_top),
@@ -241,10 +254,35 @@ class ShapeExtractorMixin(CompoundExtractorMixin):
 
     # ── AutoShape 추출 ──
 
+    @staticmethod
+    def _read_prst(shape) -> str | None:
+        """spPr > prstGeom 의 prst 속성값을 직접 읽는다 (enum 매핑 우회)."""
+        try:
+            spPr = shape._element.find(qn("p:spPr"))
+            if spPr is None:
+                return None
+            prstGeom = spPr.find(qn("a:prstGeom"))
+            if prstGeom is None:
+                return None
+            return prstGeom.get("prst")
+        except Exception:
+            return None
+
     def _extract_auto_shape(self, shape) -> PptxShape:
-        auto_shape_type = getattr(shape, "auto_shape_type", None)
+        # auto_shape_type 접근은 prst 값이 MSO_AUTO_SHAPE_TYPE 에 없는 경우
+        # (예: prst="line") ValueError 를 던진다. prst 를 직접 읽어 매핑을 시도하고,
+        # 실패하면 rectangle 로 폴백한다.
+        try:
+            auto_shape_type = shape.auto_shape_type
+        except (ValueError, TypeError, AttributeError):
+            auto_shape_type = None
+
         type_str = SHAPE_TYPE_REVERSE_MAP.get(auto_shape_type)
         if type_str is None:
+            prst = self._read_prst(shape)
+            if prst == "line":
+                # prst="line" 은 커넥터가 아닌 선 도형 → line 으로 처리
+                return self._extract_connector(shape)
             type_str = "rectangle"
 
         fill_color = self._extract_fill_color(shape)
@@ -367,10 +405,29 @@ class ShapeExtractorMixin(CompoundExtractorMixin):
                 exc_info=True,
             )
             blob = b""
+
+        width_px = self._emu_to_px_x(shape.width)
+        height_px = self._emu_to_px_y(shape.height)
+
+        # prstGeom 으로 이미지 클리핑 모양 추출 → corner_radius 로 표현
+        # ellipse=원형(반경=단변/2), roundRect=둥근모서리(고정 반경)
+        corner_radius = None
+        try:
+            spPr = shape._element.find(qn("p:spPr"))
+            geom = spPr.find(qn("a:prstGeom")) if spPr is not None else None
+            prst = geom.get("prst") if geom is not None else None
+            if prst == "ellipse":
+                corner_radius = min(width_px, height_px) / 2
+            elif prst == "roundRect":
+                corner_radius = min(width_px, height_px) * 0.08
+        except Exception:
+            logger.debug("이미지 prstGeom 추출 실패", exc_info=True)
+
         return PptxImage(
             left_px=self._emu_to_px_x(shape.left),
             top_px=self._emu_to_px_y(shape.top),
-            width_px=self._emu_to_px_x(shape.width),
-            height_px=self._emu_to_px_y(shape.height),
+            width_px=width_px,
+            height_px=height_px,
             image_bytes=blob,
+            corner_radius_px=corner_radius,
         )

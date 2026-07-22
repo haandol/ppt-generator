@@ -65,6 +65,9 @@ def format_run(run_obj, run_spec: PptxTextRun, font_scale: float = 1.0) -> None:
     run_obj.text = run_spec.text
     if run_spec.font_family == "monospace":
         run_obj.font.name = PPTX_MONOSPACE_FONT_NAME
+    elif run_spec.font_name:
+        # import 로 보존한 원본 폰트명을 그대로 사용 (PPTX 라운드트립 충실도).
+        run_obj.font.name = run_spec.font_name
     else:
         run_obj.font.name = PPTX_FONT_NAME
     if run_spec.font_size_pt:

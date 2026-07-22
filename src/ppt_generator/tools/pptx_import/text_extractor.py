@@ -141,9 +141,36 @@ class TextExtractorMixin:
             bullet_level,
         )
 
+        # paragraph.runs 는 <a:r> 만 반환하고 <a:br>(문단 내 소프트 줄바꿈)과
+        # <a:fld>(슬라이드 번호·날짜 등 필드)를 건너뛴다. 그대로 이어붙이면
+        # "Complex"+"re-architecting" 처럼 단어가 붙거나 필드 텍스트가 사라지므로,
+        # XML 자식을 순서대로 순회해 <a:br> 위치에 개행을, <a:fld> 를 run 으로 보존한다.
+        # <a:r> 요소는 paragraph.runs 와 문서 순서가 동일하므로 인덱스로 매칭한다.
+        _R = qn("a:r")
+        _BR = qn("a:br")
+        _FLD = qn("a:fld")
+        pptx_runs = list(paragraph.runs)
+        run_idx = 0
+        pending_break = False
+
         runs: list[PptxTextRun] = []
-        for run in paragraph.runs:
-            if not run.text:
+        for child in paragraph._p:
+            if child.tag == _BR:
+                pending_break = True
+                continue
+            if child.tag == _FLD:
+                # 필드(slidenum/datetime 등): <a:t> 에 마지막 렌더값이 들어있다.
+                fld_run = self._field_to_run(child, inherited, pending_break)
+                pending_break = False
+                if fld_run is not None:
+                    runs.append(fld_run)
+                continue
+            if child.tag != _R:
+                continue
+            run = pptx_runs[run_idx] if run_idx < len(pptx_runs) else None
+            run_idx += 1
+            if run is None or not run.text:
+                pending_break = False
                 continue
             font = run.font
 
@@ -179,6 +206,16 @@ class TextExtractorMixin:
             if font.name and font.name.lower() in MONOSPACE_FONTS:
                 font_family = "monospace"
 
+            # 원본 폰트명 보존: run 에 명시된 latin 폰트 → 없으면 테마 폰트로 폴백.
+            # (title 계열 placeholder 는 major, 그 외는 minor 를 상속)
+            font_name = font.name
+            if not font_name:
+                theme_fonts = getattr(self, "_theme_fonts", {})
+                if placeholder_type in (1, 3, 15):
+                    font_name = theme_fonts.get("major") or theme_fonts.get("minor")
+                else:
+                    font_name = theme_fonts.get("minor") or theme_fonts.get("major")
+
             href: str | None = None
             try:
                 if run.hyperlink and run.hyperlink.address:
@@ -186,18 +223,67 @@ class TextExtractorMixin:
             except Exception:
                 logger.debug("하이퍼링크 추출 실패", exc_info=True)
 
+            # 직전에 <a:br> 이 있었다면 이 run 앞에 개행을 붙여 소프트 줄바꿈 보존.
+            run_text = run.text
+            if pending_break:
+                run_text = "\n" + run_text
+                pending_break = False
+
             runs.append(
                 PptxTextRun(
-                    text=run.text,
+                    text=run_text,
                     font_size_pt=font_size,
                     color=color,
                     bold=run_bold,
                     italic=bool(font.italic),
                     font_family=font_family,
                     href=href,
+                    font_name=font_name,
                 )
             )
         return runs
+
+    def _field_to_run(
+        self, fld, inherited: DefaultRunProps, pending_break: bool
+    ) -> PptxTextRun | None:
+        """<a:fld>(slidenum/datetime 등 필드)를 PptxTextRun 으로 변환.
+
+        필드는 <a:rPr> + <a:t>(마지막 렌더값) 구조로 <a:r> 과 사실상 동일하다.
+        """
+        t_el = fld.find(qn("a:t"))
+        text = t_el.text if t_el is not None else None
+        if not text:
+            return None
+        if pending_break:
+            text = "\n" + text
+
+        rPr = fld.find(qn("a:rPr"))
+        props = extract_props_from_rpr(rPr, self._theme_color_map)
+        font_size = props.font_size_pt or inherited.font_size_pt
+        color = props.color or inherited.color
+        bold = props.bold if props.bold is not None else (inherited.bold or False)
+
+        font_name: str | None = None
+        latin = rPr.find(qn("a:latin")) if rPr is not None else None
+        if latin is not None:
+            font_name = latin.get("typeface")
+        if not font_name:
+            theme_fonts = getattr(self, "_theme_fonts", {})
+            font_name = theme_fonts.get("minor") or theme_fonts.get("major")
+
+        font_family: str | None = None
+        if font_name and font_name.lower() in MONOSPACE_FONTS:
+            font_family = "monospace"
+
+        return PptxTextRun(
+            text=text,
+            font_size_pt=font_size,
+            color=color,
+            bold=bool(bold),
+            italic=False,
+            font_family=font_family,
+            font_name=font_name,
+        )
 
     @staticmethod
     def _extract_bullet_level(paragraph) -> int:
@@ -265,3 +351,32 @@ class TextExtractorMixin:
         except Exception:
             logger.debug("vertical_alignment 추출 실패", exc_info=True)
         return "top"
+
+    @staticmethod
+    def _extract_autofit(text_frame) -> tuple[str, float | None]:
+        """<a:bodyPr> 의 autofit 자식에서 (모드, fontScale) 을 추출.
+
+        - <a:noAutofit/>  → ("none", None)   : 축소 없이 넘침 허용
+        - <a:spAutoFit/>  → ("resize", None)  : 박스가 텍스트에 맞춰 커짐
+        - <a:normAutofit fontScale="90000"/> → ("none", 0.9)
+              PPT 가 저장한 실제 축소율을 그대로 적용 (fontScale 없으면 100%).
+              PowerPoint 는 normAutofit 을 재계산하지 않고 저장된 스케일을 쓰므로,
+              우리도 렌더러 재계산 대신 이 값을 적용해야 원본과 일치한다.
+        - 없음 → ("shrink", None) : 박스 초과 시 폰트 축소 (LLM 생성 슬라이드 기본)
+        """
+        try:
+            bodyPr = text_frame._txBody.find(qn("a:bodyPr"))
+            if bodyPr is not None:
+                if bodyPr.find(qn("a:noAutofit")) is not None:
+                    return "none", None
+                if bodyPr.find(qn("a:spAutoFit")) is not None:
+                    return "resize", None
+                norm = bodyPr.find(qn("a:normAutofit"))
+                if norm is not None:
+                    fs = norm.get("fontScale")
+                    scale = int(fs) / 100000 if fs else None
+                    # normAutofit 은 PPT 저장 스케일을 그대로 쓰므로 재계산 안 함
+                    return "none", scale
+        except Exception:
+            logger.debug("autofit 추출 실패", exc_info=True)
+        return "shrink", None
