@@ -192,14 +192,9 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
                         getattr(shape, "name", "?"),
                         exc_info=True,
                     )
-                for lst, prev_len in (
-                    (textboxes, prev_counts[0]),
-                    (shapes, prev_counts[1]),
-                    (images, prev_counts[2]),
-                ):
-                    for idx in range(prev_len, len(lst)):
-                        lst[idx] = replace(lst[idx], z_index=z_counter)
-                        z_counter += 1
+                z_counter = self._assign_z(
+                    textboxes, shapes, images, prev_counts, z_counter
+                )
 
         # 2) 슬라이드 자체 요소 (상속 요소 위에 렌더됨)
         for shape in slide.shapes:
@@ -220,15 +215,10 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
                     getattr(shape, "shape_type", "?"),
                     exc_info=True,
                 )
-            # 새로 추가된 요소에 z_index 할당
-            for lst, prev_len in (
-                (textboxes, prev_counts[0]),
-                (shapes, prev_counts[1]),
-                (images, prev_counts[2]),
-            ):
-                for idx in range(prev_len, len(lst)):
-                    lst[idx] = replace(lst[idx], z_index=z_counter)
-                    z_counter += 1
+            # 새로 추가된 요소에 z_index 할당 (그룹 내부는 draw-order 존중)
+            z_counter = self._assign_z(
+                textboxes, shapes, images, prev_counts, z_counter
+            )
 
         speaker_notes = self._extract_speaker_notes(slide)
         slide_type = self._infer_slide_type(
@@ -250,6 +240,41 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
             speaker_notes=speaker_notes,
             slide_type=slide_type,
         )
+
+    def _assign_z(
+        self,
+        textboxes: list[PptxTextBox],
+        shapes: list[PptxShape],
+        images: list[PptxImage],
+        prev_counts: tuple[int, int, int],
+        z_counter: int,
+    ) -> int:
+        """한 top-level shape 가 새로 추가한 요소들에 전역 z_index 를 부여한다.
+
+        그룹은 자식 요소에 그룹 내 상대 순서(draw-order)를 z_index 로 남겨 둔다
+        (compound_extractors). 이를 정렬 키로 삼아 그리기 순서를 보존한 채 전역 z 를
+        매긴다. 상대 순서가 없는(단일) 요소는 리스트 종류 순서로 안정 정렬된다.
+        z_index 를 리스트 종류별로만 매기면 "박스 뒤 + 텍스트 앞" 그룹에서 순서가 뒤집혀
+        흰 박스가 텍스트를 덮는다 (import/0003).
+        """
+        new_items: list[tuple[int, int, list, int]] = []
+        for kind, (lst, prev_len) in enumerate(
+            (
+                (textboxes, prev_counts[0]),
+                (shapes, prev_counts[1]),
+                (images, prev_counts[2]),
+            )
+        ):
+            for idx in range(prev_len, len(lst)):
+                rel = lst[idx].z_index  # 그룹 내 상대 순서 (없으면 None)
+                new_items.append((rel if rel is not None else 0, kind, lst, idx))
+
+        # (그룹 상대순서, 리스트종류) 로 안정 정렬 → 그리기 순서 보존
+        new_items.sort(key=lambda t: (t[0], t[1]))
+        for _rel, _kind, lst, idx in new_items:
+            lst[idx] = replace(lst[idx], z_index=z_counter)
+            z_counter += 1
+        return z_counter
 
     def _static_inherited_shapes(self, source) -> list:
         """레이아웃/마스터에서 슬라이드로 상속할 정적 요소를 선별.

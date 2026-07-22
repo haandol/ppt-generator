@@ -72,7 +72,14 @@ class CompoundExtractorMixin:
         tmp_tb: list[PptxTextBox] = []
         tmp_sh: list[PptxShape] = []
         tmp_img: list[PptxImage] = []
+        # 자식을 문서(그리기) 순서대로 추출하며, 각 자식이 만든 요소에 그룹 내 상대 순서
+        # (draw_order)를 부여한다. slide_reader 가 z_index 를 리스트 종류별로 일괄 부여하면
+        # (textbox 먼저 → shape 나중) 그룹 내 "박스(도형) 뒤 + 텍스트 앞" 그리기 순서가
+        # 뒤집혀 흰 채움 박스가 텍스트를 덮는다 (import/0003). draw_order 를 남겨 두면
+        # slide_reader 가 이를 존중해 올바른 z 를 매긴다.
+        order = 0
         for child in group_shape.shapes:
+            before = (len(tmp_tb), len(tmp_sh), len(tmp_img))
             try:
                 self._extract_shape(child, tmp_tb, tmp_sh, tmp_img, warnings)
             except Exception:
@@ -81,6 +88,14 @@ class CompoundExtractorMixin:
                     getattr(child, "name", "?"),
                     exc_info=True,
                 )
+            for lst, prev in (
+                (tmp_tb, before[0]),
+                (tmp_sh, before[1]),
+                (tmp_img, before[2]),
+            ):
+                for idx in range(prev, len(lst)):
+                    lst[idx] = replace(lst[idx], z_index=order)
+                    order += 1
 
         if grp_xfrm is not None:
             ch_off_x_px = self._emu_to_px_x(ch_offset_x_emu)

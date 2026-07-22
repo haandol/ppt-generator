@@ -1527,6 +1527,55 @@ class TestChartArcPath:
         assert d.endswith("Z")
 
 
+class TestGroupZOrderPreserved:
+    """그룹 내 그리기 순서(박스 뒤 + 텍스트 앞)가 z_index 에 보존돼야 한다 (import/0003).
+
+    z_index 를 리스트 종류별로만 매기면 textbox 가 항상 shape 보다 낮은 z 를 받아,
+    흰 채움 박스가 텍스트를 덮어 콜아웃 라벨이 사라진다.
+    """
+
+    def _slide_with_callout_group(self):
+        from pptx.oxml.ns import qn
+        from pptx.util import Inches
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        group = slide.shapes.add_group_shape()
+        # [0] 먼저 그려지는 흰 채움 박스 (뒤)
+        box = group.shapes.add_textbox(Inches(1), Inches(1), Inches(3), Inches(0.6))
+        box_spPr = box._element.find(qn("p:spPr"))
+        from pptx.oxml import parse_xml
+
+        fill = parse_xml(
+            '<a:solidFill xmlns:a="http://schemas.openxmlformats.org/drawingml/'
+            '2006/main"><a:srgbClr val="FFFFFF"/></a:solidFill>'
+        )
+        box_spPr.append(fill)
+        # [1] 나중에 그려지는 텍스트 (앞)
+        txt = group.shapes.add_textbox(Inches(1), Inches(1), Inches(3), Inches(0.6))
+        txt.text_frame.text = "Callout label"
+        return prs, slide
+
+    def test_text_drawn_after_box_gets_higher_z(self):
+        prs, slide = self._slide_with_callout_group()
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        label = next(
+            tb
+            for tb in spec.textboxes
+            if tb.paragraphs and "Callout label" in tb.paragraphs[0].runs[0].text
+        )
+        # 텍스트박스가 그룹의 다른(먼저 그려진) 요소보다 높은 z 를 가져야 한다
+        others = [
+            e.z_index
+            for e in [*spec.textboxes, *spec.shapes]
+            if e is not label and e.z_index is not None
+        ]
+        assert label.z_index is not None
+        if others:
+            assert label.z_index >= max(others)
+
+
 class TestRunImportPptxEndToEnd:
     """run_import_pptx 전체 경로(임포트→저장→HTML)로 충실도 수정이 살아있는지 검증."""
 
