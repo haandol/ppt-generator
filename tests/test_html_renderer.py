@@ -511,3 +511,52 @@ class TestCustomSvgStrokeScaling:
         assert "stroke=" not in html
         assert "vector-effect" not in html
         assert 'fill="#000000"' in html
+
+
+class TestShapeRotation:
+    """PptxShape.rotation 이 CSS transform:rotate 로 렌더돼야 한다.
+
+    회전 커넥터(예: rot=270 인 elbow/freeform)를 무시하면 세로선이 캔버스 밖으로
+    나가 사라지거나 방향이 어긋난다 (HealthImaging deck slide 22/24 회귀).
+    """
+
+    def test_rotated_custom_shape_emits_transform(self):
+        shape = PptxShape(
+            left_px=923.1,
+            top_px=264.3,
+            width_px=360.0,
+            height_px=193.5,
+            shape_type="custom",
+            border_color="#000000",
+            border_width_pt=1.2,
+            svg_path="1371600 711200 M 1371600 0 L 1371600 711200 L 0 711200",
+            rotation=270.0,
+        )
+        html = shape_to_html(shape)
+        assert "transform:rotate(270deg)" in html
+
+    def test_rotated_line_emits_transform(self):
+        shape = PptxShape(
+            left_px=100,
+            top_px=100,
+            width_px=200,
+            height_px=0,
+            shape_type="line",
+            border_color="#000000",
+            end_arrow=True,
+            rotation=90.0,
+        )
+        html = shape_to_html(shape)
+        assert "transform:rotate(90deg)" in html
+
+    def test_zero_rotation_emits_no_transform(self):
+        shape = PptxShape(
+            left_px=0,
+            top_px=0,
+            width_px=100,
+            height_px=100,
+            shape_type="rectangle",
+            fill_color="#cccccc",
+        )
+        html = shape_to_html(shape)
+        assert "transform:rotate" not in html

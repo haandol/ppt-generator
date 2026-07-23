@@ -176,6 +176,11 @@ class PptxShape:
     z_index: int | None = None  # rendering order (lower = behind, higher = front)
     grid_cell: str | None = None  # GridPlan cell id this element belongs to
     component_id: str | None = None  # DesignDoc.sections[].components[].id 참조
+    # 도형 회전(시계방향 degree). PPTX xfrm@rot(60000분의 1도)에서 임포트한다.
+    # CSS transform:rotate 로 bbox 중심 기준 회전(PowerPoint 와 동일 기준)을 적용한다.
+    # 회전 커넥터(예: rot=270 인 elbow/freeform)를 무시하면 세로선이 캔버스 밖으로
+    # 나가 사라지거나 방향이 어긋난다.
+    rotation: float = 0.0
 
 
 @dataclass(frozen=True)

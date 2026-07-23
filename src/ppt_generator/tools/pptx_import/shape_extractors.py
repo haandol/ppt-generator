@@ -256,10 +256,29 @@ class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
             border_color=border_color,
             border_width_pt=border_width,
             svg_path=svg_path,
+            rotation=self._read_rotation(shape),
             **text_props,
         )
 
     # ── AutoShape 추출 ──
+
+    @staticmethod
+    def _read_rotation(shape) -> float:
+        """spPr > xfrm@rot(60000분의 1도)을 시계방향 degree 로 읽는다. 없으면 0."""
+        try:
+            spPr = shape._element.find(qn("p:spPr"))
+            if spPr is None:
+                return 0.0
+            xfrm = spPr.find(qn("a:xfrm"))
+            if xfrm is None:
+                return 0.0
+            rot = xfrm.get("rot")
+            if rot is None:
+                return 0.0
+            # OOXML rot 은 60000 단위 = 1도. 0~360 으로 정규화.
+            return (int(rot) / 60000.0) % 360.0
+        except (ValueError, TypeError):
+            return 0.0
 
     @staticmethod
     def _read_prst(shape) -> str | None:
@@ -307,6 +326,7 @@ class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
             border_color=border_color,
             border_width_pt=border_width,
             dash_style=dash_style,
+            rotation=self._read_rotation(shape),
             **text_props,
         )
 
@@ -378,6 +398,7 @@ class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
                 start_arrow=head_arrow,
                 dash_style=dash_style,
                 elbow_points=elbow_points,
+                rotation=self._read_rotation(shape),
             )
 
         # PPTX 커넥터의 실제 시작/끝 좌표 계산:
@@ -419,6 +440,7 @@ class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
             end_arrow=tail_arrow,
             start_arrow=head_arrow,
             dash_style=dash_style,
+            rotation=self._read_rotation(shape),
         )
 
     @staticmethod

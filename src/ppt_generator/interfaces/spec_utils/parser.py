@@ -174,6 +174,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
                 z_index=s.get("z_index"),
                 grid_cell=s.get("grid_cell"),
                 component_id=s.get("component_id"),
+                rotation=s.get("rotation", 0.0),
             )
         )
 

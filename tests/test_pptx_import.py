@@ -1923,3 +1923,38 @@ class TestCustGeomFlip:
             for fv in (False, True)
         }
         assert len(paths) == 4
+
+
+class TestConnectorRotation:
+    """회전(xfrm@rot)이 걸린 커넥터/도형의 rotation 이 임포트돼야 한다.
+
+    rot=16200000(=270도) 등 회전을 무시하면 렌더 시 세로선이 캔버스 밖으로 나가
+    사라진다 (HealthImaging deck slide 24 freeform 커넥터 회귀).
+    """
+
+    def _slide_with_rotated_line(self, rot: str):
+        from pptx.oxml.ns import qn
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        conn = slide.shapes.add_connector(2, Inches(1), Inches(1), Inches(3), Inches(1))
+        spPr = conn._element.find(qn("p:spPr"))
+        xfrm = spPr.find(qn("a:xfrm"))
+        xfrm.set("rot", rot)
+        return prs, slide
+
+    def test_rotation_270_is_imported(self):
+        prs, slide = self._slide_with_rotated_line("16200000")  # 270도
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        lines = [s for s in spec.shapes if s.shape_type == "line"]
+        assert lines and abs(lines[0].rotation - 270.0) < 0.01
+
+    def test_no_rotation_defaults_to_zero(self):
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        slide.shapes.add_connector(2, Inches(1), Inches(1), Inches(3), Inches(1))
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        lines = [s for s in spec.shapes if s.shape_type == "line"]
+        assert lines and lines[0].rotation == 0.0

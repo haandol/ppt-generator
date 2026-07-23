@@ -60,6 +60,19 @@ _ARROW_SIZE = 14  # 화살표 머리 길이 (px)
 _ARROW_HALF = 10  # 화살표 머리 높이 (px)
 
 
+def _rotation_css(shape: PptxShape) -> str:
+    """도형 회전(rotation degree)을 CSS transform 으로 변환한다.
+
+    CSS transform:rotate 의 기본 origin 은 요소 중심(50% 50%)이고, PPTX rot 도
+    bbox 중심 기준이라 그대로 대응된다. line/custom 컨테이너는 pad 가 상하좌우
+    대칭이라 컨테이너 중심 == bbox 중심이므로 별도 origin 보정이 필요 없다.
+    """
+    rot = safe_number(getattr(shape, "rotation", 0.0))
+    if not rot or rot % 360 == 0:
+        return ""
+    return f"transform:rotate({css_number(rot % 360)}deg);"
+
+
 def _elbow_connector_to_html(
     shape: PptxShape, stroke_color: str, stroke_width: float
 ) -> str:
@@ -133,7 +146,7 @@ def _elbow_connector_to_html(
         f"position:absolute;"
         f"left:{css_number(left - pad)}px;top:{css_number(top - pad)}px;"
         f"width:{css_number(svg_w)}px;height:{css_number(svg_h)}px;"
-        f"overflow:visible;pointer-events:none;"
+        f"overflow:visible;pointer-events:none;{_rotation_css(shape)}"
     )
     return (
         f'<svg style="{container_style}" '
@@ -231,7 +244,7 @@ def _line_shape_to_html(shape: PptxShape) -> str:
         f"position:absolute;"
         f"left:{css_number(left - pad)}px;top:{css_number(container_top)}px;"
         f"width:{css_number(svg_w)}px;height:{css_number(svg_h)}px;"
-        f"overflow:visible;pointer-events:none;"
+        f"overflow:visible;pointer-events:none;{_rotation_css(shape)}"
     )
 
     return (
@@ -283,7 +296,8 @@ def _custom_svg_shape_to_html(shape: PptxShape) -> str:
         f'style="position:absolute;left:{css_number(shape.left_px)}px;'
         f"top:{css_number(shape.top_px)}px;"
         f"width:{css_number(shape.width_px)}px;"
-        f'height:{css_number(shape.height_px)}px;overflow:visible;">'
+        f"height:{css_number(shape.height_px)}px;overflow:visible;"
+        f'{_rotation_css(shape)}">'
         f'<path d="{escape_attr(path_d)}" fill="{fill}"{stroke_attr} />'
         f"</svg>"
     )
@@ -362,6 +376,7 @@ def shape_to_html(shape: PptxShape) -> str:
         f"position:absolute;"
         f"left:{css_number(left)}px;top:{css_number(top)}px;"
         f"width:{css_number(width)}px;{height_prop}:{css_number(height)}px;"
+        f"{_rotation_css(shape)}"
     )
     if shape.fill_color:
         fill_color = safe_color(shape.fill_color)
