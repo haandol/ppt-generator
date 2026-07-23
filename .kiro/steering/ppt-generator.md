@@ -28,7 +28,8 @@ inclusion: always
      → `ingest_design_doc_draft` (덱 전체에서 1회).
    - 슬라이드마다 `prepare_design_slide` → spec JSON 생성 → `ingest_design_slide`.
      **여러 슬라이드를 병렬로** 처리한다 (서버측 stateless).
-   - `finalize_design_spec` (1회) → **반드시** `export_html` → `slides_html_path` 공유.
+   - `finalize_design_spec` (1회) → **반드시** `export_html` + `export_pptx`
+     → 양쪽 결과 확인 및 경로 공유.
 
 ## 편집 (`skills/ppt-modify`)
 
@@ -50,7 +51,10 @@ inclusion: always
 - 항상 `response_schema` 를 정확히 따르는 JSON 을 생성한다. ingest 검증 실패 시 스키마에
   맞게 고쳐 재시도.
 - 슬라이드 생성은 병렬로 — 순차는 느리다.
-- add/update/modify/finalize 후에는 항상 `export_html` 을 호출하고 `slides_html_path` 를
-  공유한다.
+- add/update/modify/finalize 후에는 항상 `export_html` 과 `export_pptx` 를 호출하고
+  양쪽 결과 경로를 공유한다.
+- HTML 결과에 영향을 주는 수정 후에는 같은 프로젝트를 `export_pptx`로도 내보내고,
+  공유 렌더 의미(좌표·크기·타이포그래피·불렛·선·화살표·효과)가 PPTX에도 반영됐는지
+  확인한다. 한쪽만 맞으면 완료하지 않는다.
 - **lint 경고가 있으면 사용자에게 수정 여부를 물어본다** (임의로 넘기지 않는다).
 - 사용자 확인 없이 다음 단계로 넘어가지 않는다.

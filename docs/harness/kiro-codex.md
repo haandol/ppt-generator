@@ -78,7 +78,7 @@ Kiro 는 `.kiro/steering/*.md`(steering)와 `.kiro/settings/mcp.json`(MCP)를 �
 ```
 
 리포에 있는 `.kiro/settings/mcp.json.example` 을 복사해 `mcp.json` 으로 두고 경로만
-고치면 된다. `autoApprove` 에 자주 쓰는 도구(예: `export_html`)를 넣으면 매번 승인
+고치면 된다. `autoApprove` 에 자주 쓰는 도구(예: `export_html`, `export_pptx`)를 넣으면 매번 승인
 프롬프트가 뜨지 않는다.
 
 ### 2. steering 확인
@@ -96,7 +96,7 @@ context.md 를 읽고 ppt-generator 로 발표자료를 만들어줘.
 ```
 
 Kiro 가 `prepare_outline` → 아웃라인 JSON 생성 → `ingest_outline` → (확인) →
-디자인 스펙 생성 → `export_html` 순으로 핸드셰이크를 구동한다.
+디자인 스펙 생성 → `export_html` + `export_pptx` 순으로 핸드셰이크를 구동한다.
 
 ---
 
@@ -141,7 +141,7 @@ ppt-generator MCP 서버로 발표자료를 만든다. 서버는 LLM 을 호출�
    → ingest_outline → 사용자에게 보여주고 확인.
 2. 디자인: prepare_design_doc_draft → ingest_design_doc_draft(1회, skip:true 면 건너뜀)
    → 슬라이드마다 prepare_design_slide → JSON 생성 → ingest_design_slide (여러 슬라이드 병렬).
-3. finalize_design_spec(1회) → export_html → slides_html_path 공유.
+3. finalize_design_spec(1회) → export_html + export_pptx → 양쪽 결과 확인 및 경로 공유.
 4. 수정: prepare_slide_edit / prepare_modify_component 흐름. 이동·삭제는 move_slide/delete_slide.
 5. lint 경고가 있으면 사용자에게 수정 여부를 물어본다. 확인 없이 다음 단계로 넘어가지 않는다.
 ```

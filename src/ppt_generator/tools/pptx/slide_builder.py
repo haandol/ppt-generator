@@ -36,6 +36,7 @@ from ppt_generator.tools.pptx.shape_builders import (
     add_freeform_from_svg,
 )
 from ppt_generator.tools.pptx.text_formatter import (
+    apply_default_line_spacing,
     apply_line_spacing,
     apply_vertical_alignment,
     format_paragraphs,
@@ -234,7 +235,11 @@ class SlideBuilder:
         )
         tf = txbox.text_frame
         tf.word_wrap = True
-        tf.auto_size = MSO_AUTO_SIZE.NONE
+        tf.auto_size = (
+            MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+            if getattr(tb, "autofit", "shrink") == "resize"
+            else MSO_AUTO_SIZE.NONE
+        )
 
         if tb.padding_left_px is not None:
             tf.margin_left = Emu(int(tb.padding_left_px * PX_TO_EMU))
@@ -279,7 +284,9 @@ class SlideBuilder:
         # shrink 로 폰트를 축소했으면 line_spacing 도 같은 비율로 축소해야
         # 소비 높이가 실제로 줄어 오버플로가 해소된다 (HTML 렌더러와 공유 헬퍼).
         effective_line_spacing = scaled_line_spacing_pt(tb.line_spacing_pt, font_scale)
-        if effective_line_spacing:
+        if getattr(tb, "line_spacing_is_default", False):
+            apply_default_line_spacing(tf, tb.paragraphs, font_scale=font_scale)
+        elif effective_line_spacing:
             apply_line_spacing(
                 tf, effective_line_spacing, tb.paragraphs, font_scale=font_scale
             )

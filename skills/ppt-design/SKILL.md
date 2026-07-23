@@ -1,6 +1,6 @@
 ---
 name: ppt-design
-description: Generate the design spec (per-slide layout/style) for a deck via the ppt-generator MCP server's prepare/ingest handshake, then export HTML. Use after an outline exists and the user wants to build/generate the slides. The server returns prompts + JSON schemas; YOU generate each slide's spec JSON. Keywords - "슬라이드 생성 / 디자인 생성 / 디자인 스펙 / build the slides".
+description: Generate the design spec (per-slide layout/style) for a deck via the ppt-generator MCP server's prepare/ingest handshake, then export and compare HTML/PPTX. Use after an outline exists and the user wants to build/generate the slides. The server returns prompts + JSON schemas; YOU generate each slide's spec JSON. Keywords - "슬라이드 생성 / 디자인 생성 / 디자인 스펙 / build the slides".
 ---
 
 # ppt-design
@@ -46,8 +46,9 @@ description: Generate the design spec (per-slide layout/style) for a deck via th
 
 - 모든 슬라이드 ingest 후 `mcp__ppt-generator__finalize_design_spec(project_id, overflow_json)` 호출
   (모은 overflow 를 JSON 배열 문자열로; 없으면 "").
-- 그 다음 **반드시** `mcp__ppt-generator__export_html(project_id)` 를 호출하고
-  반환된 `slides_html_path` 를 사용자에게 공유한다.
+- 그 다음 **반드시** `mcp__ppt-generator__export_html(project_id)` 와
+  `mcp__ppt-generator__export_pptx(project_id)` 를 같은 DesignSpec에 호출한다.
+  HTML과 PPTX의 공유 렌더 의미를 확인하고 두 결과 경로를 사용자에게 공유한다.
 
 ### 4. lint 자동 처리 (경미=자동, 중대=보고)
 
@@ -85,7 +86,9 @@ finalize/export 의 lint 결과를 **경미**와 **중대**로 나눠 다르게 
 
 - 항상 `response_schema` 를 정확히 따르는 JSON 을 생성한다. ingest 검증 실패 시 스키마에 맞게 고쳐 재시도.
 - 슬라이드 생성은 병렬로 — 순차로 하면 느리다.
-- 생성/수정/마무리 후에는 항상 `export_html` 을 호출하고 `slides_html_path` 를 공유한다.
+- 생성/수정/마무리 후에는 항상 `export_html` 과 `export_pptx` 를 호출한다. 좌표·크기·
+  타이포그래피·불렛·선·화살표·효과가 한쪽에만 반영되지 않았는지 확인하고 두 결과 경로를
+  공유한다.
 - lint 결과는 4단계 기준으로 처리한다 — **경미**한 warning 은 visual QA 로 자동 검증 후
   실제 결함만 스스로 고치고, **중대**한 건(error·overflow·메시지/구성 변경)은 사용자에게
   보고하고 확인받는다. 경미 warning 을 아무 검증 없이 그냥 넘기지 않는다.

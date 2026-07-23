@@ -87,6 +87,7 @@ docs/adr/
 ### pptx-export — PPTX 내보내기
 
 - [0001 작은 뱃지 도형의 텍스트는 PPTX 에서 줄바꿈하지 않는다](./pptx-export/0001-shape-text-no-wrap-for-compact-badges.md)
+- [0002 HTML·PPTX 렌더 패리티 게이트](./pptx-export/0002-html-pptx-render-parity-gate.md)
 
 ### import — PPTX 임포트
 

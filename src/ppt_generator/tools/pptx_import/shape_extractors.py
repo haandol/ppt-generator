@@ -126,6 +126,7 @@ class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
     # 부모 CompoundExtractorMixin에서 선언
     _emu_to_px_padding: any
     _extract_line_spacing: any
+    _line_spacing_is_default: any
     _extract_vertical_alignment: any
     _extract_fill_color: any
     _extract_line_style: any
@@ -238,6 +239,11 @@ class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
                             placeholder_type=ph_type,
                             placeholder_idx=ph_idx,
                         ),
+                        line_spacing_is_default=self._line_spacing_is_default(
+                            tf,
+                            placeholder_type=ph_type,
+                            placeholder_idx=ph_idx,
+                        ),
                         vertical_alignment=self._extract_vertical_alignment(
                             tf, placeholder_idx=ph_idx
                         ),
@@ -266,6 +272,7 @@ class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
             height_px=self._emu_to_px_y(shape.height),
             paragraphs=paragraphs,
             line_spacing_pt=line_spacing,
+            line_spacing_is_default=self._line_spacing_is_default(tf),
             vertical_alignment=vertical_alignment,
             autofit=autofit_mode,
             autofit_font_scale=autofit_scale,
@@ -281,6 +288,7 @@ class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
         """AutoShape/Freeform 공통: text_frame에서 텍스트 관련 속성을 추출."""
         paragraphs: list[PptxParagraph] = []
         line_spacing: float | None = None
+        line_spacing_is_default = False
         vertical_alignment = "top"
         padding_left: float | None = None
         padding_right: float | None = None
@@ -295,6 +303,7 @@ class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
             tf = shape.text_frame
             paragraphs = self._extract_paragraphs(tf)
             line_spacing = self._extract_line_spacing(tf)
+            line_spacing_is_default = self._line_spacing_is_default(tf)
             vertical_alignment = self._extract_vertical_alignment(tf)
             padding_left = self._emu_to_px_padding(tf.margin_left)
             padding_right = self._emu_to_px_padding(tf.margin_right)
@@ -315,6 +324,7 @@ class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
         return {
             "paragraphs": paragraphs,
             "line_spacing_pt": line_spacing,
+            "line_spacing_is_default": line_spacing_is_default,
             "vertical_alignment": vertical_alignment,
             "padding_left_px": padding_left,
             "padding_right_px": padding_right,

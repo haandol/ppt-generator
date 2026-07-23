@@ -32,6 +32,7 @@ from ppt_generator.interfaces.text_measurement import (
 )
 from ppt_generator.tools.pptx.freeform_builder import add_freeform_from_svg
 from ppt_generator.tools.pptx.text_formatter import (
+    apply_default_line_spacing,
     apply_line_spacing,
     apply_vertical_alignment,
     format_paragraphs,
@@ -105,6 +106,14 @@ _COMPACT_BADGE_MAX_CHARS = 4
 # shrink_text 측정 시 padding 기본값 (HTML 렌더러 shape_to_html 과 동일).
 _DEFAULT_SHAPE_PADDING_LR_PX = PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU / PX_TO_EMU
 _DEFAULT_SHAPE_PADDING_TB_PX = PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU / PX_TO_EMU
+
+
+def _disable_theme_effect(shape) -> None:
+    """python-pptx 기본 테마 효과가 도형/선에 그림자를 추가하지 않게 한다."""
+    style = shape._element.find(qn("p:style"))
+    effect_ref = style.find(qn("a:effectRef")) if style is not None else None
+    if effect_ref is not None:
+        effect_ref.set("idx", "0")
 
 
 def _resolved_padding_lr(value: float | None) -> float:
@@ -221,6 +230,7 @@ def add_auto_shape_from_spec(slide, shape_spec: PptxShape) -> None:
         Inches(width),
         Inches(height),
     )
+    _disable_theme_effect(shape)
 
     if shape_spec.rotation:
         shape.rotation = shape_spec.rotation
@@ -297,7 +307,13 @@ def add_auto_shape_from_spec(slide, shape_spec: PptxShape) -> None:
         effective_line_spacing = scaled_line_spacing_pt(
             shape_spec.line_spacing_pt, font_scale
         )
-        if effective_line_spacing:
+        if shape_spec.line_spacing_is_default:
+            apply_default_line_spacing(
+                tf,
+                shape_spec.paragraphs,
+                font_scale=font_scale,
+            )
+        elif effective_line_spacing:
             apply_line_spacing(
                 tf,
                 effective_line_spacing,
@@ -381,6 +397,7 @@ def add_connector_from_spec(slide, shape_spec: PptxShape) -> None:
         end_x,
         end_y,
     )
+    _disable_theme_effect(connector)
 
     if elbow_match:
         preset, flip_h, flip_v = elbow_match

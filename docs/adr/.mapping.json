@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "lastSyncedAt": "2026-07-21T00:00:00Z",
+  "lastSyncedAt": "2026-07-23T00:00:00Z",
   "categories": {
     "outline": {
       "codePaths": [
@@ -73,10 +73,12 @@
     },
     "pptx-export": {
       "codePaths": [
+        "src/ppt_generator/interfaces/render_parity.py",
         "src/ppt_generator/tools/pptx/**",
-        "tests/test_pptx_*.py"
+        "tests/test_pptx_*.py",
+        "tests/test_render_parity.py"
       ],
-      "description": "PPTX 내보내기 — design spec → .pptx 결정론적 변환 (SlideBuilder 직접)."
+      "description": "PPTX 내보내기와 HTML/PPTX 렌더 패리티 — design spec의 공유 의미를 두 출력에서 결정론적으로 검증."
     },
     "import": {
       "codePaths": [

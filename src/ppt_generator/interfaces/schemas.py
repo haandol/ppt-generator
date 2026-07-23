@@ -107,6 +107,9 @@ class PptxTextBox:
     height_px: float
     paragraphs: list[PptxParagraph] = field(default_factory=list)
     line_spacing_pt: float | None = None  # line spacing in pt
+    # True이면 line_spacing_pt는 HTML용 PowerPoint 기본 행간 근사값이다.
+    # PPTX export에서는 테마 차이를 피하도록 문단별 실제 폰트의 1.0배로 정규화한다.
+    line_spacing_is_default: bool = False
     vertical_alignment: str = "top"  # "top", "middle", "bottom"
     padding_left_px: float | None = None
     padding_right_px: float | None = None
@@ -155,6 +158,7 @@ class PptxShape:
     text_bold: bool = False
     paragraphs: list[PptxParagraph] = field(default_factory=list)
     line_spacing_pt: float | None = None
+    line_spacing_is_default: bool = False
     padding_left_px: float | None = None
     padding_right_px: float | None = None
     padding_top_px: float | None = None

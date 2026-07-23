@@ -25,3 +25,9 @@ uv run pytest tests/test_xxx.py::test_func -v    # 특정 테스트 함수
 3. **코드 구현**: 승인된 ADR을 기반으로 코드 작성
 
 상세 규칙은 [AGENTS.md](./AGENTS.md)의 ADR 섹션을 참조하세요.
+
+## HTML/PPTX 렌더 패리티
+
+HTML 또는 PPTX 렌더링을 수정할 때는 같은 `DesignSpec`을 두 출력으로 검증합니다.
+공유 필드는 렌더 패리티 분류표와 교차 렌더 테스트를 함께 갱신하고, 타이포그래피·좌표·
+줄바꿈·불렛·화살표·효과 변경은 실제 HTML/PPTX 렌더도 비교합니다.

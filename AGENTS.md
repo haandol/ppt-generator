@@ -105,6 +105,23 @@ Always verify before completing work:
 3. Related ADR is up to date
 4. MCP client compatibility confirmed when changing existing tool signatures
 5. `prepare_*`/`ingest_*` stay paired — output schema matches the validating model
+6. HTML/PPTX shared render behavior is verified in both outputs
+
+## HTML/PPTX Render Parity (Required)
+
+HTML preview and PPTX export are two renderers of the same `DesignSpec`.
+
+- Changes to HTML rendering, PPTX rendering, render schemas, or shared layout/text
+  calculations must classify every affected field as shared, HTML-only, PPTX-only, or
+  metadata in the render parity manifest.
+- Shared behavior must be tested from one `DesignSpec` against both HTML and PPTX output.
+- Output-specific behavior requires a concrete rationale; renderer differences must not be
+  used as an undocumented exception.
+- Typography, geometry, wrapping, autofit, paragraph spacing, bullets, lines, arrows, and
+  effects are high-risk. In addition to structural tests, compare rendered HTML and PPTX
+  visually when changing them.
+- A renderer change is incomplete if only that renderer's tests were updated without checking
+  the other output.
 
 ## Mandatory Testing Rules
 

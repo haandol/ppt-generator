@@ -1248,6 +1248,8 @@ class TestImageSrcSerialization:
                             top_px=0,
                             width_px=300,
                             height_px=100,
+                            line_spacing_pt=19.2,
+                            line_spacing_is_default=True,
                             paragraphs=[
                                 PptxParagraph(
                                     runs=[PptxTextRun(text="versionId")],
@@ -1266,6 +1268,7 @@ class TestImageSrcSerialization:
 
         assert paragraph.space_before_pt == 3
         assert paragraph.space_after_pt == 3
+        assert parsed.slides[0].textboxes[0].line_spacing_is_default is True
 
     def test_image_src_serialized_in_json(self):
         """PptxImage.src가 JSON 직렬화에 포함되는지 검증."""
@@ -1518,8 +1521,87 @@ class TestAutofitExtraction:
         assert "font-size:36.00pt" in html
 
 
+class TestBulletExtraction:
+    """문단 lvl은 들여쓰기일 수 있으므로 실제 불렛 표식과 구분한다."""
+
+    def test_non_placeholder_level_without_marker_is_not_a_bullet(self):
+        from pptx.oxml.ns import qn
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        textbox = slide.shapes.add_textbox(
+            Inches(1),
+            Inches(1),
+            Inches(6),
+            Inches(2),
+        )
+        plain = textbox.text_frame.paragraphs[0]
+        plain.text = "Step 1: Explore the documentation"
+        plain.level = 1
+
+        bullet = textbox.text_frame.add_paragraph()
+        bullet.text = "Explicit bullet"
+        bullet.level = 1
+        p_pr = bullet._p.get_or_add_pPr()
+        bu_char = p_pr.makeelement(qn("a:buChar"), {})
+        bu_char.set("char", "•")
+        p_pr.append(bu_char)
+
+        spec = SlideReader(1.0, 1.0, prs).read_slide(slide, 0, 1)
+        paragraphs = spec.textboxes[0].paragraphs
+
+        assert paragraphs[0].bullet_level == -1
+        assert paragraphs[1].bullet_level == 1
+
+
 class TestLineSpacingExtraction:
     """줄간격 추출: 직접 배수 지정 + placeholder 상속(lnSpc) 해석 (import/0003)."""
+
+    def test_default_spacing_and_resize_autofit_round_trip_through_export(
+        self, tmp_path
+    ):
+        from pptx.enum.text import MSO_AUTO_SIZE
+        from pptx.util import Pt
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        textbox = slide.shapes.add_textbox(
+            Inches(1),
+            Inches(1),
+            Inches(5),
+            Inches(3),
+        )
+        textbox.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+        heading = textbox.text_frame.paragraphs[0]
+        heading_run = heading.add_run()
+        heading_run.text = "Build and integrate"
+        heading_run.font.size = Pt(16)
+        heading.space_after = Pt(12)
+        body = textbox.text_frame.add_paragraph()
+        body_run = body.add_run()
+        body_run.text = "Step 1\nBody copy"
+        body_run.font.size = Pt(14)
+        body.space_after = Pt(12)
+
+        reader = SlideReader(1.0, 1.0, prs)
+        imported = reader.read_slide(slide, 0, 1)
+        imported_textbox = imported.textboxes[0]
+        assert imported_textbox.line_spacing_pt == pytest.approx(19.2)
+        assert imported_textbox.line_spacing_is_default is True
+        assert imported_textbox.autofit == "resize"
+
+        response = ExportService().export_from_design_spec(
+            DesignSpec(slides=[imported]),
+            output_dir=tmp_path,
+            bg_image_policy="none",
+        )
+
+        exported = Presentation(response.pptx_path).slides[0].shapes[0].text_frame
+        assert exported.auto_size == MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+        assert [paragraph.line_spacing.pt for paragraph in exported.paragraphs] == [
+            pytest.approx(16),
+            pytest.approx(14),
+        ]
 
     def test_direct_multiple_spacing_converts_to_pt(self):
         # 문단에 배수 줄간격(0.9)이 직접 지정되면 폰트 크기(20pt)와 곱해 pt 로 환산.

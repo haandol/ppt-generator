@@ -181,6 +181,46 @@ class TestExportFromDesignSpec:
         assert fill.fore_color.rgb is not None
         assert str(fill.fore_color.rgb) == "1A1A2E"
 
+    def test_disables_default_theme_effects_for_shapes_and_connectors(
+        self, service, tmp_path
+    ):
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    shapes=[
+                        PptxShape(
+                            left_px=40,
+                            top_px=40,
+                            width_px=240,
+                            height_px=100,
+                            fill_color="#ffffff",
+                            border_color="#000000",
+                        ),
+                        PptxShape(
+                            left_px=300,
+                            top_px=90,
+                            width_px=180,
+                            height_px=0,
+                            shape_type="line",
+                            border_color="#000000",
+                            end_arrow=True,
+                        ),
+                    ]
+                )
+            ]
+        )
+
+        response = service.export_from_design_spec(spec, output_dir=tmp_path)
+
+        slide = Presentation(response.pptx_path).slides[0]
+        effect_refs = []
+        for shape in slide.shapes:
+            style = shape._element.find(qn("p:style"))
+            effect_ref = style.find(qn("a:effectRef")) if style is not None else None
+            if effect_ref is not None:
+                effect_refs.append(effect_ref.get("idx"))
+        assert effect_refs == ["0", "0"]
+
     def test_explicit_z_index_is_not_overridden_by_textbox_reordering(
         self, service, tmp_path
     ):

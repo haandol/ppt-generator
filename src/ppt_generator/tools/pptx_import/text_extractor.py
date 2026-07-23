@@ -55,7 +55,7 @@ class TextExtractorMixin:
     ) -> list[PptxParagraph]:
         paragraphs: list[PptxParagraph] = []
         for para in text_frame.paragraphs:
-            bullet_level = self._extract_bullet_level(para)
+            bullet_level = self._extract_bullet_level(para, placeholder_type)
             runs = self._extract_runs(
                 para,
                 placeholder_type=placeholder_type,
@@ -345,36 +345,49 @@ class TextExtractorMixin:
         )
 
     @staticmethod
-    def _extract_bullet_level(paragraph) -> int:
+    def _extract_bullet_level(
+        paragraph,
+        placeholder_type: int | None = None,
+    ) -> int:
         pPr = paragraph._p.find(qn("a:pPr"))
-        if pPr is None:
-            return -1
+        level = int(pPr.get("lvl", "0")) if pPr is not None else 0
 
-        has_bullet = (
-            pPr.find(qn("a:buChar")) is not None
-            or pPr.find(qn("a:buAutoNum")) is not None
+        if pPr is not None:
+            if pPr.find(qn("a:buNone")) is not None:
+                return -1
+            if (
+                pPr.find(qn("a:buChar")) is not None
+                or pPr.find(qn("a:buAutoNum")) is not None
+            ):
+                if pPr.get("lvl") is None:
+                    mar_l = int(pPr.get("marL", "0"))
+                    if mar_l >= PPTX_BULLET_MARGIN_EMU_L1:
+                        return 1
+                return level
+
+        # 일반 텍스트박스는 lvl을 들여쓰기에만 쓰기도 한다. 자체 목록 스타일에
+        # 명시 불렛이 있을 때만 불렛으로 해석한다.
+        tx_body = paragraph._p.getparent()
+        lst_style = tx_body.find(qn("a:lstStyle")) if tx_body is not None else None
+        level_style = (
+            lst_style.find(qn(f"a:lvl{level + 1}pPr"))
+            if lst_style is not None
+            else None
         )
-        if pPr.find(qn("a:buNone")) is not None:
-            has_bullet = False
+        if level_style is not None:
+            if level_style.find(qn("a:buNone")) is not None:
+                return -1
+            if (
+                level_style.find(qn("a:buChar")) is not None
+                or level_style.find(qn("a:buAutoNum")) is not None
+            ):
+                return level
 
-        if not has_bullet:
-            lvl = pPr.get("lvl")
-            if lvl is not None:
-                lvl_int = int(lvl)
-                if lvl_int > 0:
-                    return lvl_int
-            return -1
-
-        lvl = pPr.get("lvl")
-        if lvl is not None:
-            return int(lvl)
-
-        marL_str = pPr.get("marL")
-        if marL_str is not None:
-            marL = int(marL_str)
-            if marL >= PPTX_BULLET_MARGIN_EMU_L1:
-                return 1
-        return 0
+        # Placeholder의 하위 레벨은 layout/master 목록 스타일에서 불렛을 상속한다.
+        # 기존 동작을 유지하되, 일반 텍스트박스의 lvl만으로는 불렛을 만들지 않는다.
+        if placeholder_type is not None and level > 0:
+            return level
+        return -1
 
     @staticmethod
     def _extract_alignment(paragraph) -> str | None:
@@ -436,6 +449,22 @@ class TextExtractorMixin:
                 else None
             )
         return None
+
+    def _line_spacing_is_default(
+        self,
+        text_frame,
+        placeholder_type: int | None = None,
+        placeholder_idx: int | None = None,
+    ) -> bool:
+        """line_spacing_pt가 OOXML 명시값이 아닌 기본 행간 근사인지 반환한다."""
+        for paragraph in text_frame.paragraphs:
+            if paragraph.line_spacing is not None:
+                return False
+            break
+        return (
+            self._resolve_inherited_line_spacing(placeholder_type, placeholder_idx)
+            is None
+        )
 
     def _first_run_font_pt(
         self,

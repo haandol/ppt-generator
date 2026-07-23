@@ -167,6 +167,25 @@ def apply_line_spacing(
         para.line_spacing = Pt(line_spacing_pt)
 
 
+def apply_default_line_spacing(
+    text_frame,
+    paragraphs: list[PptxParagraph],
+    font_scale: float = 1.0,
+) -> None:
+    """PowerPoint 기본 단일 행간을 문단별 실제 폰트 크기(1.0배)로 고정한다."""
+    for para, para_spec in zip(
+        text_frame.paragraphs,
+        paragraphs,
+        strict=False,
+    ):
+        max_font = max(
+            (run.font_size_pt for run in para_spec.runs if run.font_size_pt),
+            default=0,
+        )
+        if max_font:
+            para.line_spacing = Pt(max_font * font_scale)
+
+
 def apply_vertical_alignment(text_frame, alignment: str) -> None:
     """수직 정렬을 적용한다."""
     if alignment not in _ANCHOR_MAP:

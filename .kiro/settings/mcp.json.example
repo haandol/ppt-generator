@@ -7,7 +7,7 @@
         "PPT_LOG_DIR": "/tmp/ppt-generator"
       },
       "disabled": false,
-      "autoApprove": ["export_html", "load_project_status", "list_projects"]
+      "autoApprove": ["export_html", "export_pptx", "load_project_status", "list_projects"]
     }
   }
 }

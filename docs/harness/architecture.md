@@ -167,7 +167,9 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 | `import_pptx` | 기존 PPTX 파일 → 디자인 스펙 역변환 (결정론적 파싱, HTML 미리보기 자동 생성) |
 | `save_outline_slide` | 아웃라인의 개별 슬라이드 항목 저장/갱신 |
 
-> `move_slide`/`delete_slide` 는 순수 파일 연산이며 어떤 생성도 하지 않습니다. 호출 후 `export_html(project_id=...)` 로 HTML 을 갱신하세요.
+> `move_slide`/`delete_slide` 는 순수 파일 연산이며 어떤 생성도 하지 않습니다. 호출 후
+> `export_html(project_id=...)` 과 `export_pptx(project_id=...)` 로 두 출력을 갱신하고
+> 공유 렌더 의미를 확인하세요.
 
 ### Visual QA 도구
 
