@@ -418,8 +418,9 @@ class TextExtractorMixin:
                 return props.line_spacing_pct * props.font_size_pt
         return None
 
-    @staticmethod
-    def _extract_vertical_alignment(text_frame) -> str:
+    def _extract_vertical_alignment(
+        self, text_frame, placeholder_idx: int | None = None
+    ) -> str:
         anchor_map = {"t": "top", "ctr": "middle", "b": "bottom"}
         try:
             bodyPr = text_frame._txBody.find(qn("a:bodyPr"))
@@ -427,6 +428,13 @@ class TextExtractorMixin:
                 anchor = bodyPr.get("anchor")
                 if anchor in anchor_map:
                     return anchor_map[anchor]
+            # shape 자체에 anchor 가 없으면 placeholder 상속(layout→master)을 따른다.
+            # PowerPoint 는 예컨대 master TITLE placeholder 의 anchor="ctr" 를
+            # 상속하므로, 이를 무시하면 제목이 top 으로 렌더돼 세로 위치가 어긋난다.
+            if placeholder_idx is not None:
+                inherited = getattr(self, "_ph_anchor_by_idx", {}).get(placeholder_idx)
+                if inherited in anchor_map:
+                    return anchor_map[inherited]
         except Exception:
             logger.debug("vertical_alignment 추출 실패", exc_info=True)
         return "top"

@@ -152,7 +152,9 @@ class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
                             placeholder_type=ph_type,
                             placeholder_idx=ph_idx,
                         ),
-                        vertical_alignment=self._extract_vertical_alignment(tf),
+                        vertical_alignment=self._extract_vertical_alignment(
+                            tf, placeholder_idx=ph_idx
+                        ),
                         autofit=ph_autofit_mode,
                         autofit_font_scale=ph_autofit_scale,
                         padding_left_px=self._emu_to_px_padding(tf.margin_left),

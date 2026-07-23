@@ -95,6 +95,9 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
                     master
                 )
         self._layout_def_rpr: dict[int, dict[int, DefaultRunProps]] = {}
+        # placeholder idx → 상속된 세로 정렬 anchor("t"|"ctr"|"b"). layout→master
+        # 순으로 resolve 해 둔다. shape 자체 bodyPr 에 anchor 가 없을 때 폴백.
+        self._ph_anchor_by_idx: dict[int, str] = {}
         self._default_bg_color: str | None = None
 
     def set_default_bg_color(self, color: str | None) -> None:
@@ -134,6 +137,7 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
         """단일 슬라이드 → PptxSlideSpec 변환."""
         self._activate_master_theme(slide)
         self._cache_layout_def_rpr(slide)
+        self._cache_ph_anchors(slide)
         background_color = self._extract_background_color(slide)
         background_image_bytes = self._extract_background_image_bytes(slide)
         textboxes: list[PptxTextBox] = []
@@ -368,6 +372,33 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
                     self._layout_def_rpr[ph_idx] = level_map
         except Exception:
             logger.debug("레이아웃 defRPr 캐시 실패", exc_info=True)
+
+    def _cache_ph_anchors(self, slide: Slide) -> None:
+        """placeholder idx → 세로 정렬 anchor 를 layout→master 순으로 캐시.
+
+        shape 자체 bodyPr 에 anchor 가 없을 때 폴백으로 쓴다. PowerPoint 는
+        placeholder 의 세로 정렬을 layout/master 에서 상속하는데(예: master TITLE
+        placeholder 의 anchor="ctr"), 이를 무시하면 anchor 미지정 제목이 top 으로
+        렌더돼 원본(중앙)과 세로 위치가 어긋난다 (slide11 제목 회귀).
+        """
+        self._ph_anchor_by_idx = {}
+
+        def _anchor_of(ph) -> str | None:
+            bodyPr = ph._element.find(qn("p:txBody") + "/" + qn("a:bodyPr"))
+            return bodyPr.get("anchor") if bodyPr is not None else None
+
+        try:
+            layout = slide.slide_layout
+            # master 를 먼저 채우고 layout 으로 덮어써 layout 이 우선하도록 한다.
+            for source in (getattr(layout, "slide_master", None), layout):
+                if source is None:
+                    continue
+                for ph in source.placeholders:
+                    anchor = _anchor_of(ph)
+                    if anchor:
+                        self._ph_anchor_by_idx[ph.placeholder_format.idx] = anchor
+        except Exception:
+            logger.debug("placeholder anchor 캐시 실패", exc_info=True)
 
     # ── 배경 추출 ──
 

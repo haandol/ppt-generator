@@ -1186,6 +1186,51 @@ class TestPlaceholderFormatInheritance:
                 assert "tx1" in color_map
                 assert color_map["tx1"] == color_map["dk1"]
 
+    def test_title_inherits_master_anchor_middle(self, tmp_path):
+        """shape 자체 anchor 미지정 시 master TITLE placeholder 의 anchor="ctr" 를
+        상속해 vertical_alignment="middle" 로 임포트돼야 한다 (slide11 제목 회귀).
+        """
+        from pptx.oxml.ns import qn as _qn
+
+        prs = Presentation()
+        prs.slide_width = 12_192_000
+        prs.slide_height = 6_858_000
+        layout = prs.slide_layouts[0]
+        master = layout.slide_master
+
+        # master TITLE placeholder 의 bodyPr anchor 를 ctr 로 설정
+        for ph in master.placeholders:
+            if ph.placeholder_format.idx == 0:
+                bodyPr = ph._element.find(_qn("p:txBody") + "/" + _qn("a:bodyPr"))
+                if bodyPr is not None:
+                    bodyPr.set("anchor", "ctr")
+                break
+
+        slide = prs.slides.add_slide(layout)
+        for ph in slide.placeholders:
+            if ph.placeholder_format.idx == 0:
+                ph.text = "Inherited Anchor Title"
+                # slide 의 shape 자체에는 anchor 를 남기지 않는다
+                bodyPr = ph._element.find(_qn("p:txBody") + "/" + _qn("a:bodyPr"))
+                if bodyPr is not None and "anchor" in bodyPr.attrib:
+                    del bodyPr.attrib["anchor"]
+                break
+
+        pptx_path = tmp_path / "anchor_inherit.pptx"
+        prs.save(str(pptx_path))
+
+        imported, _ = ImportService().import_from_file(pptx_path)
+        title_tb = next(
+            tb
+            for tb in imported.slides[0].textboxes
+            if any(
+                "Inherited Anchor Title" in r.text
+                for p in tb.paragraphs
+                for r in p.runs
+            )
+        )
+        assert title_tb.vertical_alignment == "middle"
+
 
 # ── 이미지 src 직렬화/역직렬화 테스트 ──
 
