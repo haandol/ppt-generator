@@ -1862,3 +1862,64 @@ class TestFontNamePreserved:
             if tb.paragraphs and "Heading" in tb.paragraphs[0].runs[0].text
         )
         assert title_tb.paragraphs[0].runs[0].font_name == "Amazon Ember Display"
+
+
+class TestCustGeomFlip:
+    """custGeom(freeform) 도형의 flipH/flipV 가 svg_path 좌표에 반영돼야 한다.
+
+    flip 을 무시하면 L자 화살표(꺾인 커넥터)가 반대 방향으로 그려져 연결 대상
+    도형에서 어긋난다 (HealthImaging deck slide 25 회귀).
+    """
+
+    def _spPr_with_custgeom(self, flip_h: bool, flip_v: bool):
+        from pptx.oxml import parse_xml
+
+        flip_attrs = ""
+        if flip_h:
+            flip_attrs += ' flipH="1"'
+        if flip_v:
+            flip_attrs += ' flipV="1"'
+        return parse_xml(
+            '<p:spPr xmlns:p="http://schemas.openxmlformats.org/'
+            'presentationml/2006/main" '
+            'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+            f"<a:xfrm{flip_attrs}>"
+            '<a:off x="0" y="0"/><a:ext cx="1371600" cy="711200"/></a:xfrm>'
+            "<a:custGeom><a:pathLst>"
+            '<a:path w="1371600" h="711200">'
+            '<a:moveTo><a:pt x="1371600" y="711200"/></a:moveTo>'
+            '<a:lnTo><a:pt x="1371600" y="0"/></a:lnTo>'
+            '<a:lnTo><a:pt x="0" y="0"/></a:lnTo>'
+            "</a:path></a:pathLst></a:custGeom></p:spPr>"
+        )
+
+    def test_no_flip_preserves_coords(self):
+        from ppt_generator.tools.pptx_import.ooxml_utils import custgeom_to_svg_path
+
+        d = custgeom_to_svg_path(self._spPr_with_custgeom(False, False))
+        assert d == "1371600 711200 M 1371600 711200 L 1371600 0 L 0 0"
+
+    def test_flip_h_mirrors_x(self):
+        from ppt_generator.tools.pptx_import.ooxml_utils import custgeom_to_svg_path
+
+        d = custgeom_to_svg_path(self._spPr_with_custgeom(True, False))
+        # x → 1371600 - x
+        assert d == "1371600 711200 M 0 711200 L 0 0 L 1371600 0"
+
+    def test_flip_hv_mirrors_both(self):
+        from ppt_generator.tools.pptx_import.ooxml_utils import custgeom_to_svg_path
+
+        d = custgeom_to_svg_path(self._spPr_with_custgeom(True, True))
+        # x → 1371600 - x, y → 711200 - y
+        assert d == "1371600 711200 M 0 0 L 0 711200 L 1371600 711200"
+
+    def test_flip_produces_distinct_paths(self):
+        """flip 조합이 다르면 결과 path 도 달라야 한다 (동일 경로로 뭉개지지 않음)."""
+        from ppt_generator.tools.pptx_import.ooxml_utils import custgeom_to_svg_path
+
+        paths = {
+            custgeom_to_svg_path(self._spPr_with_custgeom(fh, fv))
+            for fh in (False, True)
+            for fv in (False, True)
+        }
+        assert len(paths) == 4
