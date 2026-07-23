@@ -5,6 +5,7 @@ SVG path data를 OOXML custGeom XML로 변환하여 python-pptx 슬라이드에 
 
 from __future__ import annotations
 
+import math
 import re
 
 from lxml.etree import SubElement
@@ -16,6 +17,110 @@ from ppt_generator.interfaces.constants import (
 )
 from ppt_generator.interfaces.schemas import PptxShape
 from ppt_generator.tools.pptx.text_formatter import parse_color
+
+_DASH_STYLE_MAP = {
+    "dash": "dash",
+    "dot": "sysDot",
+}
+
+
+def _svg_arc_to_cubic(
+    start_x: float,
+    start_y: float,
+    rx: float,
+    ry: float,
+    rotation_deg: float,
+    large_arc: bool,
+    sweep: bool,
+    end_x: float,
+    end_y: float,
+) -> list[tuple[float, float, float, float, float, float]]:
+    """SVG endpoint arc를 90도 이하 cubic Bézier 구간으로 변환."""
+    rx = abs(rx)
+    ry = abs(ry)
+    if rx == 0 or ry == 0 or (start_x == end_x and start_y == end_y):
+        return []
+
+    phi = math.radians(rotation_deg % 360)
+    cos_phi = math.cos(phi)
+    sin_phi = math.sin(phi)
+    dx = (start_x - end_x) / 2
+    dy = (start_y - end_y) / 2
+    x1_prime = cos_phi * dx + sin_phi * dy
+    y1_prime = -sin_phi * dx + cos_phi * dy
+
+    radius_scale = (x1_prime**2) / (rx**2) + (y1_prime**2) / (ry**2)
+    if radius_scale > 1:
+        scale = math.sqrt(radius_scale)
+        rx *= scale
+        ry *= scale
+
+    numerator = max(
+        0.0,
+        rx**2 * ry**2 - rx**2 * y1_prime**2 - ry**2 * x1_prime**2,
+    )
+    denominator = rx**2 * y1_prime**2 + ry**2 * x1_prime**2
+    coefficient = 0.0 if denominator == 0 else math.sqrt(numerator / denominator)
+    if large_arc == sweep:
+        coefficient = -coefficient
+
+    cx_prime = coefficient * (rx * y1_prime / ry)
+    cy_prime = coefficient * (-ry * x1_prime / rx)
+    center_x = cos_phi * cx_prime - sin_phi * cy_prime + (start_x + end_x) / 2
+    center_y = sin_phi * cx_prime + cos_phi * cy_prime + (start_y + end_y) / 2
+
+    start_angle = math.atan2(
+        (y1_prime - cy_prime) / ry,
+        (x1_prime - cx_prime) / rx,
+    )
+    end_vector_x = (-x1_prime - cx_prime) / rx
+    end_vector_y = (-y1_prime - cy_prime) / ry
+    delta_angle = math.atan2(
+        ((x1_prime - cx_prime) / rx) * end_vector_y
+        - ((y1_prime - cy_prime) / ry) * end_vector_x,
+        ((x1_prime - cx_prime) / rx) * end_vector_x
+        + ((y1_prime - cy_prime) / ry) * end_vector_y,
+    )
+    if not sweep and delta_angle > 0:
+        delta_angle -= 2 * math.pi
+    elif sweep and delta_angle < 0:
+        delta_angle += 2 * math.pi
+
+    segment_count = max(1, math.ceil(abs(delta_angle) / (math.pi / 2)))
+    segment_angle = delta_angle / segment_count
+
+    def point(angle: float) -> tuple[float, float]:
+        return (
+            center_x + cos_phi * rx * math.cos(angle) - sin_phi * ry * math.sin(angle),
+            center_y + sin_phi * rx * math.cos(angle) + cos_phi * ry * math.sin(angle),
+        )
+
+    def derivative(angle: float) -> tuple[float, float]:
+        return (
+            -cos_phi * rx * math.sin(angle) - sin_phi * ry * math.cos(angle),
+            -sin_phi * rx * math.sin(angle) + cos_phi * ry * math.cos(angle),
+        )
+
+    curves = []
+    for index in range(segment_count):
+        angle_1 = start_angle + index * segment_angle
+        angle_2 = angle_1 + segment_angle
+        alpha = 4 / 3 * math.tan((angle_2 - angle_1) / 4)
+        p1 = point(angle_1)
+        p2 = point(angle_2)
+        d1 = derivative(angle_1)
+        d2 = derivative(angle_2)
+        curves.append(
+            (
+                p1[0] + alpha * d1[0],
+                p1[1] + alpha * d1[1],
+                p2[0] - alpha * d2[0],
+                p2[1] - alpha * d2[1],
+                p2[0],
+                p2[1],
+            )
+        )
+    return curves
 
 
 def add_freeform_from_svg(slide, shape_spec: PptxShape) -> None:
@@ -86,23 +191,38 @@ def add_freeform_from_svg(slide, shape_spec: PptxShape) -> None:
         except ValueError:
             return "0"
 
-    tokens = re.findall(r"[MLCAZ]|-?\d+(?:\.\d+)?", path_d)
+    tokens = re.findall(
+        r"[MLCAZ]|[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?",
+        path_d,
+    )
     i = 0
+    current_x = 0.0
+    current_y = 0.0
+    subpath_start_x = 0.0
+    subpath_start_y = 0.0
     while i < len(tokens):
         cmd = tokens[i]
         if cmd == "M" and i + 2 < len(tokens):
+            current_x = float(tokens[i + 1])
+            current_y = float(tokens[i + 2])
+            subpath_start_x = current_x
+            subpath_start_y = current_y
             move = SubElement(path_el, qn("a:moveTo"))
             pt = SubElement(move, qn("a:pt"))
             pt.set("x", _icoord(tokens[i + 1]))
             pt.set("y", _icoord(tokens[i + 2]))
             i += 3
         elif cmd == "L" and i + 2 < len(tokens):
+            current_x = float(tokens[i + 1])
+            current_y = float(tokens[i + 2])
             ln = SubElement(path_el, qn("a:lnTo"))
             pt = SubElement(ln, qn("a:pt"))
             pt.set("x", _icoord(tokens[i + 1]))
             pt.set("y", _icoord(tokens[i + 2]))
             i += 3
         elif cmd == "C" and i + 6 < len(tokens):
+            current_x = float(tokens[i + 5])
+            current_y = float(tokens[i + 6])
             bez = SubElement(path_el, qn("a:cubicBezTo"))
             for j in range(3):
                 pt = SubElement(bez, qn("a:pt"))
@@ -110,18 +230,38 @@ def add_freeform_from_svg(slide, shape_spec: PptxShape) -> None:
                 pt.set("y", _icoord(tokens[i + 2 + j * 2]))
             i += 7
         elif cmd == "A" and i + 7 < len(tokens):
-            # SVG arc: A rx ry x-axis-rotation large-arc-flag sweep-flag x y
-            # OOXML custGeom 은 SVG arc 를 직접 지원하지 않는다(arcTo 는 파라미터가
-            # 달라 무손실 변환 불가). 차트 원호(도넛/파이) export 시 crash 를 막기
-            # 위해 끝점으로의 직선(lnTo)으로 근사한다. HTML 렌더는 정확하며, 이는
-            # PPTX export 한정 근사다.
-            ln = SubElement(path_el, qn("a:lnTo"))
-            pt = SubElement(ln, qn("a:pt"))
-            pt.set("x", _icoord(tokens[i + 6]))
-            pt.set("y", _icoord(tokens[i + 7]))
+            end_x = float(tokens[i + 6])
+            end_y = float(tokens[i + 7])
+            curves = _svg_arc_to_cubic(
+                current_x,
+                current_y,
+                float(tokens[i + 1]),
+                float(tokens[i + 2]),
+                float(tokens[i + 3]),
+                bool(int(float(tokens[i + 4]))),
+                bool(int(float(tokens[i + 5]))),
+                end_x,
+                end_y,
+            )
+            if curves:
+                for curve in curves:
+                    bez = SubElement(path_el, qn("a:cubicBezTo"))
+                    for x, y in zip(curve[::2], curve[1::2], strict=True):
+                        pt = SubElement(bez, qn("a:pt"))
+                        pt.set("x", str(round(x)))
+                        pt.set("y", str(round(y)))
+            else:
+                ln = SubElement(path_el, qn("a:lnTo"))
+                pt = SubElement(ln, qn("a:pt"))
+                pt.set("x", str(round(end_x)))
+                pt.set("y", str(round(end_y)))
+            current_x = end_x
+            current_y = end_y
             i += 8
         elif cmd == "Z":
             SubElement(path_el, qn("a:close"))
+            current_x = subpath_start_x
+            current_y = subpath_start_y
             i += 1
         else:
             i += 1
@@ -146,6 +286,20 @@ def add_freeform_from_svg(slide, shape_spec: PptxShape) -> None:
             solid = SubElement(ln, qn("a:solidFill"))
             srgb = SubElement(solid, qn("a:srgbClr"))
             srgb.set("val", str(rgb))
+            dash = _DASH_STYLE_MAP.get((shape_spec.dash_style or "").lower())
+            if dash:
+                dash_el = SubElement(ln, qn("a:prstDash"))
+                dash_el.set("val", dash)
+            if shape_spec.start_arrow:
+                head = SubElement(ln, qn("a:headEnd"))
+                head.set("type", "triangle")
+                head.set("w", "med")
+                head.set("len", "med")
+            if shape_spec.end_arrow:
+                tail = SubElement(ln, qn("a:tailEnd"))
+                tail.set("type", "triangle")
+                tail.set("w", "med")
+                tail.set("len", "med")
     else:
         ln = SubElement(spPr, qn("a:ln"))
         SubElement(ln, qn("a:noFill"))

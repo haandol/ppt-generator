@@ -558,3 +558,40 @@ class TestFreeformExport:
         for pt in path_el.findall(f".//{qn('a:pt')}"):
             int(pt.get("x"))  # 정수여야 함 (예외 없이 파싱)
             int(pt.get("y"))
+
+    def test_svg_arcs_export_as_curves_instead_of_chords(self, service, tmp_path):
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    shapes=[
+                        PptxShape(
+                            left_px=100,
+                            top_px=100,
+                            width_px=200,
+                            height_px=200,
+                            shape_type="custom",
+                            fill_color="#4A90D9",
+                            svg_path=(
+                                "400 400 M 200 0 "
+                                "A 200 200 0 1 1 0 200 "
+                                "L 60 200 "
+                                "A 140 140 0 1 0 200 60 Z"
+                            ),
+                        )
+                    ],
+                )
+            ]
+        )
+
+        response = service.export_from_design_spec(
+            spec, output_dir=tmp_path, bg_image_policy="none"
+        )
+
+        slide = Presentation(response.pptx_path).slides[0]
+        freeform = next(
+            sp
+            for sp in slide.shapes._spTree.findall(qn("p:sp"))
+            if sp.find(f".//{qn('a:custGeom')}") is not None
+        )
+        curves = freeform.findall(f".//{qn('a:cubicBezTo')}")
+        assert len(curves) >= 4

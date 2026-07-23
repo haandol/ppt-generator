@@ -130,6 +130,59 @@ def _get_anchor(text_frame):
     return bodyPr.get("anchor") if bodyPr is not None else None
 
 
+class TestElbowConnectorExport:
+    """임포트된 elbow_points가 PPTX에서도 꺾인 커넥터로 유지되는지 검증."""
+
+    def test_exports_bent_connector_with_line_style(self, blank_slide):
+        spec = PptxShape(
+            left_px=100,
+            top_px=120,
+            width_px=240,
+            height_px=160,
+            shape_type="line",
+            border_color="#123456",
+            border_width_pt=2,
+            start_arrow=True,
+            end_arrow=True,
+            dash_style="dash",
+            elbow_points=[
+                [0.0, 0.0],
+                [0.5, 0.0],
+                [0.5, 1.0],
+                [1.0, 1.0],
+            ],
+        )
+
+        add_connector_from_spec(blank_slide, spec)
+
+        connector = blank_slide.shapes[0]
+        prst_geom = connector._element.find(f".//{qn('a:prstGeom')}")
+        line = connector._element.find(f".//{qn('a:ln')}")
+        assert prst_geom is not None
+        assert prst_geom.get("prst") == "bentConnector3"
+        assert line.find(qn("a:prstDash")).get("val") == "dash"
+        assert line.find(qn("a:headEnd")).get("type") == "triangle"
+        assert line.find(qn("a:tailEnd")).get("type") == "triangle"
+
+    def test_exports_mirrored_bent_connector(self, blank_slide):
+        spec = PptxShape(
+            left_px=100,
+            top_px=120,
+            width_px=240,
+            height_px=160,
+            shape_type="line",
+            elbow_points=[[1.0, 0.0], [0.0, 0.0], [0.0, 1.0]],
+        )
+
+        add_connector_from_spec(blank_slide, spec)
+
+        connector = blank_slide.shapes[0]
+        prst_geom = connector._element.find(f".//{qn('a:prstGeom')}")
+        xfrm = connector._element.find(f".//{qn('a:xfrm')}")
+        assert prst_geom.get("prst") == "bentConnector2"
+        assert xfrm.get("flipH") == "1"
+
+
 class TestTextPathVerticalAlignment:
     """shape_spec.text 경로에서 vertical_alignment 검증."""
 

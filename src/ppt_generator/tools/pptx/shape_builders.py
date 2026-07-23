@@ -8,6 +8,8 @@ PptxShape spec을 python-pptx 슬라이드 요소로 변환하는 함수를 제�
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from lxml.etree import SubElement
 from pptx.enum.shapes import MSO_CONNECTOR_TYPE, MSO_SHAPE
 from pptx.enum.text import MSO_AUTO_SIZE
@@ -78,6 +80,18 @@ _DASH_STYLE_MAP = {
     "dot": "sysDot",
 }
 
+_ELBOW_PRESETS = {
+    "bentConnector2": [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)],
+    "bentConnector3": [(0.0, 0.0), (0.5, 0.0), (0.5, 1.0), (1.0, 1.0)],
+    "bentConnector4": [
+        (0.0, 0.0),
+        (0.5, 0.0),
+        (0.5, 0.5),
+        (1.0, 0.5),
+        (1.0, 1.0),
+    ],
+}
+
 # rounded_rectangle 기본 라운딩 (corner_radius_px가 null일 때, HTML 렌더러와 동일)
 _ROUNDED_RECT_DEFAULT_RADIUS_PX = 8.0
 
@@ -112,6 +126,54 @@ def _is_compact_label(shape_spec: PptxShape, text: str) -> bool:
     return (
         abs(shape_spec.width_px) <= _COMPACT_BADGE_MAX_PX
         and abs(shape_spec.height_px) <= _COMPACT_BADGE_MAX_PX
+    )
+
+
+def _match_elbow_preset(
+    points: list[list[float]],
+) -> tuple[str, bool, bool] | None:
+    """정규화 elbow 꼭짓점을 OOXML bentConnector preset/flip으로 역매핑."""
+    tolerance = 1e-6
+    for preset, base in _ELBOW_PRESETS.items():
+        if len(points) != len(base):
+            continue
+        for flip_h in (False, True):
+            for flip_v in (False, True):
+                expected = [
+                    (
+                        1.0 - x if flip_h else x,
+                        1.0 - y if flip_v else y,
+                    )
+                    for x, y in base
+                ]
+                if all(
+                    abs(point[0] - target[0]) <= tolerance
+                    and abs(point[1] - target[1]) <= tolerance
+                    for point, target in zip(points, expected, strict=True)
+                ):
+                    return preset, flip_h, flip_v
+    return None
+
+
+def _add_freeform_elbow(slide, shape_spec: PptxShape) -> None:
+    """preset으로 표현할 수 없는 elbow를 열린 자유형 폴리라인으로 보존."""
+    points = shape_spec.elbow_points or []
+    if len(points) < 2:
+        return
+    viewbox_size = 100_000
+    commands = []
+    for index, (x, y) in enumerate(points):
+        command = "M" if index == 0 else "L"
+        commands.append(
+            f"{command} {round(x * viewbox_size)} {round(y * viewbox_size)}"
+        )
+    add_freeform_from_svg(
+        slide,
+        replace(
+            shape_spec,
+            shape_type="custom",
+            svg_path=f"{viewbox_size} {viewbox_size} {' '.join(commands)}",
+        ),
     )
 
 
@@ -284,12 +346,28 @@ def add_connector_from_spec(slide, shape_spec: PptxShape) -> None:
     python-pptx 의 add_connector 가 begin/end 좌표 비교로 flipH/flipV 를 자동
     설정하므로 호출자는 begin/end 좌표만 정확히 넘기면 된다.
     """
-    begin_px, end_px = line_endpoints(
-        shape_spec.left_px,
-        shape_spec.top_px,
-        shape_spec.width_px,
-        shape_spec.height_px,
+    elbow_match = (
+        _match_elbow_preset(shape_spec.elbow_points)
+        if shape_spec.elbow_points
+        else None
     )
+    if shape_spec.elbow_points and elbow_match is None:
+        _add_freeform_elbow(slide, shape_spec)
+        return
+
+    if elbow_match:
+        begin_px = (shape_spec.left_px, shape_spec.top_px)
+        end_px = (
+            shape_spec.left_px + abs(shape_spec.width_px),
+            shape_spec.top_px + abs(shape_spec.height_px),
+        )
+    else:
+        begin_px, end_px = line_endpoints(
+            shape_spec.left_px,
+            shape_spec.top_px,
+            shape_spec.width_px,
+            shape_spec.height_px,
+        )
 
     begin_x = Inches(begin_px[0] * EXPORT_PX_TO_INCHES_X)
     begin_y = Inches(begin_px[1] * EXPORT_PX_TO_INCHES_Y)
@@ -297,12 +375,25 @@ def add_connector_from_spec(slide, shape_spec: PptxShape) -> None:
     end_y = Inches(end_px[1] * EXPORT_PX_TO_INCHES_Y)
 
     connector = slide.shapes.add_connector(
-        MSO_CONNECTOR_TYPE.STRAIGHT,
+        MSO_CONNECTOR_TYPE.ELBOW if elbow_match else MSO_CONNECTOR_TYPE.STRAIGHT,
         begin_x,
         begin_y,
         end_x,
         end_y,
     )
+
+    if elbow_match:
+        preset, flip_h, flip_v = elbow_match
+        spPr = connector._element.find(qn("p:spPr"))
+        prst_geom = spPr.find(qn("a:prstGeom"))
+        prst_geom.set("prst", preset)
+        xfrm = spPr.find(qn("a:xfrm"))
+        xfrm.attrib.pop("flipH", None)
+        xfrm.attrib.pop("flipV", None)
+        if flip_h:
+            xfrm.set("flipH", "1")
+        if flip_v:
+            xfrm.set("flipV", "1")
 
     # 회전: import 는 회전 前 bbox 기준 좌표 + rotation 을 저장하므로 export 도
     # 동일하게 begin/end(회전 前) 에 rotation 을 얹어야 왕복이 맞는다.
