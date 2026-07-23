@@ -7,11 +7,13 @@ import pytest
 from ppt_generator.interfaces.line_geometry import line_endpoints
 from ppt_generator.interfaces.schemas import (
     PptxImage,
+    PptxLinearGradient,
     PptxParagraph,
     PptxShape,
     PptxSlideSpec,
     PptxTextBox,
     PptxTextRun,
+    PptxGradientStop,
 )
 from ppt_generator.tools.slides.html_renderer import (
     image_to_html,
@@ -662,8 +664,33 @@ class TestShapePadding:
         assert "padding:6px 10px 4px 12px" in html
 
 
+class TestShapeGradient:
+    def test_linear_gradient_renders_as_css_background(self):
+        shape = PptxShape(
+            left_px=0,
+            top_px=0,
+            width_px=200,
+            height_px=80,
+            fill_color="#99F499",
+            fill_gradient=PptxLinearGradient(
+                stops=[
+                    PptxGradientStop(position=0.0, color="#99F499"),
+                    PptxGradientStop(position=1.0, color="#99C1E7"),
+                ],
+                angle_deg=0.0,
+            ),
+        )
+
+        html = shape_to_html(shape)
+
+        assert "background-color:#99F499" in html
+        assert (
+            "background-image:linear-gradient(90deg, #99F499 0%, #99C1E7 100%)" in html
+        )
+
+
 class TestParagraphSpacing:
-    def test_paragraph_spacing_is_rendered_as_non_collapsing_padding(self):
+    def test_single_paragraph_spacing_is_rendered_as_padding(self):
         paragraph = PptxParagraph(
             runs=[PptxTextRun(text="versionId", font_size_pt=16)],
             space_before_pt=3,
@@ -674,6 +701,28 @@ class TestParagraphSpacing:
 
         assert "padding-top:3pt" in html
         assert "padding-bottom:3pt" in html
+
+    def test_adjacent_paragraph_spacing_uses_powerpoint_max_semantics(self):
+        textbox = PptxTextBox(
+            left_px=0,
+            top_px=0,
+            width_px=400,
+            height_px=200,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text=f"line {index}", font_size_pt=16)],
+                    space_before_pt=3,
+                    space_after_pt=3,
+                )
+                for index in range(3)
+            ],
+            autofit="none",
+        )
+
+        html = textbox_to_html(textbox)
+
+        assert html.count("padding-top:3pt") == 3
+        assert html.count("padding-bottom:3pt") == 1
 
 
 class TestTabIndent:
@@ -691,3 +740,58 @@ class TestTabIndent:
     def test_tab_spacer_scales_with_font_scale(self):
         html = run_to_html(PptxTextRun(text="\tx", font_size_pt=16), font_scale=0.5)
         assert "width:48.0px" in html
+
+    def test_tabbed_default_spacing_uses_powerpoint_code_line_height(self):
+        textbox = PptxTextBox(
+            left_px=0,
+            top_px=0,
+            width_px=400,
+            height_px=300,
+            paragraphs=[
+                PptxParagraph(
+                    runs=[PptxTextRun(text='\t"versionId": "4"', font_size_pt=16)],
+                    default_tab_size_px=48,
+                )
+            ],
+            line_spacing_pt=19.2,
+            line_spacing_is_default=True,
+            autofit="none",
+        )
+
+        html = textbox_to_html(textbox)
+
+        assert "line-height:20.64pt" in html
+
+    def test_ordinary_default_spacing_keeps_existing_line_height(self):
+        textbox = PptxTextBox(
+            left_px=0,
+            top_px=0,
+            width_px=400,
+            height_px=300,
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="ordinary body", font_size_pt=16)])
+            ],
+            line_spacing_pt=19.2,
+            line_spacing_is_default=True,
+            autofit="none",
+        )
+
+        html = textbox_to_html(textbox)
+
+        assert "line-height:19.2pt" in html
+        assert "line-height:20.64pt" not in html
+
+
+class TestBulletIndent:
+    def test_explicit_margin_and_hanging_indent_control_html_width(self):
+        paragraph = PptxParagraph(
+            runs=[PptxTextRun(text="Bullet body", font_size_pt=16)],
+            bullet_level=0,
+            margin_left_px=30,
+            indent_px=-30,
+        )
+
+        html = paragraph_to_html(paragraph)
+
+        assert "margin-left:30px" in html
+        assert "padding-left:0" in html

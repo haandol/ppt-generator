@@ -29,6 +29,7 @@ from ppt_generator.interfaces.schemas import (
 from ppt_generator.interfaces.text_measurement import (
     calculate_shrink_font_scale,
     scaled_line_spacing_pt,
+    uses_inherited_tab_stops,
 )
 from ppt_generator.tools.pptx.shape_builders import (
     add_auto_shape_from_spec,
@@ -285,7 +286,8 @@ class SlideBuilder:
         # 소비 높이가 실제로 줄어 오버플로가 해소된다 (HTML 렌더러와 공유 헬퍼).
         effective_line_spacing = scaled_line_spacing_pt(tb.line_spacing_pt, font_scale)
         if getattr(tb, "line_spacing_is_default", False):
-            apply_default_line_spacing(tf, tb.paragraphs, font_scale=font_scale)
+            if not uses_inherited_tab_stops(tb.paragraphs):
+                apply_default_line_spacing(tf, tb.paragraphs, font_scale=font_scale)
         elif effective_line_spacing:
             apply_line_spacing(
                 tf, effective_line_spacing, tb.paragraphs, font_scale=font_scale

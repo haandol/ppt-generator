@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
+from ppt_generator.interfaces.constants import TEXT_MEASURE_PX_PER_PT
 from ppt_generator.interfaces.schemas import PptxParagraph, PptxTextRun
 from ppt_generator.interfaces.text_measurement import (
     _is_wide_char,
@@ -197,6 +200,43 @@ class TestCalculateRequiredHeight:
 
     def test_empty_paragraphs(self) -> None:
         assert calculate_required_height([], 500) == 0.0
+
+    def test_paragraph_spacing_uses_max_at_adjacent_boundaries(self) -> None:
+        paragraphs = [
+            PptxParagraph(
+                runs=[PptxTextRun(text=f"line {index}", font_size_pt=12)],
+                space_before_pt=3,
+                space_after_pt=3,
+            )
+            for index in range(3)
+        ]
+
+        result = calculate_required_height(
+            paragraphs,
+            1000,
+            line_spacing_pt=12,
+        )
+
+        expected = (3 * 12 + 4 * 3) * TEXT_MEASURE_PX_PER_PT
+        assert result == pytest.approx(expected)
+
+    def test_explicit_bullet_margin_controls_available_width(self) -> None:
+        paragraph = PptxParagraph(
+            runs=[PptxTextRun(text="abcdefgh", font_size_pt=10)],
+            bullet_level=0,
+            margin_left_px=10,
+            indent_px=-10,
+        )
+        default_indent = replace(
+            paragraph,
+            margin_left_px=None,
+            indent_px=None,
+        )
+
+        explicit_height = calculate_required_height([paragraph], 70)
+        default_height = calculate_required_height([default_indent], 70)
+
+        assert explicit_height < default_height
 
 
 # ---------------------------------------------------------------------------

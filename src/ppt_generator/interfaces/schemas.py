@@ -95,6 +95,9 @@ class PptxParagraph:
     alignment: str | None = None  # 'left', 'center', 'right'
     space_before_pt: float | None = None
     space_after_pt: float | None = None
+    margin_left_px: float | None = None
+    indent_px: float | None = None
+    default_tab_size_px: float | None = None
 
 
 @dataclass(frozen=True)
@@ -130,6 +133,22 @@ class PptxTextBox:
 
 
 @dataclass(frozen=True)
+class PptxGradientStop:
+    """선형 그라데이션의 정규화 위치와 RGB 색상."""
+
+    position: float
+    color: str
+
+
+@dataclass(frozen=True)
+class PptxLinearGradient:
+    """OOXML 방향 기준 선형 그라데이션. 0도는 왼쪽에서 오른쪽이다."""
+
+    stops: list[PptxGradientStop] = field(default_factory=list)
+    angle_deg: float = 0.0
+
+
+@dataclass(frozen=True)
 class PptxShape:
     """Shape: position/size, background color, inner text (optional).
 
@@ -149,6 +168,7 @@ class PptxShape:
     height_px: float
     shape_type: str = "rectangle"
     fill_color: str | None = None
+    fill_gradient: PptxLinearGradient | None = None
     border_color: str | None = None
     border_width_pt: float | None = None
     corner_radius_px: float | None = None

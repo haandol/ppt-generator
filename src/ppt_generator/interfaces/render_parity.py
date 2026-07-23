@@ -11,7 +11,9 @@ from ppt_generator.interfaces.schemas import (
     GridCell,
     GridPlan,
     LayoutNode,
+    PptxGradientStop,
     PptxImage,
+    PptxLinearGradient,
     PptxParagraph,
     PptxShape,
     PptxSlideSpec,
@@ -98,6 +100,21 @@ RENDER_FIELD_POLICIES: dict[type, dict[str, RenderFieldPolicy]] = {
             "alignment",
             "space_before_pt",
             "space_after_pt",
+            "margin_left_px",
+            "indent_px",
+            "default_tab_size_px",
+        ),
+    },
+    PptxGradientStop: {
+        **_shared(
+            "position",
+            "color",
+        ),
+    },
+    PptxLinearGradient: {
+        **_shared(
+            "stops",
+            "angle_deg",
         ),
     },
     PptxTextBox: {
@@ -119,7 +136,7 @@ RENDER_FIELD_POLICIES: dict[type, dict[str, RenderFieldPolicy]] = {
         ),
         **_scoped(
             RenderFieldKind.PPTX_ONLY,
-            "HTML용 기본 행간 근사값을 PPTX 문단별 폰트 크기로 정규화하는 표식이다.",
+            "HTML용 기본 행간 근사값을 PPTX에 명시하지 않고 원본의 기본 행간 의미를 보존하는 표식이다.",
             "line_spacing_is_default",
         ),
         **_scoped(
@@ -137,6 +154,7 @@ RENDER_FIELD_POLICIES: dict[type, dict[str, RenderFieldPolicy]] = {
             "height_px",
             "shape_type",
             "fill_color",
+            "fill_gradient",
             "border_color",
             "border_width_pt",
             "corner_radius_px",
@@ -162,7 +180,7 @@ RENDER_FIELD_POLICIES: dict[type, dict[str, RenderFieldPolicy]] = {
         ),
         **_scoped(
             RenderFieldKind.PPTX_ONLY,
-            "HTML용 기본 행간 근사값을 PPTX 문단별 폰트 크기로 정규화하는 표식이다.",
+            "HTML용 기본 행간 근사값을 PPTX에 명시하지 않고 원본의 기본 행간 의미를 보존하는 표식이다.",
             "line_spacing_is_default",
         ),
         **_scoped(

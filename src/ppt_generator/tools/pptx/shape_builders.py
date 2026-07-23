@@ -29,6 +29,7 @@ from ppt_generator.interfaces.schemas import PptxShape
 from ppt_generator.interfaces.text_measurement import (
     calculate_shrink_font_scale,
     scaled_line_spacing_pt,
+    uses_inherited_tab_stops,
 )
 from ppt_generator.tools.pptx.freeform_builder import add_freeform_from_svg
 from ppt_generator.tools.pptx.text_formatter import (
@@ -124,6 +125,59 @@ def _resolved_padding_lr(value: float | None) -> float:
 def _resolved_padding_tb(value: float | None) -> float:
     """상하 padding 을 해석한다 (None 이면 HTML 렌더러와 동일한 기본값)."""
     return value if value is not None else _DEFAULT_SHAPE_PADDING_TB_PX
+
+
+def _apply_shape_fill(shape, shape_spec: PptxShape) -> None:
+    """단색 폴백을 유지하면서 선형 그라데이션이면 native OOXML로 기록한다."""
+    gradient = shape_spec.fill_gradient
+    valid_stops: list[tuple[float, str]] = []
+    if gradient is not None:
+        for stop in sorted(gradient.stops, key=lambda item: item.position):
+            rgb = parse_color(stop.color)
+            if rgb is None:
+                continue
+            position = min(max(float(stop.position), 0.0), 1.0)
+            valid_stops.append((position, str(rgb)))
+
+    if len(valid_stops) >= 2:
+        sp_pr = shape._element.find(qn("p:spPr"))
+        fill_tags = {
+            qn("a:noFill"),
+            qn("a:solidFill"),
+            qn("a:gradFill"),
+            qn("a:blipFill"),
+            qn("a:pattFill"),
+            qn("a:grpFill"),
+        }
+        for child in list(sp_pr):
+            if child.tag in fill_tags:
+                sp_pr.remove(child)
+
+        gradient_element = SubElement(sp_pr, qn("a:gradFill"))
+        stops_element = SubElement(gradient_element, qn("a:gsLst"))
+        for position, color in valid_stops:
+            stop_element = SubElement(stops_element, qn("a:gs"))
+            stop_element.set("pos", str(round(position * 100000)))
+            color_element = SubElement(stop_element, qn("a:srgbClr"))
+            color_element.set("val", color)
+        linear = SubElement(gradient_element, qn("a:lin"))
+        angle = round(float(gradient.angle_deg) * 60000) % 21600000
+        linear.set("ang", str(angle))
+        linear.set("scaled", "1")
+
+        line = sp_pr.find(qn("a:ln"))
+        if line is not None:
+            sp_pr.remove(gradient_element)
+            sp_pr.insert(sp_pr.index(line), gradient_element)
+        return
+
+    if shape_spec.fill_color:
+        rgb = parse_color(shape_spec.fill_color)
+        if rgb:
+            shape.fill.solid()
+            shape.fill.fore_color.rgb = rgb
+            return
+    shape.fill.background()
 
 
 def _is_compact_label(shape_spec: PptxShape, text: str) -> bool:
@@ -252,13 +306,7 @@ def add_auto_shape_from_spec(slide, shape_spec: PptxShape) -> None:
                 gd.set("name", "adj")
                 gd.set("fmla", f"val {adj_val}")
 
-    if shape_spec.fill_color:
-        rgb = parse_color(shape_spec.fill_color)
-        if rgb:
-            shape.fill.solid()
-            shape.fill.fore_color.rgb = rgb
-    else:
-        shape.fill.background()
+    _apply_shape_fill(shape, shape_spec)
 
     if shape_spec.border_color:
         rgb = parse_color(shape_spec.border_color)
@@ -308,11 +356,12 @@ def add_auto_shape_from_spec(slide, shape_spec: PptxShape) -> None:
             shape_spec.line_spacing_pt, font_scale
         )
         if shape_spec.line_spacing_is_default:
-            apply_default_line_spacing(
-                tf,
-                shape_spec.paragraphs,
-                font_scale=font_scale,
-            )
+            if not uses_inherited_tab_stops(shape_spec.paragraphs):
+                apply_default_line_spacing(
+                    tf,
+                    shape_spec.paragraphs,
+                    font_scale=font_scale,
+                )
         elif effective_line_spacing:
             apply_line_spacing(
                 tf,

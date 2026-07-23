@@ -69,7 +69,12 @@ def _base_family_names(font_name: str) -> list[str]:
     return candidates
 
 
-def run_to_html(run: PptxTextRun, *, font_scale: float = 1.0) -> str:
+def run_to_html(
+    run: PptxTextRun,
+    *,
+    font_scale: float = 1.0,
+    tab_size_px: float | None = None,
+) -> str:
     """PptxTextRun -> <span> 변환.
 
     font_scale 이 1.0 미만이면 shrink_text autofit 으로 폰트를 비례 축소한다.
@@ -114,7 +119,8 @@ def run_to_html(run: PptxTextRun, *, font_scale: float = 1.0) -> str:
     # (약 20px)로 대체해 원본 대비 들여쓰기가 크게 부족했고, 절대 배치된 도형(예:
     # 코드블록 위 강조 박스)과 텍스트가 어긋났다(slide13). 정확한 탭 stop 누적 정렬은
     # 불가하지만, 탭 1개=1인치 고정 spacer 가 PPT 기본 동작에 가장 근접한다.
-    tab_px = _TAB_STOP_PX * (font_scale if 0 < font_scale < 1.0 else 1.0)
+    effective_tab_px = safe_number(tab_size_px, _TAB_STOP_PX)
+    tab_px = effective_tab_px * (font_scale if 0 < font_scale < 1.0 else 1.0)
     tab_span = f'<span style="display:inline-block;width:{tab_px:.1f}px"></span>'
 
     def _preserve_ws(part: str) -> str:
@@ -154,7 +160,14 @@ def paragraph_to_html(
     line_height_pt 가 주어지면 <p>/<li> 에 직접 line-height 를 적용한다 — 전역 CSS
     `p{line-height:1.5}` 가 컨테이너 상속을 덮어쓰는 것을 막기 위함이다 (import/0003).
     """
-    runs_html = "".join(run_to_html(r, font_scale=font_scale) for r in para.runs)
+    runs_html = "".join(
+        run_to_html(
+            r,
+            font_scale=font_scale,
+            tab_size_px=para.default_tab_size_px,
+        )
+        for r in para.runs
+    )
     style_props: list[str] = []
     alignment = safe_alignment(para.alignment)
     if alignment:
@@ -174,8 +187,16 @@ def paragraph_to_html(
 
     bullet_level = safe_number(para.bullet_level, -1)
     if bullet_level >= 0:
-        indent = 20 * (int(bullet_level) + 1)
-        li_styles = [f"margin-left:{css_number(indent)}px"]
+        explicit_margin = getattr(para, "margin_left_px", None)
+        margin = (
+            safe_number(explicit_margin)
+            if explicit_margin is not None
+            else 20 * (int(bullet_level) + 2)
+        )
+        li_styles = [
+            f"margin-left:{css_number(margin)}px",
+            "padding-left:0",
+        ]
         if alignment:
             li_styles.append(f"text-align:{alignment}")
         if nowrap:
@@ -186,5 +207,15 @@ def paragraph_to_html(
             li_styles.append(f"padding-top:{css_number(space_before)}pt")
         if space_after > 0:
             li_styles.append(f"padding-bottom:{css_number(space_after)}pt")
-        return f'<li style="{";".join(li_styles)}">{runs_html}</li>'
+        indent_px = safe_number(getattr(para, "indent_px", None))
+        marker = ""
+        if explicit_margin is not None and indent_px < 0:
+            marker_width = abs(indent_px)
+            li_styles.extend(["position:relative", "list-style:none"])
+            marker = (
+                f'<span aria-hidden="true" style="position:absolute;'
+                f"left:{css_number(indent_px)}px;width:{css_number(marker_width)}px;"
+                'text-align:center">&#8226;</span>'
+            )
+        return f'<li style="{";".join(li_styles)}">{marker}{runs_html}</li>'
     return f"<p{style_attr}>{runs_html}</p>"

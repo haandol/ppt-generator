@@ -22,6 +22,8 @@ from ppt_generator.interfaces.render_parity import (
 )
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
+    PptxGradientStop,
+    PptxLinearGradient,
     PptxParagraph,
     PptxShape,
     PptxSlideSpec,
@@ -79,6 +81,13 @@ def _parity_spec() -> DesignSpec:
                         height_px=120,
                         shape_type="rounded_rectangle",
                         fill_color="#DDEEFF",
+                        fill_gradient=PptxLinearGradient(
+                            stops=[
+                                PptxGradientStop(0.0, "#DDEEFF"),
+                                PptxGradientStop(1.0, "#AABBCC"),
+                            ],
+                            angle_deg=0.0,
+                        ),
                         border_color="#234567",
                         border_width_pt=2,
                         corner_radius_px=10,
@@ -127,7 +136,7 @@ def _parity_spec() -> DesignSpec:
                             PptxParagraph(
                                 runs=[
                                     PptxTextRun(
-                                        text="Primary",
+                                        text="Primary\tValue",
                                         font_size_pt=14,
                                         color="#445566",
                                         bold=True,
@@ -139,6 +148,7 @@ def _parity_spec() -> DesignSpec:
                                 alignment="left",
                                 space_before_pt=3,
                                 space_after_pt=5,
+                                default_tab_size_px=48,
                             ),
                             PptxParagraph(
                                 runs=[
@@ -150,6 +160,8 @@ def _parity_spec() -> DesignSpec:
                                 ],
                                 bullet_level=0,
                                 alignment="left",
+                                margin_left_px=30,
+                                indent_px=-30,
                             ),
                         ],
                         line_spacing_pt=24,
@@ -204,6 +216,9 @@ class TestCrossRenderContract:
         assert 'data-speaker-notes="Parity notes"' in html
         assert "left:40px;top:50px;width:280px;height:120px" in html
         assert "background-color:#DDEEFF" in html
+        assert (
+            "background-image:linear-gradient(90deg, #DDEEFF 0%, #AABBCC 100%)" in html
+        )
         assert "border:2pt solid #234567" in html
         assert "border-radius:10px" in html
         assert "transform:rotate(15deg)" in html
@@ -217,7 +232,8 @@ class TestCrossRenderContract:
         assert "padding:7px 11px 5px 9px" in html
         assert html.count("line-height:24pt") >= 3
         assert "padding-top:3pt" in html
-        assert "padding-bottom:5pt" in html
+        assert "padding-top:5pt" in html
+        assert "width:48.0px" in html
         assert "font-size:14.00pt" in html
         assert "color:#445566" in html
         assert "font-weight:bold" in html
@@ -225,6 +241,8 @@ class TestCrossRenderContract:
         assert "font-family:'Arial'" in html
         assert 'href="https://example.com"' in html
         assert "<li " in html
+        assert "margin-left:30px" in html
+        assert "padding-left:0" in html
         assert "box-shadow" not in html
 
         assert str(slide.background.fill.fore_color.rgb) == "123456"
@@ -248,7 +266,12 @@ class TestCrossRenderContract:
         assert _px_y(card.top) == pytest.approx(50, abs=0.01)
         assert _px_x(card.width) == pytest.approx(280, abs=0.01)
         assert _px_y(card.height) == pytest.approx(120, abs=0.01)
-        assert str(card.fill.fore_color.rgb) == "DDEEFF"
+        card_gradient = card._element.find(qn("p:spPr")).find(qn("a:gradFill"))
+        card_stops = card_gradient.find(qn("a:gsLst")).findall(qn("a:gs"))
+        assert [stop.find(qn("a:srgbClr")).get("val") for stop in card_stops] == [
+            "DDEEFF",
+            "AABBCC",
+        ]
         assert str(card.line.color.rgb) == "234567"
         assert card.line.width.pt == pytest.approx(2)
         assert card.rotation == pytest.approx(15)
@@ -273,8 +296,9 @@ class TestCrossRenderContract:
         assert textbox.text_frame.margin_top == pytest.approx(7 * PX_TO_EMU)
         assert textbox.text_frame.margin_bottom == pytest.approx(5 * PX_TO_EMU)
         assert textbox.text_frame.vertical_anchor == MSO_ANCHOR.MIDDLE
-
         primary = textbox.text_frame.paragraphs[0]
+        primary_ppr = primary._p.get_or_add_pPr()
+        assert int(primary_ppr.get("defTabSz")) == pytest.approx(48 * PX_TO_EMU)
         assert primary.alignment == PP_ALIGN.LEFT
         assert primary.space_before.pt == pytest.approx(3)
         assert primary.space_after.pt == pytest.approx(5)
@@ -288,7 +312,10 @@ class TestCrossRenderContract:
         assert run.hyperlink.address == "https://example.com"
 
         bullet = textbox.text_frame.paragraphs[1]
+        bullet_ppr = bullet._p.get_or_add_pPr()
         assert bullet._p.find(f".//{qn('a:buChar')}") is not None
+        assert int(bullet_ppr.get("marL")) == pytest.approx(30 * PX_TO_EMU)
+        assert int(bullet_ppr.get("indent")) == pytest.approx(-30 * PX_TO_EMU)
 
         effect_refs = [
             effect_ref.get("idx")

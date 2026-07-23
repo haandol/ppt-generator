@@ -12,11 +12,13 @@ from pptx.util import Inches
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
     PptxImage,
+    PptxLinearGradient,
     PptxParagraph,
     PptxShape,
     PptxSlideSpec,
     PptxTextBox,
     PptxTextRun,
+    PptxGradientStop,
 )
 from ppt_generator.interfaces.spec_utils import (
     design_spec_to_json,
@@ -1270,6 +1272,38 @@ class TestImageSrcSerialization:
         assert paragraph.space_after_pt == 3
         assert parsed.slides[0].textboxes[0].line_spacing_is_default is True
 
+    def test_bullet_indent_round_trips_through_json(self):
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    textboxes=[
+                        PptxTextBox(
+                            left_px=0,
+                            top_px=0,
+                            width_px=300,
+                            height_px=100,
+                            paragraphs=[
+                                PptxParagraph(
+                                    runs=[PptxTextRun(text="bullet")],
+                                    bullet_level=0,
+                                    margin_left_px=30,
+                                    indent_px=-30,
+                                    default_tab_size_px=96,
+                                )
+                            ],
+                        )
+                    ]
+                )
+            ]
+        )
+
+        parsed = parse_design_spec_json(design_spec_to_json(spec))
+        paragraph = parsed.slides[0].textboxes[0].paragraphs[0]
+
+        assert paragraph.margin_left_px == 30
+        assert paragraph.indent_px == -30
+        assert paragraph.default_tab_size_px == 96
+
     def test_image_src_serialized_in_json(self):
         """PptxImage.src가 JSON 직렬화에 포함되는지 검증."""
         spec = DesignSpec(
@@ -1602,6 +1636,56 @@ class TestLineSpacingExtraction:
             pytest.approx(16),
             pytest.approx(14),
         ]
+
+    def test_default_spacing_with_inherited_tabs_keeps_native_line_spacing(
+        self, tmp_path
+    ):
+        from pptx.oxml.ns import qn
+
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    textboxes=[
+                        PptxTextBox(
+                            left_px=100,
+                            top_px=100,
+                            width_px=400,
+                            height_px=200,
+                            line_spacing_pt=19.2,
+                            line_spacing_is_default=True,
+                            paragraphs=[
+                                PptxParagraph(
+                                    runs=[
+                                        PptxTextRun(
+                                            text='\t"versionId": "4"',
+                                            font_size_pt=16,
+                                        )
+                                    ],
+                                    default_tab_size_px=96,
+                                )
+                            ],
+                        )
+                    ]
+                )
+            ]
+        )
+
+        response = ExportService().export_from_design_spec(
+            spec,
+            output_dir=tmp_path,
+            bg_image_policy="none",
+        )
+        paragraph = (
+            Presentation(response.pptx_path)
+            .slides[0]
+            .shapes[0]
+            .text_frame.paragraphs[0]
+        )
+        p_pr = paragraph._p.find(qn("a:pPr"))
+
+        assert paragraph.line_spacing is None
+        assert p_pr.find(qn("a:lnSpc")) is None
+        assert int(p_pr.get("defTabSz")) == pytest.approx(96 * 9525)
 
     def test_direct_multiple_spacing_converts_to_pt(self):
         # 문단에 배수 줄간격(0.9)이 직접 지정되면 폰트 크기(20pt)와 곱해 pt 로 환산.
@@ -2004,6 +2088,164 @@ class TestBentConnector:
         assert "marker-end" in html
 
 
+class TestExplicitBulletIndent:
+    def test_import_preserves_direct_margin_and_hanging_indent(self, tmp_path):
+        from pptx.oxml.ns import qn
+        from pptx.util import Inches, Pt
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        textbox = slide.shapes.add_textbox(
+            Inches(1),
+            Inches(1),
+            Inches(4),
+            Inches(2),
+        )
+        paragraph = textbox.text_frame.paragraphs[0]
+        paragraph.text = "Bullet body"
+        paragraph.runs[0].font.size = Pt(16)
+        ppr = paragraph._p.get_or_add_pPr()
+        ppr.set("marL", "285750")
+        ppr.set("indent", "-285750")
+        bullet = ppr.makeelement(qn("a:buChar"), {})
+        bullet.set("char", "\u2022")
+        ppr.append(bullet)
+        path = tmp_path / "bullet-indent.pptx"
+        prs.save(path)
+
+        imported, _ = ImportService().import_from_file(path)
+        imported_paragraph = imported.slides[0].textboxes[0].paragraphs[0]
+
+        assert imported_paragraph.margin_left_px == pytest.approx(30)
+        assert imported_paragraph.indent_px == pytest.approx(-30)
+
+    def test_export_restores_explicit_margin_and_hanging_indent(self, tmp_path):
+        from pptx.oxml.ns import qn
+
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    textboxes=[
+                        PptxTextBox(
+                            left_px=100,
+                            top_px=100,
+                            width_px=400,
+                            height_px=120,
+                            paragraphs=[
+                                PptxParagraph(
+                                    runs=[PptxTextRun(text="Bullet body")],
+                                    bullet_level=0,
+                                    margin_left_px=30,
+                                    indent_px=-30,
+                                )
+                            ],
+                        )
+                    ]
+                )
+            ]
+        )
+
+        response = ExportService().export_from_design_spec(
+            spec,
+            output_dir=tmp_path,
+            bg_image_policy="none",
+        )
+        paragraph = (
+            Presentation(response.pptx_path)
+            .slides[0]
+            .shapes[0]
+            .text_frame.paragraphs[0]
+        )
+        ppr = paragraph._p.get_or_add_pPr()
+
+        assert int(ppr.get("marL")) == pytest.approx(30 * 9525)
+        assert int(ppr.get("indent")) == pytest.approx(-30 * 9525)
+        assert ppr.find(qn("a:buChar")) is not None
+
+
+class TestDefaultTabSize:
+    def test_import_preserves_paragraph_default_tab_size(self, tmp_path):
+        from pptx.util import Inches
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        textbox = slide.shapes.add_textbox(
+            Inches(1),
+            Inches(1),
+            Inches(4),
+            Inches(2),
+        )
+        textbox.text_frame.text = "left\tright"
+        p_pr = textbox.text_frame.paragraphs[0]._p.get_or_add_pPr()
+        p_pr.set("defTabSz", "914400")
+        path = tmp_path / "default-tab.pptx"
+        prs.save(path)
+
+        imported, _ = ImportService().import_from_file(path)
+
+        paragraph = imported.slides[0].textboxes[0].paragraphs[0]
+        assert paragraph.default_tab_size_px == pytest.approx(96)
+
+    def test_import_resolves_master_inherited_default_tab_size(self, tmp_path):
+        from pptx.oxml.ns import qn
+        from pptx.util import Inches
+
+        prs = Presentation()
+        master = prs.slide_masters[0]
+        tx_styles = master.element.find(qn("p:txStyles"))
+        other_style = tx_styles.find(qn("p:otherStyle"))
+        level_one = other_style.find(qn("a:lvl1pPr"))
+        level_one.set("defTabSz", "457200")
+
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        textbox = slide.shapes.add_textbox(
+            Inches(1),
+            Inches(1),
+            Inches(4),
+            Inches(2),
+        )
+        textbox.text_frame.text = "left\tright"
+        path = tmp_path / "inherited-default-tab.pptx"
+        prs.save(path)
+
+        imported, _ = ImportService().import_from_file(path)
+
+        paragraph = imported.slides[0].textboxes[0].paragraphs[0]
+        assert paragraph.default_tab_size_px == pytest.approx(48)
+
+    def test_export_restores_paragraph_default_tab_size(self, tmp_path):
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    textboxes=[
+                        PptxTextBox(
+                            left_px=100,
+                            top_px=100,
+                            width_px=400,
+                            height_px=120,
+                            paragraphs=[
+                                PptxParagraph(
+                                    runs=[PptxTextRun(text="left\tright")],
+                                    default_tab_size_px=96,
+                                )
+                            ],
+                        )
+                    ]
+                )
+            ]
+        )
+
+        response = ExportService().export_from_design_spec(
+            spec,
+            output_dir=tmp_path,
+            bg_image_policy="none",
+        )
+        textbox = Presentation(response.pptx_path).slides[0].shapes[0]
+        p_pr = textbox.text_frame.paragraphs[0]._p.get_or_add_pPr()
+
+        assert int(p_pr.get("defTabSz")) == pytest.approx(96 * 9525)
+
+
 class TestRunImportPptxEndToEnd:
     """run_import_pptx 전체 경로(임포트→저장→HTML)로 충실도 수정이 살아있는지 검증."""
 
@@ -2043,6 +2285,9 @@ class TestRunImportPptxEndToEnd:
             pptx, "chart-proj", c.import_service, c.project_service, c.slides_service
         )
         project_dir = Path(result["slides_html_path"]).parent
+        assert result["lint"]["profile"] == "import"
+        assert result["lint"]["total_slides"] == 2
+        assert "visual_qa_recommended" in result["lint"]
 
         spec = json.loads((project_dir / "design_spec" / "slide_01.json").read_text())
         bars = [s for s in spec["shapes"] if s["shape_type"] == "rectangle"]
@@ -2145,6 +2390,129 @@ class TestGradientBorderApproximation:
         color, width = reader._extract_line_style(sp)
         assert color == "#2A39F5"  # 첫 stop
         assert width == pytest.approx(1.5)  # 19050 EMU / 12700
+
+
+class TestLinearGradientFill:
+    def _round_rect_gradient_fill(self):
+        from pptx.enum.shapes import MSO_SHAPE
+        from pptx.oxml import parse_xml
+        from pptx.oxml.ns import qn
+        from pptx.util import Inches
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        shape = slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE,
+            Inches(1),
+            Inches(1),
+            Inches(3),
+            Inches(1),
+        )
+        sp_pr = shape._element.find(qn("p:spPr"))
+        for tag in ("a:solidFill", "a:noFill", "a:gradFill"):
+            for fill in sp_pr.findall(qn(tag)):
+                sp_pr.remove(fill)
+        gradient = parse_xml(
+            '<a:gradFill xmlns:a="http://schemas.openxmlformats.org/drawingml/'
+            '2006/main"><a:gsLst>'
+            '<a:gs pos="0"><a:schemeClr val="accent3"><a:lumMod val="40000"/>'
+            '<a:lumOff val="60000"/></a:schemeClr></a:gs>'
+            '<a:gs pos="100000"><a:schemeClr val="accent1">'
+            '<a:lumMod val="40000"/><a:lumOff val="60000"/>'
+            "</a:schemeClr></a:gs></a:gsLst>"
+            '<a:lin ang="0" scaled="1"/></a:gradFill>'
+        )
+        sp_pr.insert(2, gradient)
+        return prs, slide
+
+    def test_import_preserves_linear_gradient_stops_and_angle(self):
+        prs, slide = self._round_rect_gradient_fill()
+
+        spec = SlideReader(1.0, 1.0, prs).read_slide(slide, 0, 1)
+        shape = next(item for item in spec.shapes if item.fill_gradient is not None)
+
+        assert [stop.position for stop in shape.fill_gradient.stops] == [0.0, 1.0]
+        assert shape.fill_gradient.angle_deg == 0.0
+        assert shape.fill_color == shape.fill_gradient.stops[0].color
+        assert all(
+            stop.color.startswith("#") and len(stop.color) == 7
+            for stop in shape.fill_gradient.stops
+        )
+        assert shape.fill_gradient.stops[0].color != shape.fill_gradient.stops[1].color
+
+    def test_gradient_round_trips_through_json(self):
+        gradient = PptxLinearGradient(
+            stops=[
+                PptxGradientStop(position=0.0, color="#99F499"),
+                PptxGradientStop(position=1.0, color="#99C1E7"),
+            ],
+            angle_deg=45.0,
+        )
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    shapes=[
+                        PptxShape(
+                            left_px=0,
+                            top_px=0,
+                            width_px=100,
+                            height_px=50,
+                            fill_color="#99F499",
+                            fill_gradient=gradient,
+                        )
+                    ]
+                )
+            ]
+        )
+
+        parsed = parse_design_spec_json(design_spec_to_json(spec))
+
+        assert parsed.slides[0].shapes[0].fill_gradient == gradient
+
+    def test_export_writes_native_linear_gradient(self, tmp_path):
+        from pptx.oxml.ns import qn
+
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    shapes=[
+                        PptxShape(
+                            left_px=100,
+                            top_px=100,
+                            width_px=300,
+                            height_px=80,
+                            shape_type="rounded_rectangle",
+                            fill_color="#99F499",
+                            fill_gradient=PptxLinearGradient(
+                                stops=[
+                                    PptxGradientStop(0.0, "#99F499"),
+                                    PptxGradientStop(1.0, "#99C1E7"),
+                                ],
+                                angle_deg=15.0,
+                            ),
+                        )
+                    ]
+                )
+            ]
+        )
+
+        response = ExportService().export_from_design_spec(
+            spec,
+            output_dir=tmp_path,
+            bg_image_policy="none",
+        )
+        shape = Presentation(response.pptx_path).slides[0].shapes[0]
+        sp_pr = shape._element.find(qn("p:spPr"))
+        gradient = sp_pr.find(qn("a:gradFill"))
+        stops = gradient.find(qn("a:gsLst")).findall(qn("a:gs"))
+
+        assert sp_pr.find(qn("a:solidFill")) is None
+        assert [stop.get("pos") for stop in stops] == ["0", "100000"]
+        assert [stop.find(qn("a:srgbClr")).get("val") for stop in stops] == [
+            "99F499",
+            "99C1E7",
+        ]
+        assert gradient.find(qn("a:lin")).get("ang") == "900000"
 
 
 class TestFontNamePreserved:

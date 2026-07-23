@@ -138,4 +138,14 @@ ALL_RULES = [
     for rule in RULES_BY_LAYER[layer]
 ]
 
-__all__ = ["ALL_RULES", "RULES_BY_LAYER"]
+RULES_BY_PROFILE: dict[str, list] = {
+    "generation": ALL_RULES,
+    "import": [
+        check_canvas_overflow,
+        check_text_overflow,
+        check_nowrap_overflow,
+        check_zero_size_shape,
+    ],
+}
+
+__all__ = ["ALL_RULES", "RULES_BY_LAYER", "RULES_BY_PROFILE"]

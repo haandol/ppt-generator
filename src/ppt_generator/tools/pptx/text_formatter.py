@@ -20,6 +20,7 @@ from ppt_generator.interfaces.constants import (
     PPTX_BULLET_MARGIN_EMU_L1,
     PPTX_FONT_NAME,
     PPTX_MONOSPACE_FONT_NAME,
+    PX_TO_EMU,
 )
 from ppt_generator.interfaces.schemas import PptxParagraph, PptxTextRun
 
@@ -82,9 +83,10 @@ def format_run(run_obj, run_spec: PptxTextRun, font_scale: float = 1.0) -> None:
         run_obj.hyperlink.address = run_spec.href
 
 
-def apply_bullet(paragraph, level: int) -> None:
+def apply_bullet(paragraph, paragraph_spec: PptxParagraph) -> None:
     """paragraph에 불릿 마커와 들여쓰기를 XML로 설정."""
     pPr = paragraph._p.get_or_add_pPr()
+    level = paragraph_spec.bullet_level
 
     if level == 0:
         margin = PPTX_BULLET_MARGIN_EMU_L0
@@ -92,6 +94,10 @@ def apply_bullet(paragraph, level: int) -> None:
     else:
         margin = PPTX_BULLET_MARGIN_EMU_L1
         indent = PPTX_BULLET_INDENT_EMU_L1
+    if paragraph_spec.margin_left_px is not None:
+        margin = int(paragraph_spec.margin_left_px * PX_TO_EMU)
+    if paragraph_spec.indent_px is not None:
+        indent = int(paragraph_spec.indent_px * PX_TO_EMU)
 
     pPr.set("marL", str(margin))
     pPr.set("indent", str(indent))
@@ -129,7 +135,7 @@ def format_paragraphs(
             format_run(run, run_spec, font_scale=font_scale)
 
         if para_spec.bullet_level >= 0:
-            apply_bullet(para, para_spec.bullet_level)
+            apply_bullet(para, para_spec)
 
         if para_spec.alignment and para_spec.alignment in _ALIGN_MAP:
             para.alignment = _ALIGN_MAP[para_spec.alignment]
@@ -137,6 +143,12 @@ def format_paragraphs(
             para.space_before = Pt(para_spec.space_before_pt)
         if para_spec.space_after_pt is not None:
             para.space_after = Pt(para_spec.space_after_pt)
+        if para_spec.default_tab_size_px is not None:
+            p_pr = para._p.get_or_add_pPr()
+            p_pr.set(
+                "defTabSz",
+                str(int(para_spec.default_tab_size_px * PX_TO_EMU)),
+            )
 
 
 def apply_line_spacing(

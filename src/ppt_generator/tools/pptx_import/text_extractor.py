@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from pptx.oxml.ns import qn
 
 from ppt_generator.interfaces.constants import (
+    IMPORT_EMU_TO_PX,
     PPTX_BULLET_MARGIN_EMU_L1,
     PPTX_DEFAULT_LINE_SPACING_MULTIPLIER,
 )
@@ -26,6 +27,7 @@ from ppt_generator.tools.pptx_import.ooxml_utils import (
 from ppt_generator.tools.pptx_import.theme_resolver import (
     PH_TYPE_TO_TXSTYLE,
     DefaultRunProps,
+    extract_default_tab_size_from_ppr,
     extract_color_from_rpr,
     extract_props_from_rpr,
 )
@@ -65,6 +67,10 @@ class TextExtractorMixin:
             if not runs:
                 continue
             alignment = self._extract_alignment(para)
+            margin_left_px, indent_px = self._extract_bullet_indentation(
+                para,
+                bullet_level,
+            )
             paragraphs.append(
                 PptxParagraph(
                     runs=runs,
@@ -82,9 +88,80 @@ class TextExtractorMixin:
                         placeholder_type,
                         placeholder_idx,
                     ),
+                    margin_left_px=margin_left_px,
+                    indent_px=indent_px,
+                    default_tab_size_px=self._extract_default_tab_size_px(
+                        para,
+                        placeholder_type,
+                        placeholder_idx,
+                    ),
                 )
             )
         return paragraphs
+
+    @staticmethod
+    def _extract_bullet_indentation(
+        paragraph,
+        bullet_level: int,
+    ) -> tuple[float | None, float | None]:
+        """불렛 문단에 직접 지정된 marL/indent를 px로 보존한다."""
+        if bullet_level < 0:
+            return None, None
+        pPr = paragraph._p.find(qn("a:pPr"))
+        if pPr is None:
+            return None, None
+
+        def _to_px(name: str) -> float | None:
+            raw = pPr.get(name)
+            if raw is None:
+                return None
+            try:
+                return round(int(raw) * IMPORT_EMU_TO_PX, 1)
+            except (TypeError, ValueError):
+                return None
+
+        return _to_px("marL"), _to_px("indent")
+
+    def _extract_default_tab_size_px(
+        self,
+        paragraph,
+        placeholder_type: int | None,
+        placeholder_idx: int | None,
+    ) -> float | None:
+        """문단의 유효 기본 탭 정지점을 상속 체인에서 px로 해석한다."""
+        p_pr = paragraph._p.find(qn("a:pPr"))
+        direct = extract_default_tab_size_from_ppr(p_pr)
+        if direct is not None:
+            return direct
+
+        try:
+            level = int(p_pr.get("lvl", "0")) if p_pr is not None else 0
+        except (TypeError, ValueError):
+            level = 0
+
+        tx_body = paragraph._p.getparent()
+        lst_style = tx_body.find(qn("a:lstStyle")) if tx_body is not None else None
+        if lst_style is not None:
+            for style_tag in (f"a:lvl{level + 1}pPr", "a:defPPr"):
+                local = extract_default_tab_size_from_ppr(lst_style.find(qn(style_tag)))
+                if local is not None:
+                    return local
+
+        style_name = (
+            PH_TYPE_TO_TXSTYLE.get(placeholder_type, "otherStyle")
+            if placeholder_type is not None
+            else "otherStyle"
+        )
+        inherited_props = (
+            self._layout_def_rpr.get(placeholder_idx, {}).get(level)
+            if placeholder_idx is not None
+            else None,
+            self._master_tx_styles.get(style_name, {}).get(level),
+        )
+        for props in inherited_props:
+            if props is not None and props.default_tab_size_px is not None:
+                return props.default_tab_size_px
+        return None
 
     def _extract_paragraph_spacing(
         self,

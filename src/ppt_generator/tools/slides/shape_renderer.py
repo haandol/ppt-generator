@@ -6,6 +6,7 @@ Line, Custom SVG, AutoShape 등 도형 유형별 HTML 렌더링을 담당한다.
 from __future__ import annotations
 
 import os
+from dataclasses import replace
 
 from ppt_generator.interfaces.constants import (
     PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU,
@@ -16,6 +17,8 @@ from ppt_generator.interfaces.line_geometry import line_endpoints
 from ppt_generator.interfaces.schemas import PptxShape
 from ppt_generator.interfaces.text_measurement import (
     calculate_shrink_font_scale,
+    resolve_paragraph_spacing_pt,
+    resolve_html_line_spacing_pt,
     scaled_line_spacing_pt,
     should_apply_nowrap_to_paragraph,
 )
@@ -382,6 +385,22 @@ def shape_to_html(shape: PptxShape) -> str:
         fill_color = safe_color(shape.fill_color)
         if fill_color:
             style += f"background-color:{fill_color};"
+    if shape.fill_gradient and len(shape.fill_gradient.stops) >= 2:
+        gradient_stops: list[str] = []
+        for stop in sorted(
+            shape.fill_gradient.stops,
+            key=lambda item: safe_number(item.position),
+        ):
+            color = safe_color(stop.color)
+            if color:
+                position = min(max(safe_number(stop.position), 0.0), 1.0) * 100
+                gradient_stops.append(f"{color} {css_number(position)}%")
+        if len(gradient_stops) >= 2:
+            css_angle = (safe_number(shape.fill_gradient.angle_deg) + 90) % 360
+            style += (
+                "background-image:linear-gradient("
+                f"{css_number(css_angle)}deg, {', '.join(gradient_stops)});"
+            )
     if shape.border_color:
         bw = safe_number(shape.border_width_pt, 1.0)
         if bw <= 0:
@@ -424,7 +443,12 @@ def shape_to_html(shape: PptxShape) -> str:
         f"{css_number(pb)}px {css_number(pl)}px;box-sizing:border-box;"
     )
 
-    line_spacing = safe_number(shape.line_spacing_pt)
+    resolved_line_spacing = resolve_html_line_spacing_pt(
+        shape.line_spacing_pt,
+        line_spacing_is_default=shape.line_spacing_is_default,
+        paragraphs=shape.paragraphs,
+    )
+    line_spacing = safe_number(resolved_line_spacing)
 
     # shrink_text autofit: 필요 높이가 박스 높이를 초과하면 폰트를 비례 축소한다.
     # expand_height 는 박스가 늘어나므로 축소 불필요. paragraphs 경로에서만 산출하며
@@ -466,7 +490,19 @@ def shape_to_html(shape: PptxShape) -> str:
     if shape.paragraphs:
         usable_w = width - pl - pr
         para_parts: list[str] = []
-        for para in shape.paragraphs:
+        spacing_edges = resolve_paragraph_spacing_pt(shape.paragraphs)
+        render_paragraphs = [
+            replace(
+                paragraph,
+                space_before_pt=space_before,
+                space_after_pt=space_after,
+            )
+            for paragraph, (space_before, space_after) in zip(
+                shape.paragraphs,
+                spacing_edges,
+            )
+        ]
+        for para in render_paragraphs:
             try:
                 apply_nowrap = should_apply_nowrap_to_paragraph(para, usable_w)
             except (TypeError, ValueError, OverflowError):

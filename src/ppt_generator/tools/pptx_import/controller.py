@@ -13,6 +13,7 @@ from ppt_generator.interfaces.schemas import (
 from ppt_generator.interfaces.spec_utils.contrast_utils import (
     _hex_to_relative_luminance,
 )
+from ppt_generator.interfaces.spec_utils import lint_design_spec
 from ppt_generator.tools.design.service import DesignService
 from ppt_generator.tools.pptx_import.service import ImportService
 from ppt_generator.tools.project.service import ProjectService
@@ -31,7 +32,7 @@ def run_import_pptx(
     MCP tool 클로저와 검증/테스트가 동일 코드 경로를 재사용하도록 모듈 레벨로 분리했다.
 
     Returns:
-        {project_id, num_slides, slides_html_path, warnings?} dict.
+        {project_id, num_slides, slides_html_path, lint, warnings?} dict.
     """
     project_id, project_dir = project_service.resolve_project_dir(project_id)
 
@@ -71,6 +72,10 @@ def run_import_pptx(
             )
         )
     design_spec = DesignSpec(slides=updated_slides)
+    lint_result = lint_design_spec(design_spec.slides, profile="import")
+    lint_payload = lint_result.to_dict()
+    lint_payload["profile"] = "import"
+    lint_payload["visual_qa_recommended"] = lint_result.has_violations
     # src가 포함된 design_spec 재저장
     project_service.save_design_spec(project_dir, design_spec)
 
@@ -116,6 +121,7 @@ def run_import_pptx(
         "project_id": project_id,
         "num_slides": len(design_spec.slides),
         "slides_html_path": str(project_dir / "slides.html"),
+        "lint": lint_payload,
     }
     if warnings:
         result["warnings"] = warnings
@@ -146,7 +152,8 @@ def register_pptx_import_tools(
             project_id: Project ID (auto-generated if not specified)
 
         Returns:
-            JSON string containing project_id, num_slides, slides_html_path, and warnings
+            JSON string containing project_id, num_slides, slides_html_path, lint,
+            and warnings
         """
         result = run_import_pptx(
             file_path,

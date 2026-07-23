@@ -13,6 +13,8 @@ from xml.etree.ElementTree import Element
 
 from pptx.oxml.ns import qn
 
+from ppt_generator.interfaces.constants import IMPORT_EMU_TO_PX
+
 if TYPE_CHECKING:
     from pptx.presentation import Presentation
 
@@ -37,6 +39,7 @@ class DefaultRunProps:
     font_name: str | None = None
     line_spacing_pct: float | None = None
     line_spacing_pt: float | None = None
+    default_tab_size_px: float | None = None
 
 
 def extract_line_spacing_from_ppr(
@@ -64,6 +67,19 @@ def extract_line_spacing_from_ppr(
         if val is not None:
             return None, int(val) / 100
     return None, None
+
+
+def extract_default_tab_size_from_ppr(pPr_el: Element | None) -> float | None:
+    """문단 스타일의 defTabSz(EMU)를 px로 변환한다."""
+    if pPr_el is None:
+        return None
+    raw = pPr_el.get("defTabSz")
+    if raw is None:
+        return None
+    try:
+        return round(int(raw) * IMPORT_EMU_TO_PX, 1)
+    except (TypeError, ValueError):
+        return None
 
 
 # Office 기본 테마 색상 폴백 매핑
@@ -315,11 +331,23 @@ def extract_master_tx_styles(
                 if lvl_pPr is None:
                     continue
                 def_rPr = lvl_pPr.find(qn("a:defRPr"))
-                if def_rPr is not None:
-                    props = extract_props_from_rpr(def_rPr, theme_map)
-                    pct, pts = extract_line_spacing_from_ppr(lvl_pPr)
-                    props.line_spacing_pct = pct
-                    props.line_spacing_pt = pts
+                props = extract_props_from_rpr(def_rPr, theme_map)
+                pct, pts = extract_line_spacing_from_ppr(lvl_pPr)
+                props.line_spacing_pct = pct
+                props.line_spacing_pt = pts
+                props.default_tab_size_px = extract_default_tab_size_from_ppr(lvl_pPr)
+                if any(
+                    value is not None
+                    for value in (
+                        props.font_size_pt,
+                        props.color,
+                        props.bold,
+                        props.font_name,
+                        props.line_spacing_pct,
+                        props.line_spacing_pt,
+                        props.default_tab_size_px,
+                    )
+                ):
                     level_map[lvl_idx] = props
             result[style_name] = level_map
     except Exception:

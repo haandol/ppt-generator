@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from ppt_generator.interfaces.schemas import (
     DesignDoc,
     LayoutNode,
@@ -240,6 +242,54 @@ class TestLayerFiltering:
         assert "by_layer" in d
         assert d["by_layer"].get("layout", 0) >= 1
         assert d["by_layer"].get("content", 0) >= 1
+
+
+class TestLintProfiles:
+    def _import_problem(self) -> PptxSlideSpec:
+        return PptxSlideSpec(
+            background_color="#FFFFFF",
+            slide_type="content",
+            textboxes=[
+                PptxTextBox(
+                    left_px=1270,
+                    top_px=100,
+                    width_px=100,
+                    height_px=40,
+                    paragraphs=[
+                        PptxParagraph(runs=[PptxTextRun(text="small", font_size_pt=6)])
+                    ],
+                )
+            ],
+            grid_plan=None,
+        )
+
+    def test_import_profile_reports_render_safety_only(self) -> None:
+        rules = {
+            violation.rule
+            for violation in lint_slide_spec(
+                self._import_problem(),
+                profile="import",
+            ).violations
+        }
+
+        assert "canvas-overflow" in rules
+        assert "grid-plan-required" not in rules
+        assert "title-font-min" not in rules
+        assert "font-range" not in rules
+
+    def test_default_profile_preserves_generation_rules(self) -> None:
+        rules = {
+            violation.rule
+            for violation in lint_slide_spec(self._import_problem()).violations
+        }
+
+        assert "canvas-overflow" in rules
+        assert "grid-plan-required" in rules
+        assert "font-range" in rules
+
+    def test_unknown_profile_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="lint profile"):
+            lint_slide_spec(self._import_problem(), profile="unknown")
 
 
 # ---------------------------------------------------------------------------

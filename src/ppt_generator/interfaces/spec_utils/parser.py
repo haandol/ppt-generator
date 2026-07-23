@@ -13,13 +13,31 @@ from ppt_generator.interfaces.schemas import (
     GridCell,
     GridPlan,
     LayoutNode,
+    PptxGradientStop,
     PptxImage,
+    PptxLinearGradient,
     PptxParagraph,
     PptxShape,
     PptxSlideSpec,
     PptxTextBox,
     PptxTextRun,
 )
+
+
+def _parse_linear_gradient(data: dict | None) -> PptxLinearGradient | None:
+    if not data:
+        return None
+    stops = [
+        PptxGradientStop(
+            position=stop.get("position", 0.0),
+            color=stop.get("color", ""),
+        )
+        for stop in data.get("stops", [])
+    ]
+    return PptxLinearGradient(
+        stops=stops,
+        angle_deg=data.get("angle_deg", 0.0),
+    )
 
 
 def _parse_grid_plan(data: dict | None) -> GridPlan | None:
@@ -97,6 +115,9 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
                     alignment=p.get("alignment"),
                     space_before_pt=p.get("space_before_pt"),
                     space_after_pt=p.get("space_after_pt"),
+                    margin_left_px=p.get("margin_left_px"),
+                    indent_px=p.get("indent_px"),
+                    default_tab_size_px=p.get("default_tab_size_px"),
                 )
             )
         textboxes.append(
@@ -146,6 +167,9 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
                     alignment=p.get("alignment"),
                     space_before_pt=p.get("space_before_pt"),
                     space_after_pt=p.get("space_after_pt"),
+                    margin_left_px=p.get("margin_left_px"),
+                    indent_px=p.get("indent_px"),
+                    default_tab_size_px=p.get("default_tab_size_px"),
                 )
             )
         shapes.append(
@@ -156,6 +180,7 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
                 height_px=s.get("height_px", 50),
                 shape_type=s.get("shape_type", "rectangle"),
                 fill_color=s.get("fill_color"),
+                fill_gradient=_parse_linear_gradient(s.get("fill_gradient")),
                 border_color=s.get("border_color"),
                 border_width_pt=s.get("border_width_pt"),
                 corner_radius_px=s.get("corner_radius_px"),

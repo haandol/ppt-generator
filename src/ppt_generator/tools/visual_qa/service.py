@@ -359,6 +359,8 @@ def _preserve_paragraph_content(fixed_paragraphs, existing_paragraphs):
         replace(
             fixed_paragraph,
             bullet_level=existing_paragraph.bullet_level,
+            margin_left_px=existing_paragraph.margin_left_px,
+            indent_px=existing_paragraph.indent_px,
             runs=[
                 replace(fixed_run, text=existing_run.text, href=existing_run.href)
                 for fixed_run, existing_run in zip(

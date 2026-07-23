@@ -10,6 +10,7 @@ import logging
 
 from pptx.oxml.ns import qn
 
+from ppt_generator.interfaces.schemas import PptxGradientStop, PptxLinearGradient
 from ppt_generator.tools.pptx_import.theme_resolver import resolve_scheme_color
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,53 @@ class StyleExtractorMixin:
     """
 
     _theme_color_map: dict[str, str]
+
+    def _resolve_gradient_stop_color(self, stop) -> str | None:
+        """gradient stop의 직접 RGB 또는 테마 색상을 해석한다."""
+        srgb = stop.find(qn("a:srgbClr"))
+        if srgb is not None and srgb.get("val"):
+            return f"#{srgb.get('val')}"
+        scheme = stop.find(qn("a:schemeClr"))
+        if scheme is not None:
+            return resolve_scheme_color(scheme, self._theme_color_map)
+        return None
+
+    def _extract_fill_gradient(self, shape) -> PptxLinearGradient | None:
+        """도형의 선형 그라데이션 stop과 OOXML 방향을 추출한다."""
+        try:
+            sp_pr = shape._element.find(qn("p:spPr"))
+            gradient = sp_pr.find(qn("a:gradFill")) if sp_pr is not None else None
+            if gradient is None:
+                return None
+            linear = gradient.find(qn("a:lin"))
+            stops_element = gradient.find(qn("a:gsLst"))
+            if linear is None or stops_element is None:
+                return None
+
+            stops: list[PptxGradientStop] = []
+            for stop in stops_element.findall(qn("a:gs")):
+                color = self._resolve_gradient_stop_color(stop)
+                if color is None:
+                    continue
+                try:
+                    position = int(stop.get("pos", "0")) / 100000
+                except (TypeError, ValueError):
+                    continue
+                stops.append(PptxGradientStop(position=position, color=color))
+            if not stops:
+                return None
+
+            try:
+                angle = int(linear.get("ang", "0")) / 60000
+            except (TypeError, ValueError):
+                angle = 0.0
+            return PptxLinearGradient(
+                stops=sorted(stops, key=lambda stop: stop.position),
+                angle_deg=angle % 360,
+            )
+        except Exception:
+            logger.debug("linear gradient 추출 실패", exc_info=True)
+            return None
 
     def _resolve_color_from_xml(self, fill_element) -> str | None:
         """XML 요소에서 색상을 추출. srgbClr 우선, schemeClr 폴백."""
@@ -58,13 +106,7 @@ class StyleExtractorMixin:
         first_gs = gs_lst.find(qn("a:gs"))
         if first_gs is None:
             return None
-        srgb = first_gs.find(qn("a:srgbClr"))
-        if srgb is not None and srgb.get("val"):
-            return f"#{srgb.get('val')}"
-        scheme = first_gs.find(qn("a:schemeClr"))
-        if scheme is not None:
-            return resolve_scheme_color(scheme, self._theme_color_map)
-        return None
+        return self._resolve_gradient_stop_color(first_gs)
 
     def _extract_fill_color(self, shape) -> str | None:
         # python-pptx API로 시도 (RGB 색상)

@@ -129,6 +129,7 @@ class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
     _line_spacing_is_default: any
     _extract_vertical_alignment: any
     _extract_fill_color: any
+    _extract_fill_gradient: any
     _extract_line_style: any
     _extract_dash_style_from_shape: any
 
@@ -409,7 +410,12 @@ class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
                 return self._extract_connector(shape)
             type_str = "rectangle"
 
-        fill_color = self._extract_fill_color(shape)
+        fill_gradient = self._extract_fill_gradient(shape)
+        fill_color = (
+            fill_gradient.stops[0].color
+            if fill_gradient is not None
+            else self._extract_fill_color(shape)
+        )
         border_color, border_width = self._extract_line_style(shape)
         dash_style = self._extract_dash_style_from_shape(shape)
         text_props = self._extract_shape_text_props(shape)
@@ -421,6 +427,7 @@ class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
             height_px=self._emu_to_px_y(shape.height),
             shape_type=type_str,
             fill_color=fill_color,
+            fill_gradient=fill_gradient,
             border_color=border_color,
             border_width_pt=border_width,
             dash_style=dash_style,

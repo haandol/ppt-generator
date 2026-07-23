@@ -6,6 +6,8 @@ PptxSlideSpec 요소를 position:absolute HTML div로 결정론적 변환한다.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from ppt_generator.interfaces.schemas import (
     PptxImage,
     PptxSlideSpec,
@@ -14,6 +16,8 @@ from ppt_generator.interfaces.schemas import (
 from ppt_generator.interfaces.text_measurement import (
     calculate_shrink_font_scale,
     estimate_text_width_px,
+    resolve_paragraph_spacing_pt,
+    resolve_html_line_spacing_pt,
     scaled_line_spacing_pt,
     should_apply_nowrap_to_paragraph,
 )
@@ -62,7 +66,12 @@ def textbox_to_html(tb: PptxTextBox) -> str:
         f"{css_number(pb)}px {css_number(pl)}px;box-sizing:border-box;"
         f"overflow:visible;"
     )
-    line_spacing = safe_number(tb.line_spacing_pt)
+    resolved_line_spacing = resolve_html_line_spacing_pt(
+        tb.line_spacing_pt,
+        line_spacing_is_default=tb.line_spacing_is_default,
+        paragraphs=tb.paragraphs,
+    )
+    line_spacing = safe_number(resolved_line_spacing)
 
     # 불릿 그룹핑
     has_bullets = any(p.bullet_level >= 0 for p in tb.paragraphs)
@@ -109,24 +118,38 @@ def textbox_to_html(tb: PptxTextBox) -> str:
         style += "display:flex;flex-direction:column;justify-content:flex-end;"
 
     inner_parts: list[str] = []
+    spacing_edges = resolve_paragraph_spacing_pt(tb.paragraphs)
+    render_paragraphs = [
+        replace(
+            paragraph,
+            space_before_pt=space_before,
+            space_after_pt=space_after,
+        )
+        for paragraph, (space_before, space_after) in zip(
+            tb.paragraphs,
+            spacing_edges,
+        )
+    ]
     if has_bullets:
         bullet_items: list[str] = []
-        for para in tb.paragraphs:
+        for para in render_paragraphs:
             html = paragraph_to_html(
-                para, font_scale=font_scale, line_height_pt=para_line_height_pt
+                para,
+                font_scale=font_scale,
+                line_height_pt=para_line_height_pt,
             )
             if para.bullet_level >= 0:
                 bullet_items.append(html)
             else:
                 if bullet_items:
                     inner_parts.append(
-                        f'<ul style="list-style:disc;padding-left:20px;margin:0">{"".join(bullet_items)}</ul>'
+                        f'<ul style="list-style:disc;padding-left:0;margin:0">{"".join(bullet_items)}</ul>'
                     )
                     bullet_items = []
                 inner_parts.append(html)
         if bullet_items:
             inner_parts.append(
-                f'<ul style="list-style:disc;padding-left:20px;margin:0">{"".join(bullet_items)}</ul>'
+                f'<ul style="list-style:disc;padding-left:0;margin:0">{"".join(bullet_items)}</ul>'
             )
     else:
         # autofit="none"(PPTX noAutofit) 단일 문단이 박스 폭을 "근소하게"(≤1.25배)
@@ -155,7 +178,7 @@ def textbox_to_html(tb: PptxTextBox) -> str:
                 force_nowrap = est_w <= usable_w * 1.25
             except (TypeError, ValueError, OverflowError):
                 force_nowrap = False
-        for para in tb.paragraphs:
+        for para in render_paragraphs:
             try:
                 apply_nowrap = force_nowrap or should_apply_nowrap_to_paragraph(
                     para, usable_w

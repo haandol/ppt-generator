@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from ppt_generator.interfaces.schemas import PptxParagraph
 
 from ppt_generator.interfaces.constants import (
+    HTML_TABBED_DEFAULT_LINE_SPACING_FACTOR,
     TEXT_MEASURE_BULLET_INDENT_L0_PX,
     TEXT_MEASURE_BULLET_INDENT_L1_PX,
     TEXT_MEASURE_CJK_WIDTH_RATIO,
@@ -25,6 +26,33 @@ from ppt_generator.interfaces.constants import (
     TEXT_MEASURE_NOWRAP_TOLERANCE_RATIO,
     TEXT_MEASURE_PX_PER_PT,
 )
+
+
+def uses_inherited_tab_stops(paragraphs: list["PptxParagraph"]) -> bool:
+    """상속 탭 크기와 실제 탭 문자를 함께 사용하는 문단이 있는지 반환한다."""
+    return any(
+        paragraph.default_tab_size_px is not None
+        and any("\t" in run.text for run in paragraph.runs)
+        for paragraph in paragraphs
+    )
+
+
+def resolve_html_line_spacing_pt(
+    line_spacing_pt: float | None,
+    *,
+    line_spacing_is_default: bool,
+    paragraphs: list["PptxParagraph"],
+) -> float | None:
+    """브라우저용 행간을 계산한다.
+
+    PowerPoint 기본 행간과 브라우저 폰트 기준선 차이는 탭 기반 코드 블록에서
+    여러 줄에 걸쳐 누적되므로 해당 경로만 보정한다.
+    """
+    if line_spacing_pt is None:
+        return None
+    if line_spacing_is_default and uses_inherited_tab_stops(paragraphs):
+        return line_spacing_pt * HTML_TABBED_DEFAULT_LINE_SPACING_FACTOR
+    return line_spacing_pt
 
 
 def _is_wide_char(ch: str) -> bool:
@@ -89,13 +117,45 @@ def estimate_paragraph_wrapped_lines(
     return max(1, math.ceil(total_width / available_width_px))
 
 
-def _get_bullet_indent_px(bullet_level: int) -> float:
-    """bullet_level에 따른 indent px를 반환한다."""
+def _get_bullet_indent_px(paragraph: "PptxParagraph") -> float:
+    """문단의 명시적 margin 또는 bullet_level 기본 indent를 반환한다."""
+    explicit_margin = getattr(paragraph, "margin_left_px", None)
+    if explicit_margin is not None:
+        return max(float(explicit_margin), 0.0)
+    bullet_level = paragraph.bullet_level
     if bullet_level == 0:
         return TEXT_MEASURE_BULLET_INDENT_L0_PX
     elif bullet_level >= 1:
         return TEXT_MEASURE_BULLET_INDENT_L1_PX
     return 0.0
+
+
+def resolve_paragraph_spacing_pt(
+    paragraphs: list["PptxParagraph"],
+) -> list[tuple[float, float]]:
+    """PowerPoint 방식으로 각 문단의 앞/뒤 소비 간격을 계산한다."""
+    if not paragraphs:
+        return []
+
+    def _spacing(value: object) -> float:
+        try:
+            return max(float(value), 0.0) if value is not None else 0.0
+        except (TypeError, ValueError):
+            return 0.0
+
+    resolved: list[tuple[float, float]] = []
+    for index, paragraph in enumerate(paragraphs):
+        before = _spacing(getattr(paragraph, "space_before_pt", None))
+        after = _spacing(getattr(paragraph, "space_after_pt", None))
+        if index > 0:
+            previous_after = _spacing(
+                getattr(paragraphs[index - 1], "space_after_pt", None)
+            )
+            before = max(previous_after, before)
+        if index < len(paragraphs) - 1:
+            after = 0.0
+        resolved.append((before, after))
+    return resolved
 
 
 def calculate_required_height(
@@ -120,8 +180,9 @@ def calculate_required_height(
 
     total_height = padding_top_px + padding_bottom_px
 
-    for para in paragraphs:
-        indent = _get_bullet_indent_px(para.bullet_level)
+    spacing_edges = resolve_paragraph_spacing_pt(paragraphs)
+    for para, (space_before, space_after) in zip(paragraphs, spacing_edges):
+        indent = _get_bullet_indent_px(para)
         para_width = usable_width - indent
         if para_width <= 0:
             para_width = 10.0
@@ -141,6 +202,7 @@ def calculate_required_height(
             line_height_px = max_font_pt * 2.0
 
         total_height += wrapped_lines * line_height_px
+        total_height += (space_before + space_after) * TEXT_MEASURE_PX_PER_PT
 
     return total_height
 
