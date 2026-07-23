@@ -441,9 +441,11 @@ def shape_to_html(shape: PptxShape) -> str:
         except (TypeError, ValueError, OverflowError):
             font_scale = 1.0
 
+    para_line_height_pt: float | None = None
     if line_spacing > 0:
         effective_ls = scaled_line_spacing_pt(line_spacing, font_scale) or line_spacing
         style += f"line-height:{css_number(effective_ls)}pt;"
+        para_line_height_pt = effective_ls
 
     if shape.text and not shape.paragraphs:
         style += "display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;"
@@ -462,7 +464,12 @@ def shape_to_html(shape: PptxShape) -> str:
             except (TypeError, ValueError, OverflowError):
                 apply_nowrap = False
             para_parts.append(
-                paragraph_to_html(para, nowrap=apply_nowrap, font_scale=font_scale)
+                paragraph_to_html(
+                    para,
+                    nowrap=apply_nowrap,
+                    font_scale=font_scale,
+                    line_height_pt=para_line_height_pt,
+                )
             )
         inner = "".join(para_parts)
     elif shape.text:

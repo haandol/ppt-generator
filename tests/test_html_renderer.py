@@ -599,6 +599,26 @@ class TestFontFallbackChain:
         assert html.rstrip("</span>").endswith("sans-serif") or 'sans-serif">' in html
 
 
+class TestShapeParagraphLineSpacing:
+    def test_line_spacing_is_applied_to_each_paragraph(self):
+        shape = PptxShape(
+            left_px=0,
+            top_px=0,
+            width_px=400,
+            height_px=200,
+            shape_type="rectangle",
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="Quoted text", font_size_pt=14)])
+            ],
+            line_spacing_pt=16.8,
+            vertical_alignment="middle",
+        )
+
+        html = shape_to_html(shape)
+
+        assert html.count("line-height:16.8pt") == 2
+
+
 class TestTabIndent:
     """탭(\\t)은 PowerPoint 기본 탭 stop(1인치=96px)만큼 들여써야 한다.
 
