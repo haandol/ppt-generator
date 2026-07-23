@@ -13,6 +13,7 @@ from pptx.oxml.ns import qn
 
 from ppt_generator.interfaces.constants import (
     PPTX_BULLET_MARGIN_EMU_L1,
+    PPTX_DEFAULT_LINE_SPACING_MULTIPLIER,
 )
 from ppt_generator.interfaces.schemas import (
     PptxParagraph,
@@ -371,7 +372,24 @@ class TextExtractorMixin:
             break  # 첫 문단만 기준 (기존 동작 유지)
 
         # placeholder 상속 lnSpc 해석
-        return self._resolve_inherited_line_spacing(placeholder_type, placeholder_idx)
+        inherited = self._resolve_inherited_line_spacing(
+            placeholder_type, placeholder_idx
+        )
+        if inherited is not None:
+            return inherited
+
+        # OOXML에 lnSpc가 없으면 PowerPoint의 기본은 단일 행간이다. HTML의 전역
+        # 기본값(1.5)에 맡기면 14pt 본문이 21pt 행간으로 벌어져 다음 절과 겹친다.
+        # 첫 문단의 유효 폰트 크기에 PowerPoint 기본 배수를 적용해 원본의 single
+        # spacing과 맞춘다. 1.0배는 글리프 상단/하단이 컨테이너에서 잘릴 수 있다.
+        for para in text_frame.paragraphs:
+            font_pt = self._first_run_font_pt(para, placeholder_type, placeholder_idx)
+            return (
+                font_pt * PPTX_DEFAULT_LINE_SPACING_MULTIPLIER
+                if font_pt is not None
+                else None
+            )
+        return None
 
     def _first_run_font_pt(
         self,

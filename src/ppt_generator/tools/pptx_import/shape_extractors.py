@@ -8,6 +8,9 @@ Group/Table은 compound_extractors 모듈에서 처리한다.
 from __future__ import annotations
 
 import logging
+import re
+from io import BytesIO
+from xml.etree.ElementTree import fromstring
 
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 from pptx.oxml.ns import qn
@@ -26,6 +29,89 @@ from ppt_generator.tools.pptx_import.ooxml_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+_SVG_BLIP_TAG = "{http://schemas.microsoft.com/office/drawing/2016/SVG/main}svgBlip"
+_THEME_FILL_CLASS_RE = re.compile(
+    r"^MsftOfcThm_(Text|Background|Accent)([1-6])_Fill(?:_v\d+)?$"
+)
+_SVG_GRAPHIC_TAGS = frozenset(
+    {"path", "rect", "circle", "ellipse", "polygon", "polyline", "line"}
+)
+
+
+def _svg_theme_fill_key(svg_bytes: bytes) -> str | None:
+    """SVG 도형이 단일 Office 테마 fill class를 쓰면 scheme key를 반환."""
+    try:
+        root = fromstring(svg_bytes)
+    except Exception:
+        return None
+
+    keys: set[str] = set()
+    for element in root.iter():
+        local_name = element.tag.rsplit("}", 1)[-1]
+        if local_name not in _SVG_GRAPHIC_TAGS or element.get("fill") == "none":
+            continue
+        for class_name in element.get("class", "").split():
+            match = _THEME_FILL_CLASS_RE.match(class_name)
+            if match is None:
+                continue
+            family, number = match.groups()
+            prefix = {
+                "Text": "tx",
+                "Background": "bg",
+                "Accent": "accent",
+            }[family]
+            keys.add(f"{prefix}{number}")
+    return next(iter(keys)) if len(keys) == 1 else None
+
+
+def _recolor_svg_theme_fallback(
+    fallback_bytes: bytes,
+    svg_bytes: bytes,
+    theme_color_map: dict[str, str],
+) -> bytes:
+    """테마 단색 SVG의 PNG fallback을 현재 슬라이드 테마색으로 재색칠."""
+    theme_key = _svg_theme_fill_key(svg_bytes)
+    color = theme_color_map.get(theme_key) if theme_key else None
+    if not color or not re.fullmatch(r"#[0-9A-Fa-f]{6}", color):
+        return fallback_bytes
+
+    try:
+        from PIL import Image
+
+        with Image.open(BytesIO(fallback_bytes)) as image:
+            rgba = image.convert("RGBA")
+        red = int(color[1:3], 16)
+        green = int(color[3:5], 16)
+        blue = int(color[5:7], 16)
+        alpha = rgba.getchannel("A")
+        recolored = Image.new("RGBA", rgba.size, (red, green, blue, 0))
+        recolored.putalpha(alpha)
+        output = BytesIO()
+        recolored.save(output, format="PNG")
+        return output.getvalue()
+    except Exception:
+        logger.debug("SVG 테마 fallback 재색칠 실패", exc_info=True)
+        return fallback_bytes
+
+
+def _extract_svg_blip_bytes(shape) -> bytes:
+    """picture의 asvg:svgBlip 관계에서 원본 SVG bytes를 추출."""
+    try:
+        svg_blip = shape._element.find(f".//{_SVG_BLIP_TAG}")
+        if svg_blip is None:
+            return b""
+        rel_id = svg_blip.get(qn("r:embed"))
+        if not rel_id:
+            return b""
+        return shape.part.rels[rel_id].target_part.blob
+    except Exception:
+        logger.debug(
+            "SVG picture 관계 추출 실패 (name=%s)",
+            getattr(shape, "name", "?"),
+            exc_info=True,
+        )
+        return b""
 
 
 class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
@@ -491,6 +577,14 @@ class ShapeExtractorMixin(CompoundExtractorMixin, ChartExtractorMixin):
                 exc_info=True,
             )
             blob = b""
+
+        svg_bytes = _extract_svg_blip_bytes(shape)
+        if blob and svg_bytes:
+            blob = _recolor_svg_theme_fallback(
+                blob,
+                svg_bytes,
+                getattr(self, "_theme_color_map", {}),
+            )
 
         width_px = self._emu_to_px_x(shape.width)
         height_px = self._emu_to_px_y(shape.height)

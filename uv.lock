@@ -479,7 +479,7 @@ wheels = [
 
 [[package]]
 name = "ppt-generator"
-version = "0.7.14"
+version = "0.7.15"
 source = { editable = "." }
 dependencies = [
     { name = "mcp" },

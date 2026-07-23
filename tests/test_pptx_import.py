@@ -1531,14 +1531,59 @@ class TestLineSpacingExtraction:
         )
         assert ls == pytest.approx(32.4)  # 0.9 * 36
 
-    def test_no_spacing_anywhere_returns_none(self):
+    def test_no_spacing_uses_powerpoint_single_spacing(self):
+        from pptx.util import Pt
+
         prs = Presentation()
         slide = prs.slides.add_slide(prs.slide_layouts[6])
         tb = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1))
-        tb.text_frame.paragraphs[0].add_run().text = "plain"
+        run = tb.text_frame.paragraphs[0].add_run()
+        run.text = "plain"
+        run.font.size = Pt(14)
 
         reader = SlideReader(1.0, 1.0, prs)
-        assert reader._extract_line_spacing(tb.text_frame) is None
+        assert reader._extract_line_spacing(tb.text_frame) == pytest.approx(16.8)
+
+
+class TestThemeSvgFallback:
+    """SVG 테마 아이콘의 흰 fallback PNG를 슬라이드 텍스트색으로 복원."""
+
+    def test_text1_svg_recolors_fallback_alpha_mask(self):
+        from io import BytesIO
+
+        from PIL import Image
+
+        from ppt_generator.tools.pptx_import.shape_extractors import (
+            _recolor_svg_theme_fallback,
+        )
+
+        source = Image.new("RGBA", (2, 1), (255, 255, 255, 0))
+        source.putpixel((0, 0), (255, 255, 255, 128))
+        buf = BytesIO()
+        source.save(buf, format="PNG")
+        svg = b"""\
+<svg xmlns="http://www.w3.org/2000/svg">
+  <style>.MsftOfcThm_Text1_Fill_v2 { fill:#FFFFFF; }</style>
+  <path class="MsftOfcThm_Text1_Fill_v2" d="M0 0h1v1z"/>
+</svg>"""
+
+        recolored = _recolor_svg_theme_fallback(buf.getvalue(), svg, {"tx1": "#161E2D"})
+
+        with Image.open(BytesIO(recolored)) as result:
+            assert result.convert("RGBA").getpixel((0, 0)) == (22, 30, 45, 128)
+            assert result.convert("RGBA").getpixel((1, 0)) == (22, 30, 45, 0)
+
+    def test_non_theme_svg_keeps_fallback_unchanged(self):
+        from ppt_generator.tools.pptx_import.shape_extractors import (
+            _recolor_svg_theme_fallback,
+        )
+
+        fallback = b"not-an-image"
+        svg = b'<svg xmlns="http://www.w3.org/2000/svg"><path fill="#FF0000"/></svg>'
+
+        assert (
+            _recolor_svg_theme_fallback(fallback, svg, {"tx1": "#161E2D"}) == fallback
+        )
 
 
 class TestChartExtraction:
