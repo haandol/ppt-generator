@@ -4,7 +4,7 @@ Date: 2026-02-11
 
 ## Status
 
-Deprecated
+Deprecated (2026-02-11)
 
 별도의 스크립트 생성 단계(`generate_script`)는 파이프라인에서 제거되었다. 발표자 노트는
 이제 design_doc 의 `speaker_notes` 로 흡수되어 슬라이드 디자인 생성과 함께 채워진다.

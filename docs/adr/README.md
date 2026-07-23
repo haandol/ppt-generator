@@ -12,7 +12,9 @@
 
 ## 카테고리 구조
 
-피쳐 단위 vertical slice 와 정렬한다. 각 카테고리는 코드의 특정 영역에 1:1 또는 close-to-1 로 매핑된다 — `docs/adr/.mapping.json` 의 `codePaths` 가 PreToolUse hook 과 `/adr-sync` 가 사용하는 단일 소스다.
+피쳐 단위 vertical slice 와 정렬한다. `docs/adr/.mapping.json` 이 카테고리별 ADR의
+경로·상태·핵심 결정을 보관하는 단일 인덱스다. 코드 경로는 저장하지 않으며, ADR을 읽고
+저장소를 검색해 매 실행 시점의 구현 범위를 찾는다.
 
 ```
 docs/adr/
@@ -32,6 +34,9 @@ docs/adr/
 ```
 
 ## ADRs
+
+아래 목록은 사람이 빠르게 탐색하기 위한 목차다. 자동화가 사용하는 정식 인덱스와 상태는
+`docs/adr/.mapping.json`을 기준으로 한다.
 
 ### outline — 슬라이드 outline 생성
 
@@ -93,6 +98,8 @@ docs/adr/
 
 - [0001 PPTX 임포트 → 디자인 스펙 변환](./import/0001-pptx-import-to-design-spec.md)
 - [0002 PPTX 이미지 종횡비 보존 (contain 방식)](./import/0002-pptx-image-aspect-ratio-preservation.md)
+- [0003 PPTX 임포트 충실도 개선](./import/0003-pptx-import-fidelity-fixes.md)
+- [0004 임포트 직후 소스 인식 Lint 프로필](./import/0004-post-import-lint-profile.md)
 
 ### visual-qa — 스크린샷 기반 자동 QA
 
@@ -139,9 +146,10 @@ docs/adr/
 ## 새 카테고리 추가 시
 
 1. `docs/adr/<new-category>/` 디렉토리 생성 + 첫 ADR `0001-...md` 작성
-2. `docs/adr/.mapping.json` 의 `categories` 에 카테고리 entry + `codePaths` glob 추가
+2. `docs/adr/.mapping.json` 의 `categories` 에 카테고리 entry와
+   `adrs` 레코드(path·status·summary) 추가
 3. 본 README 의 카테고리 트리·ADRs 섹션에 한 줄 추가
-4. PreToolUse hook 이 codePaths 를 자동으로 인식
+4. 필요한 선행 카테고리가 확인된 경우에만 `dependsOn` 추가
 
 ## 참고
 

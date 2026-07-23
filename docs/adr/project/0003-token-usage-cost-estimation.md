@@ -4,7 +4,7 @@ Date: 2026-02-23
 
 ## Status
 
-Superseded by [offload/0001](../offload/0001-client-llm-offload-plugin.md)
+Superseded by [ADR offload/0001](../offload/0001-client-llm-offload-plugin.md)
 
 서버가 LLM 을 직접 호출하지 않게 되면서(생성이 클라이언트로 오프로딩) 서버가 계측할
 토큰이 사라졌다. `last_token_usage`·`estimate_cost`·응답의 `token_usage`/`estimated_cost`

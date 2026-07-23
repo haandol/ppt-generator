@@ -1,8 +1,10 @@
 # Diagram Label-Line Overlap Prevention
 
-**Status**: Accepted  
-**Date**: 2026-04-15
+Date: 2026-04-15
 
+## Status
+
+Accepted (2026-04-15)
 ## Context
 
 다이어그램(arch_diagram, pipeline, process_flow)에서 화살표/선(line shape) 위에 텍스트 레이블이 겹쳐 렌더링되는 문제가 빈번하게 발생한다. 스크린샷 예시(시퀀스 다이어그램)에서 확인되듯이, 화살표 위에 놓인 텍스트가 선과 겹쳐 가독성이 크게 저하된다.

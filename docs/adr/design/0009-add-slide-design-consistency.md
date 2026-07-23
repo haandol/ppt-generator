@@ -4,7 +4,7 @@ Date: 2026-04-03
 
 ## Status
 
-Superseded (2026-04-15)
+Superseded by [ADR design/0010](./0010-theme-color-change.md)
 
 > **Superseded reason**: `reference_specs`(인접 슬라이드의 전체 design spec JSON)를 프롬프트에 포함하면
 > LLM이 reference의 좌표/요소를 그대로 재현하려 output tokens가 2-4배(38K-58K) 증가하여

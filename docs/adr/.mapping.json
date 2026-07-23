@@ -1,138 +1,345 @@
 {
-  "version": 2,
-  "lastSyncedAt": "2026-07-23T00:00:00Z",
+  "$schema": "https://raw.githubusercontent.com/haandol/alps-writer-plugins/main/plugins/adr-writer/templates/adr/mapping.schema.json",
   "categories": {
     "outline": {
-      "codePaths": [
-        "src/ppt_generator/tools/outline/**",
-        "src/ppt_generator/interfaces/prompts/outline_*",
-        "src/ppt_generator/interfaces/json_schemas.py",
-        "tests/outline/**",
-        "tests/test_outline_*.py"
-      ],
-      "description": "슬라이드 outline 생성 — 토픽/audience/시간 입력으로 슬라이드 단위 구조와 layout_plan 만든다."
+      "feature": "슬라이드 아웃라인 생성",
+      "adrs": [
+        {
+          "path": "docs/adr/outline/0001-outline-generation.md",
+          "status": "Accepted (2026-02-11)",
+          "summary": "슬라이드 아웃라인 생성"
+        },
+        {
+          "path": "docs/adr/outline/0002-agenda-optional-numbering.md",
+          "status": "Accepted (2026-07-23)",
+          "summary": "Agenda Slide Optional Numbering"
+        },
+        {
+          "path": "docs/adr/outline/0003-outline-thinking-medium.md",
+          "status": "Superseded by [ADR offload/0001](../offload/0001-client-llm-offload-plugin.md)",
+          "summary": "Enable Medium Thinking for Outline Generation"
+        },
+        {
+          "path": "docs/adr/outline/0004-layout-planning-phase.md",
+          "status": "Accepted (2026-04-18)",
+          "summary": "아웃라인 내 레이아웃 계획"
+        },
+        {
+          "path": "docs/adr/outline/0005-load-outline-include-content.md",
+          "status": "Accepted (2026-04-27)",
+          "summary": "load_outline에 include_content 파라미터 추가"
+        }
+      ]
     },
     "design": {
-      "codePaths": [
-        "src/ppt_generator/tools/design/**",
-        "src/ppt_generator/interfaces/prompts/design_*",
-        "src/ppt_generator/interfaces/prompts/component_modify_*",
-        "src/ppt_generator/interfaces/prompts/backfill_design_doc_*",
-        "src/ppt_generator/interfaces/prompts/examples/**",
-        "src/ppt_generator/interfaces/llm_output_models.py",
-        "src/ppt_generator/interfaces/schemas.py",
-        "src/ppt_generator/interfaces/spec_utils/parser.py",
-        "src/ppt_generator/interfaces/spec_utils/serializer.py",
-        "src/ppt_generator/interfaces/text_measurement.py",
-        "tests/design/**",
-        "tests/test_prompt_schema_contracts.py",
-        "tests/test_slide_spec_output_models.py",
-        "tests/test_design_*.py",
-        "tests/test_text_measurement.py",
-        "tests/test_render_nowrap.py",
-        "tests/test_complexity.py"
-      ],
-      "description": "design spec 생성 + 5단 계층 (Layout/Section/Content) + 폰트 메트릭 + 병렬 생성 + 점진적 추상화 출력. 핵심 도메인."
+      "feature": "디자인 스펙 생성",
+      "adrs": [
+        {
+          "path": "docs/adr/design/0001-design-spec-pipeline.md",
+          "status": "Accepted (2026-07-21)",
+          "summary": "디자인 스펙 기반 슬라이드 생성 파이프라인"
+        },
+        {
+          "path": "docs/adr/design/0002-font-metric-text-overflow.md",
+          "status": "Accepted (2026-05-26)",
+          "summary": "폰트 메트릭 기반 텍스트 오버플로우 방지"
+        },
+        {
+          "path": "docs/adr/design/0003-parallel-design-spec.md",
+          "status": "Superseded by [ADR offload/0001](../offload/0001-client-llm-offload-plugin.md)",
+          "summary": "디자인 스펙 병렬 생성 — Worker 스케줄링 + Thinking Budget"
+        },
+        {
+          "path": "docs/adr/design/0004-slide-type-specific-prompts.md",
+          "status": "Accepted (2026-02-25)",
+          "summary": "슬라이드 타입별 시스템 프롬프트 분리"
+        },
+        {
+          "path": "docs/adr/design/0005-title-long-title-overflow-fix.md",
+          "status": "Accepted (2026-02-25)",
+          "summary": "타이틀 슬라이드 긴 제목 텍스트 잘림 수정"
+        },
+        {
+          "path": "docs/adr/design/0006-text-run-hyperlink.md",
+          "status": "Accepted (2026-03-31)",
+          "summary": "텍스트 런 하이퍼링크 지원"
+        },
+        {
+          "path": "docs/adr/design/0007-image-path-corner-radius.md",
+          "status": "Accepted (2026-04-02)",
+          "summary": "이미지 image_path 및 corner_radius_px 지원"
+        },
+        {
+          "path": "docs/adr/design/0008-design-spec-post-generation-review.md",
+          "status": "Accepted (2026-07-21)",
+          "summary": "Design Spec Post-Generation LLM Review"
+        },
+        {
+          "path": "docs/adr/design/0009-add-slide-design-consistency.md",
+          "status": "Superseded by [ADR design/0010](./0010-theme-color-change.md)",
+          "summary": "슬라이드 추가 시 기존 디자인 스펙 참조를 통한 일관성 향상"
+        },
+        {
+          "path": "docs/adr/design/0010-theme-color-change.md",
+          "status": "Accepted (2026-04-18)",
+          "summary": "기본 테마 색상 변경 (녹색-파랑-보라 그라데이션) 및 다이어그램 활용 강화"
+        },
+        {
+          "path": "docs/adr/design/0011-five-layer-design-spec-hierarchy.md",
+          "status": "Accepted (2026-07-21)",
+          "summary": "5단 디자인 스펙 계층 — Project / Slide / Layout / Section / Content"
+        },
+        {
+          "path": "docs/adr/design/0012-content-local-grid.md",
+          "status": "Deprecated (2026-05-26)",
+          "summary": "Content 로컬 그리드 — Section 컨텐츠 영역의 sub-grid 분할"
+        },
+        {
+          "path": "docs/adr/design/0013-five-layer-data-integrity.md",
+          "status": "Accepted (2026-07-21)",
+          "summary": "5단 디자인 스펙 계층 — 데이터 무결성"
+        },
+        {
+          "path": "docs/adr/design/0014-shape-autofit-shrink-text.md",
+          "status": "Accepted (2026-05-26)",
+          "summary": "PptxShape autofit 기본값을 \"shrink_text\" 로"
+        },
+        {
+          "path": "docs/adr/design/0015-design-md-source-of-truth.md",
+          "status": "Accepted (2026-06-15)",
+          "summary": "DESIGN.md — 사람이 편집하는 디자인 의도 단일 소스"
+        },
+        {
+          "path": "docs/adr/design/0016-design-md-background-policy.md",
+          "status": "Accepted (2026-06-15)",
+          "summary": "DESIGN.md 가 배경 이미지 자동 주입을 제어한다"
+        },
+        {
+          "path": "docs/adr/design/0017-cycle-diagram-marking.md",
+          "status": "Accepted (2026-06-15)",
+          "summary": "순환 다이어그램 마킹 + 화살표 방향 규칙"
+        },
+        {
+          "path": "docs/adr/design/0018-design-md-taste-in-pipeline.md",
+          "status": "Accepted (2026-06-16)",
+          "summary": "DESIGN.md 의 taste 레이어를 파이프라인 안에서 생성한다"
+        },
+        {
+          "path": "docs/adr/design/0019-background-image-deterministic-per-project.md",
+          "status": "Accepted (2026-06-16)",
+          "summary": "배경 이미지 선택을 프로젝트 단위로 결정론화한다"
+        }
+      ]
     },
     "lint": {
-      "codePaths": [
-        "src/ppt_generator/interfaces/spec_utils/lint*",
-        "src/ppt_generator/interfaces/spec_utils/lint_rules/**",
-        "tests/lint/**",
-        "tests/test_grid_lint.py"
-      ],
-      "description": "디자인 스펙 lint — 위반 감지 + layer 별 단계적 검증, cross-layer link 정합성."
+      "feature": "디자인 스펙 Lint",
+      "adrs": [
+        {
+          "path": "docs/adr/lint/0001-design-spec-validator.md",
+          "status": "Superseded by [ADR lint/0003](./0003-validator-to-lint.md)",
+          "summary": "디자인 스펙 Validator"
+        },
+        {
+          "path": "docs/adr/lint/0002-diagram-label-line-overlap-prevention.md",
+          "status": "Accepted (2026-04-15)",
+          "summary": "Diagram Label-Line Overlap Prevention"
+        },
+        {
+          "path": "docs/adr/lint/0003-validator-to-lint.md",
+          "status": "Accepted (2026-07-23)",
+          "summary": "디자인 스펙 Lint"
+        },
+        {
+          "path": "docs/adr/lint/0004-arrow-label-attachment-lint.md",
+          "status": "Accepted (2026-05-26)",
+          "summary": "화살표·라벨 부착 검증 lint — arrow-endpoint-attachment, label-orphan"
+        },
+        {
+          "path": "docs/adr/lint/0005-five-layer-lint-policy.md",
+          "status": "Accepted (2026-05-26)",
+          "summary": "5단 디자인 스펙 계층 — Lint 정책"
+        },
+        {
+          "path": "docs/adr/lint/0006-cycle-diagram-topology-lint.md",
+          "status": "Accepted (2026-06-15)",
+          "summary": "순환 다이어그램 위상 일관성 lint — 선언 기반 사이클 마킹"
+        }
+      ]
     },
     "modify": {
-      "codePaths": [
-        "src/ppt_generator/tools/design/handlers/modification.py",
-        "src/ppt_generator/tools/design/edit_context.py",
-        "src/ppt_generator/tools/design/controller.py",
-        "tests/design/test_modify_component.py",
-        "tests/design/test_modify_design_spec.py",
-        "tests/test_backfill_design_doc.py",
-        "tests/test_cross_scenario_chain.py",
-        "tests/design/test_move_slide.py",
-        "tests/outline/test_outline_design_spec_sync.py"
-      ],
-      "description": "슬라이드/component 부분 수정 — slide_edit(add/update/delete) + modify_component + imported lazy backfill."
+      "feature": "슬라이드 및 컴포넌트 수정",
+      "adrs": [
+        {
+          "path": "docs/adr/modify/0001-file-based-communication-and-per-slide-crud.md",
+          "status": "Accepted (2026-07-21)",
+          "summary": "파일 기반 통신, 슬라이드 단위 CRUD 및 파일 분리"
+        },
+        {
+          "path": "docs/adr/modify/0002-modify-design-spec-inline-outline.md",
+          "status": "Accepted (2026-03-09)",
+          "summary": "개별 파일 기반 outline 저장 및 save_outline_slide 도구"
+        },
+        {
+          "path": "docs/adr/modify/0003-modify-component-mcp-tool.md",
+          "status": "Accepted (2026-07-21)",
+          "summary": "modify_component MCP 도구 — Section 단위 부분 수정"
+        },
+        {
+          "path": "docs/adr/modify/0004-imported-slide-lazy-backfill.md",
+          "status": "Accepted (2026-05-26)",
+          "summary": "Imported 슬라이드 design_doc lazy backfill"
+        }
+      ]
     },
     "slides": {
-      "codePaths": [
-        "src/ppt_generator/tools/slides/**",
-        "src/ppt_generator/templates/**",
-        "tests/test_slides_*.py",
-        "tests/test_html_renderer.py",
-        "tests/test_shape_builders.py",
-        "tests/test_layout_mapping.py",
-        "tests/test_image_src_resolve.py",
-        "tests/test_slide_image_sync.py",
-        "tests/test_bg_image_utils.py"
-      ],
-      "description": "슬라이드 HTML 미리보기 — design spec → HTML 결정론적 변환 + iframe 컨테이너."
+      "feature": "HTML 슬라이드 렌더링",
+      "adrs": [
+        {
+          "path": "docs/adr/slides/0001-per-slide-html-iframe.md",
+          "status": "Accepted (2026-02-13)",
+          "summary": "슬라이드별 HTML 파일 분리 및 iframe 컨테이너"
+        },
+        {
+          "path": "docs/adr/slides/0002-context-safe-html-rendering.md",
+          "status": "Accepted (2026-07-21)",
+          "summary": "컨텍스트 안전 HTML 렌더링"
+        },
+        {
+          "path": "docs/adr/slides/0003-line-shape-direction-agnostic-endpoints.md",
+          "status": "Accepted (2026-07-21)",
+          "summary": "line shape 방향 무관 끝점 계약"
+        }
+      ]
     },
     "pptx-export": {
-      "codePaths": [
-        "src/ppt_generator/interfaces/render_parity.py",
-        "src/ppt_generator/tools/pptx/**",
-        "tests/test_pptx_*.py",
-        "tests/test_render_parity.py"
-      ],
-      "description": "PPTX 내보내기와 HTML/PPTX 렌더 패리티 — design spec의 공유 의미를 두 출력에서 결정론적으로 검증."
+      "feature": "PPTX 내보내기",
+      "adrs": [
+        {
+          "path": "docs/adr/pptx-export/0001-shape-text-no-wrap-for-compact-badges.md",
+          "status": "Accepted (2026-06-16)",
+          "summary": "작은 뱃지 도형의 텍스트는 PPTX 에서 줄바꿈하지 않는다"
+        },
+        {
+          "path": "docs/adr/pptx-export/0002-html-pptx-render-parity-gate.md",
+          "status": "Accepted (2026-07-23)",
+          "summary": "HTML·PPTX 렌더 패리티 게이트"
+        }
+      ]
     },
     "import": {
-      "codePaths": [
-        "src/ppt_generator/tools/pptx_import/**",
-        "tests/test_pptx_import.py"
-      ],
-      "description": "PPTX 임포트 — 외부 .pptx → DesignSpec 결정론적 역변환."
+      "feature": "PPTX 임포트",
+      "adrs": [
+        {
+          "path": "docs/adr/import/0001-pptx-import-to-design-spec.md",
+          "status": "Accepted (2026-03-04)",
+          "summary": "PPTX 임포트 → 디자인 스펙 변환"
+        },
+        {
+          "path": "docs/adr/import/0002-pptx-image-aspect-ratio-preservation.md",
+          "status": "Accepted (2026-04-02)",
+          "summary": "PPTX 이미지 종횡비 보존 (contain 방식)"
+        },
+        {
+          "path": "docs/adr/import/0003-pptx-import-fidelity-fixes.md",
+          "status": "Accepted (2026-07-23)",
+          "summary": "PPTX 임포트 충실도 개선 (autofit·stroke·chart·행간)"
+        },
+        {
+          "path": "docs/adr/import/0004-post-import-lint-profile.md",
+          "status": "Accepted (2026-07-23)",
+          "summary": "임포트 직후 소스 인식 Lint 프로필"
+        }
+      ]
     },
     "visual-qa": {
-      "codePaths": [
-        "src/ppt_generator/tools/visual_qa/**",
-        "src/ppt_generator/interfaces/prompts/visual_qa_*",
-        "tests/test_visual_qa_*.py"
-      ],
-      "description": "스크린샷 기반 자동 QA — 서버는 스크린샷 캡처(Playwright)만, 비전 분석/수정은 클라이언트 LLM(prepare/ingest)."
+      "feature": "시각 품질 검증",
+      "adrs": [
+        {
+          "path": "docs/adr/visual-qa/0001-visual-qa-pipeline.md",
+          "status": "Accepted (2026-07-21)",
+          "summary": "Visual QA Pipeline"
+        },
+        {
+          "path": "docs/adr/visual-qa/0002-browser-tool-fallback.md",
+          "status": "Proposed",
+          "summary": "Visual QA 브라우저 도구 안내 개선"
+        },
+        {
+          "path": "docs/adr/visual-qa/0003-two-phase-model-split.md",
+          "status": "Superseded by [ADR offload/0001](../offload/0001-client-llm-offload-plugin.md)",
+          "summary": "Visual QA 2-Phase 모델 분리 (Haiku 분석 + Sonnet 수정)"
+        }
+      ]
     },
     "project": {
-      "codePaths": [
-        "src/ppt_generator/tools/project/**",
-        "src/ppt_generator/server.py",
-        "src/ppt_generator/di/**",
-        "src/ppt_generator/interfaces/index_validation.py",
-        "src/ppt_generator/interfaces/utils.py",
-        "src/ppt_generator/interfaces/constants.py",
-        "src/ppt_generator/interfaces/protocols.py",
-        "tests/project/**",
-        "tests/test_project_*.py"
-      ],
-      "description": "파이프라인 인프라 — 결과물 저장, 진행률 보고, MCP 서버 안정성, DI 컨테이너. (토큰/비용 추적은 offload/0001 로 제거됨)"
+      "feature": "프로젝트 파이프라인",
+      "adrs": [
+        {
+          "path": "docs/adr/project/0001-pipeline-artifact-persistence.md",
+          "status": "Accepted (2026-02-11)",
+          "summary": "파이프라인 결과물 영속화와 프로젝트 경계"
+        },
+        {
+          "path": "docs/adr/project/0002-progressive-refinement-pipeline.md",
+          "status": "Accepted (2026-02-11)",
+          "summary": "점진적 구체화 파이프라인 설계 (Progressive Refinement Pipeline)"
+        },
+        {
+          "path": "docs/adr/project/0003-token-usage-cost-estimation.md",
+          "status": "Superseded by [ADR offload/0001](../offload/0001-client-llm-offload-plugin.md)",
+          "summary": "토큰 사용량 추적 및 비용 추정"
+        },
+        {
+          "path": "docs/adr/project/0004-progress-reporting-and-logging.md",
+          "status": "Superseded by [ADR offload/0001](../offload/0001-client-llm-offload-plugin.md)",
+          "summary": "파이프라인 전체 진행률 보고 및 로깅 강화"
+        },
+        {
+          "path": "docs/adr/project/0005-mcp-server-stability.md",
+          "status": "Accepted (2026-04-15)",
+          "summary": "MCP 서버 안정성과 제한 시간"
+        }
+      ]
     },
     "script": {
-      "codePaths": [],
-      "description": "발표 스크립트 생성 (deprecated, 코드 제거됨) — speaker_notes 는 design_doc 생성 단계로 흡수. ADR 은 역사적 기록으로만 유지."
+      "feature": "발표 스크립트",
+      "adrs": [
+        {
+          "path": "docs/adr/script/0001-script-generation.md",
+          "status": "Deprecated (2026-02-11)",
+          "summary": "발표 스크립트 생성 (F2)"
+        }
+      ]
     },
     "template": {
-      "codePaths": [
-        "src/ppt_generator/tools/template/**"
-      ],
-      "description": "PPTX 템플릿 분석 (Proposed, 미구현) — 사용자 PPTX 의 색상/폰트/레이아웃을 읽어 동적 적용."
+      "feature": "PPTX 템플릿 분석",
+      "adrs": [
+        {
+          "path": "docs/adr/template/0001-template-analysis.md",
+          "status": "Proposed",
+          "summary": "PPTX 템플릿 분석 및 동적 디자인 반영 (F8)"
+        }
+      ]
     },
     "chart": {
-      "codePaths": [
-        "src/ppt_generator/tools/chart/**"
-      ],
-      "description": "차트/데이터 시각화 (Proposed, 미구현) — 슬라이드 안의 차트를 데이터로부터 생성."
+      "feature": "차트 및 데이터 시각화",
+      "adrs": [
+        {
+          "path": "docs/adr/chart/0001-chart-data-visualization.md",
+          "status": "Proposed",
+          "summary": "차트 및 데이터 시각화 지원"
+        }
+      ]
     },
     "offload": {
-      "codePaths": [
-        ".claude-plugin/**",
-        "skills/**",
-        "src/ppt_generator/server.py",
-        "src/ppt_generator/di/**"
-      ],
-      "description": "LLM 생성을 클라이언트로 오프로딩 — 플러그인 + 스킬 + prepare/ingest 핸드셰이크. 서버는 프롬프트·스키마·후처리만 소유하고 토큰 생성은 클라이언트가 담당."
+      "feature": "클라이언트 LLM 오프로딩",
+      "adrs": [
+        {
+          "path": "docs/adr/offload/0001-client-llm-offload-plugin.md",
+          "status": "Accepted (2026-07-01)",
+          "summary": "LLM 생성을 클라이언트로 오프로딩 — 플러그인 + 스킬 + prepare/ingest 핸드셰이크"
+        }
+      ]
     }
   }
 }

@@ -4,7 +4,7 @@ Date: 2026-05-26 (updated 2026-05-26: 구현 진입 직전 Rejected)
 
 ## Status
 
-**Rejected** (구현 시작 후 표현력 trade-off 재평가로 폐기)
+Deprecated (2026-05-26)
 
 ## Rejection Rationale
 

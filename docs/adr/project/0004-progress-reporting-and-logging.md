@@ -4,7 +4,7 @@ Date: 2026-04-15
 
 ## Status
 
-Superseded by [offload/0001](../offload/0001-client-llm-offload-plugin.md)
+Superseded by [ADR offload/0001](../offload/0001-client-llm-offload-plugin.md)
 
 이 ADR의 핵심 전제 — 서버가 outline·script·design spec 의 장시간 LLM 생성을 수행하며 그
 진행률을 MCP `report_progress` 로 보고한다 — 는 offload 로 무너졌다. 생성(토큰)은 이제

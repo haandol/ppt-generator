@@ -4,7 +4,7 @@ Date: 2026-05-26 (split from design/0011 결정 12/13)
 
 ## Status
 
-Accepted
+Accepted (2026-05-26)
 
 ## Context
 

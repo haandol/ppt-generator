@@ -6,7 +6,7 @@ Updated: 2026-07-21 (line_spacing 미축소로 다행 텍스트 오버플로 지
 
 ## Status
 
-Accepted
+Accepted (2026-05-26)
 
 ## Context
 

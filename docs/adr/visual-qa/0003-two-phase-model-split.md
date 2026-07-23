@@ -4,7 +4,7 @@ Date: 2026-04-15
 
 ## Status
 
-Superseded by [offload/0001](../offload/0001-client-llm-offload-plugin.md)
+Superseded by [ADR offload/0001](../offload/0001-client-llm-offload-plugin.md)
 
 Visual QA 의 분석·수정 LLM 호출이 클라이언트로 오프로딩되면서 서버가 모델을 고르지
 않게 되었다. Haiku(분석)/Sonnet(수정) 이원화는 제거되었고, 스크린샷 캡처(Playwright)만

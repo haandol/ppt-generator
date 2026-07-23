@@ -4,7 +4,7 @@ Date: 2026-05-26
 
 ## Status
 
-Superseded by [offload/0001](../offload/0001-client-llm-offload-plugin.md)
+Superseded by [ADR offload/0001](../offload/0001-client-llm-offload-plugin.md)
 
 디자인 스펙 생성의 LLM 호출이 클라이언트로 오프로딩되면서 서버측 ThreadPoolExecutor
 병렬 생성·워커 스케줄링·고정 thinking budget 강제는 제거되었다. 서버 API 는 슬라이드
