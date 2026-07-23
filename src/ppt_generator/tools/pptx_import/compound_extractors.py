@@ -28,6 +28,8 @@ class CompoundExtractorMixin:
     # 타입 힌트 (실제 구현은 SlideReader/다른 mixin에서 제공)
     _emu_to_px_x: any
     _emu_to_px_y: any
+    _emu_to_px_x_precise: any
+    _emu_to_px_y_precise: any
     _extract_paragraphs: any
     _extract_shape: any
 
@@ -78,39 +80,49 @@ class CompoundExtractorMixin:
         # 뒤집혀 흰 채움 박스가 텍스트를 덮는다 (import/0003). draw_order 를 남겨 두면
         # slide_reader 가 이를 존중해 올바른 z 를 매긴다.
         order = 0
-        for child in group_shape.shapes:
-            before = (len(tmp_tb), len(tmp_sh), len(tmp_img))
-            try:
-                self._extract_shape(child, tmp_tb, tmp_sh, tmp_img, warnings)
-            except Exception:
-                logger.warning(
-                    "그룹 내 shape 추출 실패 (name=%s)",
-                    getattr(child, "name", "?"),
-                    exc_info=True,
-                )
-            for lst, prev in (
-                (tmp_tb, before[0]),
-                (tmp_sh, before[1]),
-                (tmp_img, before[2]),
-            ):
-                for idx in range(prev, len(lst)):
-                    lst[idx] = replace(lst[idx], z_index=order)
-                    order += 1
+        self._group_depth = getattr(self, "_group_depth", 0) + 1
+        try:
+            for child in group_shape.shapes:
+                before = (len(tmp_tb), len(tmp_sh), len(tmp_img))
+                try:
+                    self._extract_shape(child, tmp_tb, tmp_sh, tmp_img, warnings)
+                except Exception:
+                    logger.warning(
+                        "그룹 내 shape 추출 실패 (name=%s)",
+                        getattr(child, "name", "?"),
+                        exc_info=True,
+                    )
+                for lst, prev in (
+                    (tmp_tb, before[0]),
+                    (tmp_sh, before[1]),
+                    (tmp_img, before[2]),
+                ):
+                    for idx in range(prev, len(lst)):
+                        lst[idx] = replace(lst[idx], z_index=order)
+                        order += 1
+        finally:
+            self._group_depth -= 1
 
         if grp_xfrm is not None:
-            ch_off_x_px = self._emu_to_px_x(ch_offset_x_emu)
-            ch_off_y_px = self._emu_to_px_y(ch_offset_y_emu)
-            off_x_px = self._emu_to_px_x(offset_x_emu)
-            off_y_px = self._emu_to_px_y(offset_y_emu)
+            ch_off_x_px = self._emu_to_px_x_precise(ch_offset_x_emu)
+            ch_off_y_px = self._emu_to_px_y_precise(ch_offset_y_emu)
+            off_x_px = self._emu_to_px_x_precise(offset_x_emu)
+            off_y_px = self._emu_to_px_y_precise(offset_y_emu)
+            should_round = self._group_depth == 0
 
             def _tx(
                 left: float, top: float, w: float, h: float
             ) -> tuple[float, float, float, float]:
+                values = (
+                    (left - ch_off_x_px) * scale_x + off_x_px,
+                    (top - ch_off_y_px) * scale_y + off_y_px,
+                    w * scale_x,
+                    h * scale_y,
+                )
                 return (
-                    round((left - ch_off_x_px) * scale_x + off_x_px, 1),
-                    round((top - ch_off_y_px) * scale_y + off_y_px, 1),
-                    round(w * scale_x, 1),
-                    round(h * scale_y, 1),
+                    tuple(round(value, 1) for value in values)
+                    if should_round
+                    else values
                 )
 
             tmp_tb = [

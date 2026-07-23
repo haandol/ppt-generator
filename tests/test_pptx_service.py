@@ -105,6 +105,64 @@ class TestExportFromDesignSpec:
         assert "제목" in all_text
         assert "본문 텍스트" in all_text
 
+    def test_preserves_paragraph_spacing_for_textboxes_and_shapes(
+        self, service, tmp_path
+    ):
+        spacing = PptxParagraph(
+            runs=[PptxTextRun(text="spaced", font_size_pt=16)],
+            space_before_pt=3,
+            space_after_pt=5,
+        )
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    textboxes=[
+                        PptxTextBox(
+                            left_px=40,
+                            top_px=40,
+                            width_px=300,
+                            height_px=80,
+                            paragraphs=[spacing],
+                        )
+                    ],
+                    shapes=[
+                        PptxShape(
+                            left_px=400,
+                            top_px=40,
+                            width_px=300,
+                            height_px=80,
+                            fill_color="#eeeeee",
+                            paragraphs=[
+                                PptxParagraph(
+                                    runs=[
+                                        PptxTextRun(
+                                            text="shape spaced",
+                                            font_size_pt=16,
+                                        )
+                                    ],
+                                    space_before_pt=7,
+                                    space_after_pt=9,
+                                )
+                            ],
+                        )
+                    ],
+                )
+            ]
+        )
+
+        response = service.export_from_design_spec(spec, output_dir=tmp_path)
+
+        slide = Presentation(response.pptx_path).slides[0]
+        paragraphs = {
+            shape.text: shape.text_frame.paragraphs[0]
+            for shape in slide.shapes
+            if shape.has_text_frame
+        }
+        assert paragraphs["spaced"].space_before.pt == pytest.approx(3)
+        assert paragraphs["spaced"].space_after.pt == pytest.approx(5)
+        assert paragraphs["shape spaced"].space_before.pt == pytest.approx(7)
+        assert paragraphs["shape spaced"].space_after.pt == pytest.approx(9)
+
     def test_preserves_speaker_notes(self, service, tmp_path):
         spec = _make_design_spec()
         response = service.export_from_design_spec(spec, output_dir=tmp_path)

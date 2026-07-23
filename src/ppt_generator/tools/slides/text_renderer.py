@@ -163,6 +163,12 @@ def paragraph_to_html(
         style_props.append("white-space:nowrap")
     if line_height_pt and line_height_pt > 0:
         style_props.append(f"line-height:{css_number(line_height_pt)}pt")
+    space_before = safe_number(getattr(para, "space_before_pt", None))
+    space_after = safe_number(getattr(para, "space_after_pt", None))
+    if space_before > 0:
+        style_props.append(f"padding-top:{css_number(space_before)}pt")
+    if space_after > 0:
+        style_props.append(f"padding-bottom:{css_number(space_after)}pt")
 
     style_attr = f' style="{";".join(style_props)}"' if style_props else ""
 
@@ -176,5 +182,9 @@ def paragraph_to_html(
             li_styles.append("white-space:nowrap")
         if line_height_pt and line_height_pt > 0:
             li_styles.append(f"line-height:{css_number(line_height_pt)}pt")
+        if space_before > 0:
+            li_styles.append(f"padding-top:{css_number(space_before)}pt")
+        if space_after > 0:
+            li_styles.append(f"padding-bottom:{css_number(space_after)}pt")
         return f'<li style="{";".join(li_styles)}">{runs_html}</li>'
     return f"<p{style_attr}>{runs_html}</p>"

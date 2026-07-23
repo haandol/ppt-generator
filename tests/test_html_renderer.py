@@ -619,6 +619,63 @@ class TestShapeParagraphLineSpacing:
         assert html.count("line-height:16.8pt") == 2
 
 
+class TestShapePadding:
+    """텍스트가 없는 도형의 PPT 텍스트 여백은 CSS 크기를 늘리지 않아야 한다."""
+
+    def test_empty_shape_ignores_large_text_margins(self):
+        shape = PptxShape(
+            left_px=867.1,
+            top_px=252.8,
+            width_px=104.8,
+            height_px=62,
+            shape_type="rounded_rectangle",
+            fill_color="#FFFFFF",
+            border_color="#41B3FF",
+            padding_left_px=172.8,
+            padding_right_px=67.2,
+            padding_top_px=4.8,
+            padding_bottom_px=4.8,
+        )
+
+        html = shape_to_html(shape)
+
+        assert "width:104.8px" in html
+        assert "padding:0px 0px 0px 0px" in html
+
+    def test_shape_with_text_preserves_text_margins(self):
+        shape = PptxShape(
+            left_px=0,
+            top_px=0,
+            width_px=200,
+            height_px=80,
+            paragraphs=[
+                PptxParagraph(runs=[PptxTextRun(text="Label", font_size_pt=12)])
+            ],
+            padding_left_px=12,
+            padding_right_px=10,
+            padding_top_px=6,
+            padding_bottom_px=4,
+        )
+
+        html = shape_to_html(shape)
+
+        assert "padding:6px 10px 4px 12px" in html
+
+
+class TestParagraphSpacing:
+    def test_paragraph_spacing_is_rendered_as_non_collapsing_padding(self):
+        paragraph = PptxParagraph(
+            runs=[PptxTextRun(text="versionId", font_size_pt=16)],
+            space_before_pt=3,
+            space_after_pt=3,
+        )
+
+        html = paragraph_to_html(paragraph, line_height_pt=19.2)
+
+        assert "padding-top:3pt" in html
+        assert "padding-bottom:3pt" in html
+
+
 class TestTabIndent:
     """탭(\\t)은 PowerPoint 기본 탭 stop(1인치=96px)만큼 들여써야 한다.
 

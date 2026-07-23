@@ -1238,6 +1238,35 @@ class TestPlaceholderFormatInheritance:
 class TestImageSrcSerialization:
     """이미지 src 필드의 직렬화/역직렬화 검증."""
 
+    def test_paragraph_spacing_round_trips_through_json(self):
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    textboxes=[
+                        PptxTextBox(
+                            left_px=0,
+                            top_px=0,
+                            width_px=300,
+                            height_px=100,
+                            paragraphs=[
+                                PptxParagraph(
+                                    runs=[PptxTextRun(text="versionId")],
+                                    space_before_pt=3,
+                                    space_after_pt=3,
+                                )
+                            ],
+                        )
+                    ]
+                )
+            ]
+        )
+
+        parsed = parse_design_spec_json(design_spec_to_json(spec))
+        paragraph = parsed.slides[0].textboxes[0].paragraphs[0]
+
+        assert paragraph.space_before_pt == 3
+        assert paragraph.space_after_pt == 3
+
     def test_image_src_serialized_in_json(self):
         """PptxImage.src가 JSON 직렬화에 포함되는지 검증."""
         spec = DesignSpec(
@@ -1544,6 +1573,44 @@ class TestLineSpacingExtraction:
         reader = SlideReader(1.0, 1.0, prs)
         assert reader._extract_line_spacing(tb.text_frame) == pytest.approx(16.8)
 
+    def test_paragraph_before_after_spacing_is_extracted(self):
+        from pptx.util import Pt
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        tb = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1))
+        para = tb.text_frame.paragraphs[0]
+        para.add_run().text = "versionId"
+        para.space_before = Pt(3)
+        para.space_after = Pt(3)
+
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+        imported = spec.textboxes[0].paragraphs[0]
+
+        assert imported.space_before_pt == pytest.approx(3)
+        assert imported.space_after_pt == pytest.approx(3)
+
+    def test_paragraph_spacing_is_restored_on_export(self):
+        from pptx.util import Pt
+
+        from ppt_generator.tools.pptx.text_formatter import format_paragraphs
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        tb = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1))
+        paragraph = PptxParagraph(
+            runs=[PptxTextRun(text="versionId", font_size_pt=16)],
+            space_before_pt=3,
+            space_after_pt=3,
+        )
+
+        format_paragraphs(tb.text_frame, [paragraph])
+
+        restored = tb.text_frame.paragraphs[0]
+        assert restored.space_before == Pt(3)
+        assert restored.space_after == Pt(3)
+
 
 class TestThemeSvgFallback:
     """SVG 테마 아이콘의 흰 fallback PNG를 슬라이드 텍스트색으로 복원."""
@@ -1717,6 +1784,45 @@ class TestGroupZOrderPreserved:
         assert label.z_index is not None
         if others:
             assert label.z_index >= max(others)
+
+
+class TestGroupCoordinatePrecision:
+    """그룹 내부 좌표는 그룹 확대 전에 픽셀 반올림하면 안 된다."""
+
+    def test_tiny_child_geometry_keeps_nonzero_size_after_group_scale(self):
+        from pptx.enum.shapes import MSO_SHAPE
+        from pptx.oxml.ns import qn
+        from pptx.util import Emu
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        group = slide.shapes.add_group_shape()
+        group.shapes.add_shape(
+            MSO_SHAPE.RECTANGLE,
+            Emu(1548),
+            Emu(3265),
+            Emu(331),
+            Emu(141),
+        )
+
+        xfrm = group._element.find(qn("p:grpSpPr") + "/" + qn("a:xfrm"))
+        for tag, attrs in (
+            ("off", {"x": "3402623", "y": "3894994"}),
+            ("ext", {"cx": "484438", "cy": "503542"}),
+            ("chOff", {"x": "1245", "y": "3000"}),
+            ("chExt", {"cx": "634", "cy": "659"}),
+        ):
+            element = xfrm.find(qn(f"a:{tag}"))
+            for key, value in attrs.items():
+                element.set(key, value)
+
+        reader = SlideReader(1.0, 1.0, prs)
+        spec = reader.read_slide(slide, 0, 1)
+
+        assert len(spec.shapes) == 1
+        child = spec.shapes[0]
+        assert child.width_px == pytest.approx(26.6, abs=0.1)
+        assert child.height_px == pytest.approx(11.3, abs=0.1)
 
 
 class TestBentConnector:

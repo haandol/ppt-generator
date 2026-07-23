@@ -70,9 +70,55 @@ class TextExtractorMixin:
                     runs=runs,
                     bullet_level=bullet_level,
                     alignment=alignment,
+                    space_before_pt=self._extract_paragraph_spacing(
+                        para,
+                        "a:spcBef",
+                        placeholder_type,
+                        placeholder_idx,
+                    ),
+                    space_after_pt=self._extract_paragraph_spacing(
+                        para,
+                        "a:spcAft",
+                        placeholder_type,
+                        placeholder_idx,
+                    ),
                 )
             )
         return paragraphs
+
+    def _extract_paragraph_spacing(
+        self,
+        paragraph,
+        tag: str,
+        placeholder_type: int | None,
+        placeholder_idx: int | None,
+    ) -> float | None:
+        """문단 앞/뒤 간격을 pt로 추출한다."""
+        pPr = paragraph._p.find(qn("a:pPr"))
+        spacing = pPr.find(qn(tag)) if pPr is not None else None
+        if spacing is None:
+            return None
+
+        points = spacing.find(qn("a:spcPts"))
+        if points is not None:
+            try:
+                return int(points.get("val", "0")) / 100
+            except (TypeError, ValueError):
+                return None
+
+        percent = spacing.find(qn("a:spcPct"))
+        if percent is not None:
+            try:
+                ratio = int(percent.get("val", "0")) / 100000
+            except (TypeError, ValueError):
+                return None
+            font_pt = self._first_run_font_pt(
+                paragraph,
+                placeholder_type,
+                placeholder_idx,
+            )
+            return ratio * font_pt if font_pt is not None else None
+        return None
 
     def _resolve_inherited_props(
         self,

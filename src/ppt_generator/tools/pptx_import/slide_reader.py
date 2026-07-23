@@ -67,6 +67,7 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
     ) -> None:
         self._scale_x = scale_x
         self._scale_y = scale_y
+        self._group_depth = 0
         self._theme_color_map: dict[str, str] = {}
         self._master_tx_styles: dict[str, dict[int, DefaultRunProps]] = {}
         self._presentation_width: int = 0
@@ -116,10 +117,18 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
     # ── 좌표 변환 ──
 
     def _emu_to_px_x(self, emu: int) -> float:
-        return round(emu * IMPORT_EMU_TO_PX * self._scale_x, 1)
+        value = self._emu_to_px_x_precise(emu)
+        return value if self._group_depth else round(value, 1)
 
     def _emu_to_px_y(self, emu: int) -> float:
-        return round(emu * IMPORT_EMU_TO_PX * self._scale_y, 1)
+        value = self._emu_to_px_y_precise(emu)
+        return value if self._group_depth else round(value, 1)
+
+    def _emu_to_px_x_precise(self, emu: int) -> float:
+        return emu * IMPORT_EMU_TO_PX * self._scale_x
+
+    def _emu_to_px_y_precise(self, emu: int) -> float:
+        return emu * IMPORT_EMU_TO_PX * self._scale_y
 
     def _emu_to_px_padding(self, emu: int | None) -> float | None:
         if emu is None:

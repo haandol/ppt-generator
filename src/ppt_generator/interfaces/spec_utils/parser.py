@@ -95,6 +95,8 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
                     runs=runs,
                     bullet_level=p.get("bullet_level", -1),
                     alignment=p.get("alignment"),
+                    space_before_pt=p.get("space_before_pt"),
+                    space_after_pt=p.get("space_after_pt"),
                 )
             )
         textboxes.append(
@@ -141,6 +143,8 @@ def parse_slide_spec(data: dict) -> PptxSlideSpec:
                     runs=s_runs,
                     bullet_level=p.get("bullet_level", -1),
                     alignment=p.get("alignment"),
+                    space_before_pt=p.get("space_before_pt"),
+                    space_after_pt=p.get("space_after_pt"),
                 )
             )
         shapes.append(

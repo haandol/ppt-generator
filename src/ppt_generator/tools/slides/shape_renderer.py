@@ -407,10 +407,18 @@ def shape_to_html(shape: PptxShape) -> str:
 
     default_lr = PPTX_SHAPE_DEFAULT_MARGIN_LR_EMU / PX_TO_EMU
     default_tb = PPTX_SHAPE_DEFAULT_MARGIN_TB_EMU / PX_TO_EMU
-    pl = safe_number(shape.padding_left_px, default_lr)
-    pr = safe_number(shape.padding_right_px, default_lr)
-    pt_ = safe_number(shape.padding_top_px, default_tb)
-    pb = safe_number(shape.padding_bottom_px, default_tb)
+    has_text = bool(shape.text) or any(
+        run.text for para in shape.paragraphs for run in para.runs
+    )
+    if has_text:
+        pl = safe_number(shape.padding_left_px, default_lr)
+        pr = safe_number(shape.padding_right_px, default_lr)
+        pt_ = safe_number(shape.padding_top_px, default_tb)
+        pb = safe_number(shape.padding_bottom_px, default_tb)
+    else:
+        # Empty PowerPoint shapes can retain large, irrelevant text margins.
+        # CSS otherwise expands the border box beyond its declared width.
+        pl = pr = pt_ = pb = 0.0
     style += (
         f"padding:{css_number(pt_)}px {css_number(pr)}px "
         f"{css_number(pb)}px {css_number(pl)}px;box-sizing:border-box;"

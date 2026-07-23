@@ -133,6 +133,10 @@ def format_paragraphs(
 
         if para_spec.alignment and para_spec.alignment in _ALIGN_MAP:
             para.alignment = _ALIGN_MAP[para_spec.alignment]
+        if para_spec.space_before_pt is not None:
+            para.space_before = Pt(para_spec.space_before_pt)
+        if para_spec.space_after_pt is not None:
+            para.space_after = Pt(para_spec.space_after_pt)
 
 
 def apply_line_spacing(

@@ -93,6 +93,8 @@ class PptxParagraph:
     runs: list[PptxTextRun] = field(default_factory=list)
     bullet_level: int = -1  # -1 = no bullet, 0 = level 1, 1 = level 2
     alignment: str | None = None  # 'left', 'center', 'right'
+    space_before_pt: float | None = None
+    space_after_pt: float | None = None
 
 
 @dataclass(frozen=True)
