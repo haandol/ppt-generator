@@ -133,6 +133,9 @@ def textbox_to_html(tb: PptxTextBox) -> str:
         # 초과하는 경우만 nowrap 을 강제한다. 원본이 한 줄로 넘치도록 의도한 케이스
         # (예: 타이틀 "AWS HealthImaging")를 PPT 처럼 한 줄로 렌더하기 위함이다.
         # 폭을 크게 초과하는 텍스트(원본도 여러 줄로 wrap)는 nowrap 하지 않는다.
+        # 주의: spAutoFit(autofit="resize")은 "박스 높이가 텍스트에 맞춰 늘어남"을
+        # 뜻할 뿐 "한 줄 강제"가 아니다(wrap="square"면 정상 줄바꿈). resize 를
+        # nowrap 으로 처리하면 본문·제목이 한 줄로 밀려 넘친다 → 여기서 제외한다.
         force_nowrap = False
         if (
             getattr(tb, "autofit", "shrink") == "none"

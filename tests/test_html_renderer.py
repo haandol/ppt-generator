@@ -560,3 +560,40 @@ class TestShapeRotation:
         )
         html = shape_to_html(shape)
         assert "transform:rotate" not in html
+
+
+class TestFontFallbackChain:
+    """서브패밀리 폰트명은 베이스 패밀리를 폴백 체인에 포함해야 한다.
+
+    "Amazon Ember Display" 처럼 서브패밀리명이 미설치일 때 sans-serif 로 바로
+    떨어지면 글자 폭이 넓어져 줄바꿈이 원본과 어긋난다(slide16/18 "Learn more",
+    본문 줄바꿈 회귀). 베이스 "Amazon Ember" 를 끼워 넣어 같은 계열로 렌더한다.
+    """
+
+    def test_display_suffix_adds_base_family(self):
+        html = run_to_html(
+            PptxTextRun(
+                text="Learn more", font_size_pt=14, font_name="Amazon Ember Display"
+            )
+        )
+        assert "'Amazon Ember Display','Amazon Ember'" in html
+
+    def test_multiple_suffixes_stripped_progressively(self):
+        from ppt_generator.tools.slides.text_renderer import _base_family_names
+
+        assert _base_family_names("Amazon Ember Condensed Light") == [
+            "Amazon Ember Condensed",
+            "Amazon Ember",
+        ]
+
+    def test_plain_family_has_no_extra_base(self):
+        from ppt_generator.tools.slides.text_renderer import _base_family_names
+
+        assert _base_family_names("Arial") == []
+        assert _base_family_names("Roboto") == []
+
+    def test_fallback_chain_ends_with_sans_serif(self):
+        html = run_to_html(
+            PptxTextRun(text="x", font_size_pt=12, font_name="Amazon Ember Display")
+        )
+        assert html.rstrip("</span>").endswith("sans-serif") or 'sans-serif">' in html

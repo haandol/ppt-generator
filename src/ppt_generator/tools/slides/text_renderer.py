@@ -22,6 +22,49 @@ def escape_html(text: str) -> str:
     return escape_text(text)
 
 
+# 폰트 서브패밀리(굵기/폭/광학 크기) 접미사. "Amazon Ember Display" 처럼 서브패밀리
+# 이름이 붙은 폰트는 종종 설치돼 있지 않지만(예: "Amazon Ember" 만 설치), 접미사를
+# 뗀 베이스 패밀리는 설치돼 있는 경우가 많다. 폴백 체인에 베이스명을 끼워 넣으면
+# sans-serif 로 떨어지기 전에 같은 계열로 렌더돼 글자 폭/줄바꿈이 원본에 가까워진다.
+_FONT_SUBFAMILY_SUFFIXES = (
+    "display",
+    "text",
+    "heading",
+    "caption",
+    "subhead",
+    "thin",
+    "extralight",
+    "ultralight",
+    "light",
+    "regular",
+    "medium",
+    "semibold",
+    "demibold",
+    "bold",
+    "extrabold",
+    "black",
+    "heavy",
+    "condensed",
+    "narrow",
+    "extended",
+)
+
+
+def _base_family_names(font_name: str) -> list[str]:
+    """폰트명에서 서브패밀리 접미사를 순차적으로 떼어낸 베이스 패밀리 후보들.
+
+    예) "Amazon Ember Display" → ["Amazon Ember"]
+        "Amazon Ember Condensed Light" → ["Amazon Ember Condensed", "Amazon Ember"]
+    원본명 자체는 포함하지 않는다(호출부에서 맨 앞에 이미 넣으므로).
+    """
+    tokens = font_name.split()
+    candidates: list[str] = []
+    while len(tokens) > 1 and tokens[-1].lower() in _FONT_SUBFAMILY_SUFFIXES:
+        tokens = tokens[:-1]
+        candidates.append(" ".join(tokens))
+    return candidates
+
+
 def run_to_html(run: PptxTextRun, *, font_scale: float = 1.0) -> str:
     """PptxTextRun -> <span> 변환.
 
@@ -45,12 +88,20 @@ def run_to_html(run: PptxTextRun, *, font_scale: float = 1.0) -> str:
         styles.append("font-family:'Source Code Pro',Consolas,'Courier New',monospace")
     elif getattr(run, "font_name", None):
         # 원본 폰트명 보존 + 안전한 fallback 체인. 폰트가 설치/웹폰트로 있으면 원본과
-        # 동일하게, 없으면 sans-serif 계열로 대체된다.
+        # 동일하게 렌더된다. 서브패밀리명("Amazon Ember Display" 등)이 미설치일 때를
+        # 대비해 베이스 패밀리명("Amazon Ember")을 sans-serif 앞에 끼워 넣어, 폰트
+        # 폴백으로 글자 폭이 달라져 줄바꿈이 어긋나는 것을 최소화한다.
         safe_name = run.font_name.replace("'", "").replace('"', "")
-        styles.append(
-            f"font-family:'{safe_name}','Noto Sans KR','Malgun Gothic',"
-            "'Apple SD Gothic Neo',sans-serif"
-        )
+        family_chain = [f"'{safe_name}'"]
+        for base in _base_family_names(safe_name):
+            family_chain.append(f"'{base}'")
+        family_chain += [
+            "'Noto Sans KR'",
+            "'Malgun Gothic'",
+            "'Apple SD Gothic Neo'",
+            "sans-serif",
+        ]
+        styles.append("font-family:" + ",".join(family_chain))
 
     # run.text 내 개행(\n)은 PPTX 의 <a:br>(문단 내 소프트 줄바꿈)에서 유래한다.
     # HTML 에서는 개행이 공백으로 접히므로 명시적 <br> 로 변환해 줄바꿈을 보존한다.
