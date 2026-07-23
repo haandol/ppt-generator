@@ -509,3 +509,52 @@ class TestConnectorArrow:
         assert xfrm is None or xfrm.get("flipV") is None, (
             "양수 height이면 flipV 없어야 한다"
         )
+
+
+class TestFreeformExport:
+    """custGeom freeform export 견고성.
+
+    차트 원호(도넛/파이) 등은 소수 viewBox("403.6 403.6")와 SVG arc("A") 명령을
+    쓰는데, 예전엔 int() 파싱과 정수-only tokenizer 라 export 시 crash 했다.
+    """
+
+    def test_decimal_viewbox_and_arc_does_not_crash(self, service, tmp_path):
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    shapes=[
+                        PptxShape(
+                            left_px=100,
+                            top_px=100,
+                            width_px=200,
+                            height_px=200,
+                            shape_type="custom",
+                            fill_color="#4A90D9",
+                            svg_path=(
+                                "403.6 403.6 M 201.8 0.0 "
+                                "A 201.8 201.8 0 1 1 0.4 189.13 "
+                                "L 60.82 192.93 "
+                                "A 141.26 141.26 0 1 0 201.8 60.54 Z"
+                            ),
+                        )
+                    ],
+                )
+            ]
+        )
+        response = service.export_from_design_spec(
+            spec, output_dir=tmp_path, bg_image_policy="none"
+        )
+        prs = Presentation(response.pptx_path)
+        slide = prs.slides[0]
+        # freeform sp 가 생성되고 custGeom path 가 정수 좌표를 갖는지 확인
+        sp_with_geom = [
+            sp
+            for sp in slide.shapes._spTree.findall(qn("p:sp"))
+            if sp.find(f".//{qn('a:custGeom')}") is not None
+        ]
+        assert len(sp_with_geom) == 1
+        path_el = sp_with_geom[0].find(f".//{qn('a:path')}")
+        assert path_el.get("w") == "404" and path_el.get("h") == "404"
+        for pt in path_el.findall(f".//{qn('a:pt')}"):
+            int(pt.get("x"))  # 정수여야 함 (예외 없이 파싱)
+            int(pt.get("y"))

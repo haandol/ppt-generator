@@ -24,7 +24,15 @@ def add_freeform_from_svg(slide, shape_spec: PptxShape) -> None:
     parts = svg_path.split(" ", 2)
     if len(parts) < 3:
         return
-    vb_w, vb_h, path_d = int(parts[0]), int(parts[1]), parts[2]
+    # viewBox 는 정수(px)인 경우가 대부분이나, 차트 원호(도넛/파이) 등은 소수
+    # viewBox(예: "403.6 403.6")를 쓴다. float 로 파싱 후 OOXML path w/h(정수 EMU
+    # 좌표계)에 맞게 반올림한다.
+    try:
+        vb_w = round(float(parts[0]))
+        vb_h = round(float(parts[1]))
+    except ValueError:
+        return
+    path_d = parts[2]
     if vb_w <= 0 or vb_h <= 0:
         return
 
@@ -70,30 +78,48 @@ def add_freeform_from_svg(slide, shape_spec: PptxShape) -> None:
     path_el.set("w", str(vb_w))
     path_el.set("h", str(vb_h))
 
-    # SVG path data 파싱: M, L, C, Z 명령
-    tokens = re.findall(r"[MLCZ]|[-]?\d+", path_d)
+    # SVG path data 파싱: M, L, C, A, Z 명령. 좌표는 소수 가능(정수로 반올림).
+    # OOXML custGeom path 좌표는 정수만 허용하므로 각 좌표를 round 한다.
+    def _icoord(tok: str) -> str:
+        try:
+            return str(round(float(tok)))
+        except ValueError:
+            return "0"
+
+    tokens = re.findall(r"[MLCAZ]|-?\d+(?:\.\d+)?", path_d)
     i = 0
     while i < len(tokens):
         cmd = tokens[i]
         if cmd == "M" and i + 2 < len(tokens):
             move = SubElement(path_el, qn("a:moveTo"))
             pt = SubElement(move, qn("a:pt"))
-            pt.set("x", tokens[i + 1])
-            pt.set("y", tokens[i + 2])
+            pt.set("x", _icoord(tokens[i + 1]))
+            pt.set("y", _icoord(tokens[i + 2]))
             i += 3
         elif cmd == "L" and i + 2 < len(tokens):
             ln = SubElement(path_el, qn("a:lnTo"))
             pt = SubElement(ln, qn("a:pt"))
-            pt.set("x", tokens[i + 1])
-            pt.set("y", tokens[i + 2])
+            pt.set("x", _icoord(tokens[i + 1]))
+            pt.set("y", _icoord(tokens[i + 2]))
             i += 3
         elif cmd == "C" and i + 6 < len(tokens):
             bez = SubElement(path_el, qn("a:cubicBezTo"))
             for j in range(3):
                 pt = SubElement(bez, qn("a:pt"))
-                pt.set("x", tokens[i + 1 + j * 2])
-                pt.set("y", tokens[i + 2 + j * 2])
+                pt.set("x", _icoord(tokens[i + 1 + j * 2]))
+                pt.set("y", _icoord(tokens[i + 2 + j * 2]))
             i += 7
+        elif cmd == "A" and i + 7 < len(tokens):
+            # SVG arc: A rx ry x-axis-rotation large-arc-flag sweep-flag x y
+            # OOXML custGeom 은 SVG arc 를 직접 지원하지 않는다(arcTo 는 파라미터가
+            # 달라 무손실 변환 불가). 차트 원호(도넛/파이) export 시 crash 를 막기
+            # 위해 끝점으로의 직선(lnTo)으로 근사한다. HTML 렌더는 정확하며, 이는
+            # PPTX export 한정 근사다.
+            ln = SubElement(path_el, qn("a:lnTo"))
+            pt = SubElement(ln, qn("a:pt"))
+            pt.set("x", _icoord(tokens[i + 6]))
+            pt.set("y", _icoord(tokens[i + 7]))
+            i += 8
         elif cmd == "Z":
             SubElement(path_el, qn("a:close"))
             i += 1
