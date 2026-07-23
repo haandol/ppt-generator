@@ -160,6 +160,9 @@ def add_auto_shape_from_spec(slide, shape_spec: PptxShape) -> None:
         Inches(height),
     )
 
+    if shape_spec.rotation:
+        shape.rotation = shape_spec.rotation
+
     # rounded_rectangle의 corner_radius 적용 (OOXML adj = radius / shorter_side * 100000)
     # null이면 HTML 렌더러와 동일한 기본값 8px 사용
     if shape_spec.shape_type == "rounded_rectangle":
@@ -300,6 +303,11 @@ def add_connector_from_spec(slide, shape_spec: PptxShape) -> None:
         end_x,
         end_y,
     )
+
+    # 회전: import 는 회전 前 bbox 기준 좌표 + rotation 을 저장하므로 export 도
+    # 동일하게 begin/end(회전 前) 에 rotation 을 얹어야 왕복이 맞는다.
+    if shape_spec.rotation:
+        connector.rotation = shape_spec.rotation
 
     if shape_spec.border_color:
         rgb = parse_color(shape_spec.border_color)

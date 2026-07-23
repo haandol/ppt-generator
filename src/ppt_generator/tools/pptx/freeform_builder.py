@@ -45,6 +45,9 @@ def add_freeform_from_svg(slide, shape_spec: PptxShape) -> None:
 
     spPr = SubElement(sp, qn("p:spPr"))
     xfrm = SubElement(spPr, qn("a:xfrm"))
+    # 회전: OOXML rot 은 60000분의 1도 단위 (import _read_rotation 의 역변환).
+    if shape_spec.rotation:
+        xfrm.set("rot", str(int(round(shape_spec.rotation * 60000)) % 21600000))
     off = SubElement(xfrm, qn("a:off"))
     off.set("x", str(left_emu))
     off.set("y", str(top_emu))

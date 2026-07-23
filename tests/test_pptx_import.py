@@ -398,6 +398,59 @@ class TestRoundTrip:
         ellipses = [s for s in imported.slides[0].shapes if s.shape_type == "ellipse"]
         assert len(ellipses) >= 1
 
+    def test_rotation_preserved(self, export_service, import_service, tmp_path):
+        """도형 회전(rotation)이 custom/line/autoshape 모두 왕복 보존돼야 한다.
+
+        회전 커넥터(rot=270 freeform 등)를 export 에서 누락하면 재편집 시 세로선이
+        캔버스 밖으로 나가 사라진다 (HealthImaging deck slide24 회귀).
+        """
+        spec = DesignSpec(
+            slides=[
+                PptxSlideSpec(
+                    background_color="#FFFFFF",
+                    shapes=[
+                        PptxShape(
+                            left_px=400,
+                            top_px=200,
+                            width_px=200,
+                            height_px=100,
+                            shape_type="custom",
+                            border_color="#000000",
+                            border_width_pt=1.2,
+                            svg_path=(
+                                "1371600 711200 M 1371600 0 L 1371600 711200 L 0 711200"
+                            ),
+                            rotation=270.0,
+                        ),
+                        PptxShape(
+                            left_px=100,
+                            top_px=100,
+                            width_px=200,
+                            height_px=0,
+                            shape_type="line",
+                            border_color="#FF0000",
+                            end_arrow=True,
+                            rotation=90.0,
+                        ),
+                        PptxShape(
+                            left_px=50,
+                            top_px=300,
+                            width_px=120,
+                            height_px=60,
+                            shape_type="rectangle",
+                            fill_color="#00FF00",
+                            rotation=45.0,
+                        ),
+                    ],
+                )
+            ]
+        )
+        imported = self._round_trip(export_service, import_service, spec, tmp_path)
+        by_type = {s.shape_type: s for s in imported.slides[0].shapes}
+        assert abs(by_type["custom"].rotation - 270.0) < 0.5
+        assert abs(by_type["line"].rotation - 90.0) < 0.5
+        assert abs(by_type["rectangle"].rotation - 45.0) < 0.5
+
 
 # ── ImportService 직접 테스트 ──
 
