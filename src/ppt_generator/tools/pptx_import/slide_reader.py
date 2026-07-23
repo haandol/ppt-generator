@@ -199,14 +199,17 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
                         continue
                     seen_static_text.add(key)
                 else:
-                    # 그림 등: 위치+크기로 중복 판정 (같은 로고가 레이아웃·마스터에 중복)
+                    # 그림 등: 위치+크기로 layout↔master 중복만 제거. layout 내부에
+                    # 같은 위치로 의도적으로 겹쳐 쌓은 그림(예: 흰색 로고 위에 검은색
+                    # 로고를 덮어 검게 보이게 하는 스택)은 중복이 아니므로, 스킵 판정은
+                    # master 단계에서만 하고 layout 요소는 모두 상속한다(slide2 로고 색).
                     pos_key = (
                         round((shape.left or 0) / 9525),
                         round((shape.top or 0) / 9525),
                         round((shape.width or 0) / 9525),
                         round((shape.height or 0) / 9525),
                     )
-                    if pos_key in seen_static_text:
+                    if is_master and pos_key in seen_static_text:
                         continue
                     seen_static_text.add(pos_key)
                 prev_counts = (len(textboxes), len(shapes), len(images))

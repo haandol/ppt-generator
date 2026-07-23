@@ -2179,3 +2179,23 @@ class TestMasterLogoInheritance:
         spec = reader.read_slide(prs.slides[0], 0, 1)
         # layout 에 그림이 없으므로 master 로고 유지
         assert len(spec.images) == 1
+
+    def test_layout_stacked_images_all_kept(self, tmp_path):
+        """layout 내부에 같은 위치로 겹쳐 쌓은 그림은 모두 상속돼야 한다.
+
+        예: 흰색 로고 위에 검은색 로고를 덮어 검게 보이게 하는 스택(slide2). 위치+크기
+        중복 제거가 이를 하나로 합치면 z-order 상 위(검은색) 그림이 사라져 원본과 색이
+        다르게 렌더된다. layout 내부 겹침은 중복이 아니므로 둘 다 보존한다.
+        """
+        prs = Presentation()
+        prs.slide_width = 12_192_000
+        prs.slide_height = 6_858_000
+        layout = prs.slide_layouts[6]
+        # 동일 위치/크기로 두 그림을 layout 에 쌓는다
+        self._add_pic(self._sptree(layout), 500_000, "WhiteLogo")
+        self._add_pic(self._sptree(layout), 500_000, "BlackLogo")
+        prs.slides.add_slide(layout)
+
+        reader = SlideReader(*SlideReader.compute_scale(prs), prs)
+        spec = reader.read_slide(prs.slides[0], 0, 1)
+        assert len(spec.images) == 2
