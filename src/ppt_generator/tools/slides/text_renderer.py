@@ -22,6 +22,10 @@ def escape_html(text: str) -> str:
     return escape_text(text)
 
 
+# PowerPoint 기본 탭 stop = 1인치 = 96px(@96dpi). 코드블록 등 탭 들여쓰기 렌더에 사용.
+_TAB_STOP_PX = 96.0
+
+
 # 폰트 서브패밀리(굵기/폭/광학 크기) 접미사. "Amazon Ember Display" 처럼 서브패밀리
 # 이름이 붙은 폰트는 종종 설치돼 있지 않지만(예: "Amazon Ember" 만 설치), 접미사를
 # 뗀 베이스 패밀리는 설치돼 있는 경우가 많다. 폴백 체인에 베이스명을 끼워 넣으면
@@ -105,10 +109,17 @@ def run_to_html(run: PptxTextRun, *, font_scale: float = 1.0) -> str:
 
     # run.text 내 개행(\n)은 PPTX 의 <a:br>(문단 내 소프트 줄바꿈)에서 유래한다.
     # HTML 에서는 개행이 공백으로 접히므로 명시적 <br> 로 변환해 줄바꿈을 보존한다.
-    # 탭/연속 공백(코드 블록 들여쓰기 등)도 HTML 에서 접히므로 &nbsp; 로 보존한다.
+    # 탭/연속 공백(코드 블록 들여쓰기 등)도 HTML 에서 접히므로 보존한다.
+    # 탭(\t)은 PowerPoint 기본 탭 stop(1인치=96px)만큼 들여쓴다. 예전엔 &nbsp;×4
+    # (약 20px)로 대체해 원본 대비 들여쓰기가 크게 부족했고, 절대 배치된 도형(예:
+    # 코드블록 위 강조 박스)과 텍스트가 어긋났다(slide13). 정확한 탭 stop 누적 정렬은
+    # 불가하지만, 탭 1개=1인치 고정 spacer 가 PPT 기본 동작에 가장 근접한다.
+    tab_px = _TAB_STOP_PX * (font_scale if 0 < font_scale < 1.0 else 1.0)
+    tab_span = f'<span style="display:inline-block;width:{tab_px:.1f}px"></span>'
+
     def _preserve_ws(part: str) -> str:
         escaped = escape_html(part)
-        escaped = escaped.replace("\t", "&nbsp;&nbsp;&nbsp;&nbsp;")
+        escaped = escaped.replace("\t", tab_span)
         # 연속된 공백 2개 이상은 첫 칸만 일반 공백, 나머지는 &nbsp; (줄바꿈 지점 유지)
         escaped = escaped.replace("  ", " &nbsp;")
         return escaped

@@ -1678,9 +1678,7 @@ class TestBentConnector:
     """꺾인 커넥터(bentConnector) → 직각 elbow 폴리라인 (import/0003)."""
 
     def _bent(self, prst: str, flip_h=False, flip_v=False):
-        from pptx.oxml.ns import qn
         from pptx.oxml import parse_xml
-        from pptx.util import Inches
 
         prs = Presentation()
         slide = prs.slides.add_slide(prs.slide_layouts[6])
@@ -1733,6 +1731,26 @@ class TestBentConnector:
         conn = [s for s in spec.shapes if s.shape_type == "line" and s.elbow_points]
         # x 좌표가 미러링됨
         assert conn[0].elbow_points == [[1.0, 0.0], [0.0, 0.0], [0.0, 1.0]]
+
+    def test_bent_connector_round_trips_through_export(self, tmp_path):
+        prs, slide = self._bent("bentConnector3", flip_v=True)
+        reader = SlideReader(1.0, 1.0, prs)
+        imported = reader.read_slide(slide, 0, 1)
+
+        response = ExportService().export_from_design_spec(
+            DesignSpec(slides=[imported]),
+            output_dir=tmp_path,
+            bg_image_policy="none",
+        )
+
+        exported_prs = Presentation(response.pptx_path)
+        exported_slide = exported_prs.slides[0]
+        round_tripped = SlideReader(1.0, 1.0, exported_prs).read_slide(
+            exported_slide, 0, 1
+        )
+        connector = next(shape for shape in round_tripped.shapes if shape.elbow_points)
+        assert connector.elbow_points == imported.shapes[0].elbow_points
+        assert connector.end_arrow is True
 
     def test_elbow_renders_polyline_with_arrow(self):
         from ppt_generator.tools.slides.shape_renderer import shape_to_html
@@ -2056,3 +2074,63 @@ class TestConnectorRotation:
         spec = reader.read_slide(slide, 0, 1)
         lines = [s for s in spec.shapes if s.shape_type == "line"]
         assert lines and lines[0].rotation == 0.0
+
+
+class TestMasterLogoInheritance:
+    """layout 이 자체 장식 그림을 제공하면 master 의 장식 그림은 상속하지 않는다.
+
+    PowerPoint 는 layout 로고가 있으면 master 로고를 가린다. 둘 다 상속하면
+    "Title Slide 1B"(layout 오른쪽 로고 + master 왼쪽 로고)에서 왼쪽 로고가 잘못
+    나타난다(slide1 회귀). layout 에 그림이 없으면 master 로고로 폴백한다(slide5).
+    """
+
+    def _add_pic(self, spTree, x, name):
+        from lxml import etree
+
+        pic_xml = (
+            '<p:pic xmlns:p="http://schemas.openxmlformats.org/'
+            'presentationml/2006/main" '
+            'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+            f'<p:nvPicPr><p:cNvPr id="99" name="{name}"/><p:cNvPicPr/>'
+            "<p:nvPr/></p:nvPicPr>"
+            "<p:blipFill><a:blip/><a:stretch><a:fillRect/></a:stretch></p:blipFill>"
+            f'<p:spPr><a:xfrm><a:off x="{x}" y="6000000"/>'
+            '<a:ext cx="500000" cy="500000"/></a:xfrm>'
+            '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>'
+        )
+        spTree.append(etree.fromstring(pic_xml))
+
+    def _sptree(self, part):
+        from pptx.oxml.ns import qn
+
+        return part._element.find(qn("p:cSld")).find(qn("p:spTree"))
+
+    def test_master_logo_suppressed_when_layout_has_logo(self, tmp_path):
+        prs = Presentation()
+        prs.slide_width = 12_192_000
+        prs.slide_height = 6_858_000
+        layout = prs.slide_layouts[6]
+        master = layout.slide_master
+        self._add_pic(self._sptree(layout), 10_000_000, "LayoutLogo")
+        self._add_pic(self._sptree(master), 500_000, "MasterLogo")
+        prs.slides.add_slide(layout)
+
+        reader = SlideReader(*SlideReader.compute_scale(prs), prs)
+        spec = reader.read_slide(prs.slides[0], 0, 1)
+        # layout 로고 1개만 상속 (master 로고는 억제)
+        assert len(spec.images) == 1
+        assert spec.images[0].left_px > 640  # 오른쪽(layout) 로고
+
+    def test_master_logo_kept_when_layout_has_none(self, tmp_path):
+        prs = Presentation()
+        prs.slide_width = 12_192_000
+        prs.slide_height = 6_858_000
+        layout = prs.slide_layouts[6]
+        master = layout.slide_master
+        self._add_pic(self._sptree(master), 500_000, "MasterLogo")
+        prs.slides.add_slide(layout)
+
+        reader = SlideReader(*SlideReader.compute_scale(prs), prs)
+        spec = reader.read_slide(prs.slides[0], 0, 1)
+        # layout 에 그림이 없으므로 master 로고 유지
+        assert len(spec.images) == 1

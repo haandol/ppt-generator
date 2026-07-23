@@ -160,13 +160,35 @@ class SlideReader(ShapeExtractorMixin, TextExtractorMixin, StyleExtractorMixin):
         except Exception:
             logger.debug("슬라이드 텍스트 사전 스캔 실패", exc_info=True)
 
-        for source in (
-            getattr(slide, "slide_layout", None),
-            getattr(getattr(slide, "slide_layout", None), "slide_master", None),
-        ):
+        from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+        _layout = getattr(slide, "slide_layout", None)
+        _master = getattr(_layout, "slide_master", None)
+        # PowerPoint 규칙: layout 이 자체 장식 그림(로고 등)을 제공하면 master 의
+        # 장식 그림은 가려진다. layout 에 로고가 없을 때만 master 로고로 폴백한다.
+        # (예: "Title Slide 1B" 는 layout 오른쪽 로고 + master 왼쪽 로고 → 오른쪽만
+        # 표시돼야 하는데, 둘 다 상속하면 왼쪽 로고가 잘못 나타난다 — slide1 회귀.)
+        layout_has_picture = False
+        try:
+            for sh in self._static_inherited_shapes(_layout) if _layout else []:
+                if getattr(sh, "shape_type", None) == MSO_SHAPE_TYPE.PICTURE:
+                    layout_has_picture = True
+                    break
+        except Exception:
+            logger.debug("layout 그림 존재 확인 실패", exc_info=True)
+
+        for source in (_layout, _master):
             if source is None:
                 continue
+            is_master = source is _master
             for shape in self._static_inherited_shapes(source):
+                # master 의 장식 그림은 layout 이 이미 그림을 제공하면 제외.
+                if (
+                    is_master
+                    and getattr(shape, "shape_type", None) == MSO_SHAPE_TYPE.PICTURE
+                    and layout_has_picture
+                ):
+                    continue
                 # 레이아웃·마스터 중복 방지: 동일 텍스트 요소는 한 번만 상속
                 if (
                     getattr(shape, "has_text_frame", False)

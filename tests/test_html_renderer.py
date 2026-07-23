@@ -597,3 +597,20 @@ class TestFontFallbackChain:
             PptxTextRun(text="x", font_size_pt=12, font_name="Amazon Ember Display")
         )
         assert html.rstrip("</span>").endswith("sans-serif") or 'sans-serif">' in html
+
+
+class TestTabIndent:
+    """탭(\\t)은 PowerPoint 기본 탭 stop(1인치=96px)만큼 들여써야 한다.
+
+    예전엔 &nbsp;×4(약 20px)로 대체해 코드블록 들여쓰기가 원본보다 크게 부족했고,
+    절대 배치된 강조 박스와 텍스트가 어긋났다(slide13).
+    """
+
+    def test_tab_renders_as_inline_block_spacer(self):
+        html = run_to_html(PptxTextRun(text='\t"versionId": "4",', font_size_pt=16))
+        assert "display:inline-block" in html
+        assert "width:96.0px" in html
+
+    def test_tab_spacer_scales_with_font_scale(self):
+        html = run_to_html(PptxTextRun(text="\tx", font_size_pt=16), font_scale=0.5)
+        assert "width:48.0px" in html
