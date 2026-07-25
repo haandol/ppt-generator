@@ -54,8 +54,9 @@ uv run playwright install chromium
 Kiro 는 `.kiro/steering/*.md`(steering)와 `.kiro/settings/mcp.json`(MCP)를 자동으로
 읽는다. 이 리포에는 두 파일이 이미 들어 있다:
 
-- `.kiro/steering/ppt-generator.md` — prepare/ingest 워크플로우와 확인·병렬화 규칙을
-  담은 steering. Kiro 가 세션마다 자동 로드한다 (front-matter `inclusion: always`).
+- `.kiro/steering/ppt-generator.md` — 핸드셰이크 개요와 "어느 스킬을 언제 열지" 를 담은
+  steering. 단계별 절차는 복제하지 않고 `skills/` 를 가리킨다. Kiro 가 세션마다 자동
+  로드한다 (front-matter `inclusion: always`).
 - `.kiro/settings/mcp.json.example` — MCP 등록 예시. 실제 등록은 아래처럼 한다.
 
 ### 1. MCP 등록
@@ -84,8 +85,9 @@ Kiro 는 `.kiro/steering/*.md`(steering)와 `.kiro/settings/mcp.json`(MCP)를 �
 ### 2. steering 확인
 
 `.kiro/steering/ppt-generator.md` 가 있으면 Kiro 가 자동으로 컨텍스트에 싣는다.
-별도 설정은 필요 없다. steering 이 prepare→생성→ingest 순서, 사용자 확인 게이트,
-슬라이드 병렬 생성 규칙을 안내하므로 Kiro 가 Claude Code 스킬과 동일하게 움직인다.
+별도 설정은 필요 없다. steering 이 핸드셰이크 개요·사용자 확인 게이트·병렬 생성 규칙을
+안내하고 세부 절차는 `skills/ppt-*/SKILL.md` 로 넘기므로, Kiro 가 스킬 원문을 읽어
+Claude Code 와 동일하게 움직인다.
 
 ### 3. 사용
 
@@ -137,13 +139,18 @@ ppt-generator MCP 서버로 발표자료를 만든다. 서버는 LLM 을 호출�
 각 생성 단계는 prepare_*(프롬프트+response_schema 반환) / ingest_*(검증·저장) 쌍이다.
 네가 response_schema 를 정확히 따르는 JSON 을 생성해 ingest 로 되돌린다.
 
-1. 아웃라인: prepare_outline(목적·시간·청중·발표자 먼저 물어볼 것) → JSON 생성
-   → ingest_outline → 사용자에게 보여주고 확인.
-2. 디자인: prepare_design_doc_draft → ingest_design_doc_draft(1회, skip:true 면 건너뜀)
-   → 슬라이드마다 prepare_design_slide → JSON 생성 → ingest_design_slide (여러 슬라이드 병렬).
-3. finalize_design_spec(1회) → export_html + export_pptx → 양쪽 결과 확인 및 경로 공유.
-4. 수정: prepare_slide_edit / prepare_modify_component 흐름. 이동·삭제는 move_slide/delete_slide.
-5. lint 경고가 있으면 사용자에게 수정 여부를 물어본다. 확인 없이 다음 단계로 넘어가지 않는다.
+단계별 절차는 서버가 노출하는 MCP instructions 를 따른다 (도구 목록·호출 순서가
+거기에 있다). 클론 경로에 접근할 수 있으면 skills/ppt-*/SKILL.md 를 열어 그대로
+따르는 편이 정확하다 — 그것이 워크플로우의 소스다.
+
+지켜야 할 것:
+- response_schema 를 정확히 따른다. ingest 검증 실패 시 오류에 맞게 고쳐 재시도.
+- 슬라이드 생성은 병렬로 (서버측 stateless).
+- add/update/modify/finalize 후 항상 export_html + export_pptx 를 호출하고 두 결과
+  경로를 공유한다. 공유 렌더 의미가 한쪽에만 반영됐으면 완료하지 않는다.
+- 아웃라인은 사용자에게 보여주고 확인받은 뒤 디자인으로 넘어간다.
+- lint 는 경미(구조적 warning)와 중대(error·overflow·레이아웃 파손·메시지 변경)를
+  나눠 다룬다. 경미는 검증 후 자가 수정, 중대는 사용자에게 확인받는다.
 ```
 
 ### 3. 사용

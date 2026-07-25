@@ -33,7 +33,9 @@ def main() -> int:
     ap.add_argument("pptx")
     ap.add_argument("out_dir")
     ap.add_argument("--dpi", type=int, default=110)
-    ap.add_argument("--slides", default="", help="1-based, comma-separated (빈 값=전체)")
+    ap.add_argument(
+        "--slides", default="", help="1-based, comma-separated (빈 값=전체)"
+    )
     args = ap.parse_args()
 
     pptx = Path(args.pptx)
@@ -54,7 +56,15 @@ def main() -> int:
 
     # 1) PPTX → PDF
     subprocess.run(
-        [soffice, "--headless", "--convert-to", "pdf", "--outdir", str(out_dir), str(pptx)],
+        [
+            soffice,
+            "--headless",
+            "--convert-to",
+            "pdf",
+            "--outdir",
+            str(out_dir),
+            str(pptx),
+        ],
         check=True,
         capture_output=True,
     )
@@ -64,12 +74,24 @@ def main() -> int:
         return 1
 
     # 2) PDF → PNG (페이지별)
-    pages = [int(s) for s in args.slides.split(",") if s.strip()] if args.slides else None
+    pages = (
+        [int(s) for s in args.slides.split(",") if s.strip()] if args.slides else None
+    )
     if pages:
         for p in pages:
             subprocess.run(
-                ["pdftoppm", "-png", "-r", str(args.dpi), "-f", str(p), "-l", str(p),
-                 str(pdf), str(out_dir / "ref")],
+                [
+                    "pdftoppm",
+                    "-png",
+                    "-r",
+                    str(args.dpi),
+                    "-f",
+                    str(p),
+                    "-l",
+                    str(p),
+                    str(pdf),
+                    str(out_dir / "ref"),
+                ],
                 check=True,
                 capture_output=True,
             )

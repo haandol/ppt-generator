@@ -48,7 +48,8 @@ HTML과 PPTX의 공유 렌더 의미를 확인하고 두 결과 경로를 사용
 
 ## 외부 PPTX 편집 (import)
 
-1. `mcp__ppt-generator__import_pptx(pptx_path, ...)` 로 외부 .pptx 를 프로젝트로 임포트.
+1. `mcp__ppt-generator__import_pptx(file_path, project_id)` 로 외부 .pptx 를 프로젝트로 임포트.
+   - `file_path` 는 원본 .pptx 경로. `project_id` 는 생략하면 새 프로젝트를 만든다.
 2. imported 프로젝트는 outline 이 없다 — add/update 시 title·content_summary 를 inline 으로 넘긴다.
 3. imported 슬라이드의 component 수정은 위 backfill 흐름을 따른다.
 
@@ -56,4 +57,6 @@ HTML과 PPTX의 공유 렌더 의미를 확인하고 두 결과 경로를 사용
 
 - 생성 단계에서는 항상 `response_schema` 를 정확히 따른다. ingest 검증 실패 시 고쳐 재시도.
 - 모든 편집 후 `export_html` + `export_pptx` 호출, 양쪽 결과 확인 + 경로 공유.
-- lint 경고가 있으면 사용자에게 수정 여부를 물어본다.
+- lint 결과 처리 기준은 `ppt-design` 스킬의 "lint 자동 처리" 절을 따른다 (경미=visual QA
+  자동 검증 후 실제 결함만 자가 수정, 중대=error·overflow·레이아웃 파손·메시지 변경은
+  사용자 확인). 모든 warning 을 매번 묻지도, 아무 검증 없이 넘기지도 않는다.

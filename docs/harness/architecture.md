@@ -109,7 +109,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 | `interfaces/spec_utils/` | PptxSlideSpec 파싱/검증/직렬화 공유 유틸리티 (패키지: parser, serializer, validator) |
 | `interfaces/json_schemas.py` | `prepare_*` 가 반환하는 출력 JSON 스키마 정의 |
 | `interfaces/text_measurement.py` | 폰트 메트릭 기반 텍스트 크기 추정 (오버플로우 방지) |
-| `templates/layout_mapping.py` | layout_index → 슬라이드 레이아웃 매핑 (97종) |
+| `templates/layout_mapping.py` | layout_index → 슬라이드 레이아웃 매핑 (96종). 현재 생성·렌더 경로에서 호출하지 않으며, 사용자 템플릿 분석이 도입될 때 비표준 레이아웃의 폴백 표로 쓰기 위해 유지한다 |
 | `tools/design/service.py` | 디자인 스펙 prepare/ingest — 프롬프트 조립 + 출력 검증·정합화 |
 | `tools/visual_qa/service.py` | Visual QA — Playwright 스크린샷 캡처(서버) + 분석/수정 JSON 검증(ingest) |
 | `tools/pptx/slide_builder.py` | PptxSlideSpec → python-pptx 변환 |

@@ -8,6 +8,16 @@ The outline's layout_plan describes the spatial arrangement — follow it precis
 Slide position: {slide_index} of {total_slides}
 Color theme: {color_theme}
 </context>
+
+<design_summary>
+No presentation-level design summary exists for this deck yet, so use these default
+region bands (identical to the draft defaults, so slides stay consistent if a summary
+is added later):
+- header_region: top_px=64, height_px=64
+- content_region: top_px=148, height_px=508
+- footer_region: top_px=664, height_px=24
+Treat these as the design_summary region values — do NOT invent your own y-axis bands.
+</design_summary>
 {adjacent_context}
 <input>
 {outline_json}

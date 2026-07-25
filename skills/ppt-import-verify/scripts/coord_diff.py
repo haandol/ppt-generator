@@ -46,7 +46,9 @@ def _tb_row(tb, is_spec: bool) -> dict:
     for para in paras:
         runs = para.get("runs") if is_spec else getattr(para, "runs", [])
         for r in runs:
-            first_run_pt = r.get("font_size_pt") if is_spec else getattr(r, "font_size_pt", None)
+            first_run_pt = (
+                r.get("font_size_pt") if is_spec else getattr(r, "font_size_pt", None)
+            )
             break
         break
     return {
@@ -139,7 +141,11 @@ def main() -> int:
                 d = abs((e[key] or 0) - (a[key] or 0))
                 if d > args.pos_tol:
                     diffs.append(f"{key}Δ{d:.0f}px")
-            if e["font_pt"] and a["font_pt"] and abs(e["font_pt"] - a["font_pt"]) > args.font_tol:
+            if (
+                e["font_pt"]
+                and a["font_pt"]
+                and abs(e["font_pt"] - a["font_pt"]) > args.font_tol
+            ):
                 diffs.append(f"fontΔ{abs(e['font_pt'] - a['font_pt']):.0f}pt(→inherit)")
             if e["autofit"] != a["autofit"]:
                 diffs.append(f"autofit {a['autofit']}→{e['autofit']}")

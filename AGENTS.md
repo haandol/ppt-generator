@@ -92,7 +92,9 @@ When modifying prompts or pipeline logic:
 
 - Type hints required (`-> None`, `-> str`, etc.)
 - Constants in `interfaces/constants.py`, prompts in `interfaces/prompts/*.prompt.md`
-- Korean docstrings required for MCP tool functions (exposed to clients)
+- English docstrings for MCP tool functions — they become the tool descriptions clients
+  see, matching the English server `instructions` and skill descriptions. Internal
+  helpers keep Korean docstrings.
 - Client generation in tests is mocked at the service `ingest_*` boundary (no real LLM)
 - Conventional Commits: `<type>(<scope>): <subject>` (details: [CONTRIBUTING.md](CONTRIBUTING.md))
 

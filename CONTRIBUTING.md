@@ -8,6 +8,7 @@
 - [브랜치 전략](#브랜치-전략)
 - [코드 스타일](#코드-스타일)
 - [테스트](#테스트)
+- [Git 훅](#git-훅)
 - [Pull Request](#pull-request)
 
 ---
@@ -211,7 +212,8 @@ git push -u origin feat/my-feature
 - **타입 힌트**: 모든 함수에 반환 타입 명시 (`-> None`, `-> str` 등)
 - **상수**: `interfaces/constants.py`에 정의
 - **프롬프트 템플릿**: `interfaces/prompts/*.prompt.md`로 관리
-- **MCP 도구 함수**: 한국어 docstring 필수 (MCP 클라이언트에 노출)
+- **MCP 도구 함수**: 영문 docstring (MCP 클라이언트에 도구 설명으로 노출 — 영문 서버
+  instructions·스킬 description 과 통일). 내부 헬퍼는 한국어 docstring 유지
 
 ### 프로젝트 구조 규칙
 
@@ -244,6 +246,34 @@ uv run pytest tests/test_xxx.py::test_function_name -v
 - 이 서버는 LLM 을 직접 호출하지 않는다(생성은 MCP 클라이언트 담당). 남는 외부 API 호출이 있다면 반드시 mock 처리
 - 새 기능 추가 시 관련 테스트 파일 작성
 - 테스트 파일명: `tests/test_<모듈명>.py`
+
+### 계약 테스트
+
+`src/` 밖의 사용자 표면도 테스트로 고정한다 — 문서·스킬이 코드보다 뒤처져도
+`uv run pytest` 가 잡는다.
+
+- 스킬(`skills/*/SKILL.md`)이 서술하는 MCP 도구명·파라미터명 ↔ 실제 등록 도구 시그니처
+- 프롬프트가 열거한 값(`component_hint`, lint rule id 등) ↔ 문서 표·응답 모델
+
+도구 시그니처나 프롬프트를 바꿔 이 테스트가 깨지면, 테스트를 고치지 말고 뒤처진
+문서·스킬을 갱신한다 (코드가 정본).
+
+---
+
+## Git 훅
+
+`.git/hooks/` 는 git 추적 대상이 아니라 **클론한 사람에게 전파되지 않는다.** 저장소를
+새로 클론했으면 훅이 없는 상태이므로, 커밋 전 검사를 로컬에서 직접 돌려야 한다.
+
+```bash
+uv run ruff format .   # 포매팅
+uv run ruff check .    # 린트
+uv run pytest          # 전체 테스트
+```
+
+기존 훅이 설치돼 있으면 `src/` `tests/` `skills/` `scripts/` `.claude-plugin/` 변경 시
+위 검사를 자동 수행하고, `pyproject.toml` 버전 변경 시 `uv.lock` 과
+`.claude-plugin/plugin.json` 의 버전을 함께 동기화한다.
 
 ---
 

@@ -22,7 +22,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -45,7 +47,9 @@ def pptx_to_png(pptx_path: Path, output_dir: Path, dpi: int = 150) -> list[Path]
 
     soffice = find_libreoffice()
     if not soffice:
-        logger.error("LibreOffice를 찾을 수 없습니다. 설치해주세요: brew install --cask libreoffice")
+        logger.error(
+            "LibreOffice를 찾을 수 없습니다. 설치해주세요: brew install --cask libreoffice"
+        )
         sys.exit(1)
 
     try:
@@ -62,8 +66,10 @@ def pptx_to_png(pptx_path: Path, output_dir: Path, dpi: int = 150) -> list[Path]
         cmd = [
             soffice,
             "--headless",
-            "--convert-to", "pdf",
-            "--outdir", tmp_dir,
+            "--convert-to",
+            "pdf",
+            "--outdir",
+            tmp_dir,
             str(pptx_path.resolve()),
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
@@ -102,11 +108,19 @@ def pptx_to_png(pptx_path: Path, output_dir: Path, dpi: int = 150) -> list[Path]
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="PPTX → PNG 변환 (LibreOffice + pdf2image)")
+    parser = argparse.ArgumentParser(
+        description="PPTX → PNG 변환 (LibreOffice + pdf2image)"
+    )
     parser.add_argument("pptx_file", type=Path, help="변환할 PPTX 파일 경로")
-    parser.add_argument("--output-dir", type=Path, default=None,
-                        help="PNG 출력 디렉토리 (기본: PPTX 파일과 같은 디렉토리의 png_pptx/)")
-    parser.add_argument("--dpi", type=int, default=150, help="PNG 해상도 DPI (기본: 150)")
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="PNG 출력 디렉토리 (기본: PPTX 파일과 같은 디렉토리의 png_pptx/)",
+    )
+    parser.add_argument(
+        "--dpi", type=int, default=150, help="PNG 해상도 DPI (기본: 150)"
+    )
     args = parser.parse_args()
 
     output_dir = args.output_dir or (args.pptx_file.parent / "png_pptx")

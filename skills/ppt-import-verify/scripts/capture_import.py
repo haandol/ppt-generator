@@ -25,7 +25,9 @@ def _project_dir(pid: str) -> Path:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("project", help="project_id 또는 프로젝트 절대경로")
-    ap.add_argument("--slides", default="", help="1-based, comma-separated (빈 값=전체)")
+    ap.add_argument(
+        "--slides", default="", help="1-based, comma-separated (빈 값=전체)"
+    )
     ap.add_argument("--iter", type=int, default=0, help="스크린샷 버전(iteration)")
     args = ap.parse_args()
 
