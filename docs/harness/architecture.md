@@ -184,7 +184,9 @@ Visual QA 는 opt-in 이며, 스크린샷 캡처만 서버(Playwright)가 하고
 
 **감지 이슈 타입**: `word_break` · `text_truncation` · `overlap` · `overflow` · `contrast` · `misalignment` · `wrong_vertical_alignment` · `inconsistent_font_size` · `inconsistent_spacing` · `arrow_disconnected`
 
-> Playwright 미설치 시 기존 기능에 영향 없습니다. 설치: `uv sync` 후 `uv run playwright install chromium`
+> Playwright 미설치 시 기존 기능에 영향 없습니다. 설치:
+> `uv sync --group visual-qa` 후
+> `uv run --group visual-qa playwright install chromium`
 
 ### 프로젝트 관리 도구
 

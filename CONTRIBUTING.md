@@ -273,7 +273,8 @@ uv run pytest          # 전체 테스트
 
 기존 훅이 설치돼 있으면 `src/` `tests/` `skills/` `scripts/` `.claude-plugin/` 변경 시
 위 검사를 자동 수행하고, `pyproject.toml` 버전 변경 시 `uv.lock` 과
-`.claude-plugin/plugin.json` 의 버전을 함께 동기화한다.
+`.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` 의 버전을 함께
+동기화한다. CI도 동일한 버전 일치 계약을 검증한다.
 
 ---
 

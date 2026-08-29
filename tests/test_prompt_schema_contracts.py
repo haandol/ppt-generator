@@ -19,11 +19,13 @@ from ppt_generator.interfaces.constants import (
     VISUAL_QA_FIX_SYSTEM_PROMPT,
 )
 from ppt_generator.interfaces.llm_output_models import (
+    ClosingSlideSpecOutput,
     ContentSlideSpecOutput,
     DesignReviewIssue,
     ShapeOutput,
     SimpleSlideSpecOutput,
     TextBoxOutput,
+    TitleSlideSpecOutput,
     VisualQAIssue,
     VisualQAContentSlideSpecOutput,
     VisualQASimpleSlideSpecOutput,
@@ -112,6 +114,38 @@ def test_slide_user_prompts_always_supply_region_bands() -> None:
         assert key in DESIGN_SPEC_USER_PROMPT_TEMPLATE
 
 
+def test_all_slide_type_prompts_include_line_geometry_contract() -> None:
+    """title/closing 포함 모든 생성 경로가 line 좌표 계약을 동일하게 전달한다."""
+    for slide_type, prompt in DESIGN_SPEC_SYSTEM_PROMPTS.items():
+        assert "<line_geometry_contract>" in prompt, slide_type
+        assert "height_px=0" in prompt, slide_type
+        assert "width_px=0" in prompt, slide_type
+        assert "border_width_pt" in prompt, slide_type
+        assert "target box boundary" in prompt, slide_type
+
+
+def test_design_prompt_separates_contracts_from_quality_guidance() -> None:
+    base = DESIGN_SPEC_SYSTEM_PROMPTS["content"]
+    assert "<enforcement_levels>" in base
+    assert "consistency of the final JSON is evaluated" in base
+    assert "do NOT revise upstream layers" not in base
+    assert "Do not invent new positions in the Content layer" not in base
+    assert "including a shallow diagonal" in base
+    assert "Hard constraints (rendering will fail if violated)" not in base
+    assert "<quality_guidance>" in base
+    assert "Intentional asymmetric emphasis is allowed." in base
+    assert "minimum font sizes (constraint 1)" not in base
+    assert "font-range` lint rule still rejects" not in base
+    assert "You MUST honor the outline's layout_plan" not in base
+    assert "Five-Layer Hierarchy (MANDATORY" not in base
+    assert "MUST NOT describe the slide structure" not in base
+    assert "Do NOT invent your own y-axis bands" not in base
+    assert "content cells must NOT extend" not in base
+    assert "Endpoints must touch block edges exactly" not in base
+    for prompt in DESIGN_SPEC_SYSTEM_PROMPTS.values():
+        assert "Hard constraints (rendering will fail if violated)" not in prompt
+
+
 def test_z_index_is_scoped_to_visual_qa_schemas() -> None:
     assert "z_index" not in TextBoxOutput.model_fields
     assert "z_index" not in ShapeOutput.model_fields
@@ -154,13 +188,17 @@ def test_design_review_rejects_invalid_rule_severity(
     ("slide_type", "model"),
     [
         ("content", ContentSlideSpecOutput),
-        ("title", SimpleSlideSpecOutput),
-        ("closing", SimpleSlideSpecOutput),
+        ("title", TitleSlideSpecOutput),
+        ("closing", ClosingSlideSpecOutput),
     ],
 )
 def test_prompt_examples_validate_against_response_model(
     slide_type: str,
-    model: type[ContentSlideSpecOutput] | type[SimpleSlideSpecOutput],
+    model: (
+        type[ContentSlideSpecOutput]
+        | type[TitleSlideSpecOutput]
+        | type[ClosingSlideSpecOutput]
+    ),
 ) -> None:
     examples = re.findall(
         r"<layout_example[^>]*>\s*(\{.*?\})\s*</layout_example>",

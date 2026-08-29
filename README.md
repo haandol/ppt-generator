@@ -182,7 +182,8 @@ the prepare/ingest handshake. **Does not run automatically — must be explicitl
 **Prerequisites:**
 
 ```bash
-playwright install chromium
+uv sync --group visual-qa
+uv run --group visual-qa playwright install chromium
 ```
 
 ```

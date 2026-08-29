@@ -3,6 +3,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from ppt_generator.interfaces.line_geometry import (
+    ARROW_ENDPOINT_BOUNDARY_TOLERANCE_PX as LINT_ARROW_ENDPOINT_BOUNDARY_TOLERANCE_PX,
+)
+
 load_dotenv(Path(__file__).resolve().parents[3] / "env" / "local.env", override=False)
 
 PPT_GENERATOR_HOME = Path.home() / ".ppt-generator"
@@ -229,6 +233,7 @@ __all__ = [
     "TEXT_MEASURE_DEFAULT_SHAPE_PADDING_TB_PX",
     "TEXT_MEASURE_NOWRAP_TOLERANCE_RATIO",
     "LINT_ARROW_ATTACH_TOLERANCE_PX",
+    "LINT_ARROW_ENDPOINT_BOUNDARY_TOLERANCE_PX",
     "LINT_LABEL_ORPHAN_PROXIMITY_PX",
     "LINT_LABEL_ORPHAN_MAX_CHARS",
     "LINT_LABEL_ORPHAN_MAX_FONT_PT",

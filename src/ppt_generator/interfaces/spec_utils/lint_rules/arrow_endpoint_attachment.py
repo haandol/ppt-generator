@@ -14,7 +14,10 @@
 
 from __future__ import annotations
 
-from ppt_generator.interfaces.constants import LINT_ARROW_ATTACH_TOLERANCE_PX
+from ppt_generator.interfaces.constants import (
+    LINT_ARROW_ATTACH_TOLERANCE_PX,
+    LINT_ARROW_ENDPOINT_BOUNDARY_TOLERANCE_PX,
+)
 from ppt_generator.interfaces.line_geometry import line_endpoints
 from ppt_generator.interfaces.schemas import PptxShape, PptxSlideSpec
 from ppt_generator.interfaces.spec_utils.lint_types import (
@@ -74,6 +77,18 @@ def _point_near_box_edge(
     return near_left or near_right or near_top or near_bottom
 
 
+def _point_box_penetration_depth(
+    x: float,
+    y: float,
+    bounds: tuple[float, float, float, float],
+) -> float | None:
+    """점이 박스 안에 있으면 가장 가까운 변까지의 깊이, 밖이면 None."""
+    left, top, right, bottom = bounds
+    if x < left or x > right or y < top or y > bottom:
+        return None
+    return min(x - left, right - x, y - top, bottom - y)
+
+
 def _arrow_endpoints(line: PptxShape) -> list[tuple[float, float, str]]:
     """end_arrow / start_arrow 가 켜진 끝점들의 좌표를 반환.
 
@@ -112,6 +127,35 @@ def check_arrow_endpoint_attachment(
             continue
         endpoints = _arrow_endpoints(shape)
         for x, y, which in endpoints:
+            containing = [
+                depth
+                for bounds in boxes
+                if (depth := _point_box_penetration_depth(x, y, bounds)) is not None
+            ]
+            if containing:
+                penetration = min(containing)
+                if penetration > LINT_ARROW_ENDPOINT_BOUNDARY_TOLERANCE_PX:
+                    result.violations.append(
+                        LintViolation(
+                            rule="arrow-endpoint-penetration",
+                            severity="error",
+                            message=(
+                                f"line shape[{idx}] 의 {which} 화살표 끝점 "
+                                f"({x:.0f},{y:.0f}) 이 목표 박스 내부로 "
+                                f"{penetration:.0f}px 침투함"
+                            ),
+                            element_index=idx,
+                            element_type="shape",
+                            current_value={
+                                "endpoint": which,
+                                "x": round(x, 1),
+                                "y": round(y, 1),
+                                "penetration_px": round(penetration, 1),
+                            },
+                            expected="화살촉 끝점이 목표 박스 경계선 위에 위치",
+                        )
+                    )
+                    continue
             if any(
                 _point_near_box_edge(x, y, bounds, LINT_ARROW_ATTACH_TOLERANCE_PX)
                 for bounds in boxes

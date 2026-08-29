@@ -14,10 +14,7 @@ from dataclasses import asdict, replace
 from typing import TYPE_CHECKING
 
 from ppt_generator.interfaces.index_validation import require_positive_slide_index
-from ppt_generator.interfaces.llm_output_models import (
-    ContentSlideSpecOutput,
-    SimpleSlideSpecOutput,
-)
+from ppt_generator.interfaces.llm_output_models import slide_spec_output_model
 from ppt_generator.interfaces.schemas import SlideOutline
 from ppt_generator.interfaces.spec_utils import lint_design_spec, lint_slide_spec
 from ppt_generator.interfaces.utils import (
@@ -465,11 +462,7 @@ def _schema_identity(schema: dict) -> str:
 
 
 def _slide_schema_identity(slide_type: str | None) -> str:
-    model = (
-        ContentSlideSpecOutput
-        if (slide_type or "content") == "content"
-        else SimpleSlideSpecOutput
-    )
+    model = slide_spec_output_model(slide_type)
     return _schema_identity(model.model_json_schema())
 
 

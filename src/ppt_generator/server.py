@@ -38,7 +38,7 @@ def create_server() -> FastMCP:
             '(imported slides return stage="backfill" first: generate → ingest_backfill → retry).\n'
             "- **Moving/deleting**: move_slide / delete_slide are pure file ops (no generation).\n"
             "- **Review**: prepare_review → generate → ingest_review (report-only; regenerate via prepare_slide_edit).\n"
-            "- **Visual QA** (opt-in, needs `playwright install chromium`): capture_slides → "
+            "- **Visual QA** (opt-in, needs the `visual-qa` dependency group + Chromium): capture_slides → "
             "prepare_visual_qa_analysis → generate → ingest_visual_qa_analysis → (if issues) "
             "prepare_visual_qa_fix → generate → ingest_visual_qa_fix → finalize_visual_qa.\n"
             "- After any add/update/modify/finalize, call export_html and share slides_html_path.\n"

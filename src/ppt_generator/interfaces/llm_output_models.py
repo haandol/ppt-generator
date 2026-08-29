@@ -9,10 +9,15 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from ppt_generator.interfaces.line_geometry import (
+    ARROW_ENDPOINT_BOUNDARY_TOLERANCE_PX,
+    line_endpoints,
+)
 from ppt_generator.interfaces.schemas import (
     DesignDoc,
     GridCell,
@@ -147,16 +152,44 @@ class TextBoxOutput(BaseModel):
 class ShapeOutput(BaseModel):
     """LLM 출력용 도형 Pydantic 모델."""
 
-    left_px: float
-    top_px: float
-    width_px: float
-    height_px: float
+    left_px: float = Field(
+        description=(
+            "Shape left coordinate. For line shapes this is the minimum x of the "
+            "two endpoints, not stroke thickness."
+        )
+    )
+    top_px: float = Field(
+        description=(
+            "Shape top coordinate. For line shapes this is the minimum y of the "
+            "two endpoints, not stroke thickness."
+        )
+    )
+    width_px: float = Field(
+        description=(
+            "Shape width. For line shapes this is the signed horizontal endpoint "
+            "delta: use 0 for an exactly vertical line. Never encode stroke "
+            "thickness here."
+        )
+    )
+    height_px: float = Field(
+        description=(
+            "Shape height. For line shapes this is the signed vertical endpoint "
+            "delta: use 0 for an exactly horizontal line. Never encode stroke "
+            "thickness here."
+        )
+    )
     shape_type: Literal["rectangle", "rounded_rectangle", "ellipse", "line"] = (
         "rectangle"
     )
     fill_color: str | None = None
     border_color: str | None = None
-    border_width_pt: float | None = None
+    border_width_pt: float | None = Field(
+        default=None,
+        description=(
+            "Border or line stroke thickness in points. For line shapes this is "
+            "the only field that controls stroke thickness."
+        ),
+    )
     corner_radius_px: float | None = None
     text: str | None = None
     text_color: str | None = None
@@ -169,8 +202,20 @@ class ShapeOutput(BaseModel):
     padding_top_px: float | None = None
     padding_bottom_px: float | None = None
     vertical_alignment: Literal["top", "middle", "bottom"] = "top"
-    end_arrow: bool = False
-    start_arrow: bool = False
+    end_arrow: bool = Field(
+        default=False,
+        description=(
+            "Place an arrowhead at the line end endpoint. That endpoint must stop "
+            "on the target box boundary and must not penetrate the box."
+        ),
+    )
+    start_arrow: bool = Field(
+        default=False,
+        description=(
+            "Place an arrowhead at the line start endpoint. That endpoint must stop "
+            "on the target box boundary and must not penetrate the box."
+        ),
+    )
     dash_style: Literal["solid", "dash", "dot"] | None = None
     svg_path: str | None = None
     # 결정 14: 기본 shrink_text (높이 고정, 폰트 자동 축소)
@@ -211,6 +256,13 @@ class GridCellAssignmentOutput(BaseModel):
     """
 
     cells: list[GridCellOutput] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_unique_cell_ids(self) -> "GridCellAssignmentOutput":
+        duplicates = _duplicate_values([cell.id for cell in self.cells])
+        if duplicates:
+            raise ValueError(f"grid cell ids must be unique: {duplicates}")
+        return self
 
 
 # --- DesignDoc (의미 단위 레이아웃 트리) ---
@@ -258,6 +310,27 @@ class DesignDocOutput(BaseModel):
     topic: str = ""  # 슬라이드 한 줄 주제
     layout_summary: str = ""  # "좌 c1=설명 카드 3개, 우 c2=다이어그램" 식의 한 문단
     layout: list[LayoutNodeOutput] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_layout_references(self) -> "DesignDocOutput":
+        duplicates = _duplicate_values([node.id for node in self.layout])
+        if duplicates:
+            raise ValueError(f"layout node ids must be unique: {duplicates}")
+
+        seen: set[str] = set()
+        for node in self.layout:
+            parent_id = node.parent_id or ""
+            if parent_id and parent_id not in seen:
+                raise ValueError(
+                    f"layout node {node.id!r} references missing or later parent "
+                    f"{parent_id!r}"
+                )
+            seen.add(node.id)
+        return self
+
+
+def _duplicate_values(values: list[str]) -> list[str]:
+    return sorted(value for value, count in Counter(values).items() if count > 1)
 
 
 # --- Visual QA models ---
@@ -471,6 +544,59 @@ class _BaseSlideSpecOutput(BaseModel):
     shapes: list[ShapeOutput] = Field(default_factory=list)
     overflow: list[OverflowContent] = Field(default_factory=list)
 
+    @model_validator(mode="after")
+    def reject_arrowhead_box_penetration(self) -> "_BaseSlideSpecOutput":
+        """화살촉 끝점이 목표 박스 내부로 침투한 생성 결과를 저장 전에 거부한다."""
+        boxes: list[tuple[int, tuple[float, float, float, float]]] = []
+        for index, shape in enumerate(self.shapes):
+            if not _is_arrow_attachable_output_box(shape):
+                continue
+            boxes.append(
+                (
+                    index,
+                    (
+                        shape.left_px,
+                        shape.top_px,
+                        shape.left_px + abs(shape.width_px),
+                        shape.top_px + abs(shape.height_px),
+                    ),
+                )
+            )
+
+        for line_index, shape in enumerate(self.shapes):
+            if shape.shape_type != "line":
+                continue
+            start, end = line_endpoints(
+                shape.left_px,
+                shape.top_px,
+                shape.width_px,
+                shape.height_px,
+            )
+            endpoints: list[tuple[str, tuple[float, float]]] = []
+            if shape.start_arrow:
+                endpoints.append(("start", start))
+            if shape.end_arrow:
+                endpoints.append(("end", end))
+
+            for endpoint_name, (x, y) in endpoints:
+                containing: list[tuple[float, int]] = []
+                for box_index, bounds in boxes:
+                    depth = _point_box_penetration_depth(x, y, bounds)
+                    if depth is not None:
+                        containing.append((depth, box_index))
+                if not containing:
+                    continue
+                penetration, box_index = min(containing)
+                if penetration <= ARROW_ENDPOINT_BOUNDARY_TOLERANCE_PX:
+                    continue
+                raise ValueError(
+                    f"Arrowhead {endpoint_name} endpoint of line shape[{line_index}] "
+                    f"is {penetration:.1f}px inside shape[{box_index}]. Arrowhead "
+                    "endpoints must stop on the target box boundary; shorten the "
+                    "line instead of extending it into the box."
+                )
+        return self
+
     def to_dataclass(self) -> PptxSlideSpec:
         """Pydantic 모델을 기존 PptxSlideSpec dataclass로 변환."""
         textboxes = [
@@ -565,6 +691,35 @@ class _BaseSlideSpecOutput(BaseModel):
         )
 
 
+def _shape_output_has_text(shape: ShapeOutput) -> bool:
+    if shape.text and shape.text.strip():
+        return True
+    return any(run.text.strip() for para in shape.paragraphs for run in para.runs)
+
+
+def _is_arrow_attachable_output_box(shape: ShapeOutput) -> bool:
+    if shape.shape_type == "line":
+        return False
+    has_text = _shape_output_has_text(shape)
+    is_decorative = (
+        not has_text and min(abs(shape.width_px), abs(shape.height_px)) <= 10
+    )
+    if is_decorative:
+        return False
+    return has_text or shape.fill_color is not None
+
+
+def _point_box_penetration_depth(
+    x: float,
+    y: float,
+    bounds: tuple[float, float, float, float],
+) -> float | None:
+    left, top, right, bottom = bounds
+    if x < left or x > right or y < top or y > bottom:
+        return None
+    return min(x - left, right - x, y - top, bottom - y)
+
+
 class ContentSlideSpecOutput(_BaseSlideSpecOutput):
     """content 슬라이드용 LLM 응답 모델.
 
@@ -578,6 +733,31 @@ class ContentSlideSpecOutput(_BaseSlideSpecOutput):
     cell_assignment: GridCellAssignmentOutput
     design_doc: DesignDocOutput
 
+    @model_validator(mode="after")
+    def reject_structural_contract_errors(self) -> "ContentSlideSpecOutput":
+        """구조 계약의 error lint를 저장 전 검증 오류로 승격한다."""
+        from dataclasses import replace
+
+        from ppt_generator.interfaces.spec_utils import lint_slide_spec
+
+        spec = replace(self.to_dataclass(), slide_type="content")
+        result = lint_slide_spec(
+            spec,
+            layers=["layout", "section", "cross"],
+            stop_on_layer_error=False,
+        )
+        errors = [
+            violation
+            for violation in result.violations
+            if violation.severity == "error"
+        ]
+        if errors:
+            details = "; ".join(
+                f"{violation.rule}: {violation.message}" for violation in errors
+            )
+            raise ValueError(f"Content slide contract violation: {details}")
+        return self
+
 
 class SimpleSlideSpecOutput(_BaseSlideSpecOutput):
     """title/closing 등 fixed special layout 슬라이드용 LLM 응답 모델.
@@ -588,6 +768,211 @@ class SimpleSlideSpecOutput(_BaseSlideSpecOutput):
     grid_layout: GridLayoutOutput | None = None
     cell_assignment: GridCellAssignmentOutput | None = None
     design_doc: DesignDocOutput | None = None
+
+
+def _require_bbox(
+    element: TextBoxOutput | ShapeOutput,
+    expected: tuple[float, float, float, float],
+    label: str,
+) -> None:
+    actual = (
+        element.left_px,
+        element.top_px,
+        element.width_px,
+        element.height_px,
+    )
+    if actual != expected:
+        raise ValueError(f"{label} bbox must be {expected}, got {actual}")
+
+
+def _require_text_style(
+    textbox: TextBoxOutput,
+    *,
+    label: str,
+    min_font_pt: int,
+    max_font_pt: int,
+    bold: bool = False,
+) -> None:
+    runs = [
+        run
+        for paragraph in textbox.paragraphs
+        for run in paragraph.runs
+        if run.text.strip()
+    ]
+    if not runs:
+        raise ValueError(f"{label} must contain non-empty text")
+    for run in runs:
+        if (
+            run.font_size_pt is None
+            or not min_font_pt <= run.font_size_pt <= max_font_pt
+        ):
+            raise ValueError(f"{label} font size must be {min_font_pt}~{max_font_pt}pt")
+        if bold and not run.bold:
+            raise ValueError(f"{label} text must be bold")
+
+
+def _require_divider(
+    shapes: list[ShapeOutput],
+    *,
+    expected_bbox: tuple[float, float, float, float],
+    label: str,
+) -> None:
+    divider = next(
+        (
+            shape
+            for shape in shapes
+            if shape.shape_type == "rectangle"
+            and (
+                shape.left_px,
+                shape.top_px,
+                shape.width_px,
+                shape.height_px,
+            )
+            == expected_bbox
+        ),
+        None,
+    )
+    if divider is None:
+        raise ValueError(f"{label} divider rectangle must use bbox {expected_bbox}")
+
+
+class TitleSlideSpecOutput(SimpleSlideSpecOutput):
+    """title 고정 레이아웃 계약을 검증하는 응답 모델."""
+
+    @model_validator(mode="after")
+    def validate_title_layout(self) -> "TitleSlideSpecOutput":
+        if self.background_color is not None:
+            raise ValueError("title background_color must be null")
+        if len(self.textboxes) < 3:
+            raise ValueError(
+                "title requires main title, subtitle, and presenter info textboxes"
+            )
+
+        main_title, subtitle, presenter = self.textboxes[:3]
+        if main_title.height_px not in {80, 160}:
+            raise ValueError("title main title height must be 80px or 160px")
+        _require_bbox(
+            main_title,
+            (64, 260, 1152, main_title.height_px),
+            "title main title",
+        )
+        if main_title.vertical_alignment != "middle":
+            raise ValueError("title main title vertical_alignment must be middle")
+        _require_text_style(
+            main_title,
+            label="title main title",
+            min_font_pt=40,
+            max_font_pt=44,
+            bold=True,
+        )
+
+        two_line = main_title.height_px == 160
+        _require_bbox(
+            subtitle,
+            (64, 450 if two_line else 370, 1152, 100),
+            "title subtitle",
+        )
+        if subtitle.vertical_alignment != "top":
+            raise ValueError("title subtitle vertical_alignment must be top")
+        _require_text_style(
+            subtitle,
+            label="title subtitle",
+            min_font_pt=14,
+            max_font_pt=18,
+        )
+        _require_divider(
+            self.shapes,
+            expected_bbox=(64, 430 if two_line else 350, 80, 4),
+            label="title",
+        )
+
+        _require_bbox(presenter, (64, 560, 400, 96), "title presenter info")
+        if presenter.vertical_alignment != "bottom":
+            raise ValueError("title presenter info vertical_alignment must be bottom")
+        if len(presenter.paragraphs) != 3 or any(
+            not any(run.text.strip() for run in paragraph.runs)
+            for paragraph in presenter.paragraphs
+        ):
+            raise ValueError(
+                "title presenter info must contain exactly 3 non-empty paragraphs"
+            )
+        _require_text_style(
+            presenter,
+            label="title presenter info",
+            min_font_pt=18,
+            max_font_pt=18,
+        )
+        return self
+
+
+class ClosingSlideSpecOutput(SimpleSlideSpecOutput):
+    """closing 고정 레이아웃 계약을 검증하는 응답 모델."""
+
+    @model_validator(mode="after")
+    def validate_closing_layout(self) -> "ClosingSlideSpecOutput":
+        if self.background_color is not None:
+            raise ValueError("closing background_color must be null")
+        if len(self.textboxes) < 2:
+            raise ValueError(
+                "closing requires thank-you message and Q&A subtitle textboxes"
+            )
+
+        thank_you, subtitle = self.textboxes[:2]
+        _require_bbox(thank_you, (64, 260, 1152, 80), "closing thank-you message")
+        if thank_you.vertical_alignment != "middle":
+            raise ValueError(
+                "closing thank-you message vertical_alignment must be middle"
+            )
+        _require_text_style(
+            thank_you,
+            label="closing thank-you message",
+            min_font_pt=40,
+            max_font_pt=44,
+            bold=True,
+        )
+        _require_divider(
+            self.shapes,
+            expected_bbox=(64, 350, 80, 4),
+            label="closing",
+        )
+        _require_bbox(subtitle, (64, 370, 1152, 60), "closing Q&A subtitle")
+        if subtitle.vertical_alignment != "top":
+            raise ValueError("closing Q&A subtitle vertical_alignment must be top")
+        _require_text_style(
+            subtitle,
+            label="closing Q&A subtitle",
+            min_font_pt=16,
+            max_font_pt=20,
+        )
+
+        if len(self.textboxes) >= 3:
+            contact = self.textboxes[2]
+            _require_bbox(contact, (64, 450, 1000, 120), "closing contact/summary")
+            if contact.vertical_alignment != "top":
+                raise ValueError(
+                    "closing contact/summary vertical_alignment must be top"
+                )
+            _require_text_style(
+                contact,
+                label="closing contact/summary",
+                min_font_pt=14,
+                max_font_pt=16,
+            )
+        return self
+
+
+def slide_spec_output_model(
+    slide_type: str | None,
+) -> type[_BaseSlideSpecOutput]:
+    """prepare/ingest가 공유하는 슬라이드 타입별 응답 모델을 반환한다."""
+    normalized = slide_type or "content"
+    if normalized == "content":
+        return ContentSlideSpecOutput
+    if normalized == "title":
+        return TitleSlideSpecOutput
+    if normalized == "closing":
+        return ClosingSlideSpecOutput
+    return SimpleSlideSpecOutput
 
 
 class VisualQATextBoxOutput(TextBoxOutput):

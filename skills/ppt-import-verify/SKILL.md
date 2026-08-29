@@ -9,7 +9,7 @@ description: Verify PPTX import fidelity by comparing the original .pptx against
 검증하고, 불일치를 **근본 원인 카테고리**로 태깅해 코드/린트 개선의 근거를 만든다.
 
 이 스킬은 코드를 수정하지 않는다 — **진단·측정·리포트**만 한다. 발견한 근본 원인은
-`docs/adr/import/` ADR-First 워크플로우로 수정한다.
+저장소의 ADR-First 워크플로우로 수정한다.
 
 ## 전제
 
@@ -22,20 +22,24 @@ description: Verify PPTX import fidelity by comparing the original .pptx against
 
 ### 1. 원본 PPTX → 슬라이드 PNG
 ```bash
-python skills/ppt-import-verify/scripts/render_original.py "<원본.pptx>" /tmp/hiv_ref --dpi 110 --slides 1,2,3,4
+uv --directory "${CLAUDE_PLUGIN_ROOT}" run python \
+  "${CLAUDE_PLUGIN_ROOT}/skills/ppt-import-verify/scripts/render_original.py" \
+  "<원본.pptx>" /tmp/hiv_ref --dpi 110 --slides 1,2,3,4
 ```
 `soffice --headless --convert-to pdf` 로 PDF 를 만들고 `pdftoppm -png` 로 슬라이드별 PNG 를
 `/tmp/hiv_ref/ref-NN.png` 로 저장한다.
 
 ### 2. 임포트 프로젝트 → 슬라이드 PNG
 ```bash
-python skills/ppt-import-verify/scripts/capture_import.py <project_id> --slides 1,2,3,4
+uv --directory "${CLAUDE_PLUGIN_ROOT}" run --group visual-qa python \
+  "${CLAUDE_PLUGIN_ROOT}/skills/ppt-import-verify/scripts/capture_import.py" \
+  <project_id> --slides 1,2,3,4
 ```
 프로젝트의 `VisualQAService.capture_screenshots` 를 재사용해
 `~/.ppt-generator/<id>/screenshots/slide_NN_v<iter>.png` 를 생성한다(경로를 출력).
 MCP `capture_slides` 를 써도 되지만, **코드를 방금 고쳤다면 MCP 서버가 옛 코드일 수 있으니**
-이 스크립트로 직접 캡처하는 편이 안전하다. 재임포트가 필요하면
-`scripts/reimport.py <원본.pptx> <project_id>` 로 고친 코드 경로를 그대로 실행한다.
+이 스크립트로 직접 캡처하는 편이 안전하다. 재임포트가 필요하면 같은 방식으로
+`${CLAUDE_PLUGIN_ROOT}/skills/ppt-import-verify/scripts/reimport.py` 를 실행한다.
 
 ### 3. 시각 비교 (육안)
 각 슬라이드에 대해 원본 PNG 와 임포트 PNG 를 **둘 다 Read** 로 열어 나란히 비교한다.
@@ -47,7 +51,9 @@ MCP `capture_slides` 를 써도 되지만, **코드를 방금 고쳤다면 MCP �
 
 ### 4. 좌표 비교 (수치)
 ```bash
-python skills/ppt-import-verify/scripts/coord_diff.py "<원본.pptx>" <project_id> --slides 1,2,3,4
+uv --directory "${CLAUDE_PLUGIN_ROOT}" run python \
+  "${CLAUDE_PLUGIN_ROOT}/skills/ppt-import-verify/scripts/coord_diff.py" \
+  "<원본.pptx>" <project_id> --slides 1,2,3,4
 ```
 원본 slide XML 을 프로젝트의 `SlideReader` 로 파싱한 유효 좌표(placeholder 상속 해석 포함)와
 저장된 `design_spec/slide_NN.json` 값을 대조해, 요소 개수·좌표(px)·폰트(pt)·autofit·줄간격의
@@ -73,6 +79,6 @@ python skills/ppt-import-verify/scripts/coord_diff.py "<원본.pptx>" <project_i
 증상을 개별 슬라이드에서 땜질하지 말고, 항상 카테고리의 근본 지점을 고친다.
 
 ## 참고
-- 관련 ADR: `docs/adr/import/0001-pptx-import-to-design-spec.md`,
-  `docs/adr/import/0003-pptx-import-fidelity-fixes.md`
+- 로컬 clone/Kiro/Codex 환경에서는 `${CLAUDE_PLUGIN_ROOT}` 를 clone의 절대 경로로
+  바꿔 실행한다.
 - 폰트 렌더 차이(예: Amazon Ember 미설치)로 줄바꿈이 달라질 수 있으니, 폰트 설치 여부도 함께 본다.

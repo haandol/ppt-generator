@@ -59,7 +59,7 @@ docs/adr/
 - [0009 슬라이드 추가 시 기존 디자인 스펙 참조 일관성](./design/0009-add-slide-design-consistency.md) — _Superseded by design/0010_
 - [0010 기본 테마 색상 변경 + 다이어그램 활용 강화](./design/0010-theme-color-change.md)
 - [0011 5단 디자인 스펙 계층 — Project / Slide / Layout / Section / Content](./design/0011-five-layer-design-spec-hierarchy.md)
-- [0012 Content 로컬 그리드 — Section 내부 sub-grid](./design/0012-content-local-grid.md) — _Rejected_
+- [0012 Content 로컬 그리드 — Section 내부 sub-grid](./design/0012-content-local-grid.md) — _Deprecated_
 - [0013 5단 계층 데이터 무결성](./design/0013-five-layer-data-integrity.md)
 - [0014 PptxShape autofit 기본값 — shrink_text](./design/0014-shape-autofit-shrink-text.md)
 - [0015 DESIGN.md — 사람이 편집하는 디자인 의도 단일 소스](./design/0015-design-md-source-of-truth.md)

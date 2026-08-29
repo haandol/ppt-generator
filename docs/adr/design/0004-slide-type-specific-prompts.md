@@ -1,72 +1,96 @@
-# 슬라이드 타입별 시스템 프롬프트 분리
+# 슬라이드 타입별 생성 계약
 
 Date: 2026-02-25
 
 ## Status
 
-Accepted (2026-02-25)
+Accepted (2026-08-29)
 
 ## Context
 
-디자인 스펙 생성 시 LLM이 title/closing 슬라이드의 메인 텍스트를 `top=72`(content 슬라이드의 제목 위치)에 배치하는 문제가 반복 발생했다. 프롬프트 강화(⚠️ 경고문, bold 표기, 부정 지시 등)와 validator 보정을 시도했으나 근본적으로 해결되지 않았다.
+content 슬라이드의 반복 좌표와 예시는 title·closing 슬라이드의 중앙 배치보다 훨씬
+많다. 모든 타입이 하나의 프롬프트와 응답 계약을 공유하면 클라이언트 모델은 content
+패턴을 title·closing에도 적용하기 쉽다.
 
-### 근본 원인 분석
+title·closing은 Layout과 Section 계층을 생략할 수 있는 고정 레이아웃이다. 반면 content는
+Layout, Section, Content 계층의 연결을 모두 제공해야 한다. 타입별로 다른 필수 필드와
+고정 좌표를 프롬프트 지시만으로 유지하면, 클라이언트가 지시를 어긴 결과도 ingest에서
+저장될 수 있다.
 
-1. **`top=72` 빈도 우세**: 단일 시스템 프롬프트에서 `top=72`가 ~10회 등장 (3개 content 예제 + layout 규칙 + agenda 규칙) vs `top=260`/`top=240`은 각 ~5회
-2. **부정 지시의 역효과**: "top=72를 사용하지 마세요"라는 지시가 오히려 `top=72` 값을 강화
-3. **예제의 압도적 영향력**: 구조화된 출력에서 LLM은 텍스트 규칙보다 예제를 더 강하게 모방
-4. **slide_type 미구분**: 출력 스키마에 slide_type 필드가 없어 LLM이 현재 생성 중인 타입을 자기참조 불가
+## Decision Drivers
 
-### validator 보정의 한계
-
-validator가 title/closing의 첫 텍스트박스를 강제로 아래로 이동시키면, 하위 요소(부제목, 연락처 등)도 같은 offset만큼 밀려나 캔버스 하단을 넘어 잘리는 문제 발생. validator의 현재 보정 규칙 상세는 [lint/0001](../lint/0001-design-spec-validator.md) 참조.
+- title·closing과 content는 필수 계층과 레이아웃 자유도가 다르다.
+- prepare가 반환한 응답 스키마와 ingest 검증은 같은 슬라이드 타입 계약을 사용해야 한다.
+- 프롬프트의 절대 좌표와 필수 요소는 ingest에서 결정론적으로 검증되어야 한다.
+- title의 두 줄 제목은 높이와 후속 요소 위치가 함께 바뀌어야 한다.
+- 슬라이드 타입별 분리는 content 예시가 특수 슬라이드 배치를 압도하는 문제를 줄여야 한다.
 
 ## Decision
 
-### 시스템 프롬프트를 공통 베이스 + slide_type별 파일로 분리
+디자인 스펙 생성 계약을 공통 베이스와 `content`, `title`, `closing` 타입별 계약으로
+분리한다. prepare는 슬라이드 타입에 맞는 프롬프트와 응답 스키마를 반환하고, ingest는
+같은 타입의 모델로 검증한다.
 
-| 파일 | 역할 | 포함 내용 |
-|------|------|----------|
-| `design_system_base.prompt.md` | **공통 베이스** | role, language_policy, coordinate_system, output_schema, design_principles, output_rules |
-| `design_system_content.prompt.md` | content 전용 | layout_grid, diagram_grid, shapes 가이드, agenda/content 규칙, 3개 content 예제, content 전용 constraints |
-| `design_system_title.prompt.md` | title 전용 | title 규칙, 1개 title 예제, title 전용 typography/constraints |
-| `design_system_closing.prompt.md` | closing 전용 | closing 규칙, 1개 closing 예제, closing 전용 typography/constraints |
+content는 Layout, Section, Content 연결 계약을 유지한다. title과 closing은 Layout과
+Section을 생략할 수 있지만, 아래 고정 레이아웃 요구사항을 만족해야 한다. 타입별 모델은
+필수 요소, 순서, 좌표와 글꼴 범위를 검증하고 위반 결과를 저장 전에 거부한다.
 
-로딩 시 `base + "\n\n" + type별 파일`을 합쳐 최종 시스템 프롬프트를 구성한다.
+### Requirement contract
 
-**핵심 원칙**: title/closing 프롬프트에는 `top=72`가 **한 번도 등장하지 않음**.
+- 모든 좌표와 크기의 단위는 px이고, 글꼴 크기의 단위는 pt다.
+- title은 `background_color`를 비워 두고, main title, subtitle, presenter info
+  텍스트박스를 이 순서로 포함한다.
+- title main title의 bbox는 `(64, 260, 1152, 80)` 또는 `(64, 260, 1152, 160)`이고,
+  vertical alignment는 middle이며, 비어 있지 않은 글꼴은 40~44pt이고 굵게 표시한다.
+- title divider는 rectangle이고 bbox는 main title 높이가 80px이면
+  `(64, 350, 80, 4)`, 160px이면 `(64, 430, 80, 4)`다.
+- title subtitle의 bbox는 main title 높이가 80px이면 `(64, 370, 1152, 100)`,
+  160px이면 `(64, 450, 1152, 100)`이고, vertical alignment는 top이며,
+  비어 있지 않은 글꼴은 14~18pt다.
+- title presenter info의 bbox는 `(64, 560, 400, 96)`이고, 이름·직책·소속을 각각
+  하나의 비어 있지 않은 문단으로 제공하며, vertical alignment는 bottom이고 모든
+  글꼴은 18pt다.
+- closing은 `background_color`를 비워 두고, thank-you message와 Q&A subtitle
+  텍스트박스를 이 순서로 포함한다.
+- closing thank-you message의 bbox는 `(64, 260, 1152, 80)`이고, 비어 있지 않은
+  글꼴은 40~44pt이며 굵게 표시하고 vertical alignment는 middle이다.
+- closing divider는 rectangle이고 bbox는 `(64, 350, 80, 4)`다.
+- closing Q&A subtitle의 bbox는 `(64, 370, 1152, 60)`이고, 비어 있지 않은 글꼴은
+  16~20pt이며 vertical alignment는 top이다.
+- closing contact/summary를 포함하면 세 번째 텍스트박스로 제공하고 bbox는
+  `(64, 450, 1000, 120)`, vertical alignment는 top, 비어 있지 않은 글꼴은
+  14~16pt다.
 
-### 코드 변경
+Observable evidence: 각 타입의 정상 예시는 ingest를 통과한다. 필수 요소 누락, 순서 변경,
+좌표·크기·글꼴 범위 위반, title presenter info의 3문단 규칙 위반은 저장 전에 거부된다.
+title main title이 160px이면 divider와 subtitle도 두 줄 제목용 좌표를 사용한다.
 
-1. **프롬프트 로딩**: `DESIGN_SPEC_SYSTEM_PROMPTS: dict[str, str]` — slide_type을 key로 프롬프트 매핑
-2. **팩토리 시그니처**: `Callable[[str], DesignService]` → `Callable[[str, str], DesignService]` (effort, slide_type)
-3. **Agent 생성**: `DIContainer._create_design_agent(effort, slide_type)` — slide_type에 해당하는 시스템 프롬프트로 Agent 생성
-4. **병렬 러너**: `outline.slides[idx].slide_type`을 읽어 팩토리에 전달
-5. **validator**: `_fix_title_closing_center()` 제거 — 프롬프트 분리로 불필요
+## 대안 검토
 
-### 프롬프트 캐싱 영향
-
-- **content 슬라이드** (N-2장): 동일 시스템 프롬프트 → 기존과 동일한 캐시 적중률
-- **title/closing** (각 1장): 캐시 miss 1회씩 발생하나, 프롬프트가 content 대비 ~60% 짧아 입력 토큰 자체가 절감
+| 대안 | 판단 |
+|---|---|
+| 모든 타입이 하나의 프롬프트와 응답 모델을 공유 | 계약은 단순하지만 content 패턴이 특수 슬라이드를 압도하고 타입별 필수 요소를 검증할 수 없어 제외 |
+| 프롬프트만 타입별로 분리하고 공통 모델로 검증 | 생성 품질은 개선하지만 절대 좌표와 필수 요소 위반을 저장 전에 막지 못해 제외 |
+| 공통 베이스 + 타입별 프롬프트 + 타입별 검증 모델 | 프롬프트와 ingest가 같은 계약을 사용하고 타입별 오류를 결정론적으로 거부하므로 채택 |
 
 ## Consequences
 
 ### Positive
 
-- **근본 원인 해결**: title/closing 프롬프트에 `top=72`가 없으므로 LLM이 해당 값을 학습/모방할 수 없음
-- **validator 불필요**: 강제 보정 로직 제거로 하위 요소 잘림 문제 원천 차단
-- **토큰 절감**: title/closing 프롬프트에서 layout_grid, diagram_grid, content 예제 등 불필요한 섹션 제거 (~200줄 감소)
-- **유지보수 용이**: slide_type별 독립 수정 가능, 한 타입의 규칙 변경이 다른 타입에 영향 없음
+- title·closing의 필수 요소와 고정 좌표가 프롬프트 권고가 아니라 실행 가능한 계약이 된다.
+- prepare와 ingest가 같은 슬라이드 타입 모델을 선택하므로 스키마 드리프트를 방지한다.
+- 두 줄 title에서 main title, divider와 subtitle의 상대 위치가 함께 검증된다.
+- content 응답 모델은 특수 슬라이드 규칙과 분리되어 기존 계층 계약을 유지한다.
 
-### Negative
+### Negative / Risks
 
-- **파일 수 증가**: 1개 → 4개 프롬프트 파일 (base + 3개 타입별). 공통 베이스 분리로 중복은 해소됨
-- **Agent 인스턴스 다양화**: slide_type별 다른 시스템 프롬프트로 Agent를 생성하므로, 병렬 처리 시 Agent 풀이 다양해짐
+- 기존에 고정 레이아웃을 따르지 않은 title·closing 생성 결과는 ingest에서 거부된다.
+- 고정 좌표나 필수 요소를 바꾸려면 이 요구사항 계약과 검증 모델을 함께 변경해야 한다.
+- 타입별 응답 모델이 늘어나므로 prepare/ingest 모델 선택의 일치 여부를 회귀 테스트로
+  유지해야 한다.
 
-## References
+## Related
 
-- 프롬프트 파일: `src/ppt_generator/interfaces/prompts/design_system_{base,content,title,closing}.prompt.md`
-- 프롬프트 로딩: `src/ppt_generator/interfaces/prompts/__init__.py` — `DESIGN_SPEC_SYSTEM_PROMPTS`
-- 팩토리: `src/ppt_generator/di/container.py` — `create_design_service(effort, slide_type)`
-- 병렬 러너: `src/ppt_generator/tools/design/parallel_runner.py` — `_generate_slide()`
-- 관련 ADR: [0018-parallel-design-spec-and-prompt-caching](./0003-parallel-design-spec.md), [0023-design-spec-validator](../lint/0001-design-spec-validator.md)
+- [디자인 스펙 품질 게이트](../lint/0003-validator-to-lint.md)
+- [타이틀 슬라이드 긴 제목 텍스트 잘림 수정](./0005-title-long-title-overflow-fix.md)
+- [5단 디자인 스펙 계층](./0011-five-layer-design-spec-hierarchy.md)

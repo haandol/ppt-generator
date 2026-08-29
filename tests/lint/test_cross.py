@@ -209,6 +209,17 @@ class TestArrowEndpointAttachment:
             x for x in result.violations if x.rule == "arrow-endpoint-attachment"
         ]
 
+    def test_arrow_end_inside_box_is_penetration_error(self) -> None:
+        box = self._box(200, 100)
+        arrow = self._arrow(150, 130, 58, 0)
+        result = lint_slide_spec(slide(shapes=[box, arrow]))
+        violations = [
+            x for x in result.violations if x.rule == "arrow-endpoint-penetration"
+        ]
+        assert len(violations) == 1
+        assert violations[0].severity == "error"
+        assert violations[0].current_value["penetration_px"] == 8
+
     def test_arrow_end_floating_fails(self) -> None:
         box = self._box(200, 100)
         arrow = self._arrow(50, 130, 100, 0)

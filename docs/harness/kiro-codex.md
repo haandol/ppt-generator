@@ -12,7 +12,8 @@ Kiro·Codex 는 그렇지 않다. 그래서 두 하니스에서는
 2. 각 하니스가 자동으로 읽는 위치에 **스킬 워크플로우 컨텍스트**를 얹어
 
 Claude Code 의 스킬과 같은 안내를 받게 한다. 프롬프트·출력 스키마·후처리는 전부 서버
-안에 있으므로 **어떤 하니스에서 돌리든 산출물은 동일**하다 (설계 배경:
+안에 있으므로 **어떤 하니스에서 돌리든 같은 계약과 산출물 포맷을 사용**한다. 생성
+내용은 각 하니스가 사용하는 모델과 실행 문맥에 따라 달라질 수 있다 (설계 배경:
 [offload/0001](../adr/offload/0001-client-llm-offload-plugin.md)).
 
 > 스킬 원문은 `skills/ppt-outline`, `skills/ppt-design`, `skills/ppt-modify`,
@@ -31,7 +32,8 @@ git clone https://github.com/haandol/ppt-generator.git
 cd ppt-generator
 uv sync
 # Visual QA 를 쓸 거면
-uv run playwright install chromium
+uv sync --group visual-qa
+uv run --group visual-qa playwright install chromium
 ```
 
 등록에 쓸 커맨드는 아래와 같다. `/path/to/ppt-generator` 를 실제 클론 경로로 바꾼다.
@@ -169,4 +171,5 @@ context.md 를 읽고 ppt-generator 로 발표자료를 만들어줘.
 | Kiro          | steering 로 안내     | `.kiro/settings/mcp.json`           | `.kiro/steering/ppt-generator.md`, `.kiro/settings/mcp.json.example` |
 | Codex         | `AGENTS.md` 로 안내  | `~/.codex/config.toml`              | `AGENTS.md`, 위 커스텀 프롬프트 템플릿   |
 
-어느 하니스든 워크플로우의 실체와 산출물은 동일하다 — 진입점만 다르다.
+어느 하니스든 워크플로우 계약과 산출물 포맷은 동일하다. 생성 내용은 클라이언트 모델과
+문맥에 따라 달라질 수 있으며 진입점만 하니스별로 다르다.

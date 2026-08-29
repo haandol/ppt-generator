@@ -57,6 +57,6 @@ HTML과 PPTX의 공유 렌더 의미를 확인하고 두 결과 경로를 사용
 
 - 생성 단계에서는 항상 `response_schema` 를 정확히 따른다. ingest 검증 실패 시 고쳐 재시도.
 - 모든 편집 후 `export_html` + `export_pptx` 호출, 양쪽 결과 확인 + 경로 공유.
-- lint 결과 처리 기준은 `ppt-design` 스킬의 "lint 자동 처리" 절을 따른다 (경미=visual QA
-  자동 검증 후 실제 결함만 자가 수정, 중대=error·overflow·레이아웃 파손·메시지 변경은
-  사용자 확인). 모든 warning 을 매번 묻지도, 아무 검증 없이 넘기지도 않는다.
+- lint 결과 처리 기준은 `ppt-design` 스킬의 "lint 처리" 절을 따른다. warning 은
+  요약하되 Visual QA나 수정은 사용자 요청 또는 명시적 동의가 있을 때만 실행하고,
+  error·overflow·레이아웃 파손·메시지 변경은 사용자에게 확인한다.

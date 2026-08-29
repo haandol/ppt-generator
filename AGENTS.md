@@ -72,7 +72,6 @@ Without this order, users cannot anticipate what changes will occur, and course 
 - **Update existing ADRs first**: If within scope of an existing ADR, modify that section directly. Only create a new ADR when there is no existing one to merge into
 - **File location**: Under `docs/adr/` directory · **Naming**: `NNNN-<kebab-case-title>.md`
 - **No code snippets or file paths**: Do not include implementation code snippets or file paths in ADRs. To avoid needing to update ADRs every time code changes, ADRs should only record "why" and "what" level design decisions, leaving "how" implementation details to the code
-- ADR writing guide: [`docs/adr/README.md`](docs/adr/README.md)
 
 ## Pipeline Abstraction Levels (Critical)
 
@@ -166,4 +165,3 @@ Details: [`docs/harness/testing.md`](docs/harness/testing.md)
 | Environment & Config  | [`docs/harness/environment.md`](docs/harness/environment.md) | Environment variables, models used, MCP client config examples |
 | Kiro / Codex Setup    | [`docs/harness/kiro-codex.md`](docs/harness/kiro-codex.md) | Use the workflow as a skill in Kiro (steering) and Codex (AGENTS.md) |
 | Testing               | [`docs/harness/testing.md`](docs/harness/testing.md)         | Test writing rules, patterns, checklist         |
-| ADR Index             | [`docs/adr/README.md`](docs/adr/README.md) | Full ADR list and writing guide                 |

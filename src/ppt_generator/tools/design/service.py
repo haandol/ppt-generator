@@ -34,11 +34,9 @@ from ppt_generator.interfaces.llm_output_models import (
     BackfillDesignDocOutput,
     BackfillNode,
     ComponentModifyOutput,
-    ContentSlideSpecOutput,
     DesignDocDraftOutput,
-    SimpleSlideSpecOutput,
-    _BaseSlideSpecOutput,
     shape_output_to_dataclass,
+    slide_spec_output_model,
     textbox_output_to_dataclass,
 )
 from ppt_generator.interfaces.schemas import (
@@ -56,11 +54,6 @@ from ppt_generator.interfaces.spec_utils import clean_slide_spec
 from ppt_generator.interfaces.spec_utils.serializer import slide_spec_to_json
 
 logger = logging.getLogger(__name__)
-
-
-def _slide_spec_output_model(slide_type: str) -> type[_BaseSlideSpecOutput]:
-    """slide_type 에 따른 응답 Pydantic 모델. content 는 grid_plan Required."""
-    return ContentSlideSpecOutput if slide_type == "content" else SimpleSlideSpecOutput
 
 
 class DesignService:
@@ -126,7 +119,7 @@ class DesignService:
         system_prompt = DESIGN_SPEC_SYSTEM_PROMPTS.get(
             slide_type, DESIGN_SPEC_SYSTEM_PROMPTS["content"]
         )
-        model = _slide_spec_output_model(slide_type)
+        model = slide_spec_output_model(slide_type)
         return build_llm_task(
             system_prompt=system_prompt,
             user_prompt=prompt,
@@ -151,7 +144,7 @@ class DesignService:
         Returns:
             (spec, overflow) — overflow 는 초과 컨텐츠 dict 리스트.
         """
-        model = _slide_spec_output_model(slide_type or "content")
+        model = slide_spec_output_model(slide_type or "content")
         output = self._validate(model, spec_json)
         overflow = (
             [item.model_dump() for item in output.overflow] if output.overflow else []

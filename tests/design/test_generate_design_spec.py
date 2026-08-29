@@ -1105,6 +1105,67 @@ class TestIngestSlideTypeInvariance:
             "overflow": [],
         }
     )
+    _TITLE_SPEC_JSON = json.dumps(
+        {
+            "grid_layout": None,
+            "cell_assignment": None,
+            "design_doc": None,
+            "background_color": None,
+            "speaker_notes": "",
+            "textboxes": [
+                {
+                    "left_px": 64,
+                    "top_px": 260,
+                    "width_px": 1152,
+                    "height_px": 80,
+                    "vertical_alignment": "middle",
+                    "paragraphs": [
+                        {
+                            "runs": [
+                                {
+                                    "text": "Title",
+                                    "font_size_pt": 40,
+                                    "bold": True,
+                                }
+                            ]
+                        }
+                    ],
+                },
+                {
+                    "left_px": 64,
+                    "top_px": 370,
+                    "width_px": 1152,
+                    "height_px": 100,
+                    "vertical_alignment": "top",
+                    "paragraphs": [
+                        {"runs": [{"text": "Subtitle", "font_size_pt": 16}]}
+                    ],
+                },
+                {
+                    "left_px": 64,
+                    "top_px": 560,
+                    "width_px": 400,
+                    "height_px": 96,
+                    "vertical_alignment": "bottom",
+                    "paragraphs": [
+                        {"runs": [{"text": "Name", "font_size_pt": 18}]},
+                        {"runs": [{"text": "Role", "font_size_pt": 18}]},
+                        {"runs": [{"text": "Organization", "font_size_pt": 18}]},
+                    ],
+                },
+            ],
+            "shapes": [
+                {
+                    "left_px": 64,
+                    "top_px": 350,
+                    "width_px": 80,
+                    "height_px": 4,
+                    "shape_type": "rectangle",
+                }
+            ],
+            "overflow": [],
+        }
+    )
 
     def test_content_slide_type_preserved(self) -> None:
         spec, _ = DesignService().ingest_slide(
@@ -1125,6 +1186,6 @@ class TestIngestSlideTypeInvariance:
 
     def test_title_slide_type_preserved(self) -> None:
         spec, _ = DesignService().ingest_slide(
-            self._SIMPLE_SPEC_JSON, slide_type="title"
+            self._TITLE_SPEC_JSON, slide_type="title"
         )
         assert spec.slide_type == "title"

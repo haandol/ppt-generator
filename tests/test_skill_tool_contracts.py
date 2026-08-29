@@ -7,7 +7,9 @@
 from __future__ import annotations
 
 import ast
+import json
 import re
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -52,6 +54,9 @@ def test_controllers_and_skills_are_discoverable() -> None:
     assert _CONTROLLERS, "controller.py 를 찾지 못했다"
     assert _skill_files(), "SKILL.md 를 찾지 못했다"
     assert _registered_tools(), "@mcp.tool() 등록 도구를 찾지 못했다"
+    assert (_SKILLS_DIR / "presentation-design" / "SKILL.md").is_file(), (
+        "ppt-design 이 참조하는 presentation-design 스킬이 플러그인 skills/에 없다"
+    )
 
 
 @pytest.mark.parametrize("skill_path", _skill_files(), ids=lambda p: p.parent.name)
@@ -122,3 +127,61 @@ def test_skill_frontmatter_name_matches_directory() -> None:
         declared = re.search(r"^name:\s*(\S+)", head, re.M)
         assert declared, f"{skill_path.parent.name}: frontmatter 에 name 이 없다"
         assert declared.group(1) == skill_path.parent.name
+
+
+def test_visual_qa_remains_opt_in_across_harness_entry_points() -> None:
+    design_skill = (_SKILLS_DIR / "ppt-design" / "SKILL.md").read_text(encoding="utf-8")
+    visual_skill = (_SKILLS_DIR / "ppt-visual-qa" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+    steering = (_REPO_ROOT / ".kiro" / "steering" / "ppt-generator.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "자동 검증" not in design_skill
+    assert "사용자 요청 또는 명시적 동의" in design_skill
+    assert "사용자가 동의해야 한다 (opt-in)" in visual_skill
+    assert "Visual QA 는 사용자가 요청할 때만 실행한다" in steering
+
+
+def test_import_verify_commands_are_plugin_root_anchored() -> None:
+    text = (_SKILLS_DIR / "ppt-import-verify" / "SKILL.md").read_text(encoding="utf-8")
+    assert text.count('uv --directory "${CLAUDE_PLUGIN_ROOT}"') >= 3
+    assert '"${CLAUDE_PLUGIN_ROOT}/skills/ppt-import-verify/scripts/' in text
+    assert "python skills/ppt-import-verify/scripts/" not in text
+
+
+def test_visual_qa_setup_includes_optional_dependency_group() -> None:
+    paths = [
+        _REPO_ROOT / "README.md",
+        _REPO_ROOT / "docs" / "harness" / "environment.md",
+        _REPO_ROOT / "docs" / "harness" / "kiro-codex.md",
+        _SKILLS_DIR / "ppt-visual-qa" / "SKILL.md",
+    ]
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        assert "uv sync --group visual-qa" in text, path
+        assert "uv run --group visual-qa playwright install chromium" in text, path
+
+
+def test_distribution_versions_match() -> None:
+    project = tomllib.loads((_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    lock = tomllib.loads((_REPO_ROOT / "uv.lock").read_text(encoding="utf-8"))
+    plugin = json.loads(
+        (_REPO_ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    marketplace = json.loads(
+        (_REPO_ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8")
+    )
+    locked_project = next(
+        package for package in lock["package"] if package["name"] == "ppt-generator"
+    )
+
+    versions = {
+        project["project"]["version"],
+        locked_project["version"],
+        plugin["version"],
+        marketplace["metadata"]["version"],
+        marketplace["plugins"][0]["version"],
+    }
+    assert len(versions) == 1, versions

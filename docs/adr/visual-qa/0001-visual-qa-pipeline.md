@@ -10,10 +10,12 @@ Accepted (2026-07-21)
 
 ## Decision
 
-Playwright + Claude Vision 기반의 Visual QA 파이프라인을 opt-in MCP tool로 추가한다.
+Playwright 스크린샷과 클라이언트 비전 생성을 결합한 Visual QA 파이프라인을 opt-in
+도구로 제공한다.
 
-- `visual_qa` MCP tool: 디자인 스펙의 시각적 품질을 검사하고 자동 수정
-- Playwright를 optional dependency group(`visual-qa`)으로 추가
+- 서버는 스크린샷 캡처와 결과 검증·저장만 담당한다.
+- 클라이언트는 서버가 반환한 프롬프트·스키마·이미지로 분석과 수정 JSON을 생성한다.
+- Playwright는 선택 의존성으로 유지한다.
 - 런타임에 `try: import playwright` → `except ImportError`로 graceful degradation
 - 디자인 스펙 생성 완료 후 사용자에게 visual QA 실행을 제안하고, 동의 시에만 실행
 
@@ -45,26 +47,12 @@ Playwright + Claude Vision 기반의 Visual QA 파이프라인을 opt-in MCP too
 | `hidden_decorative_strip` | 장식 스트립이 더 큰 도형 뒤에 가려짐 |
 | `wrong_z_order` | 의도한 시각 계층과 렌더 순서가 불일치 |
 
-## Changes
-
-- `pyproject.toml`: `visual-qa` dependency group에 `playwright` 추가
-- `interfaces/constants.py`: `VISUAL_QA_*` 상수 추가 (PARALLEL, MAX_ITERATIONS, VIEWPORT)
-- `interfaces/llm_output_models.py`: `VisualQAIssue`, `VisualQAOutput` Pydantic 모델 추가
-- `interfaces/prompts/visual_qa_analysis.prompt.md`: 스크린샷 분석 시스템 프롬프트
-- `interfaces/prompts/visual_qa_fix.prompt.md`: 디자인 스펙 수정 시스템 프롬프트
-- `interfaces/prompts/design_system_content.prompt.md`: 방향 무관 Arrow endpoint 계약 추가
-- `tools/visual_qa/__init__.py`, `controller.py`, `service.py`: 새 모듈
-- `di/model_factory.py`: visual_qa 모델 생성 함수 추가
-- `di/container.py`: `create_visual_qa_service` 메서드 추가
-- `server.py`: `register_visual_qa_tools` 호출 및 MCP instructions 수정
-- `tools/design/controller.py`: 응답에 `visual_qa_suggestion` 추가
-
 ## QA Loop
 
 ```
 for iteration in range(max_iterations):
     1. Playwright로 문제 슬라이드 스크린샷 캡처 (1280x720)
-    2. Claude Vision으로 스크린샷 분석 → 이슈 목록
+    2. 클라이언트가 준비된 프롬프트·스키마로 스크린샷 분석 → 이슈 목록
     3. 이슈 없으면 pass
     4. 이슈 있으면 LLM으로 디자인 스펙 수정 → 저장 → HTML 재렌더링
     5. 남은 이슈 없으면 break
@@ -135,7 +123,7 @@ for iteration in range(max_iterations):
 
 - 디자인 스펙 생성 후 시각적 결함을 자동 감지하고 수정할 수 있다.
 - Playwright 미설치 시에도 기존 기능에 영향 없음 (graceful degradation).
-- 추가 LLM 호출 비용 발생 (분석 + 수정, 슬라이드당 최대 2회 반복).
+- 클라이언트에서 분석과 수정 생성이 추가로 필요하다.
 - 스크린샷 파일이 `~/.ppt-generator/<project_id>/screenshots/`에 저장된다.
 - issue 분류가 프롬프트와 스키마에서 어긋나면 배포 전에 검출된다.
 - 수정 단계가 기존 렌더 순서와 비시각 필드를 보존하므로 부분 수정으로 인한 회귀를

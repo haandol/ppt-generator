@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+ARROW_ENDPOINT_BOUNDARY_TOLERANCE_PX = 1.0
+
 
 def line_endpoints(
     left: float,

@@ -50,22 +50,24 @@ description: Generate the design spec (per-slide layout/style) for a deck via th
   `mcp__ppt-generator__export_pptx(project_id)` 를 같은 DesignSpec에 호출한다.
   HTML과 PPTX의 공유 렌더 의미를 확인하고 두 결과 경로를 사용자에게 공유한다.
 
-### 4. lint 자동 처리 (경미=자동, 중대=보고)
+### 4. lint 처리 (Visual QA와 수정은 opt-in)
 
-finalize/export 의 lint 결과를 **경미**와 **중대**로 나눠 다르게 대응한다. 판단이
-애매하면 중대로 취급한다.
+finalize/export 의 lint 결과는 계약 거부가 아니라 품질 신호다. **경미**와 **중대**를
+나눠 사용자에게 필요한 정보만 보고하되, lint 경고만으로 Visual QA나 슬라이드 재생성을
+자동 실행하지 않는다.
 
-**경미 (사용자에게 묻지 않고 알아서 처리)** — 대부분 의도된 레이아웃/장식에서 나오는
-구조적 warning 이라 실제 시각 결함이 아닌 경우가 많다:
+**경미** — 의도된 레이아웃/장식에서도 발생할 수 있는 구조적 warning:
 - `grid-cell-uniformity`, `grid-cell-coverage` (의도된 비대칭 강약 레이아웃·다이어그램 장식 도형)
 - `element-out-of-grid-cell`, `textbox-shape-intrusion` (다이어그램 라벨·중첩 컨테이너)
 - `slide-edge-alignment-*`, `arrow-endpoint-attachment`, `sibling-gap-minimum` 등 미세 정렬
 
-처리 방법: 경미 warning 이 있는 슬라이드만 골라 `ppt-visual-qa` 로 **자동 검증**한다
-(`capture_slides(slide_indices=...)` → 스크린샷 Read → 실제 결함 여부 육안 확인).
-- 스크린샷상 실제 결함(텍스트 잘림, 도형 겹침, 화살표 붕 뜸 등)이 보이면
-  `ppt-modify` 의 `prepare_slide_edit(action="update")` 로 **스스로 좌표를 고쳐 재생성**한다.
-- 스크린샷이 깨끗하면 오탐으로 판단하고 그대로 둔다. 무엇을 자동 수정/무시했는지 한 줄로 요약 보고.
+처리 방법:
+- 경미 warning 은 슬라이드 번호와 규칙을 짧게 요약한다.
+- 사용자가 이미 Visual QA를 요청하거나 이번 덱에 대해 명시적으로 동의한 경우에만
+  해당 슬라이드를 `ppt-visual-qa`로 캡처·분석한다.
+- 실제 시각 결함이 확인되면 Visual QA fix 또는 좁은 component 수정처럼 승인된 범위의
+  최소 변경을 사용한다. 전체 슬라이드 재생성은 메시지·구성까지 바뀔 수 있으므로 별도
+  사용자 확인 없이 사용하지 않는다.
 
 **중대 (반드시 사용자에게 보고하고 확인)** — 내용·구조 판단이 필요해 임의로 못 고치는 것:
 - severity `error` (렌더 실패로 이어짐)
@@ -76,8 +78,8 @@ finalize/export 의 lint 결과를 **경미**와 **중대**로 나눠 다르게 
   텍스트 축약 / 박스 확대 / 슬라이드 분할.
 - 슬라이드의 **메시지·구성 변경**이 필요한 결함 (문구 재작성, 슬라이드 분할 등)
 
-- Playwright(chromium)가 없어 `capture_slides` 가 실패하면 자동 검증을 건너뛰고,
-  경미 warning 목록만 요약해 알린 뒤 넘어간다 (설치는 강요하지 않는다).
+- 사용자가 승인한 Visual QA에서 Playwright(chromium)가 없어 캡처가 실패하면 warning
+  목록만 요약하고 설치를 강요하지 않는다.
 
 ## 선택 — 리뷰
 
@@ -93,6 +95,5 @@ finalize/export 의 lint 결과를 **경미**와 **중대**로 나눠 다르게 
 - 생성/수정/마무리 후에는 항상 `export_html` 과 `export_pptx` 를 호출한다. 좌표·크기·
   타이포그래피·불렛·선·화살표·효과가 한쪽에만 반영되지 않았는지 확인하고 두 결과 경로를
   공유한다.
-- lint 결과는 4단계 기준으로 처리한다 — **경미**한 warning 은 visual QA 로 자동 검증 후
-  실제 결함만 스스로 고치고, **중대**한 건(error·overflow·메시지/구성 변경)은 사용자에게
-  보고하고 확인받는다. 경미 warning 을 아무 검증 없이 그냥 넘기지 않는다.
+- lint는 감지·보고 신호다. Visual QA와 수정은 사용자 요청 또는 명시적 동의가 있을 때만
+  실행한다. error·overflow·레이아웃 파손·메시지/구성 변경은 사용자에게 확인받는다.

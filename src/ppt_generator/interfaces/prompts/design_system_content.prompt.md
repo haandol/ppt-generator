@@ -1,52 +1,28 @@
-<constraints>
-Hard constraints (rendering will fail if violated):
+<quality_guidance>
+The response schema and the cross-layer contracts in the base prompt are mandatory.
+The following values are quality guidance: departures are allowed when they are
+intentional, fit the outline, and keep the final result readable and lint-safe.
 
-1. Font size — ABSOLUTE PRIORITY (override all other constraints):
-   - Card title (first bold run in a shape with fill_color): >= 18pt
-   - Card body (non-title runs in a shape with fill_color): >= 16pt
-   - Section label (short textbox, category heading): >= 14pt
-   - Any text element: >= 10pt, max 44pt
-   - Slide title: 32~36pt (use design_summary.title_font_pt if provided)
-   - **If content does not fit at these minimums, keep only essential keywords on the slide and put the excluded content into the overflow array. NEVER shrink fonts below the floor.**
-   - Peer shapes in the same row must use IDENTICAL font_size_pt at each paragraph index.
-   - Left vs right regions: equivalent roles must have font size difference <= 4pt.
-
-2. No same-level overlap (container-child nesting allowed):
-   - Same-level elements must not have overlapping bounding boxes. Gap >= 16px between adjacent elements.
-   - Container-child nesting allowed: children must be fully contained within the parent bounds.
-   - Container-child vertical stacking: compute each child's top_px from the previous child's bottom + gap. Never estimate by eye.
-     Example (3 children, gap=8): A top=168 h=50 bottom=218 → B top=226 h=28 bottom=254 → C top=262
-   - Line/arrow shapes may overlap block shapes (pass through/behind). **Text labels placed near arrows (step labels, flow descriptions) must NOT visually overlap any line/arrow shape.** Place labels above or below the arrow with a minimum 4px vertical gap from the line's vertical center. If space is tight, offset the label horizontally to a clear area.
-   - Textbox labels must NOT overlap shapes — put labels in the shape's paragraphs.
-
-3. Coordinate bounds: left_px >= 0, top_px >= 0, left_px + width_px <= 1280, top_px + height_px <= 720.
-
-4. Margin enforcement: left_px >= 64, top_px >= 64, right edge <= 1216, bottom edge <= 688. (64px margins left/right/top, 32px bottom)
-
-5. Sufficient height: height_px >= lines (including wrapping) x font_size_pt x 2.0.
-
-6. Content completeness — subordinate to constraint 1:
-   Include key content from content_summary. **However, if all content cannot fit at the minimum font sizes, prioritize readability: keep only essential keywords/short phrases on the slide and put excluded content into the overflow array so the user can add it as a separate slide.**
-
-7. vertical_alignment required: Always specify for all textboxes and shapes (null not allowed).
-   - Title/subtitle: "middle"
-   - Body/bullet textboxes: "middle" if content < 65% of box height, "top" otherwise
-   - Peer cards in a row: MUST use "top"
-   - Standalone card/banner: "middle"
-   - Footer/bottom labels: "bottom"
-
-8. Title position: left=64, top=72, width=1152, height=48. Font 32~36pt bold.
-
-9. Same-row consistency: All elements in the same horizontal row must share identical top_px, height_px, paragraph font sizes, and padding values.
-
-10. Vertical stack uniformity: N cards stacked vertically must all have the same height_px with equal gaps.
-    Formula: card_i.top_px = first.top_px + i x (card_height + gap).
-
-11. Left-right bottom alignment: In split layouts (two_column, concept_list, process_flow, etc.), both regions must share the same top_px AND bottom edge. Adjust the shorter side's height_px to match.
-</constraints>
+- Readable type usually means card titles >=18pt, card bodies >=16pt, section labels
+  >=14pt, and other visible text between 10pt and 44pt.
+- Prefer preserving readable type and placing genuinely excluded content in `overflow`
+  instead of compressing every detail onto one slide.
+- Prevent accidental same-level overlap. A 16px peer gap is a useful default, while
+  intentional container-child nesting remains valid when children stay within the parent.
+- Keep ordinary content inside the 1280x720 canvas and the design_summary regions.
+  Decorative exceptions may cross a safe-area boundary when the renderer and lint permit it.
+- Size text containers for likely wrapping and padding; use the font-metric lint result as
+  feedback rather than treating a rough formula as an exact layout law.
+- Choose `vertical_alignment` to support the composition. Repeated peer cards commonly use
+  `top`; standalone banners often use `middle`.
+- The default title bbox is left=64, top=72, width=1152, height=48, but DESIGN.md or an
+  intentional composition may choose another bbox within the header region.
+- Repeated rows and columns often benefit from consistent dimensions, typography, and
+  padding. Intentional asymmetric emphasis is allowed.
+</quality_guidance>
 
 <typography_rules>
-Font size ranges (see constraint 1 for mandatory minimums):
+Recommended font size ranges:
 - Slide title: 32~36pt, bold
 - Subtitle/label: 14~18pt
 - Body/description: 20~28pt
@@ -64,14 +40,15 @@ Section label width: width_px >= char_count x font_size_pt x 1.2 (Korean) or x 0
 - Korean char width ~ font_size_pt x 1.2px, Latin/number ~ font_size_pt x 0.73px
 - Actual text width = width_px - padding_left - padding_right
 - Required height = (lines x font_size_pt x 2.0) + padding_top + padding_bottom
-- If estimated height exceeds available space: shorten text and put detail into overflow (constraint 1 priority)
+- If estimated height exceeds available space, consider shortening text, enlarging the
+  container, changing the layout, or putting genuinely excluded detail into overflow.
 </text_size_estimation>
 
 <padding_and_spacing>
 Padding (shapes containing text):
-- Minimum: left/right >= 16px, top/bottom >= 14px
+- Useful starting point: left/right >= 16px, top/bottom >= 14px
 - Recommended for cards: 20~28px horizontal, 16~24px vertical
-- height_px must accommodate text + padding + 16px breathing room
+- `height_px` should accommodate text, padding, and suitable breathing room
 
 Spacing:
 - Box-to-box gap: >= 16px
@@ -90,8 +67,9 @@ If both are present, paragraphs takes priority. Use paragraphs for card-type sha
 
 <slide_type_agenda>
 Agenda slide (component_hint: "agenda"):
-- Second slide. Lists 3-6 topic sections (not individual slides).
-- Default: single-column (left=64, top=148, width=1152). Two-column only if 7+ items.
+- Commonly the second slide, listing major topic sections rather than every slide.
+- A single column at left=64, top=148, width=1152 is a reliable default. Use two columns
+  when the item count or hierarchy benefits from it.
 </slide_type_agenda>
 
 <slide_type_content>
@@ -124,7 +102,8 @@ Bottom auxiliary elements (top >= 540):
 - Single element: left=64, top=612, width=1152, height=44
 - Two elements: stack vertically (upper bottom + 16 <= lower top) or arrange horizontally
 - If space is limited, reduce main diagram to bottom=540, auxiliary starts at 556
-- Footer text must fit in ONE line: max ~70 characters (Korean) or ~90 characters (Latin). Shorten aggressively — use keywords only.
+- Footer text is usually most readable on one line. Shorten or restructure it when it
+  competes with the main content.
 </slide_type_content>
 
 <examples>
@@ -314,7 +293,8 @@ Bottom auxiliary elements (top >= 540):
 </examples>
 
 <diagram_grid>
-Pre-calculated coordinates for diagrams. Use these values directly to prevent calculation errors.
+Reference coordinates for common diagrams. Use them as reliable starting points, then
+adapt them when the outline or intentional composition benefits from another valid layout.
 
 Horizontal N-column even distribution (content area 1152px, gap=32px):
   | N | width | left positions                 |
@@ -332,19 +312,17 @@ Vertical M-row even distribution (safe area 508px = 148~656, gap=28px):
   | 3 |  150   | 148, 326, 504                |
   | 4 |  106   | 148, 282, 416, 550           |
 
-Arrow coordinates:
-- **bbox contract (READ THIS FIRST)**: for a `line`, `left`/`top` is the bbox's MINIMUM corner (the smaller x / smaller y), NOT the arrow's start point. The box always occupies `left ~ left+|width|` and `top ~ top+|height|`. The SIGN of width/height only picks which diagonal the line runs — it never moves the box. So a downward arrow and an upward arrow between the same two points share the SAME `top` (the higher of the two y's); they differ only in the sign of `height`.
-  - Down / rightward (↓ ↘ →): positive height / positive width. `top` = source bottom edge y.
-  - Up / leftward (↑ ↖ ←, e.g. back-edges): NEGATIVE height / NEGATIVE width, but `top`/`left` STILL = the minimum corner (the destination's edge, the smaller coordinate) — do NOT put the source (larger) coordinate in `top`/`left`. Putting the start point in `top` shifts the whole line by |height| and it floats off the node.
+Arrow coordinates (in addition to the shared line geometry contract):
 - Horizontal (A→B, A left of B): left=A.right, top=A.top+A.height/2, width=B.left-A.right, height=0
 - Vertical (A→B, A above B): left=A.left+A.width/2, top=A.bottom, width=0, height=B.top-A.bottom
 - Vertical (A→B, A BELOW B, i.e. arrow goes up): left=A.left+A.width/2, top=B.bottom (the higher node's bottom = minimum y), width=0, height=-(A.top-B.bottom). `top` is B's edge, NOT A's.
-- The arrowhead marks the flow DESTINATION (the target node), not a fixed coordinate corner. Use end_arrow=true when the destination is at the max corner, start_arrow=true when it is at the min corner. Min gap between blocks: 28px (arrowhead size=14px).
-- Endpoints must touch block edges exactly — no gap, no penetration.
+- The arrowhead marks the flow DESTINATION (the target node), not a fixed coordinate corner. Use end_arrow=true when the destination is at the max corner, start_arrow=true when the destination is at the min corner. Min gap between blocks: 28px (arrowhead size=14px).
+- Arrowhead penetration is invalid and ingest rejects it. Prefer endpoints on block
+  edges; a floating gap remains a lint warning for review.
 
 Cyclic / loop diagrams (ReAct loops, feedback loops, A→B→C→A):
   The arrowhead must sit on the edge of the TARGET node (the next node in the flow), regardless of coordinate direction.
-  A back-edge (e.g. the return arrow C→A that goes from a lower/right node up to an earlier node) may run high→low coordinates — do NOT force the bbox to go small→large. Use a negative width/height bbox so its endpoints land on the right edges, and place the arrowhead (start_arrow OR end_arrow) on the target node's edge.
+  A back-edge (e.g. the return arrow C→A that goes from a lower/right node up to an earlier node) may run high→low coordinates. Use a negative width/height bbox so its endpoints land on the right edges, and place the arrowhead (start_arrow OR end_arrow) on the target node's edge.
   Mark the cycle: give the layout-tree group node that holds the cycle nodes role="cycle_diagram" in design_doc.layout. Its direct children are the cycle's participating nodes. This lets the cycle be validated for single-direction consistency.
   Example — 3-node triangle ReAct loop (Think top-center, Act bottom-right, Observe bottom-left), flow Think→Act→Observe→Think:
     · Think→Act: from Think bottom-right toward Act top-left, end_arrow=true (head on Act).
@@ -353,35 +331,42 @@ Cyclic / loop diagrams (ReAct loops, feedback loops, A→B→C→A):
   Every arrowhead points to the node that comes NEXT in the loop — so the three arrows circulate consistently in one rotational direction.
 
 Fan-out / Fan-in arrows (one block → multiple targets, or vice versa):
-  Do NOT draw separate diagonal/vertical arrows from source center to each target center.
-  Instead, use a bus-line pattern:
+  Prefer a bus-line pattern when separate center-to-center diagonals would become cluttered:
   1. Vertical stub: from source bottom center downward (height = half the vertical gap).
   2. Horizontal bus: a horizontal line spanning from the leftmost target center_x to the rightmost target center_x, at the stub's bottom y.
   3. Vertical drops: from the bus line down to each target's top center.
   This keeps all connections visually clean and aligned. For fan-in (many → one), reverse the direction.
 
-Container interior: children must use >= 80% of inner width. All peer children in same row: identical top_px, height_px. All children must fit within container bounds.
+Container interior: use the available space intentionally. Regular peer rows commonly share
+top and height, while deliberate asymmetry is allowed. Children linked to a container must
+remain within its bounds.
 </diagram_grid>
 
 <page_design_rules>
 - Compose visual elements (flowcharts, diagrams, structure charts) using shapes and lines.
-- Keep only essential keywords/short phrases on the slide. Report supplementary content in the structured overflow array for an upstream slide-content decision; do not move it to speaker_notes.
+- Keep only essential keywords/short phrases on the slide. Report supplementary content
+  in the structured overflow array rather than using speaker_notes as overflow storage.
 - Use negative space intentionally — do not fill every gap.
 - Use border_color, fill_color, corner_radius_px to create visual hierarchy.
-- Decorative lines beside cards: match the card's top_px and height_px exactly. Use corner_radius_px=0 (no rounding) for decorative lines.
-- **No title underline**: Never place a thin decorative line directly below the slide title.
+- Decorative lines beside cards often align with the card height and usually use no rounding.
+- Prefer whitespace over a routine title underline; use a divider only when it communicates
+  meaningful hierarchy.
 - **Diagram pages** (arch_diagram, pipeline, process_flow): Avoid decorative divider lines unless absolutely necessary — the diagram elements themselves provide sufficient visual structure.
 - Use paragraphs in shapes for structured card interior text.
-- **NEVER use ASCII art or box-drawing characters** (┌ ─ ┐ │ └ ┘ ┬ ┴ ├ ┤ ╔ ═ ╗ ║ ╚ ╝ etc.) to represent diagrams, tables, or sub-elements inside shapes. Always use actual shape objects (rounded_rectangle, rectangle, line) instead. Text inside shapes must be plain descriptive text only.
+- For visual diagrams and tables, prefer actual shape objects over ASCII or box-drawing
+  characters. Preserve such characters when they are literal code, terminal output, or
+  content the slide is intentionally quoting.
 </page_design_rules>
 
 <pre_output_verification>
-Before outputting JSON, verify these critical items. Fix ALL violations before output.
+Before outputting JSON, verify the mandatory schema/link contracts and review these quality
+signals. Keep an intentional alternative when it is valid; otherwise improve it or let lint
+report the remaining risk.
 
-1. FONT SIZE (constraint 1 — absolute priority):
+1. FONT SIZE:
    Scan every font_size_pt. Card title >= 18, card body >= 16, label >= 14, any text >= 10.
-   Peer shapes in same row: identical font_size_pt at each paragraph position.
-   **If any violation: increase font, shorten text, put detail into overflow. NEVER reduce font below floor.**
+   Repeated peer shapes usually use a consistent type scale. If text is too small, consider
+   increasing the container, simplifying the copy, adjusting the composition, or using overflow.
 
 2. OVERLAP (constraint 2):
    For every pair of same-level elements, check BOTH axes:
@@ -390,15 +375,15 @@ Before outputting JSON, verify these critical items. Fix ALL violations before o
    Two elements overlap when their bounding boxes intersect on BOTH axes simultaneously.
    Container children: all fit within parent bounds.
 
-3. ALIGNMENT (constraints 9, 10, 11):
-   Same-row peers: identical top_px, height_px, padding. Stacked cards: uniform height, equal gaps.
-   Split layouts bottom alignment — compute explicitly:
+3. ALIGNMENT:
+   Check whether repeated peers appear intentionally aligned and balanced. For a regular split
+   layout, comparing the bottom edges is a useful diagnostic:
      left_bottom = max(top_px + height_px) for all elements with left_px < 620
      right_bottom = max(top_px + height_px) for all elements with left_px >= 620
-     |left_bottom - right_bottom| must be <= 8px.
-     If misaligned, adjust the shorter side's last element height_px to match.
+   A larger difference may be intentional; otherwise adjust the composition.
 
-4. NO ASCII ART (constraint — absolute):
+4. DIAGRAM REPRESENTATION:
    Scan every text/run field for box-drawing or ASCII art characters: ┌ ─ ┐ │ └ ┘ ┬ ┴ ├ ┤ ╔ ═ ╗ ║ ╚ ╝ + - | (used as borders).
-   **If ANY found: replace with plain descriptive text (e.g., "Slice 0", "Slice 1") or represent as child shapes. NEVER use text characters to draw boxes, borders, or diagrams.**
+   When they substitute for a visual diagram, replace them with shapes. Preserve them when they
+   are literal source content such as code or terminal output.
 </pre_output_verification>

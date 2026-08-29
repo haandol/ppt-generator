@@ -1,6 +1,6 @@
 ---
 name: ppt-visual-qa
-description: Run visual QA on a generated deck — capture slide screenshots (server-side Playwright), then YOU analyze them for visual defects and generate fixes via the ppt-generator prepare/ingest handshake. Opt-in; needs `playwright install chromium`. Keywords - "비주얼 QA / 시각 검사 / 스크린샷 점검 / visual qa / pixel-perfect check".
+description: Run visual QA on a generated deck — capture slide screenshots (server-side Playwright), then YOU analyze them for visual defects and generate fixes via the ppt-generator prepare/ingest handshake. Opt-in; needs the visual-qa dependency group and Chromium. Keywords - "비주얼 QA / 시각 검사 / 스크린샷 점검 / visual qa / pixel-perfect check".
 ---
 
 # ppt-visual-qa
@@ -10,7 +10,9 @@ description: Run visual QA on a generated deck — capture slide screenshots (se
 담당한다. 반복 루프(분석→수정→재캡처)도 네가 오케스트레이션한다.
 
 전제: 디자인 스펙이 생성돼 있어야 하고, 사용자가 동의해야 한다 (opt-in).
-`playwright install chromium` 로 브라우저 바이너리가 설치돼 있어야 한다.
+`uv sync --group visual-qa` 와
+`uv run --group visual-qa playwright install chromium` 으로 선택 의존성과 브라우저
+바이너리가 설치돼 있어야 한다.
 
 ## 반복 루프
 

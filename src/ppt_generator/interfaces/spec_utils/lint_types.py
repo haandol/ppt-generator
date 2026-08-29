@@ -109,6 +109,7 @@ RULE_LAYER_MAP: dict[str, str] = {
     "layout-tree-canvas-overflow": "section",
     # Cross layer — element 간 관계 / 계층 간 link
     "arrow-endpoint-attachment": "cross",  # arrow 끝점 ↔ target shape 부착
+    "arrow-endpoint-penetration": "cross",  # arrow 끝점이 target 내부 침투
     "cycle-topology-broken": "cross",  # 순환 다이어그램 노드↔화살표 위상 일관성
     "label-orphan": "cross",  # label textbox ↔ 인접 shape 매칭
     "decoration-shape-overlap": "cross",  # 장식 ↔ 콘텐츠 shape 겹침

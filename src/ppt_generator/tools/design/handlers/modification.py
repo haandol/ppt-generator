@@ -133,33 +133,35 @@ def handle_delete(
     require_positive_slide_index(slide_index)
     project_service = deps.project_service
     _, project_dir = project_service.resolve_existing_project_dir(project_id)
-    slide_count = project_service.get_design_spec_slide_count(project_dir)
 
-    if slide_index < 1 or slide_index > slide_count:
-        _raise_validation(
-            "delete_slide",
-            f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})",
-            slide_index=slide_index,
-            slide_count=slide_count,
-        )
+    with project_edit_lock(project_dir):
+        slide_count = project_service.get_design_spec_slide_count(project_dir)
 
-    idx = slide_index - 1
-    project_service.sync_outline_to_design_spec_count(project_dir)
-    project_service.delete_slide_images(project_dir, idx, slide_count)
-    project_service.delete_design_spec_slide(project_dir, idx)
-    project_service.delete_slide_html(project_dir, idx)
-    project_service.delete_outline_slide(project_dir, idx)
-    project_service.renumber_design_spec_image_srcs(project_dir)
-    project_service.update_step(project_dir, "design_spec_modified")
-    project_service.sync_num_slides(project_dir)
+        if slide_index > slide_count:
+            _raise_validation(
+                "delete_slide",
+                f"Invalid slide_index: {slide_index} (valid range: 1-{slide_count})",
+                slide_index=slide_index,
+                slide_count=slide_count,
+            )
 
-    return json.dumps(
-        {
-            "project_id": project_id,
-            "slide_count": project_service.get_design_spec_slide_count(project_dir),
-        },
-        ensure_ascii=False,
-    )
+        idx = slide_index - 1
+        with ProjectSnapshot(project_dir) as snapshot:
+            project_service.sync_outline_to_design_spec_count(project_dir)
+            project_service.delete_slide_images(project_dir, idx, slide_count)
+            project_service.delete_design_spec_slide(project_dir, idx)
+            project_service.delete_slide_html(project_dir, idx)
+            project_service.delete_outline_slide(project_dir, idx)
+            project_service.renumber_design_spec_image_srcs(project_dir)
+            project_service.update_step(project_dir, "design_spec_modified")
+            project_service.sync_num_slides(project_dir)
+            result = {
+                "project_id": project_id,
+                "slide_count": project_service.get_design_spec_slide_count(project_dir),
+            }
+            snapshot.commit()
+
+        return json.dumps(result, ensure_ascii=False)
 
 
 # ---------------------------------------------------------------------------

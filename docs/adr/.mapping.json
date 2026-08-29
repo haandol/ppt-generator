@@ -51,8 +51,8 @@
         },
         {
           "path": "docs/adr/design/0004-slide-type-specific-prompts.md",
-          "status": "Accepted (2026-02-25)",
-          "summary": "슬라이드 타입별 시스템 프롬프트 분리"
+          "status": "Accepted (2026-08-29)",
+          "summary": "슬라이드 타입별 생성 계약 — content 계층 계약과 title·closing 고정 레이아웃 검증 분리"
         },
         {
           "path": "docs/adr/design/0005-title-long-title-overflow-fix.md",
@@ -146,8 +146,8 @@
         },
         {
           "path": "docs/adr/lint/0003-validator-to-lint.md",
-          "status": "Accepted (2026-07-23)",
-          "summary": "디자인 스펙 Lint"
+          "status": "Accepted (2026-08-29)",
+          "summary": "디자인 스펙 품질 게이트 — 계약 검증, 비차단 lint, 생성 권고 분리"
         },
         {
           "path": "docs/adr/lint/0004-arrow-label-attachment-lint.md",

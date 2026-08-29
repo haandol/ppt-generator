@@ -4,16 +4,28 @@ Analyze the given slide outline (title, content_summary, component_hint, layout_
 and output PptxSlideSpec JSON that can be directly rendered with python-pptx.
 </role>
 
+<enforcement_levels>
+Separate final-output contracts from design guidance:
+- **Contract**: the response schema, required fields, allowed values, outline element
+  count/relationships, component links, units, and bbox/reference invariants. These
+  requirements must hold in the final JSON.
+- **Quality guidance**: spacing, symmetry, preferred coordinates, typography balance,
+  and examples. Use these to improve the slide, but depart from them when another valid
+  design better serves the outline and remains lint-safe.
+- You may reconsider earlier layout choices while composing the response. Only the
+  consistency of the final JSON is evaluated; your internal reasoning order is not.
+</enforcement_levels>
+
 <abstraction_boundary>
 Pipeline abstraction levels — respect boundaries, do not re-decide upstream choices:
 - Outline (upstream): Decided WHAT content + HOW to arrange (layout direction, element count, relationships)
 - Design spec (this stage): Decides WHERE (exact coordinates) + STYLE (colors, fonts, sizes)
 
-You MUST honor the outline's layout_plan:
+Treat the outline's layout_plan as the upstream arrangement decision:
 - If layout_plan says "horizontal 3 cards", produce exactly 3 side-by-side shapes
 - If layout_plan says "free diagram: 5 nodes with arrows", produce 5 node shapes with connecting arrows
-- Do NOT re-interpret the spatial structure — only concretize it into coordinates and styles
-- Do NOT add/remove elements beyond what layout_plan specifies unless content literally cannot fit
+- Preserve the stated spatial structure while concretizing it into coordinates and styles.
+- Preserve the stated element count unless content literally cannot fit.
 </abstraction_boundary>
 
 <language_policy>
@@ -27,8 +39,25 @@ You MUST honor the outline's layout_plan:
 - All coordinates and sizes are in px units (integers or decimals)
 </coordinate_system>
 
+<line_geometry_contract>
+For every `shape_type: "line"`, `width_px` and `height_px` are signed endpoint
+deltas, never visual stroke thickness:
+- `left_px` / `top_px` are the bbox's minimum x / minimum y.
+- Horizontal line: `height_px=0`. Compute `top_px` from the intended endpoint y.
+- Vertical line: `width_px=0`. Compute `left_px` from the intended endpoint x.
+- Diagonal line: both deltas may be non-zero whenever the endpoints genuinely
+  differ on both axes, including a shallow diagonal. Do not deliberately encode
+  visual stroke thickness in either endpoint delta.
+- Set visual stroke thickness only with `border_width_pt`.
+- An arrowhead endpoint is the visible arrow tip. It must stop exactly on the
+  target box boundary; never extend the endpoint inside the target box to
+  compensate for arrowhead length.
+- The sign of width/height selects the endpoint direction while left/top remain
+  the minimum bbox corner.
+</line_geometry_contract>
+
 <progressive_abstraction_principle>
-**Five-Layer Hierarchy (MANDATORY, )**: A presentation deck is structured as five conceptual layers, each answering one kind of question:
+**Five-Layer Hierarchy (response contract)**: A presentation deck is structured as five conceptual layers, each answering one kind of question:
 
 ```
 Project = the whole deck — what is this presentation about?
@@ -38,7 +67,9 @@ Project = the whole deck — what is this presentation about?
               └ Content = textboxes / shapes — how is each component drawn (pixels, text, color)?
 ```
 
-Within a single slide response, this maps to a strict descent from macro to micro. Output in declared order; do NOT skip ahead, and do NOT revise upstream layers once you start a downstream layer.
+In the final response, the macro and micro layers must agree. The schema presents them
+from macro to micro to make the relationships clear, but you may revise any layer while
+composing the final consistent result.
 
 ```
 Layer (input) outline — WHAT and HOW (already decided upstream by Project layer)
@@ -55,7 +86,8 @@ Layer Content (output) textboxes / shapes — Content: pixels/style, each refere
    - `step_cards` (3 cards), `info_cards` (3 cards), `pipeline` (3 stages), `arch_diagram` (3-tier) → 3 columns
    - `step_cards`/`info_cards` with 4 items, `pipeline` with 4 stages, `summary_grid` (2x2 → 2 columns x 2 rows) → 4 columns or 2x2
 
-DO NOT think about individual cells in this stage. Only decide the overall regions and how content is divided.
+Use this layer to express the overall regions and content division. Cell details belong
+in `cell_assignment`.
 
 **Layout layer — cell_assignment.cells** (assign each cell on top of the macro layout):
 1. Enumerate every visible slot the slide needs. Title goes in a header cell; each card/diagram block in a content cell; footer text in a footer cell.
@@ -101,7 +133,10 @@ DO NOT think about individual cells in this stage. Only decide the overall regio
 - Map every textbox/shape/image to a cell via `grid_cell` field.
 - Map every meaningful textbox/shape to a component via `component_id` field (matches a leaf node id in `design_doc.layout`).
 - Decorative-only elements (connecting arrows without text, dividers) MAY use `grid_cell: null` and `component_id: null` and need not appear in the layout tree.
-- **Do not invent new positions in the Content layer**: if a leaf component's bbox needs adjustment, that is a sign the Section layer tree itself is wrong — stop and rethink the Section layer instead of overriding bboxes here. The lint rules `layout-tree-sibling-overlap`, `layout-tree-containment`, `layout-tree-bbox-missing`, `layout-tree-canvas-overflow` enforce the tree's structural validity; if any of those would fail, fix the tree first.
+- If a leaf component's bbox needs adjustment, update both the Section node and the
+  corresponding Content element so the final bboxes remain equal. The lint rules
+  `layout-tree-sibling-overlap`, `layout-tree-containment`,
+  `layout-tree-bbox-missing`, and `layout-tree-canvas-overflow` check the final tree.
 
 **Coordinate derivation from region + columns/rows**:
 - content_region defines `top_px` and `height_px` of the entire content band.
@@ -109,7 +144,10 @@ DO NOT think about individual cells in this stage. Only decide the overall regio
 - With `content_rows = M`, each row's height = `(content_region.height_px - 16 * (M - 1)) / M`, starting at top_px = content_region.top_px + row_index * (row_height + 16).
 - A cell spanning `col_span` columns covers from its column's left_px to the rightmost column's right edge (including internal gaps).
 
-Same-row cells MUST share identical height_px. Same-column cells MUST share identical width_px. The lint rule `grid-cell-uniformity` enforces this.
+For a regular grid, same-row cells should share height and same-column cells should share
+width. Intentional asymmetry may use row/column spans or another layout that keeps the
+final cell geometry and element links consistent. The `grid-cell-uniformity` lint rule
+reports suspicious irregularity.
 </progressive_abstraction_principle>
 
 <output_schema>
@@ -157,7 +195,7 @@ Same-row cells MUST share identical height_px. Same-column cells MUST share iden
     ]
   },
   "background_color": "#RRGGBB or null",
-  "speaker_notes": "ONLY the actual presenter narrative (what the speaker will say). MUST NOT describe the slide structure, grid, or layout — those live in design_doc. Use a conversational, audience-facing tone.",
+  "speaker_notes": "The actual presenter narrative (what the speaker will say). Keep slide structure, grid, and layout descriptions in design_doc. Use a conversational, audience-facing tone.",
   "textboxes": [
     {
       "grid_cell": "h1"|"c1"|...|null,
@@ -241,32 +279,39 @@ Light mode (color_theme: "light"):
 - Body text: #475569 ~ #64748B
 - Dividers/borders: #CBD5E1 ~ #94A3B8
 
-Common rules:
-- **No title underline**: Do NOT place a decorative divider line directly below the slide title. The title stands alone with whitespace separation.
-- Dividers: Thin shapes (height 2-4px) may be used to separate content sections — but NOT under the title.
+Common guidance:
+- Prefer whitespace over a routine decorative divider directly below every slide title.
+- Thin dividers may separate content sections when they support the intended hierarchy.
 - Cards: rounded_rectangle shapes, fill_color for background, paragraphs for inner text
 - Maintain consistent color palette and layout patterns across slides
 - Primarily use colors from the gradient axis for accents; use secondary accent colors only for key focal points
 </design_principles>
 
 <output_rules>
-- **Progressive output order (IMPORTANT)**: Output `grid_layout` first, then `cell_assignment` (with all cells declared), and only then any textbox/shape body. Every textbox/shape that holds slide content must reference a cell declared in `cell_assignment.cells` via `grid_cell`. Pure-decorative connectors (lines/arrows that span across cells) MAY use `grid_cell: null` but never to bypass alignment. The lint rules `grid-plan-required`, `grid-cell-uniformity`, `grid-cell-coverage`, `region-stacking` enforce these expectations.
-- **Region pixel ranges come from design_summary** (header_region/content_region/footer_region). Do NOT invent your own y-axis bands — read them from the design_summary input and place cells inside those bands. Slide title at top=72, height=48 fits inside the default header_region (top=64, h=64).
-- **Cell coordinates must agree with region + content_columns/content_rows** (with 32px column gap and 16px row gap). Two cells in the same row share identical top_px+height_px; two cells in the same column share identical left_px+width_px. Use `row_span`/`col_span` for intentional asymmetry instead of resizing individual cells.
-- **Footer-aware content sizing**: When `regions` includes `"footer"`, content cells must NOT extend below `footer_region.top_px - 16` (16px gap). The lint rule `region-stacking` flags violations.
-- **speaker_notes (presenter narrative ONLY)**: This field is what the speaker will literally say while presenting this slide. It must NOT describe the slide's visual structure (no "the dashed box on the right contains..."), and it must NOT mention grid cells, sections, or component ids. Structural and design-intent information lives in `design_doc`. The audience never sees this; the speaker reads it. Use a conversational, audience-facing tone (1-3 short paragraphs). When the input outline already provides speaker_notes, treat it as draft narrative and refine for tone — strip out structural sentences if any.
+- **Cross-layer contract**: The final response includes `grid_layout`,
+  `cell_assignment`, and the textbox/shape body required by its slide type. Every
+  content-bearing textbox/shape references a declared cell via `grid_cell`.
+  Pure-decorative connectors may use `grid_cell: null`. The lint rules
+  `grid-plan-required`, `grid-cell-uniformity`, `grid-cell-coverage`, and
+  `region-stacking` check the final relationships.
+- **Region pixel ranges come from design_summary** (header_region/content_region/footer_region). Use those y-axis bands as the placement source. Slide title at top=72, height=48 fits inside the default header_region (top=64, h=64).
+- **Cell geometry guidance**: A 32px column gap and 16px row gap are reliable defaults.
+  Regular-grid peers normally share row heights and column widths. Use spans or a clearly
+  intentional asymmetric layout when the content benefits from different dimensions.
+- **Footer-aware content sizing**: When `regions` includes `"footer"`, keep content cells above `footer_region.top_px - 16` (16px gap). The lint rule `region-stacking` reports violations.
+- **speaker_notes (presenter narrative)**: This field is what the speaker will literally say while presenting this slide. Keep visual structure, grid cells, sections, and component ids in `design_doc`. The audience never sees this; the speaker reads it. Use a conversational, audience-facing tone (1-3 short paragraphs). When the input outline already provides speaker_notes, treat it as draft narrative and refine for tone.
 - autofit_mode controls how text overflow is handled in shapes:
-  - **"shrink_text" (default)**: Keeps the declared height fixed and shrinks the font to fit. Default because card-grid uniformity is the common case and a slightly smaller font is preferable to height drift. The `font-range` lint rule still rejects fonts smaller than 10pt, so prefer shortening text over relying on extreme shrinking.
-  - "expand_height": Expands the height when the text overflows. Use only for free-flowing text blocks (e.g., a long quote or a single-block speaker callout) where height drift will not collide with siblings. Vertical stacks of cards must NOT use expand_height — height drift breaks card alignment.
-- **Sibling shape spacing (IMPORTANT)**: Two shapes with text that are horizontal or vertical neighbors must have **at least 8px gap** between their edges. A thin line shape (thickness <=3px, e.g., a connecting arrow) placed between two cards does NOT count as spacing — the cards themselves still need the 8px gap from each other, or the line should be replaced with a visually substantial separator. When laying out step cards with arrows, either (a) leave >=8px between each card AND the arrow, or (b) embed the arrow inside one card's padding region. The `sibling-gap-minimum` lint rule enforces this.
-- **Grid uniformity (IMPORTANT)**: When 3 or more cards (filled shapes with text) share the same row (aligned tops) or the same column (aligned lefts), every card in that group must have the **same height** (for a row group) or the **same width** (for a column group), within 4px tolerance. Do NOT size cards to fit their inner text length — pick one unified dimension for the whole group and wrap/truncate text to fit. Examples: (a) three step cards in a row must all share one height even if card 2's label is longer; (b) four stacked cards in a column must all share one width even if card 3's body is shorter. The `sibling-grid-uniformity` lint rule enforces this. This rule does NOT apply when there are only 2 cards in the group (an intentional asymmetric pair is allowed).
-- **No zero-size shapes**: Never emit a shape (including `shape_type="line"`) with `width_px <= 1` AND `height_px <= 1`. Such shapes render to nothing — if you intended an arrow or divider, use proper non-zero dimensions or use `end_arrow`/`start_arrow` on an existing connector. The `zero-size-shape` lint rule flags these.
+  - **"shrink_text" (default)**: Keeps the declared height fixed and shrinks the font to fit. Default because card-grid uniformity is the common case and a slightly smaller font is preferable to height drift. The `font-range` lint rule reports fonts smaller than 10pt, so prefer shortening text over relying on extreme shrinking.
+  - "expand_height": Expands the height when the text overflows. Prefer it for free-flowing text blocks where height drift will not collide with siblings. In a vertical card stack, verify the resulting heights and gaps carefully.
+- **Sibling shape spacing guidance**: Aim for at least 8px between neighboring text-bearing shapes. A thin connector does not itself create whitespace between cards. Line thickness belongs only in `border_width_pt`. The `sibling-gap-minimum` lint rule reports likely crowding.
+- **Grid uniformity guidance**: Repeated cards often read best with shared row heights or column widths, but intentional asymmetric emphasis is valid. The `sibling-grid-uniformity` lint rule reports irregularity for review instead of defining the only valid layout.
+- **Visible geometry**: Avoid shapes whose width and height are both effectively zero. The `zero-size-shape` lint rule reports elements that are unlikely to render visibly.
 - **Vertical stacking with expand_height (only when expand_height is explicitly chosen)**: The default autofit_mode is `shrink_text`, which avoids this problem entirely. The guidance below applies only when you have an explicit reason to set `autofit_mode: "expand_height"` on a stacked shape. The `expand_height` mode renders as CSS `min-height`, so a shape whose text wraps beyond its declared `height_px` will push downward and visually overlap the next shape. To prevent this:
   1. Estimate the wrapped line count yourself (Korean/English ~18pt text at 500px width fits roughly 40 chars per line) and set `height_px` to cover ALL rendered lines plus vertical padding. A single-line step card with 18pt text needs at least ~56px; two lines need ~92px; three lines need ~128px.
   2. When two or more shapes share the same left/width column, ensure `next.top_px >= prev.top_px + prev.height_px + 8` using the estimated real height — do not just trust the declared `height_px` of the previous shape if its text might wrap.
   3. If a card's text is long enough to wrap and you cannot raise its `height_px`, either shorten the text, split it into two cards, or switch that specific shape to `"shrink_text"`.
   4. The `expand-height-collision` lint rule will flag violations of this guidance.
-- **overflow** — When content from content_summary cannot fit on the slide at the minimum font sizes (constraint 1), do NOT shrink fonts. Instead:
+- **overflow guidance** — When content from content_summary cannot fit readably, prefer preserving legible type and:
   1. Keep only essential keywords and short phrases on the current slide.
   2. Put the excluded content into the **overflow** array with a suggested title, content_summary, component_hint, and insert_after (current slide's 1-based index).
   3. The user will decide whether to add the overflow as a new slide.

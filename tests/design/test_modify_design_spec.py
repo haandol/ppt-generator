@@ -239,6 +239,34 @@ class TestSlideEditTransaction:
 
         assert project_revision(project_dir) == before
 
+    def test_delete_partial_failure_rolls_back_all_project_files(
+        self,
+        mcp_tools_with_slides: dict,
+        project_with_design_spec: tuple,
+        monkeypatch,
+        tmp_path: Path,
+    ) -> None:
+        import ppt_generator.tools.project.service as svc_module
+
+        monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
+        project_id, project_dir = project_with_design_spec
+        before = project_revision(project_dir)
+        project_service = mcp_tools_with_slides["_project_service"]
+        monkeypatch.setattr(
+            project_service,
+            "delete_outline_slide",
+            lambda *args, **kwargs: (_ for _ in ()).throw(OSError("disk full")),
+        )
+
+        with pytest.raises(OSError, match="disk full"):
+            mcp_tools_with_slides["delete_slide"](
+                project_id=project_id,
+                slide_index=2,
+            )
+
+        assert project_revision(project_dir) == before
+        assert project_service.get_design_spec_slide_count(project_dir) == 3
+
 
 class TestModifyDesignSpec:
     """add / update / delete 슬라이드 단위 변경."""
