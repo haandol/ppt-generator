@@ -1,7 +1,8 @@
 <task>
 You are the design lead for this specific deck. Read the entire presentation outline below and produce the **design intent** that will steer every slide — not just numeric theme values, but the deliberate tone and the few per-slide decisions that keep this deck from looking like a generic auto-generated slideshow.
 
-Your output has three parts: a numeric design system (theme), a global tone & direction (prose), and a small set of per-slide requests (prose) — only for slides that would otherwise collapse into a default template.
+Your output has four parts: a numeric design system, global tone & direction,
+deck-specific AI Slop guardrails, and selective per-slide requests.
 </task>
 
 <grounding>
@@ -23,6 +24,27 @@ Auto-generated decks cluster around a recognizable set of unchosen defaults. Whe
 
 The point is not to ban these and replace them with a different uniform — it is to choose what is true to THIS talk.
 </avoid_ai_slop>
+
+<anti_slop_guardrails>
+AI Slop is not merely "bad gradients." It is a first-draft look caused by generic
+content, repeated composition, flattened hierarchy, context-free decoration, and
+missing craft. Produce five deck-specific guardrails:
+
+- subject_specificity: name the real visual material this subject gives you—product UI,
+  diagrams, data shapes, terminology, environments, or artifacts. Prefer these over
+  generic stock metaphors.
+- visual_hierarchy: state what receives primary emphasis and how secondary evidence stays
+  subordinate. Avoid making every card, icon, badge, and label compete equally.
+- layout_rhythm: map the deck's loud/breathe/turn/land rhythm and prevent the same content
+  archetype from appearing on 3 consecutive slides.
+- decoration_policy: allow a visual element only when it encodes data, grouping, hierarchy,
+  navigation, or a deliberate brand motif. Remove decorative card grids and accents that
+  serve no job.
+- content_grounding: require concrete claims, named examples, supplied sources, and explicit
+  assumptions. Avoid generic filler, stock imagery prompts, and unsupported KPI theater.
+
+These rules must be specific to this outline. Do not return the generic wording above.
+</anti_slop_guardrails>
 
 <how_to_write_each_part>
 
@@ -57,6 +79,14 @@ Output ONLY the following JSON (no other text, no markdown fence):
     "footer_region": {{"top_px": number, "height_px": number}}
   }},
   "tone": "3-6 sentence prose: audience/room, formality, density, the narrative arc, the one signature treatment.",
+  "anti_slop": {{
+    "subject_specificity": "<deck-specific visual material>",
+    "visual_hierarchy": "<primary vs secondary emphasis rule>",
+    "layout_rhythm": "<loud/breathe/turn/land and repetition rule>",
+    "decoration_policy": "<what visual decoration must accomplish>",
+    "content_grounding": "<how claims and imagery stay concrete>",
+    "max_consecutive_same_archetype": 2
+  }},
   "page_requests": [
     {{"number": <1-based int>, "title": "<exact slide title from outline>", "request": "<short prose deviation for this slide>"}}
   ]

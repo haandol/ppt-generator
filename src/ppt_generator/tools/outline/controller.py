@@ -76,23 +76,18 @@ def register_outline_tools(
         client) then generate the outline JSON that follows `response_schema`, and
         pass it to `ingest_outline`.**
 
-        **IMPORTANT — Required checks before calling:**
-        Before calling this tool, you must ask the user to confirm the following items:
-        1. **Presentation purpose** (purpose): e.g., "internal tech sharing", "customer proposal", "conference talk"
-        2. **Presentation time** (presentation_minutes): how many minutes the presentation will be
-        3. **Audience type** (audience_type): general/technical/executive
-        4. **Presenter info** (presenter_name, presenter_title, presenter_org): presenter_org can be empty if not applicable.
-        If the user has not explicitly provided these, never use default values — always ask.
+        Missing non-sensitive presentation conditions may use the defaults below or
+        be inferred from the user's brief. Do not invent presenter identity.
 
         Args:
             topic: Presentation topic (e.g., "2024 Cloud Computing Trends")
-            purpose: Presentation purpose. Must confirm with the user before setting.
-            audience_type: "general" | "technical" | "executive". Must confirm with the user.
-            presentation_minutes: 3~60 min. Must confirm with the user.
+            purpose: Presentation purpose (empty = general presentation).
+            audience_type: "general" | "technical" | "executive".
+            presentation_minutes: 3~60 min.
             num_slides: Recommended number of slides (0 = auto-calculate from presentation time).
-            presenter_name: Presenter's name. Must confirm with the user.
-            presenter_title: Presenter's job title. Must confirm with the user.
-            presenter_org: Presenter's organization (can be empty). Must confirm with the user.
+            presenter_name: Presenter's name (empty = omit presenter block).
+            presenter_title: Presenter's job title.
+            presenter_org: Presenter's organization.
             project_id: Project ID (auto-generated if not specified)
 
         Returns:
@@ -145,10 +140,9 @@ def register_outline_tools(
         Call this AFTER `prepare_outline`, passing the outline JSON you generated
         following the returned `response_schema`.
 
-        **IMPORTANT: After ingesting, you must show the outline to the user and get
-        confirmation** (number of slides, titles, content composition) before
-        proceeding to the next step (prepare_design_slide). If the user requests
-        changes, incorporate them and call `ingest_outline` again with the revised JSON.
+        An end-to-end deck request may proceed directly to design after this call.
+        Stop for confirmation only when the user requested an outline-only result or
+        explicitly asked to approve the slide composition.
 
         Args:
             project_id: Project ID returned by prepare_outline (required).

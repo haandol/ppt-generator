@@ -59,3 +59,4 @@
 | `process_flow`  | 프로세스 워크스루            |
 | `quote_code`    | 인용문 + 코드 블록 조합      |
 | `concept_list`  | 개념 설명 리스트             |
+| `custom`        | layout_plan으로 설명하는 사용자 정의 구조 |

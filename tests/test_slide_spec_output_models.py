@@ -50,13 +50,28 @@ def _design_doc() -> DesignDocOutput:
             LayoutNodeOutput(
                 id="root",
                 kind="section",
-                left_px=64,
-                top_px=148,
-                width_px=1152,
-                height_px=510,
-            )
+                cell_id="c2",
+            ),
+            LayoutNodeOutput(
+                id="root.body",
+                parent_id="root",
+                kind="component",
+                cell_id="c2",
+            ),
         ],
     )
+
+
+def _content_textbox(*, grid_cell: str = "c2") -> dict:
+    return _textbox(
+        64,
+        148,
+        300,
+        100,
+        [_paragraph("Body", 18)],
+        vertical_alignment="top",
+        component_id="root.body",
+    ) | {"grid_cell": grid_cell}
 
 
 def _paragraph(text: str, font_size_pt: int, *, bold: bool = False) -> dict:
@@ -81,8 +96,9 @@ def _textbox(
     paragraphs: list[dict],
     *,
     vertical_alignment: str,
+    component_id: str | None = None,
 ) -> dict:
-    return {
+    payload = {
         "left_px": left,
         "top_px": top,
         "width_px": width,
@@ -90,6 +106,9 @@ def _textbox(
         "paragraphs": paragraphs,
         "vertical_alignment": vertical_alignment,
     }
+    if component_id is not None:
+        payload["component_id"] = component_id
+    return payload
 
 
 def _divider(top: float) -> dict:
@@ -114,6 +133,7 @@ def _title_payload(*, two_line: bool = False) -> dict:
                 title_height,
                 [_paragraph("Main title", 40, bold=True)],
                 vertical_alignment="middle",
+                component_id="title.main",
             ),
             _textbox(
                 64,
@@ -122,6 +142,7 @@ def _title_payload(*, two_line: bool = False) -> dict:
                 100,
                 [_paragraph("Subtitle", 16)],
                 vertical_alignment="top",
+                component_id="title.subtitle",
             ),
             _textbox(
                 64,
@@ -134,6 +155,7 @@ def _title_payload(*, two_line: bool = False) -> dict:
                     _paragraph("Organization", 18),
                 ],
                 vertical_alignment="bottom",
+                component_id="title.presenter",
             ),
         ],
         "shapes": [_divider(430 if two_line else 350)],
@@ -149,6 +171,7 @@ def _closing_payload(*, include_contact: bool = True) -> dict:
             80,
             [_paragraph("Thank You", 40, bold=True)],
             vertical_alignment="middle",
+            component_id="closing.message",
         ),
         _textbox(
             64,
@@ -157,6 +180,7 @@ def _closing_payload(*, include_contact: bool = True) -> dict:
             60,
             [_paragraph("Questions & Feedback", 20)],
             vertical_alignment="top",
+            component_id="closing.action",
         ),
     ]
     if include_contact:
@@ -168,6 +192,7 @@ def _closing_payload(*, include_contact: bool = True) -> dict:
                 120,
                 [_paragraph("Contact", 14)],
                 vertical_alignment="top",
+                component_id="closing.contact",
             )
         )
     return {
@@ -229,7 +254,7 @@ class TestContentSlideSpecOutput:
             grid_layout=_grid_layout(),
             cell_assignment=_cell_assignment(),
             design_doc=_design_doc(),
-            textboxes=[],
+            textboxes=[_content_textbox()],
             shapes=[],
         )
         assert output.grid_layout.content_columns == 2
@@ -240,7 +265,7 @@ class TestContentSlideSpecOutput:
             grid_layout=_grid_layout(),
             cell_assignment=_cell_assignment(),
             design_doc=_design_doc(),
-            textboxes=[],
+            textboxes=[_content_textbox()],
             shapes=[],
         )
         spec = output.to_dataclass()
@@ -269,16 +294,12 @@ class TestContentSlideSpecOutput:
                         id="child",
                         parent_id="missing",
                         kind="component",
-                        left_px=64,
-                        top_px=148,
-                        width_px=100,
-                        height_px=100,
                     )
                 ],
             )
 
     def test_rejects_unknown_grid_cell_reference_before_ingest(self) -> None:
-        with pytest.raises(ValidationError, match="grid-cell-coverage"):
+        with pytest.raises(ValidationError, match="grid cells must be declared"):
             ContentSlideSpecOutput.model_validate(
                 {
                     "grid_layout": {
@@ -304,11 +325,13 @@ class TestContentSlideSpecOutput:
                                 "id": "root",
                                 "kind": "section",
                                 "cell_id": "c1",
-                                "left_px": 64,
-                                "top_px": 148,
-                                "width_px": 1152,
-                                "height_px": 510,
-                            }
+                            },
+                            {
+                                "id": "root.body",
+                                "parent_id": "root",
+                                "kind": "component",
+                                "cell_id": "c1",
+                            },
                         ],
                     },
                     "textboxes": [
@@ -318,6 +341,7 @@ class TestContentSlideSpecOutput:
                             "width_px": 200,
                             "height_px": 80,
                             "grid_cell": "missing",
+                            "component_id": "root.body",
                             "paragraphs": [_paragraph("Body", 18)],
                         }
                     ],
@@ -366,26 +390,47 @@ class TestFixedLayoutSlideSpecOutput:
         output = TitleSlideSpecOutput.model_validate(_title_payload(two_line=two_line))
         assert output.textboxes[0].height_px == (160 if two_line else 80)
 
-    def test_title_rejects_missing_required_elements(self) -> None:
-        with pytest.raises(ValidationError, match="title requires"):
+    def test_title_rejects_missing_main_role(self) -> None:
+        with pytest.raises(ValidationError, match="title.main"):
             TitleSlideSpecOutput(textboxes=[], shapes=[])
 
-    def test_title_rejects_coordinate_drift(self) -> None:
+    def test_title_accepts_coordinate_variation(self) -> None:
         payload = _title_payload()
         payload["textboxes"][0]["top_px"] = 261
-        with pytest.raises(ValidationError, match="title main title bbox"):
+        output = TitleSlideSpecOutput.model_validate(payload)
+        assert output.textboxes[0].top_px == 261
+
+    def test_title_roles_are_independent_of_array_order(self) -> None:
+        payload = _title_payload()
+        payload["textboxes"] = list(reversed(payload["textboxes"]))
+        output = TitleSlideSpecOutput.model_validate(payload)
+        assert {textbox.component_id for textbox in output.textboxes} >= {
+            "title.main",
+            "title.subtitle",
+        }
+
+    def test_title_accepts_explicit_background_color(self) -> None:
+        payload = _title_payload()
+        payload["background_color"] = "#101820"
+        output = TitleSlideSpecOutput.model_validate(payload)
+        assert output.background_color == "#101820"
+
+    def test_title_rejects_duplicate_main_role(self) -> None:
+        payload = _title_payload()
+        payload["textboxes"][1]["component_id"] = "title.main"
+        with pytest.raises(ValidationError, match="at most once"):
             TitleSlideSpecOutput.model_validate(payload)
 
-    def test_title_rejects_wrong_two_line_followup_positions(self) -> None:
-        payload = _title_payload(two_line=True)
-        payload["textboxes"][1]["top_px"] = 370
-        with pytest.raises(ValidationError, match="title subtitle bbox"):
-            TitleSlideSpecOutput.model_validate(payload)
-
-    def test_title_rejects_presenter_without_three_paragraphs(self) -> None:
+    def test_title_allows_presenter_with_available_fields_only(self) -> None:
         payload = _title_payload()
         payload["textboxes"][2]["paragraphs"].pop()
-        with pytest.raises(ValidationError, match="exactly 3 non-empty paragraphs"):
+        output = TitleSlideSpecOutput.model_validate(payload)
+        assert len(output.textboxes[2].paragraphs) == 2
+
+    def test_title_rejects_canvas_overflow(self) -> None:
+        payload = _title_payload()
+        payload["textboxes"][0]["left_px"] = 1200
+        with pytest.raises(ValidationError, match="inside the canvas"):
             TitleSlideSpecOutput.model_validate(payload)
 
     def test_title_allows_other_rectangles_before_the_required_divider(self) -> None:
@@ -410,17 +455,26 @@ class TestFixedLayoutSlideSpecOutput:
         )
         assert len(output.textboxes) == (3 if include_contact else 2)
 
-    def test_closing_rejects_coordinate_drift(self) -> None:
+    def test_closing_accepts_coordinate_variation(self) -> None:
         payload = _closing_payload()
         payload["textboxes"][0]["left_px"] = 65
-        with pytest.raises(ValidationError, match="closing thank-you message bbox"):
-            ClosingSlideSpecOutput.model_validate(payload)
+        output = ClosingSlideSpecOutput.model_validate(payload)
+        assert output.textboxes[0].left_px == 65
 
-    def test_closing_rejects_contact_font_outside_contract(self) -> None:
+    def test_closing_roles_are_independent_of_array_order(self) -> None:
+        payload = _closing_payload()
+        payload["textboxes"] = list(reversed(payload["textboxes"]))
+        output = ClosingSlideSpecOutput.model_validate(payload)
+        assert {textbox.component_id for textbox in output.textboxes} >= {
+            "closing.message",
+            "closing.action",
+        }
+
+    def test_closing_accepts_contact_font_variation(self) -> None:
         payload = _closing_payload()
         payload["textboxes"][2]["paragraphs"][0]["runs"][0]["font_size_pt"] = 18
-        with pytest.raises(ValidationError, match="14~16pt"):
-            ClosingSlideSpecOutput.model_validate(payload)
+        output = ClosingSlideSpecOutput.model_validate(payload)
+        assert output.textboxes[2].paragraphs[0].runs[0].font_size_pt == 18
 
     def test_slide_type_selects_the_same_prepare_ingest_model(self) -> None:
         assert slide_spec_output_model("content") is ContentSlideSpecOutput

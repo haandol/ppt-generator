@@ -17,15 +17,14 @@ Separate final-output contracts from design guidance:
 </enforcement_levels>
 
 <abstraction_boundary>
-Pipeline abstraction levels — respect boundaries, do not re-decide upstream choices:
-- Outline (upstream): Decided WHAT content + HOW to arrange (layout direction, element count, relationships)
+Pipeline abstraction levels — respect boundaries:
+- Outline (upstream): Decided WHAT content and proposed HOW to arrange it
 - Design spec (this stage): Decides WHERE (exact coordinates) + STYLE (colors, fonts, sizes)
 
-Treat the outline's layout_plan as the upstream arrangement decision:
-- If layout_plan says "horizontal 3 cards", produce exactly 3 side-by-side shapes
-- If layout_plan says "free diagram: 5 nodes with arrows", produce 5 node shapes with connecting arrows
-- Preserve the stated spatial structure while concretizing it into coordinates and styles.
-- Preserve the stated element count unless content literally cannot fit.
+Treat layout_plan as the default intent. Preserve the slide's message and essential
+relationships, but you may merge/split elements or change direction when another composition
+is materially more readable. Exact element counts or directions are hard constraints only
+when the user or slide-specific DESIGN.md request explicitly fixes them.
 </abstraction_boundary>
 
 <language_policy>
@@ -63,7 +62,7 @@ deltas, never visual stroke thickness:
 Project = the whole deck — what is this presentation about?
   └ Slide = one page, one topic — what is this page about? what will the speaker say?
       └ Layout = grid (regions + columns/rows) — how is this slide partitioned into a grid?
-          └ Section = meaningful regions + bbox — what meaning lives in each region? what bbox does it occupy?
+          └ Section = meaningful regions — what meaning lives in each region?
               └ Content = textboxes / shapes — how is each component drawn (pixels, text, color)?
 ```
 
@@ -74,7 +73,7 @@ composing the final consistent result.
 ```
 Layer (input) outline — WHAT and HOW (already decided upstream by Project layer)
 Layer Layout (output) grid_layout + cell_assignment — Layout: regions/columns/rows + cell ids
-Layer Section (output) design_doc — Section: topic + layout_summary + layout tree (sections/groups/components, each with bbox)
+Layer Section (output) design_doc — Section: topic + layout_summary + semantic layout tree
 Layer Content (output) textboxes / shapes — Content: pixels/style, each references a cell (grid_cell) AND a component node (component_id)
 ```
 
@@ -104,19 +103,20 @@ in `cell_assignment`.
 
 **LayoutNode flat list (with parent_id)**:
 - `layout` is a **flat list** of nodes, but they form a tree via `parent_id` references (not nested children — JSON schema limitation).
-- Each node has: `id`, `parent_id` (empty string for root section), `kind` ("section" | "group" | "component"), `role`, `description`, `cell_id`, **bounding box** (`left_px`, `top_px`, `width_px`, `height_px`).
+- Each node has: `id`, `parent_id` (empty string for root section), `kind` ("section" | "group" | "component"), `role`, `description`, and `cell_id`.
 - Top-level nodes are **sections** (one per macro region — usually one per grid cell). Section `id` is a short snake_case label (e.g., `left_explanation`, `right_diagram`, `footer_cta`). Section's `parent_id` is empty string.
 - A section may contain **components** (leaf nodes representing one textbox/shape) or **groups** (intermediate clusters when a section is complex enough to warrant sub-structure, e.g., a diagram with a sub-system).
 - A `component` is the leaf — exactly one textbox/shape will reference it via `component_id`.
 - Node `id` follows the tree path (dot-joined, lower_snake_case): `right_diagram` → `right_diagram.llm_box` → `right_diagram.functions.web_search`. The `parent_id` of `right_diagram.llm_box` is `right_diagram`.
 - Order matters: declare parents before their children in the list.
 
-**bbox-first principle (IMPORTANT)**:
-- Every node carries a bounding box (`left_px`, `top_px`, `width_px`, `height_px`) describing the *space it occupies on the canvas*.
-- Decide bbox top-down: the section bbox first (usually equals the linked grid cell's pixel rectangle), then groups, then components. Each child's bbox MUST fit entirely inside its parent's bbox.
-- This means **before** you start picking pixel coordinates for individual textbox/shape elements in the Content layer, the layout tree already partitions the canvas into nested rectangles. The Content layer then only fills in styling within those rectangles — collision is avoided structurally.
-- For a diagram-heavy section (e.g., `right_diagram`), declare the section's bbox covering the whole diagram, then declare each diagram component (LLM box, function cards, arrows) with bboxes inside it.
-- For a leaf `component`, its bbox MUST equal the corresponding textbox/shape's bbox (they describe the same rectangle from different perspectives).
+**Server-derived bbox principle**:
+- Do not output coordinates on design_doc nodes.
+- Choose actual element coordinates once in the Content layer.
+- The server copies each linked element bbox to its component leaf, then derives group and
+  section bboxes as the union of their children.
+- Every section/group must have children, and every component leaf maps to exactly one
+  meaningful textbox or shape.
 
 **Depth rule**:
 - Default to depth 2: section → component (no groups).
@@ -128,15 +128,12 @@ in `cell_assignment`.
 
 **Why design_doc tree**: future modification requests like "swap the order of the third and fourth function cards" or "make the LLM box red" need to refer to elements by *meaning*, not by index. The `component_id` link + tree path make that possible. Keep ids stable, lower_snake_case, and human-readable.
 
-**Content layer — textboxes / shapes** (concretize each cell into pixels, **after the Section layer tree is fully decided**):
-- The Section layer tree already partitions the canvas into nested rectangles with bboxes. The Content layer is now mostly mechanical: each leaf component in the tree maps to exactly one textbox or shape, and that element's bbox MUST equal its component node's bbox.
+**Content layer — textboxes / shapes**:
+- Each leaf component maps to exactly one textbox or shape. Coordinates live only here.
 - Map every textbox/shape/image to a cell via `grid_cell` field.
 - Map every meaningful textbox/shape to a component via `component_id` field (matches a leaf node id in `design_doc.layout`).
 - Decorative-only elements (connecting arrows without text, dividers) MAY use `grid_cell: null` and `component_id: null` and need not appear in the layout tree.
-- If a leaf component's bbox needs adjustment, update both the Section node and the
-  corresponding Content element so the final bboxes remain equal. The lint rules
-  `layout-tree-sibling-overlap`, `layout-tree-containment`,
-  `layout-tree-bbox-missing`, and `layout-tree-canvas-overflow` check the final tree.
+- The server derives Section bboxes after validation and lint checks the resulting tree.
 
 **Coordinate derivation from region + columns/rows**:
 - content_region defines `top_px` and `height_px` of the entire content band.
@@ -168,30 +165,22 @@ reports suspicious irregularity.
     "layout_summary": "One paragraph summary of macro layout: which region holds what",
     "layout": [
       {"id": "left_explanation", "parent_id": "", "kind": "section", "role": "explanation_cards",
-       "description": "Stacked explanation cards on the left", "cell_id": "c1",
-       "left_px": 64, "top_px": 148, "width_px": 540, "height_px": 510},
+       "description": "Stacked explanation cards on the left", "cell_id": "c1"},
       {"id": "left_explanation.card_observation", "parent_id": "left_explanation", "kind": "component",
-       "role": "card", "description": "Observation card",
-       "left_px": 64, "top_px": 148, "width_px": 540, "height_px": 158},
+       "role": "card", "description": "Observation card", "cell_id": "c1"},
       {"id": "left_explanation.card_limitation", "parent_id": "left_explanation", "kind": "component",
-       "role": "card", "description": "Limitation card",
-       "left_px": 64, "top_px": 322, "width_px": 540, "height_px": 158},
+       "role": "card", "description": "Limitation card", "cell_id": "c1"},
 
       {"id": "right_diagram", "parent_id": "", "kind": "section", "role": "relationship_diagram",
-       "description": "4-node relationship diagram", "cell_id": "c2",
-       "left_px": 624, "top_px": 148, "width_px": 592, "height_px": 510},
+       "description": "4-node relationship diagram", "cell_id": "c2"},
       {"id": "right_diagram.llm_box", "parent_id": "right_diagram", "kind": "component",
-       "role": "llm_box", "description": "Center LLM",
-       "left_px": 668, "top_px": 348, "width_px": 160, "height_px": 170},
+       "role": "llm_box", "description": "Center LLM", "cell_id": "c2"},
       {"id": "right_diagram.functions", "parent_id": "right_diagram", "kind": "group",
-       "role": "function_cluster", "description": "App functions group",
-       "left_px": 988, "top_px": 408, "width_px": 196, "height_px": 168},
+       "role": "function_cluster", "description": "App functions group", "cell_id": "c2"},
       {"id": "right_diagram.functions.web_search", "parent_id": "right_diagram.functions",
-       "kind": "component", "role": "function_card", "description": "web_search()",
-       "left_px": 988, "top_px": 408, "width_px": 196, "height_px": 50},
+       "kind": "component", "role": "function_card", "description": "web_search()", "cell_id": "c2"},
       {"id": "right_diagram.functions.db_query", "parent_id": "right_diagram.functions",
-       "kind": "component", "role": "function_card", "description": "db_query()",
-       "left_px": 988, "top_px": 466, "width_px": 196, "height_px": 50}
+       "kind": "component", "role": "function_card", "description": "db_query()", "cell_id": "c2"}
     ]
   },
   "background_color": "#RRGGBB or null",

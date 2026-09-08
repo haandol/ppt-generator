@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PPT Generator LLM 자율성 개선 — 최종 구현 보고서</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #5e687b;
+      --line: #d9e1ee;
+      --paper: #fff;
+      --canvas: #f3f6fb;
+      --navy: #15345f;
+      --blue: #2563eb;
+      --green: #137a4a;
+      --amber: #a45f00;
+      --red: #b42318;
+      --soft-blue: #ebf3ff;
+      --soft-green: #eaf8f0;
+      --soft-amber: #fff6df;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--canvas);
+      font-family: Inter, Pretendard, "Apple SD Gothic Neo", system-ui, sans-serif;
+      line-height: 1.62;
+    }
+    main {
+      width: min(1160px, calc(100% - 32px));
+      margin: 28px auto 72px;
+    }
+    header, section {
+      margin-bottom: 18px;
+      padding: 28px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: 0 8px 28px rgba(24, 42, 74, .06);
+    }
+    h1, h2, h3 { color: var(--navy); line-height: 1.28; }
+    h1 { margin: 0 0 10px; font-size: clamp(30px, 4vw, 44px); }
+    h2 { margin: 0 0 18px; font-size: 25px; }
+    h3 { margin: 0 0 8px; font-size: 18px; }
+    p { margin: 8px 0; }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code {
+      padding: 2px 5px;
+      color: #24416e;
+      background: #f0f4fa;
+      border-radius: 5px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: .92em;
+    }
+    .muted { color: var(--muted); }
+    .lede { max-width: 920px; font-size: 18px; }
+    .status {
+      margin-top: 20px;
+      padding: 18px 20px;
+      background: var(--soft-green);
+      border-left: 5px solid var(--green);
+      border-radius: 10px;
+      font-size: 18px;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 20px;
+    }
+    .metric, .card {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+    .metric strong { display: block; color: var(--navy); font-size: 27px; }
+    .metric span { color: var(--muted); font-size: 13px; }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 15px;
+    }
+    .card { border-top: 5px solid var(--blue); }
+    .card.green { border-top-color: var(--green); }
+    .card.amber { border-top-color: var(--amber); }
+    ul, ol { padding-left: 22px; }
+    li { margin: 6px 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 12px 10px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--line);
+    }
+    th { color: var(--navy); background: #f8faff; }
+    .tag {
+      display: inline-block;
+      padding: 2px 9px;
+      color: var(--green);
+      background: var(--soft-green);
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 12px;
+    }
+    .callout {
+      padding: 15px 17px;
+      background: var(--soft-amber);
+      border-left: 4px solid var(--amber);
+      border-radius: 10px;
+    }
+    .mermaid-wrap {
+      overflow-x: auto;
+      padding: 18px;
+      background: #fbfcff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+    details {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+    pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; }
+    footer { text-align: center; color: var(--muted); font-size: 13px; }
+    @media (max-width: 850px) {
+      .metrics, .grid-2 { grid-template-columns: 1fr; }
+      header, section { padding: 20px; }
+    }
+    @media print {
+      body { background: #fff; }
+      main { width: 100%; margin: 0; }
+      header, section { box-shadow: none; break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="muted">Final implementation report · 2026-09-08 · ppt-generator</p>
+    <h1>LLM 자율성·AI Slop 개선 최종 보고서</h1>
+    <p class="lede">
+      초기 감사에서 발견한 과도한 시각 레시피 제약과 부족한 사실성·덱 품질 검사를
+      실제 코드, 스킬, 프롬프트, 테스트와 ADR에 반영했다. 사용자가 확정한
+      Title → Agenda → Body → Closing 골격은 유지한다.
+    </p>
+    <div class="status">
+      <strong>구현 완료.</strong> 관련 ADR은 모두 <code>Accepted (2026-09-08)</code>로
+      승격됐고, 전체 테스트와 정적 검사가 통과했다.
+    </div>
+    <div class="metrics">
+      <div class="metric"><strong>1,017</strong><span>전체 통과 테스트</span></div>
+      <div class="metric"><strong>4~20</strong><span>허용 슬라이드 수</span></div>
+      <div class="metric"><strong>5</strong><span>AI Slop guardrail 축</span></div>
+      <div class="metric"><strong>0</strong><span>ADR 구조 오류</span></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>최종 생성 흐름</h2>
+    <div class="mermaid-wrap">
+      <div class="mermaid">
+flowchart LR
+    U["사용자 brief"] --> O["Outline<br/>Title → Agenda → Body → Closing"]
+    O --> D["DESIGN.md<br/>theme + tone + anti_slop + page requests"]
+    D --> S["슬라이드 생성<br/>의미 tree + 실제 element 좌표"]
+    S --> B["서버가 Section bbox 파생"]
+    B --> R["Deck review<br/>근거·중복·용어·서사"]
+    R --> Q["Visual QA<br/>스크린샷 분석"]
+    Q --> P["허용 필드 최소 patch"]
+    P --> X["안정 체크포인트<br/>HTML + PPTX"]
+    X --> H["HTML 브라우저 열기"]
+      </div>
+    </div>
+    <details>
+      <summary>Mermaid 원문</summary>
+      <pre>flowchart LR
+U["사용자 brief"] --&gt; O["Outline: Title → Agenda → Body → Closing"]
+O --&gt; D["DESIGN.md: theme + tone + anti_slop + page requests"]
+D --&gt; S["슬라이드 생성: 의미 tree + 실제 element 좌표"]
+S --&gt; B["서버가 Section bbox 파생"]
+B --&gt; R["Deck review: 근거·중복·용어·서사"]
+R --&gt; Q["Visual QA: 스크린샷 분석"]
+Q --&gt; P["허용 필드 최소 patch"]
+P --&gt; X["안정 체크포인트: HTML + PPTX"]
+X --&gt; H["HTML 브라우저 열기"]</pre>
+    </details>
+  </section>
+
+  <section>
+    <h2>확정된 요구사항 계약</h2>
+    <div class="grid-2">
+      <article class="card">
+        <h3>필수 발표 골격</h3>
+        <ul>
+          <li>총 4~20장</li>
+          <li>1번은 <code>title</code></li>
+          <li>2번은 <code>agenda</code> content slide</li>
+          <li>중간에 최소 1개의 Body content slide</li>
+          <li>마지막은 <code>closing</code></li>
+        </ul>
+        <p class="muted">목적·시간·청중은 문맥 또는 기본값으로 보완하며 발표자 identity는 만들지 않는다.</p>
+      </article>
+
+      <article class="card">
+        <h3>사실 근거</h3>
+        <ul>
+          <li>각 outline slide에 <code>source_refs</code>와 <code>assumptions</code> 저장</li>
+          <li>출처 URL·KPI·외부 사실을 임의 생성하지 않음</li>
+          <li>근거 없는 유용한 가정은 사실처럼 쓰지 않고 assumption으로 표시</li>
+          <li>Deck review가 unsupported claim을 별도로 보고</li>
+        </ul>
+      </article>
+
+      <article class="card green">
+        <h3>Title·Closing의 시각 자율성</h3>
+        <ul>
+          <li><code>title.main</code>과 <code>closing.message</code>만 필수 역할</li>
+          <li>subtitle, presenter, action, contact는 선택·유일 역할</li>
+          <li>역할은 배열 순서가 아니라 <code>component_id</code>로 식별</li>
+          <li>고정 좌표·고정 문단 수·고정 divider 계약 제거</li>
+          <li>모든 요소는 1280×720 캔버스 안에 있어야 함</li>
+        </ul>
+      </article>
+
+      <article class="card green">
+        <h3>5단 계층 단순화</h3>
+        <ul>
+          <li>LLM은 <code>design_doc</code>에 의미 ID·부모·역할·cell만 출력</li>
+          <li>실제 좌표는 textbox/shape에 한 번만 출력</li>
+          <li>서버가 component → group → section bbox를 자동 파생</li>
+          <li>빈 design_doc, 누락된 component/grid 연결, 다중 leaf 연결은 거부</li>
+          <li>의도 가능한 형제 영역 겹침은 error가 아닌 warning</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <h2>AI Slop 방지 설계</h2>
+    <p>
+      DESIGN.md는 기존 세 영역에서 네 영역으로 확장됐다. AI Slop 방지 기준은
+      일회성 외부 스킬이 아니라 사람이 읽고 편집할 수 있는 프로젝트 디자인 의도의
+      정식 일부다.
+    </p>
+    <table>
+      <thead>
+        <tr><th>Guardrail</th><th>DESIGN.md가 기록하는 내용</th><th>방지 대상</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>subject_specificity</code></td>
+          <td>실제 제품 UI, 데이터, 코드, 장소, 용어와 업무 artefact</td>
+          <td>주제와 무관한 stock metaphor와 generic icon</td>
+        </tr>
+        <tr>
+          <td><code>visual_hierarchy</code></td>
+          <td>주장·근거·보조 정보의 우선순위</td>
+          <td>모든 카드·배지·문구가 같은 크기로 경쟁하는 평면적 구성</td>
+        </tr>
+        <tr>
+          <td><code>layout_rhythm</code></td>
+          <td>loud / breathe / turn / land의 덱 리듬</td>
+          <td>모든 장이 같은 밀도와 템플릿을 반복하는 단조로움</td>
+        </tr>
+        <tr>
+          <td><code>decoration_policy</code></td>
+          <td>데이터·그룹·위계·내비게이션·브랜드 기능이 있는 장식만 허용</td>
+          <td>기능 없는 gradient, glass, accent bar와 카드 장식</td>
+        </tr>
+        <tr>
+          <td><code>content_grounding</code></td>
+          <td>구체적 주장, 실제 예시, 출처와 명시적 가정</td>
+          <td>generic filler, KPI theater와 근거 없는 정량 표현</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout">
+      같은 content archetype은 사용자가 명시적으로 요구하지 않은 한
+      <strong>최대 2장까지만 연속</strong> 사용할 수 있다. Deck review는 3장 연속 반복을
+      <code>duplicate_content</code> 후보로 검사한다.
+    </div>
+    <p class="muted">
+      관련 구현:
+      <a href="../../src/ppt_generator/interfaces/prompts/design_doc_draft_user.prompt.md">DESIGN.md draft prompt</a> ·
+      <a href="../../src/ppt_generator/tools/design/design_doc_md.py">DESIGN.md parser</a> ·
+      <a href="../../skills/presentation-design/SKILL.md">optional art-direction skill</a>
+    </p>
+  </section>
+
+  <section>
+    <h2>품질 검사와 수정 권한</h2>
+    <div class="grid-2">
+      <article class="card">
+        <h3>Deck review</h3>
+        <p>모든 슬라이드가 생성된 뒤 다음 덱 전체 문제를 한 번에 검사한다.</p>
+        <ul>
+          <li>unsupported claim</li>
+          <li>narrative gap</li>
+          <li>duplicate content</li>
+          <li>terminology drift</li>
+          <li>agenda mismatch</li>
+          <li>conclusion mismatch</li>
+          <li>time density</li>
+        </ul>
+        <p>리뷰는 read-only이며 high 의미 이슈만 사용자 결정을 요구한다.</p>
+      </article>
+
+      <article class="card">
+        <h3>Visual QA patch</h3>
+        <p>전체 DesignSpec을 다시 생성하지 않고 검증된 이슈의 허용 필드만 교체한다.</p>
+        <ul>
+          <li>위치·크기·패딩·정렬·행간</li>
+          <li>autofit·글꼴 크기·색상</li>
+          <li>검증된 layering 이슈의 z-index</li>
+          <li>contrast 이슈의 배경색</li>
+        </ul>
+        <p>텍스트·데이터·요소 수·배열 순서·슬라이드 수는 patch할 수 없다.</p>
+      </article>
+    </div>
+    <p>
+      Playwright를 사용할 수 없으면 클라이언트가 캡처한 PNG를
+      <code>screenshot_path</code>로 전달한다. 서버는 파일 존재 여부와 PNG header를
+      검증해 프로젝트 iteration 경로에 고정한다.
+    </p>
+    <p class="muted">
+      관련 구현:
+      <a href="../../src/ppt_generator/tools/design/review_service.py">deck review service</a> ·
+      <a href="../../src/ppt_generator/tools/visual_qa/service.py">Visual QA patch service</a> ·
+      <a href="../../src/ppt_generator/tools/visual_qa/controller.py">screenshot fallback and final export</a>
+    </p>
+  </section>
+
+  <section>
+    <h2>프롬프트·하니스 정리</h2>
+    <table>
+      <thead>
+        <tr><th>변경 전</th><th>현재 동작</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>모든 슬라이드에 관련 없는 content 예시까지 상시 주입</td>
+          <td>현재 component hint에 필요한 경우에만 관련 예시를 추가</td>
+        </tr>
+        <tr>
+          <td>기본 생성과 presentation-design 스킬에 anti-slop 규칙 중복</td>
+          <td>DESIGN.md draft가 정본이며 presentation-design은 명시적 art direction 탐색용</td>
+        </tr>
+        <tr>
+          <td>매 편집 뒤 HTML/PPTX 전체 export</td>
+          <td>편집 중에는 슬라이드 HTML, 안정 체크포인트에서 HTML/PPTX 한 번 export</td>
+        </tr>
+        <tr>
+          <td>서버 instructions와 Kiro/skills의 완료 조건 불일치</td>
+          <td>필수 골격, deck review, QA, final export, HTML 열기 경계를 동일하게 안내</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>초기 감사 항목의 최종 상태</h2>
+    <table>
+      <thead>
+        <tr><th>감사 항목</th><th>상태</th><th>최종 처리</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Title·Closing 정확한 좌표 강제</td><td><span class="tag">완료</span></td><td>의미 역할 계약으로 대체</td></tr>
+        <tr><td>Title·Agenda·Closing 선택 여부</td><td><span class="tag">사용자 결정 반영</span></td><td>세 타입과 최소 1개 Body를 필수 유지</td></tr>
+        <tr><td>발표 조건 필수 사전 질문</td><td><span class="tag">완료</span></td><td>문맥 추론·안전한 기본값 사용</td></tr>
+        <tr><td>Section/Content bbox 이중 출력</td><td><span class="tag">완료</span></td><td>서버 파생으로 단일 좌표 정본화</td></tr>
+        <tr><td>빈 design_doc 통과</td><td><span class="tag">완료</span></td><td>non-empty tree와 1:1 link 검증</td></tr>
+        <tr><td>Visual QA opt-in·전체 spec 재생성</td><td><span class="tag">완료</span></td><td>기본 read-only QA + 최소 patch</td></tr>
+        <tr><td>사실성·덱 전체 의미 검토 부족</td><td><span class="tag">완료</span></td><td>source/assumption metadata + deck review</td></tr>
+        <tr><td>AI Slop 규칙 중복·일회성</td><td><span class="tag">완료</span></td><td>DESIGN.md 정식 guardrail로 통합</td></tr>
+        <tr><td>하니스 export·완료 조건 드리프트</td><td><span class="tag">완료</span></td><td>안정 체크포인트와 HTML 열기 규칙 통일</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>검증 결과</h2>
+    <ul>
+      <li><code>uv run pytest</code> — 1,017 passed</li>
+      <li><code>uv run ruff check .</code> — passed</li>
+      <li><code>git diff --check</code> — passed</li>
+      <li>ADR structure lint — errors 0</li>
+      <li>ADR one-way invariants — clean</li>
+      <li>Full implementation review — PASS</li>
+    </ul>
+    <p>
+      Evidence Package:
+      <a href="file:///tmp/adr-impl-review-ppt-autonomy-lLr9xx/adr-impl-review-report.html">
+        /tmp/adr-impl-review-ppt-autonomy-lLr9xx/adr-impl-review-report.html
+      </a>
+    </p>
+  </section>
+
+  <section>
+    <h2>남은 호환성·운영 주의점</h2>
+    <ul>
+      <li>역할 <code>component_id</code>, outline 근거 필드, DESIGN.md anti-slop 필드가 없는 구형 client 응답은 새 prepare schema로 재생성해야 한다.</li>
+      <li>이미 존재하는 사람이 편집한 DESIGN.md는 자동으로 덮어쓰지 않는다. AI Slop 섹션을 적용하려면 해당 문서에 직접 추가하거나 초안을 재생성해야 한다.</li>
+      <li>클라이언트가 로컬 HTML을 열 수 없는 환경에서는 경로만 공유하고 미실행 사실을 알려야 한다.</li>
+      <li>Visual QA patch로 해결할 수 없는 콘텐츠·구조 문제는 unresolved 상태로 남고 사용자 결정을 요구한다.</li>
+    </ul>
+  </section>
+
+  <footer>Current-state implementation report · Updated 2026-09-08</footer>
+</main>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: "base",
+    themeVariables: {
+      primaryColor: "#ebf3ff",
+      primaryTextColor: "#172033",
+      primaryBorderColor: "#2563eb",
+      lineColor: "#56719d",
+      secondaryColor: "#eaf8f0",
+      tertiaryColor: "#fff6df",
+      fontFamily: "Inter, Pretendard, Apple SD Gothic Neo, sans-serif"
+    },
+    flowchart: { curve: "basis", htmlLabels: true }
+  });
+</script>
+</body>
+</html>

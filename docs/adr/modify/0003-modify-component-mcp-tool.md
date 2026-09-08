@@ -4,7 +4,7 @@ Date: 2026-05-26
 
 ## Status
 
-Accepted (2026-07-21)
+Accepted (2026-09-08)
 
 ## Context
 
@@ -23,9 +23,9 @@ design/0011 가 5단 디자인 스펙 계층(Project / Slide / Layout / Section 
 부분 수정은 `prepare_modify_component` / `ingest_modify_component` 쌍으로 제공한다.
 prepare는 생성 프롬프트와 응답 스키마뿐 아니라 프로젝트 revision, 슬라이드 위치,
 component 식별자와 대상 fingerprint를 묶은 서명 컨텍스트를 반환한다. ingest는 이
-컨텍스트를 검증한 뒤 한 호출당 정확히 1 개의 component leaf 를 수정하고, 다른 모든
-것(다른 element, grid_plan, background, speaker_notes, design_doc 트리 구조) 은
-byte-equal 로 보존한다.
+컨텍스트를 검증한 뒤 한 호출당 정확히 1개의 component leaf를 수정하고, 다른 모든 것
+(다른 element, grid_plan, background, speaker_notes, design_doc 트리 구조)은
+byte-equal로 보존한다.
 
 ### LLM 입력은 슬라이드 전체 + 대상 component_id
 
@@ -35,23 +35,25 @@ LLM 은 슬라이드 전체 spec(grid_plan, design_doc, textboxes, shapes) + 대
 프롬프트를 사용한다. 전용 프롬프트는 수정 가능 범위, bbox 안전 조건, 필드 보존과
 정확히 하나의 element만 반환하는 계약을 설명한다.
 
-### 단일 component 만 수정 (v1)
+### 단일 component만 수정
 
-다중 component(예: "3 개 카드 모두 색 통일") 는 LLM 이 여러 번의 modify_component 호출로 풀거나 기존 update action 사용을 안내한다. API/구현이 단순해지고 부분 수정의 명확성(한 번에 한 곳) 이 디버그성 면에서 우월. 다중 수정은 v2 검토.
+다중 component 요청은 여러 번의 modify_component 호출로 풀거나 전체 slide update를
+사용한다. 한 호출의 대상과 실패 범위를 명확하게 유지한다.
 
 ### 수정 가능 범위: Content + 대상 leaf bbox
 
-LLM 이 수정할 수 있는 것:
+LLM이 수정할 수 있는 것:
 1. 대상 leaf 의 textbox/shape 본체 (텍스트, 색, 폰트, 패딩, alignment, 모양)
-2. 대상 leaf 의 bbox (left/top/width/height)
-3. 대상 leaf 가 design_doc.layout 트리에서 가리키는 노드의 bbox (textbox/shape bbox 와 동기화)
+2. 대상 leaf의 bbox
+3. 대상 leaf가 가리키는 element의 시각 스타일과 텍스트 내용
 
 수정 불가:
 - design_doc 트리 구조 (노드 추가/삭제/parent 변경)
 - 다른 component 의 spec
 - grid_plan / background_color / speaker_notes / 다른 슬라이드
 
-이 범위는 lint 가 자연스럽게 강제한다 — `layout-tree-containment`, `layout-tree-sibling-overlap`, `grid-cell-coverage`, `font-range`, `text-overflow` 등이 그대로 안전망 역할. 구조 변경이 필요한 변경은 기존 `slide_edit(action="update")` 를 사용한다.
+수정 후 Section bbox는 변경된 element에서 서버가 다시 파생한다. 구조 변경이 필요한
+변경은 기존 `slide_edit(action="update")`를 사용한다.
 
 ### 후처리
 
@@ -66,16 +68,17 @@ LLM 이 수정할 수 있는 것:
 
 LLM 이 element 전체를 출력해도, design/0013 결정 3 에 따라 schema 에 없는 z_index / grid_cell / component_id 는 코드가 기존 element 에서 가져와 보존한다.
 
-응답은 element 종류와 일치하는 본문 하나만 포함해야 하며 다른 종류의 본문을 동시에
-포함할 수 없다. `bbox_changed`는 반환된 bbox와 기존 bbox를 비교해 서버가 결정하고,
-LLM의 자체 보고값과 다를 때 서버 계산을 우선한다.
+응답은 element 종류와 일치하는 textbox 또는 shape 본문 하나를 포함한다. 서버는 대상
+component_id와 타입이 일치하는지 검증하고, 응답 schema에 없는 z_index, grid_cell과
+component_id는 기존 element에서 보존한다.
 
 ## 대안 검토
 
 | 대안 | 채택하지 않은 이유 |
 |---|---|
 | element-only LLM 입력 (슬라이드 컨텍스트 제외) | 형제 정렬·디자인 일관성 정보 손실 — 색만 바꿨는데 옆 카드와 보색 깨짐 |
-| 다중 component 동시 수정을 v1 부터 지원 | API 복잡도 + 부분 실패 처리(어떤 component 만 적용?) 가 깊어짐 |
+| element-only LLM 입력 | 형제 정렬·디자인 일관성 정보가 없어 제외 |
+| 다중 component 동시 수정 | 부분 실패와 원자성 계약이 복잡해 제외 |
 | design_doc 없는 슬라이드도 자동 backfill 후 수정 | 본 ADR 범위 밖. backfill 정책은 0004 에서 분리해 다룸 |
 | 자동 review_service 재호출 후 재수정 | 부분 수정에는 비용 대비 이득 작음 — lint 결과 응답 노출로 충분 |
 
@@ -90,20 +93,20 @@ LLM의 자체 보고값과 다를 때 서버 계산을 우선한다.
 ### Positive
 
 - **부분 수정 비용 감소** — 슬라이드 전체 재생성 대비 토큰·시간 절감.
-- **결정성 향상** — 대상 외 element 가 byte-equal 보존되어 사용자 신뢰 상승.
+- **결정성 향상** — 대상 외 element가 byte-equal 보존되어 사용자 신뢰 상승.
 - **5단 계층 가치 실현** — design/0011 가 정의한 component_id 식별성을 사용자 인터페이스까지 노출.
 - **lint 의 구조적 보장** — 기존 layout-tree-* / grid-cell-* / font-range 규칙이 자연스럽게 부분 수정의 안전망.
 
 ### Negative / Risks
 
-- LLM 이 대상 외 element 를 (명시 금지에도) 변경하려 시도할 가능성 — Pydantic 응답 모델이 단일 element 만 받도록 강제하므로 자연 차단.
-- bbox 동기화 로직 결함 시 design_doc 트리와 element 가 불일치 — lint 가 즉시 잡지만 직전 결과는 어색할 수 있음.
+- LLM이 대상 element의 무관한 필드도 바꿀 수 있음 — 전용 프롬프트와 lint로 완화.
+- element 전체 응답 계약을 별도로 유지해야 함.
 - modify_component 와 slide_edit 사용 시점 분기를 사용자(LLM) 가 잘못 고를 위험 — tool docstring 의 명확한 분기 가이드로 완화.
 - 전용 프롬프트와 단일 element 응답 계약을 별도로 유지해야 한다.
 
 ## Out of Scope
 
-- 다중 component 동시 수정 — v2 검토.
+- 다중 component 동시 수정.
 - design_doc 트리 구조 변경(노드 추가/삭제/parent) — 별도 ADR.
 - review_service 자동 재호출 — 비용 대비 이득 작음.
 

@@ -30,13 +30,23 @@ def _slide(
         "slide_type": slide_type,
         "layout_plan": layout_plan,
         "speaker_notes": speaker_notes,
+        "source_refs": [],
+        "assumptions": [],
     }
 
 
 VALID_OUTLINE_JSON = json.dumps(
     {
         "slides": [
-            _slide("클라우드 컴퓨팅 트렌드", "핵심 트렌드 소개, 시장 현황 개요"),
+            _slide(
+                "클라우드 컴퓨팅 트렌드",
+                "핵심 트렌드 소개, 시장 현황 개요",
+                slide_type="title",
+            ),
+            {
+                **_slide("Agenda", "주요 발표 구간"),
+                "component_hint": "agenda",
+            },
             _slide(
                 "멀티클라우드 전략",
                 "AWS, Azure, GCP 비교 및 하이브리드 접근 방식",
@@ -126,15 +136,15 @@ class TestOutlineServiceIngest:
         )
         response = service.ingest(VALID_OUTLINE_JSON, request)
 
-        assert len(response.slides) == 3
+        assert len(response.slides) == 4
         assert response.slides[0].title == "클라우드 컴퓨팅 트렌드"
         assert (
-            response.slides[1].content_summary
+            response.slides[2].content_summary
             == "AWS, Azure, GCP 비교 및 하이브리드 접근 방식"
         )
-        assert response.slides[1].layout_plan == "horizontal 3 cards"
+        assert response.slides[2].layout_plan == "horizontal 3 cards"
         assert (
-            response.slides[1].speaker_notes == "세 클라우드의 장단점을 비교하겠습니다."
+            response.slides[2].speaker_notes == "세 클라우드의 장단점을 비교하겠습니다."
         )
 
     def test_ingest_parses_json_in_code_block(self, service):
@@ -142,7 +152,7 @@ class TestOutlineServiceIngest:
         request = OutlineRequest(topic="스크립트 내용", num_slides=5)
         response = service.ingest(wrapped, request)
 
-        assert len(response.slides) == 3
+        assert len(response.slides) == 4
 
     def test_ingest_raises_on_invalid_json(self, service):
         request = OutlineRequest(topic="스크립트 내용", num_slides=5)
@@ -170,12 +180,17 @@ class TestOutlineServiceIngest:
                     layout_plan="centered title",
                     speaker_notes="발표를 시작하겠습니다.",
                 ),
+                {
+                    **_slide("Agenda", "주요 발표 구간"),
+                    "component_hint": "agenda",
+                },
                 _slide("본문", "내용"),
+                _slide("마무리", "Q&A", slide_type="closing"),
             ]
         }
         request = OutlineRequest(
             topic="주제",
-            num_slides=2,
+            num_slides=4,
             presenter_name="홍길동",
             presenter_title="Solutions Architect",
             presenter_org="ACME",
@@ -186,6 +201,42 @@ class TestOutlineServiceIngest:
         assert "홍길동" in response.slides[0].content_summary
         assert "Solutions Architect" in response.slides[0].content_summary
         assert "ACME" in response.slides[0].content_summary
-        assert "홍길동" not in response.slides[1].content_summary
+        assert "홍길동" not in response.slides[2].content_summary
         assert response.slides[0].layout_plan == "centered title"
         assert response.slides[0].speaker_notes == "발표를 시작하겠습니다."
+
+    def test_ingest_rejects_missing_required_agenda(self, service):
+        data = {
+            "slides": [
+                _slide("표지", "소개", slide_type="title"),
+                _slide("본문 1", "내용"),
+                _slide("본문 2", "내용"),
+                _slide("마무리", "Q&A", slide_type="closing"),
+            ]
+        }
+        with pytest.raises(ValueError, match="slide 2 must be"):
+            service.ingest(
+                json.dumps(data),
+                OutlineRequest(topic="주제", num_slides=4),
+            )
+
+    def test_ingest_preserves_sources_and_assumptions(self, service):
+        data = json.loads(VALID_OUTLINE_JSON)
+        data["slides"][2]["source_refs"] = ["user-brief"]
+        data["slides"][2]["assumptions"] = ["시장 수치는 예시"]
+        response = service.ingest(
+            json.dumps(data),
+            OutlineRequest(topic="주제", num_slides=4),
+        )
+        assert response.slides[2].source_refs == ["user-brief"]
+        assert response.slides[2].assumptions == ["시장 수치는 예시"]
+
+    def test_ingest_without_presenter_does_not_invent_identity(self, service):
+        response = service.ingest(
+            VALID_OUTLINE_JSON,
+            OutlineRequest(topic="주제", num_slides=4),
+        )
+        summary = response.slides[0].content_summary
+        assert "발표자 이름" not in summary
+        assert "직책" not in summary
+        assert "소속" not in summary

@@ -8,17 +8,28 @@ from unittest.mock import MagicMock
 import pytest
 
 from ppt_generator.interfaces.llm_output_models import (
+    DeckReviewIssue,
+    DeckReviewOutput,
     DesignReviewIssue,
     DesignReviewOutput,
+)
+from ppt_generator.interfaces.schemas import (
+    DesignSpec,
+    OutlineResponse,
+    ProjectMetadata,
+    SlideOutline,
 )
 from ppt_generator.interfaces.spec_utils.lint_types import (
     LintViolation,
     SlideLintResult,
 )
 from ppt_generator.tools.design.handlers.review import (
+    handle_ingest_deck_review,
     handle_ingest_review,
+    handle_prepare_deck_review,
     handle_prepare_review,
 )
+from ppt_generator.tools.design.review_service import DesignReviewService
 
 from _helpers import make_slide_spec
 
@@ -144,3 +155,102 @@ def test_lint_issues_are_merged_into_final_feedback(tmp_path, monkeypatch) -> No
     assert result["has_high_severity"] is True
     assert result["issues"][0]["source"] == "lint"
     assert "text-overflow" in result["fix_feedback"]
+
+
+def test_deck_review_prepare_and_ingest_round_trip(tmp_path) -> None:
+    deps = MagicMock()
+    deps.project_service.resolve_existing_project_dir.return_value = (
+        "project-1",
+        tmp_path,
+    )
+    outline = {
+        "slides": [
+            {
+                "title": "Title",
+                "content_summary": "Intro",
+                "component_hint": "bullets",
+                "slide_type": "title",
+                "layout_plan": "title",
+                "speaker_notes": "",
+                "source_refs": [],
+                "assumptions": [],
+            },
+            {
+                "title": "Agenda",
+                "content_summary": "Flow",
+                "component_hint": "agenda",
+                "slide_type": "content",
+                "layout_plan": "list",
+                "speaker_notes": "",
+                "source_refs": [],
+                "assumptions": [],
+            },
+            {
+                "title": "Body",
+                "content_summary": "Claim",
+                "component_hint": "bullets",
+                "slide_type": "content",
+                "layout_plan": "single",
+                "speaker_notes": "",
+                "source_refs": [],
+                "assumptions": ["예시 수치"],
+            },
+            {
+                "title": "Close",
+                "content_summary": "Q&A",
+                "component_hint": "cta",
+                "slide_type": "closing",
+                "layout_plan": "closing",
+                "speaker_notes": "",
+                "source_refs": [],
+                "assumptions": [],
+            },
+        ]
+    }
+    design_spec = DesignSpec(slides=[make_slide_spec(str(index)) for index in range(4)])
+    deps.project_service.load_outline.return_value = json.dumps(outline)
+    deps.project_service.load_design_spec.return_value = design_spec
+    deps.project_service.load_metadata.return_value = ProjectMetadata(
+        presentation_minutes=10
+    )
+    deps.review_service.prepare_deck.return_value = {
+        "system_prompt": "system",
+        "user_prompt": "user",
+        "response_schema": {},
+    }
+    deps.review_service.ingest_deck.return_value = DeckReviewOutput(
+        has_high_severity=False,
+        issues=[
+            DeckReviewIssue(
+                issue_type="unsupported_claim",
+                severity="high",
+                slide_indices=[3],
+                description="수치 근거 확인 필요",
+                suggested_action="출처를 확인한다.",
+            )
+        ],
+    )
+
+    prepared = json.loads(handle_prepare_deck_review(deps, project_id="project-1"))
+    result = json.loads(
+        handle_ingest_deck_review(
+            deps,
+            project_id="project-1",
+            review_json="{}",
+            review_context=prepared["review_context"],
+        )
+    )
+
+    assert result["has_high_severity"] is True
+    assert result["requires_user_decision"] is True
+    assert result["issues"][0]["slide_indices"] == [3]
+
+
+def test_deck_review_rejects_outline_design_count_mismatch() -> None:
+    service = DesignReviewService()
+    with pytest.raises(ValueError, match="slide counts to match"):
+        service.prepare_deck(
+            OutlineResponse(slides=[SlideOutline(title="one", content_summary="one")]),
+            DesignSpec(slides=[]),
+            presentation_minutes=10,
+        )

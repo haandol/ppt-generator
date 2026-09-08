@@ -92,6 +92,9 @@ class JsonlStore:
         "slide_type": "content",
         "component_hint": "bullets",
         "speaker_notes": "",
+        "layout_plan": "",
+        "source_refs": [],
+        "assumptions": [],
     }
 
     def sync_outline_to_design_spec_count(

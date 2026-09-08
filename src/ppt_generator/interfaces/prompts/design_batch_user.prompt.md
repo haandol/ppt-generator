@@ -20,7 +20,9 @@ Color theme: {color_theme}
 <output_requirements>
 If this is a content slide, follow the five-layer hierarchy strictly:
 1. **Layout** — output `grid_layout` (regions / content_columns / content_rows) FIRST, then `cell_assignment.cells` (id / region / row / col / span / role). Declare every cell BEFORE any element.
-2. **Section** — output `design_doc` with `topic`, `layout_summary`, and `layout` (flat list of LayoutNode with `parent_id` references). Each section/group/component carries its bbox (`left_px`, `top_px`, `width_px`, `height_px`). Sibling bboxes must not overlap; child bboxes must fit inside parent.
+2. **Section** — output `design_doc` with non-empty `topic`, `layout_summary`, and
+   semantic `layout` nodes. Do not output node coordinates; the server derives them from
+   linked Content elements.
 3. **Content** — output `textboxes` / `shapes`, each referencing a cell via `grid_cell` AND a leaf component node via `component_id`.
 
 The response schema requires `grid_layout`, `cell_assignment`, and `design_doc` for content slides; omitting any will fail validation.

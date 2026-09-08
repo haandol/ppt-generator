@@ -13,7 +13,11 @@ from typing import TYPE_CHECKING
 
 from ppt_generator.interfaces.index_validation import require_positive_slide_index
 from ppt_generator.interfaces.spec_utils import lint_slide_spec
-from ppt_generator.interfaces.spec_utils.serializer import slide_spec_to_json
+from ppt_generator.interfaces.spec_utils.serializer import (
+    design_spec_to_json,
+    slide_spec_to_json,
+)
+from ppt_generator.interfaces.utils import parse_outline_json
 from ppt_generator.tools.design.edit_context import (
     decode_signed_context,
     encode_signed_context,
@@ -159,3 +163,86 @@ def _spec_fingerprint(spec) -> str:
     import hashlib
 
     return hashlib.sha256(slide_spec_to_json(spec).encode("utf-8")).hexdigest()
+
+
+def handle_prepare_deck_review(
+    deps: DesignDeps,
+    *,
+    project_id: str,
+) -> str:
+    """덱 전체의 근거·서사·반복을 검토하는 read-only 태스크를 조립한다."""
+    if deps.review_service is None:
+        raise ValueError("Review service is not configured.")
+    project_service = deps.project_service
+    _, project_dir = project_service.resolve_existing_project_dir(project_id)
+    outline_json = project_service.load_outline(project_dir)
+    outline = parse_outline_json(outline_json)
+    design_spec = project_service.load_design_spec(project_dir)
+    metadata = project_service.load_metadata(project_dir)
+    fingerprint = _deck_fingerprint(outline_json, design_spec)
+    task = deps.review_service.prepare_deck(
+        outline,
+        design_spec,
+        presentation_minutes=metadata.presentation_minutes,
+    )
+    task["project_id"] = project_id
+    task["review_context"] = encode_signed_context(
+        {
+            "kind": "deck_review",
+            "version": 1,
+            "project_id": project_id,
+            "fingerprint": fingerprint,
+            "slide_count": len(design_spec.slides),
+        },
+        project_dir,
+    )
+    return json.dumps(task, ensure_ascii=False)
+
+
+def handle_ingest_deck_review(
+    deps: DesignDeps,
+    *,
+    project_id: str,
+    review_json: str,
+    review_context: str,
+) -> str:
+    """덱 전체 review 결과를 검증해 의미 변경 필요 여부를 보고한다."""
+    if deps.review_service is None:
+        raise ValueError("Review service is not configured.")
+    project_service = deps.project_service
+    _, project_dir = project_service.resolve_existing_project_dir(project_id)
+    context = decode_signed_context(review_context, project_dir)
+    if (
+        context.get("kind") != "deck_review"
+        or context.get("version") != 1
+        or context.get("project_id") != project_id
+    ):
+        raise ValueError("review_context does not match deck review request")
+    outline_json = project_service.load_outline(project_dir)
+    design_spec = project_service.load_design_spec(project_dir)
+    if context.get("fingerprint") != _deck_fingerprint(outline_json, design_spec):
+        raise ValueError("Stale review_context: deck changed after prepare")
+
+    output = deps.review_service.ingest_deck(review_json)
+    slide_count = len(design_spec.slides)
+    for issue in output.issues:
+        if any(index > slide_count for index in issue.slide_indices):
+            raise ValueError("deck review issue references an invalid slide")
+    issues = [issue.model_dump() for issue in output.issues]
+    return json.dumps(
+        {
+            "project_id": project_id,
+            "has_high_severity": output.has_high_severity,
+            "issue_count": len(issues),
+            "issues": issues,
+            "requires_user_decision": output.has_high_severity,
+        },
+        ensure_ascii=False,
+    )
+
+
+def _deck_fingerprint(outline_json: str, design_spec) -> str:
+    import hashlib
+
+    payload = outline_json + "\n" + design_spec_to_json(design_spec)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()

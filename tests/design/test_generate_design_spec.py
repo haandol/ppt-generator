@@ -990,6 +990,14 @@ class TestIngestDesignDocDraft:
                 "footer_region": {"top_px": 664, "height_px": 24},
             },
             "tone": tone,
+            "anti_slop": {
+                "subject_specificity": "실제 제품 UI와 사용자 데이터를 사용한다.",
+                "visual_hierarchy": "한 슬라이드에 하나의 주장만 지배적으로 둔다.",
+                "layout_rhythm": "loud와 breathe를 교차하고 같은 구성을 반복하지 않는다.",
+                "decoration_policy": "정보 역할이 없는 장식을 제거한다.",
+                "content_grounding": "근거와 가정을 구분하고 generic filler를 쓰지 않는다.",
+                "max_consecutive_same_archetype": 2,
+            },
             "page_requests": page_requests or [],
         }
 
@@ -1018,11 +1026,12 @@ class TestIngestDesignDocDraft:
             ensure_ascii=False,
         )
         svc = DesignService()
-        summary, tone, page_requests = svc.ingest_design_doc_draft(payload)
+        summary, tone, anti_slop, page_requests = svc.ingest_design_doc_draft(payload)
 
         assert summary["background_color"] == "#0B1020"
         assert summary["title_font_pt"] == 34
         assert "전환" in tone
+        assert "subject_specificity" in anti_slop
         assert len(page_requests) == 1
         assert page_requests[0].number == 3
         assert page_requests[0].title == "제안"
@@ -1035,15 +1044,16 @@ class TestIngestDesignDocDraft:
             + "\n```"
         )
         svc = DesignService()
-        summary, tone, page_requests = svc.ingest_design_doc_draft(payload)
+        summary, tone, anti_slop, page_requests = svc.ingest_design_doc_draft(payload)
         assert summary["background_color"] == "#111111"
         assert tone == "x"
+        assert "decoration_policy" in anti_slop
         assert page_requests == []
 
     def test_empty_page_requests_is_valid(self) -> None:
         payload = json.dumps(self._payload(tone="절제된 톤"))
         svc = DesignService()
-        _, _, page_requests = svc.ingest_design_doc_draft(payload)
+        _, _, _, page_requests = svc.ingest_design_doc_draft(payload)
         assert page_requests == []
 
     def test_rejects_malformed_page_request(self) -> None:
@@ -1083,11 +1093,47 @@ class TestIngestSlideTypeInvariance:
                 "content_columns": 1,
                 "content_rows": 1,
             },
-            "cell_assignment": {"cells": []},
-            "design_doc": {"topic": "t", "layout_summary": "s", "layout": []},
+            "cell_assignment": {
+                "cells": [
+                    {
+                        "id": "c1",
+                        "region": "content",
+                        "row": 1,
+                        "col": 1,
+                    }
+                ]
+            },
+            "design_doc": {
+                "topic": "t",
+                "layout_summary": "s",
+                "layout": [
+                    {
+                        "id": "body",
+                        "parent_id": "",
+                        "kind": "section",
+                        "cell_id": "c1",
+                    },
+                    {
+                        "id": "body.text",
+                        "parent_id": "body",
+                        "kind": "component",
+                        "cell_id": "c1",
+                    },
+                ],
+            },
             "background_color": "#101010",
             "speaker_notes": "",
-            "textboxes": [],
+            "textboxes": [
+                {
+                    "left_px": 64,
+                    "top_px": 148,
+                    "width_px": 300,
+                    "height_px": 100,
+                    "grid_cell": "c1",
+                    "component_id": "body.text",
+                    "paragraphs": [{"runs": [{"text": "Body", "font_size_pt": 18}]}],
+                }
+            ],
             "shapes": [],
             "overflow": [],
         }
@@ -1114,6 +1160,7 @@ class TestIngestSlideTypeInvariance:
             "speaker_notes": "",
             "textboxes": [
                 {
+                    "component_id": "title.main",
                     "left_px": 64,
                     "top_px": 260,
                     "width_px": 1152,
@@ -1132,6 +1179,7 @@ class TestIngestSlideTypeInvariance:
                     ],
                 },
                 {
+                    "component_id": "title.subtitle",
                     "left_px": 64,
                     "top_px": 370,
                     "width_px": 1152,
@@ -1142,6 +1190,7 @@ class TestIngestSlideTypeInvariance:
                     ],
                 },
                 {
+                    "component_id": "title.presenter",
                     "left_px": 64,
                     "top_px": 560,
                     "width_px": 400,

@@ -99,7 +99,7 @@ def check_component_id_link(spec: PptxSlideSpec, result: SlideLintResult) -> Non
             result.violations.append(
                 LintViolation(
                     rule="component-id-link-orphan-leaf",
-                    severity="warning",
+                    severity="error",
                     message=(
                         f"design_doc.layout leaf {leaf_id!r} 가 어떤 textbox/shape 에서도 "
                         "component_id 로 참조되지 않습니다. 의도된 결과가 아니라면 element 를 "

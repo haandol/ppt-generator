@@ -107,6 +107,8 @@ class OutlineService:
                     slide_type=item.slide_type,
                     slide_index=i,
                     layout_plan=item.layout_plan,
+                    source_refs=list(item.source_refs),
+                    assumptions=list(item.assumptions),
                 )
             )
         return slides

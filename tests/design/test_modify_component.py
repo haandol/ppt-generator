@@ -89,10 +89,10 @@ def _full_content_slide() -> PptxSlideSpec:
             kind="section",
             role="right",
             cell_id="c2",
-            left_px=656,
-            top_px=148,
-            width_px=560,
-            height_px=400,
+            left_px=700,
+            top_px=300,
+            width_px=200,
+            height_px=100,
             children=[
                 LayoutNode(
                     id="right.box",
@@ -263,7 +263,7 @@ class TestFindElementHelpers:
         assert right.children[0].left_px == 720.0
         assert right.children[0].width_px == 160.0
         # 부모 right 자체 bbox 는 변경 없음
-        assert right.left_px == 656
+        assert right.left_px == 700
 
     def test_replace_node_bbox_no_match_returns_unchanged(self) -> None:
         spec = _full_content_slide()
@@ -272,7 +272,7 @@ class TestFindElementHelpers:
         )
         # 동일 트리 (변경 없음)
         right = [n for n in new_layout if n.id == "right"][0]
-        assert right.left_px == 656
+        assert right.left_px == 700
 
 
 # ---------------------------------------------------------------------------
@@ -383,8 +383,9 @@ class TestDesignServiceModifyComponent:
         right_box = [c for c in right.children if c.id == "right.box"][0]
         assert right_box.left_px == 720
         assert right_box.width_px == 160
-        # 부모/형제 노드는 그대로
-        assert right.left_px == 656
+        # 부모 section bbox도 자식 합집합으로 다시 파생
+        assert right.left_px == 720
+        assert right.width_px == 160
         left = [n for n in new_spec.design_doc.layout if n.id == "left"][0]
         assert left.left_px == 64
 

@@ -4,7 +4,7 @@ Date: 2026-05-26 (split from 0011 결정 7/8/11)
 
 ## Status
 
-Accepted (2026-07-21)
+Accepted (2026-09-08)
 
 ## Context
 
@@ -17,6 +17,13 @@ Accepted (2026-07-21)
 - lint rule 이 새로 추가됐는데 `RULE_LAYER_MAP` 등록이 누락되어 `"content"` default 로 fallback. layer 별 단계적 검증이 잘못된 layer 에서 일어남.
 
 세 케이스 모두 0011 의 결정에는 모순되지 않지만 *실행 차원에서* 결정이 깨진다. 본 ADR 은 데이터 무결성 약속을 명시 결정으로 분리해 강제한다.
+
+## Decision Drivers
+
+- LLM이 출력하지 않는 파생 메타데이터는 서버가 일관되게 계산해야 한다.
+- 의미 링크와 렌더 요소의 1:1 관계는 저장 전에 검증되어야 한다.
+- 부분 수정은 허용된 필드 외의 콘텐츠와 메타데이터를 보존해야 한다.
+- 새 필드가 추가되어도 정리·수정 경로에서 조용히 유실되지 않아야 한다.
 
 ## Decision
 
@@ -65,6 +72,23 @@ modify_component 같은 도구가 LLM 으로부터 단일 textbox/shape 을 통�
 기존 값을 유지한다. 특히 Visual QA는 issue가 지목한 시각 속성만 변경하고 나머지
 렌더 순서와 계층 링크를 보존한다.
 
+### 결정 4 — Section bbox는 저장 전에 서버가 파생한다
+
+content 응답의 의미 트리는 bbox를 받지 않는다. 서버는 component_id로 연결된 실제
+element의 bbox를 component leaf에 복사하고, 상위 group과 section은 자식 bbox의
+합집합으로 계산한다. 파생 결과는 저장되는 DesignSpec에 포함되어 기존 부분 수정과
+조회 흐름에서 그대로 사용할 수 있다.
+
+파생 전에 다음을 거부한다.
+
+- 비어 있는 topic, layout_summary 또는 layout
+- root section이나 component leaf가 없는 트리
+- 의미 있는 element의 누락된 component_id 또는 grid_cell
+- 한 element가 존재하지 않는 leaf나 cell을 참조하는 경우
+- component leaf가 0개 또는 2개 이상의 element에 연결된 경우
+
+장식 전용 element는 component_id와 grid_cell을 생략할 수 있다.
+
 ## 대안 검토
 
 | 대안 | 채택하지 않은 이유 |
@@ -72,6 +96,7 @@ modify_component 같은 도구가 LLM 으로부터 단일 textbox/shape 을 통�
 | dataclass 생성을 그대로 두고 누락 시 lint 로 잡기 | 시점이 늦음 — render/save 후 발견되면 이미 회귀 |
 | LLM schema 에 z_index/grid_cell 도 포함시켜 LLM 이 다시 채우게 | LLM 이 의도 없는 z_index 를 만들어 렌더 순서가 매번 흔들림 — 오히려 회귀 |
 | RULE_LAYER_MAP 등록을 자동 추론 (rule 이름 prefix 매칭 등) | 분류가 의미적이라 이름만으로 결정 불가, 명시 등록이 더 안전 |
+| Section bbox를 LLM이 element bbox와 함께 반복 출력 | 같은 좌표가 두 곳에서 어긋날 수 있고 스키마가 비대해져 제외 |
 
 ## Consequences
 
@@ -80,11 +105,14 @@ modify_component 같은 도구가 LLM 으로부터 단일 textbox/shape 을 통�
 - 5단 계층 필드 누락이 *원천적으로* 일어날 수 없다 (`replace()` 패턴 + 자동 검증 테스트).
 - 새 lint rule 추가 시 layer 분류를 강제로 의식하게 됨 (테스트 실패가 가이드).
 - 부분 수정 도구가 늘어도 비-design 메타 보존 정책이 자동 적용.
+- content 응답이 생성한 한 벌의 좌표에서 Section bbox가 결정론적으로 재구성됨.
+- 빈 design_doc이나 누락된 의미 링크가 저장 전에 차단됨.
 
 ### Negative / Risks
 
 - `replace()` 패턴 은 dataclass frozen 인스턴스에 한해 동작. 새 필드 추가 시 default 값을 잘 설정해야 의도치 않은 누락을 막음.
 - `cross` layer 분류는 의미적이라 새 규칙이 어디 속하는지 사람이 판단해야 함 — 명백하지 않은 케이스에서 분류가 흔들릴 수 있음.
+- bbox 파생은 tree와 element link가 완전해야 하므로 기존 느슨한 응답과 호환되지 않음.
 
 ## References
 

@@ -18,6 +18,7 @@ from ppt_generator.interfaces.line_geometry import (
     ARROW_ENDPOINT_BOUNDARY_TOLERANCE_PX,
     line_endpoints,
 )
+from ppt_generator.interfaces.layout_derivation import derive_layout_bboxes
 from ppt_generator.interfaces.schemas import (
     DesignDoc,
     GridCell,
@@ -30,6 +31,26 @@ from ppt_generator.interfaces.schemas import (
     PptxTextRun,
 )
 
+ComponentHint = Literal[
+    "bullets",
+    "two_column",
+    "vs_comparison",
+    "step_cards",
+    "code_block",
+    "arch_diagram",
+    "pipeline",
+    "quote",
+    "summary_grid",
+    "agenda",
+    "info_cards",
+    "feature_list",
+    "cta",
+    "process_flow",
+    "quote_code",
+    "concept_list",
+    "custom",
+]
+
 
 class SlideOutlineOutput(BaseModel):
     """클라이언트가 생성하는 단일 슬라이드 아웃라인."""
@@ -38,10 +59,12 @@ class SlideOutlineOutput(BaseModel):
 
     title: str
     content_summary: str
-    component_hint: str
+    component_hint: ComponentHint
     slide_type: Literal["title", "closing", "content"]
     layout_plan: str
     speaker_notes: str
+    source_refs: list[str]
+    assumptions: list[str]
     slide_index: int | None = None
 
 
@@ -51,6 +74,23 @@ class OutlineOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     slides: list[SlideOutlineOutput]
+
+    @model_validator(mode="after")
+    def validate_required_composition(self) -> "OutlineOutput":
+        """필수 발표 골격과 슬라이드 수를 저장 전에 검증한다."""
+        count = len(self.slides)
+        if not 4 <= count <= 20:
+            raise ValueError("outline must contain 4~20 slides")
+        if self.slides[0].slide_type != "title":
+            raise ValueError("slide 1 must be title")
+        agenda = self.slides[1]
+        if agenda.slide_type != "content" or agenda.component_hint != "agenda":
+            raise ValueError("slide 2 must be a content agenda slide")
+        if self.slides[-1].slide_type != "closing":
+            raise ValueError("last slide must be closing")
+        if any(slide.slide_type != "content" for slide in self.slides[2:-1]):
+            raise ValueError("slides between agenda and closing must be content")
+        return self
 
 
 class DesignRegionOutput(BaseModel):
@@ -101,6 +141,19 @@ class DesignPageRequestOutput(BaseModel):
     request: str = Field(min_length=1)
 
 
+class AntiSlopGuardrailsOutput(BaseModel):
+    """DESIGN.md에 저장되는 덱별 AI Slop 방지 기준."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    subject_specificity: str = Field(min_length=1)
+    visual_hierarchy: str = Field(min_length=1)
+    layout_rhythm: str = Field(min_length=1)
+    decoration_policy: str = Field(min_length=1)
+    content_grounding: str = Field(min_length=1)
+    max_consecutive_same_archetype: Literal[2] = 2
+
+
 class DesignDocDraftOutput(BaseModel):
     """DESIGN.md 초안 생성 단계의 전체 출력."""
 
@@ -108,6 +161,7 @@ class DesignDocDraftOutput(BaseModel):
 
     theme: DesignThemeOutput
     tone: str
+    anti_slop: AntiSlopGuardrailsOutput
     page_requests: list[DesignPageRequestOutput]
 
 
@@ -281,8 +335,8 @@ class LayoutNodeOutput(BaseModel):
       - "group": section 안의 중간 묶음 (옵션)
       - "component": 리프. textbox/shape 가 component_id 로 참조
 
-    좌표 필드는 노드의 점유 영역 (bounding box). 부모 bbox 안에 자식 bbox 가
-    포함되어야 하며, 같은 부모 아래 형제 bbox 는 겹치면 안 된다 (lint 검증).
+    bbox 는 LLM 응답에 포함하지 않는다. 서버가 component_id 로 연결된 실제 element
+    좌표에서 leaf → group → section 순으로 파생한다.
     """
 
     id: str
@@ -293,10 +347,6 @@ class LayoutNodeOutput(BaseModel):
     )
     description: str | None = ""  # 1-2 문장 의미 설명
     cell_id: str | None = ""  # GridPlan.cells[].id (없거나 null 가능)
-    left_px: float | None = None
-    top_px: float | None = None
-    width_px: float | None = None
-    height_px: float | None = None
 
 
 class DesignDocOutput(BaseModel):
@@ -307,9 +357,9 @@ class DesignDocOutput(BaseModel):
     `layout` 은 flat 노드 리스트. 변환 시 parent_id 로 트리 재구성.
     """
 
-    topic: str = ""  # 슬라이드 한 줄 주제
-    layout_summary: str = ""  # "좌 c1=설명 카드 3개, 우 c2=다이어그램" 식의 한 문단
-    layout: list[LayoutNodeOutput] = Field(default_factory=list)
+    topic: str = Field(min_length=1)
+    layout_summary: str = Field(min_length=1)
+    layout: list[LayoutNodeOutput] = Field(min_length=1)
 
     @model_validator(mode="after")
     def validate_layout_references(self) -> "DesignDocOutput":
@@ -318,6 +368,8 @@ class DesignDocOutput(BaseModel):
             raise ValueError(f"layout node ids must be unique: {duplicates}")
 
         seen: set[str] = set()
+        roots = 0
+        child_count: Counter[str] = Counter()
         for node in self.layout:
             parent_id = node.parent_id or ""
             if parent_id and parent_id not in seen:
@@ -325,7 +377,22 @@ class DesignDocOutput(BaseModel):
                     f"layout node {node.id!r} references missing or later parent "
                     f"{parent_id!r}"
                 )
+            if not parent_id:
+                roots += 1
+                if node.kind != "section":
+                    raise ValueError("root layout nodes must be sections")
+            else:
+                child_count[parent_id] += 1
             seen.add(node.id)
+        for node in self.layout:
+            if node.kind in {"section", "group"} and child_count[node.id] == 0:
+                raise ValueError(f"{node.kind} node {node.id!r} must have children")
+            if node.kind == "component" and child_count[node.id] > 0:
+                raise ValueError(f"component node {node.id!r} cannot have children")
+        if roots == 0:
+            raise ValueError("design_doc must contain at least one root section")
+        if not self.topic.strip() or not self.layout_summary.strip():
+            raise ValueError("design_doc topic and layout_summary must be non-empty")
         return self
 
 
@@ -401,6 +468,68 @@ class VisualQAOutput(BaseModel):
         return self
 
 
+VisualQAPatchField = Literal[
+    "left_px",
+    "top_px",
+    "width_px",
+    "height_px",
+    "padding_left_px",
+    "padding_right_px",
+    "padding_top_px",
+    "padding_bottom_px",
+    "line_spacing_pt",
+    "vertical_alignment",
+    "autofit",
+    "autofit_mode",
+    "fill_color",
+    "border_color",
+    "text_color",
+    "text_size_pt",
+    "z_index",
+    "font_size_pt",
+    "color",
+    "background_color",
+]
+
+
+class VisualQAPatchOperation(BaseModel):
+    """검증된 시각 이슈가 허용한 단일 replace operation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    element_type: Literal["slide", "textbox", "shape"]
+    element_index: int = Field(default=-1, ge=-1)
+    field: VisualQAPatchField
+    value: str | float | int | bool | None
+    paragraph_index: int | None = Field(default=None, ge=0)
+    run_index: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def validate_target_shape(self) -> "VisualQAPatchOperation":
+        run_field = self.field in {"font_size_pt", "color"}
+        if self.element_type == "slide":
+            if self.element_index != -1 or self.field != "background_color":
+                raise ValueError("slide patch only supports background_color")
+            if self.paragraph_index is not None or self.run_index is not None:
+                raise ValueError("slide patch cannot target a paragraph run")
+        elif self.element_index < 0:
+            raise ValueError("element patch requires element_index >= 0")
+        if run_field:
+            if self.paragraph_index is None or self.run_index is None:
+                raise ValueError("run patch requires paragraph_index and run_index")
+        elif self.paragraph_index is not None or self.run_index is not None:
+            raise ValueError("element field patch cannot target a paragraph run")
+        return self
+
+
+class VisualQAFixPatchOutput(BaseModel):
+    """Visual QA 수정 결과 — 전체 spec이 아닌 허용 필드 replace 목록."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    operations: list[VisualQAPatchOperation] = Field(default_factory=list)
+
+
 def _convert_flat_layout(flat_nodes: list["LayoutNodeOutput"]) -> list[LayoutNode]:
     """Flat 노드 리스트(parent_id 참조) 를 트리 구조 LayoutNode 리스트로 재구성한다.
 
@@ -418,10 +547,6 @@ def _convert_flat_layout(flat_nodes: list["LayoutNodeOutput"]) -> list[LayoutNod
             role=n.role or "",
             description=n.description or "",
             cell_id=n.cell_id or "",
-            left_px=n.left_px,
-            top_px=n.top_px,
-            width_px=n.width_px,
-            height_px=n.height_px,
             children=[],
         )
         if n.id in by_id:
@@ -675,10 +800,11 @@ class _BaseSlideSpecOutput(BaseModel):
             )
         design_doc: DesignDoc | None = None
         if self.design_doc is not None:
+            layout = _convert_flat_layout(self.design_doc.layout)
             design_doc = DesignDoc(
                 topic=self.design_doc.topic,
                 layout_summary=self.design_doc.layout_summary,
-                layout=_convert_flat_layout(self.design_doc.layout),
+                layout=derive_layout_bboxes(layout, textboxes, shapes),
             )
         return PptxSlideSpec(
             background_color=self.background_color,
@@ -740,6 +866,52 @@ class ContentSlideSpecOutput(_BaseSlideSpecOutput):
 
         from ppt_generator.interfaces.spec_utils import lint_slide_spec
 
+        declared_cells = {cell.id for cell in self.cell_assignment.cells}
+        leaf_ids = {
+            node.id for node in self.design_doc.layout if node.kind == "component"
+        }
+        refs: list[str] = []
+        for index, textbox in enumerate(self.textboxes):
+            if not textbox.component_id:
+                raise ValueError(f"textbox[{index}] component_id is required")
+            if not textbox.grid_cell:
+                raise ValueError(f"textbox[{index}] grid_cell is required")
+            refs.append(textbox.component_id)
+        for index, shape in enumerate(self.shapes):
+            has_text = _shape_output_has_text(shape)
+            if (
+                shape.shape_type == "line"
+                or (
+                    not has_text
+                    and min(abs(shape.width_px), abs(shape.height_px)) <= 10
+                )
+                or (not has_text and not shape.component_id and not shape.grid_cell)
+            ):
+                continue
+            if not shape.component_id:
+                raise ValueError(f"shape[{index}] component_id is required")
+            if not shape.grid_cell:
+                raise ValueError(f"shape[{index}] grid_cell is required")
+            refs.append(shape.component_id)
+        missing_leaves = sorted(set(refs) - leaf_ids)
+        if missing_leaves:
+            raise ValueError(f"component ids must reference leaves: {missing_leaves}")
+        counts = Counter(refs)
+        unmatched = sorted(leaf_id for leaf_id in leaf_ids if counts[leaf_id] != 1)
+        if unmatched:
+            raise ValueError(
+                f"every component leaf must map to exactly one element: {unmatched}"
+            )
+        unknown_cells = sorted(
+            {
+                element.grid_cell
+                for element in [*self.textboxes, *self.shapes]
+                if element.grid_cell and element.grid_cell not in declared_cells
+            }
+        )
+        if unknown_cells:
+            raise ValueError(f"grid cells must be declared: {unknown_cells}")
+
         spec = replace(self.to_dataclass(), slide_type="content")
         result = lint_slide_spec(
             spec,
@@ -760,7 +932,7 @@ class ContentSlideSpecOutput(_BaseSlideSpecOutput):
 
 
 class SimpleSlideSpecOutput(_BaseSlideSpecOutput):
-    """title/closing 등 fixed special layout 슬라이드용 LLM 응답 모델.
+    """title/closing 등 역할 기반 특수 슬라이드용 LLM 응답 모델.
 
     결정 2: title/closing 슬라이드는 grid/design_doc 단계 omit 가능.
     """
@@ -770,29 +942,7 @@ class SimpleSlideSpecOutput(_BaseSlideSpecOutput):
     design_doc: DesignDocOutput | None = None
 
 
-def _require_bbox(
-    element: TextBoxOutput | ShapeOutput,
-    expected: tuple[float, float, float, float],
-    label: str,
-) -> None:
-    actual = (
-        element.left_px,
-        element.top_px,
-        element.width_px,
-        element.height_px,
-    )
-    if actual != expected:
-        raise ValueError(f"{label} bbox must be {expected}, got {actual}")
-
-
-def _require_text_style(
-    textbox: TextBoxOutput,
-    *,
-    label: str,
-    min_font_pt: int,
-    max_font_pt: int,
-    bold: bool = False,
-) -> None:
+def _require_non_empty_text(textbox: TextBoxOutput, *, label: str) -> None:
     runs = [
         run
         for paragraph in textbox.paragraphs
@@ -801,163 +951,66 @@ def _require_text_style(
     ]
     if not runs:
         raise ValueError(f"{label} must contain non-empty text")
-    for run in runs:
-        if (
-            run.font_size_pt is None
-            or not min_font_pt <= run.font_size_pt <= max_font_pt
-        ):
-            raise ValueError(f"{label} font size must be {min_font_pt}~{max_font_pt}pt")
-        if bold and not run.bold:
-            raise ValueError(f"{label} text must be bold")
 
 
-def _require_divider(
-    shapes: list[ShapeOutput],
+def _textbox_for_role(
+    textboxes: list[TextBoxOutput],
+    role: str,
     *,
-    expected_bbox: tuple[float, float, float, float],
-    label: str,
+    required: bool,
+) -> TextBoxOutput | None:
+    matches = [textbox for textbox in textboxes if textbox.component_id == role]
+    if len(matches) > 1:
+        raise ValueError(f"{role} must appear at most once")
+    if required and not matches:
+        raise ValueError(f"{role} textbox is required")
+    return matches[0] if matches else None
+
+
+def _validate_simple_canvas(
+    textboxes: list[TextBoxOutput],
+    shapes: list[ShapeOutput],
 ) -> None:
-    divider = next(
-        (
-            shape
-            for shape in shapes
-            if shape.shape_type == "rectangle"
-            and (
-                shape.left_px,
-                shape.top_px,
-                shape.width_px,
-                shape.height_px,
-            )
-            == expected_bbox
-        ),
-        None,
-    )
-    if divider is None:
-        raise ValueError(f"{label} divider rectangle must use bbox {expected_bbox}")
+    """특수 슬라이드의 자유 배치를 허용하되 캔버스 밖 결과는 거부한다."""
+    for label, elements in (("textbox", textboxes), ("shape", shapes)):
+        for index, element in enumerate(elements):
+            left = min(element.left_px, element.left_px + element.width_px)
+            right = max(element.left_px, element.left_px + element.width_px)
+            top = min(element.top_px, element.top_px + element.height_px)
+            bottom = max(element.top_px, element.top_px + element.height_px)
+            if left < 0 or top < 0 or right > 1280 or bottom > 720:
+                raise ValueError(f"{label}[{index}] must stay inside the canvas")
 
 
 class TitleSlideSpecOutput(SimpleSlideSpecOutput):
-    """title 고정 레이아웃 계약을 검증하는 응답 모델."""
+    """title의 의미 역할과 렌더 가능 범위를 검증하는 응답 모델."""
 
     @model_validator(mode="after")
     def validate_title_layout(self) -> "TitleSlideSpecOutput":
-        if self.background_color is not None:
-            raise ValueError("title background_color must be null")
-        if len(self.textboxes) < 3:
-            raise ValueError(
-                "title requires main title, subtitle, and presenter info textboxes"
-            )
-
-        main_title, subtitle, presenter = self.textboxes[:3]
-        if main_title.height_px not in {80, 160}:
-            raise ValueError("title main title height must be 80px or 160px")
-        _require_bbox(
-            main_title,
-            (64, 260, 1152, main_title.height_px),
-            "title main title",
-        )
-        if main_title.vertical_alignment != "middle":
-            raise ValueError("title main title vertical_alignment must be middle")
-        _require_text_style(
-            main_title,
-            label="title main title",
-            min_font_pt=40,
-            max_font_pt=44,
-            bold=True,
-        )
-
-        two_line = main_title.height_px == 160
-        _require_bbox(
-            subtitle,
-            (64, 450 if two_line else 370, 1152, 100),
-            "title subtitle",
-        )
-        if subtitle.vertical_alignment != "top":
-            raise ValueError("title subtitle vertical_alignment must be top")
-        _require_text_style(
-            subtitle,
-            label="title subtitle",
-            min_font_pt=14,
-            max_font_pt=18,
-        )
-        _require_divider(
-            self.shapes,
-            expected_bbox=(64, 430 if two_line else 350, 80, 4),
-            label="title",
-        )
-
-        _require_bbox(presenter, (64, 560, 400, 96), "title presenter info")
-        if presenter.vertical_alignment != "bottom":
-            raise ValueError("title presenter info vertical_alignment must be bottom")
-        if len(presenter.paragraphs) != 3 or any(
-            not any(run.text.strip() for run in paragraph.runs)
-            for paragraph in presenter.paragraphs
-        ):
-            raise ValueError(
-                "title presenter info must contain exactly 3 non-empty paragraphs"
-            )
-        _require_text_style(
-            presenter,
-            label="title presenter info",
-            min_font_pt=18,
-            max_font_pt=18,
-        )
+        main_title = _textbox_for_role(self.textboxes, "title.main", required=True)
+        assert main_title is not None
+        _require_non_empty_text(main_title, label="title.main")
+        for role in ("title.subtitle", "title.presenter"):
+            textbox = _textbox_for_role(self.textboxes, role, required=False)
+            if textbox is not None:
+                _require_non_empty_text(textbox, label=role)
+        _validate_simple_canvas(self.textboxes, self.shapes)
         return self
 
 
 class ClosingSlideSpecOutput(SimpleSlideSpecOutput):
-    """closing 고정 레이아웃 계약을 검증하는 응답 모델."""
+    """closing의 의미 역할과 렌더 가능 범위를 검증하는 응답 모델."""
 
     @model_validator(mode="after")
     def validate_closing_layout(self) -> "ClosingSlideSpecOutput":
-        if self.background_color is not None:
-            raise ValueError("closing background_color must be null")
-        if len(self.textboxes) < 2:
-            raise ValueError(
-                "closing requires thank-you message and Q&A subtitle textboxes"
-            )
-
-        thank_you, subtitle = self.textboxes[:2]
-        _require_bbox(thank_you, (64, 260, 1152, 80), "closing thank-you message")
-        if thank_you.vertical_alignment != "middle":
-            raise ValueError(
-                "closing thank-you message vertical_alignment must be middle"
-            )
-        _require_text_style(
-            thank_you,
-            label="closing thank-you message",
-            min_font_pt=40,
-            max_font_pt=44,
-            bold=True,
-        )
-        _require_divider(
-            self.shapes,
-            expected_bbox=(64, 350, 80, 4),
-            label="closing",
-        )
-        _require_bbox(subtitle, (64, 370, 1152, 60), "closing Q&A subtitle")
-        if subtitle.vertical_alignment != "top":
-            raise ValueError("closing Q&A subtitle vertical_alignment must be top")
-        _require_text_style(
-            subtitle,
-            label="closing Q&A subtitle",
-            min_font_pt=16,
-            max_font_pt=20,
-        )
-
-        if len(self.textboxes) >= 3:
-            contact = self.textboxes[2]
-            _require_bbox(contact, (64, 450, 1000, 120), "closing contact/summary")
-            if contact.vertical_alignment != "top":
-                raise ValueError(
-                    "closing contact/summary vertical_alignment must be top"
-                )
-            _require_text_style(
-                contact,
-                label="closing contact/summary",
-                min_font_pt=14,
-                max_font_pt=16,
-            )
+        message = _textbox_for_role(self.textboxes, "closing.message", required=True)
+        assert message is not None
+        _require_non_empty_text(message, label="closing.message")
+        for role in ("closing.action", "closing.contact"):
+            textbox = _textbox_for_role(self.textboxes, role, required=False)
+            if textbox is not None:
+                _require_non_empty_text(textbox, label=role)
+        _validate_simple_canvas(self.textboxes, self.shapes)
         return self
 
 
@@ -1048,6 +1101,44 @@ class DesignReviewOutput(BaseModel):
     @model_validator(mode="after")
     def derive_high_severity(self) -> "DesignReviewOutput":
         """검증된 issue 목록에서 high-severity 여부를 계산한다."""
+        self.has_high_severity = any(issue.severity == "high" for issue in self.issues)
+        return self
+
+
+class DeckReviewIssue(BaseModel):
+    """덱 전체의 근거·서사·반복 문제."""
+
+    issue_type: Literal[
+        "unsupported_claim",
+        "narrative_gap",
+        "duplicate_content",
+        "terminology_drift",
+        "agenda_mismatch",
+        "conclusion_mismatch",
+        "time_density",
+    ]
+    severity: Literal["high", "medium"]
+    slide_indices: list[int] = Field(min_length=1)
+    description: str
+    suggested_action: str
+
+    @model_validator(mode="after")
+    def validate_slide_indices(self) -> "DeckReviewIssue":
+        if any(index < 1 for index in self.slide_indices):
+            raise ValueError("deck review slide_indices must be 1-based")
+        if len(set(self.slide_indices)) != len(self.slide_indices):
+            raise ValueError("deck review slide_indices must be unique")
+        return self
+
+
+class DeckReviewOutput(BaseModel):
+    """덱 전체 read-only review 응답."""
+
+    has_high_severity: bool
+    issues: list[DeckReviewIssue] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def derive_high_severity(self) -> "DeckReviewOutput":
         self.has_high_severity = any(issue.severity == "high" for issue in self.issues)
         return self
 

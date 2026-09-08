@@ -26,7 +26,9 @@ from ppt_generator.tools.design.handlers.modification import (
     handle_prepare_slide_edit,
 )
 from ppt_generator.tools.design.handlers.review import (
+    handle_ingest_deck_review,
     handle_ingest_review,
+    handle_prepare_deck_review,
     handle_prepare_review,
 )
 from ppt_generator.tools.design.review_service import DesignReviewService
@@ -50,7 +52,7 @@ def register_design_tools(
     )
 
     # ------------------------------------------------------------------
-    # DESIGN.md 초안 (theme + tone + page_requests)
+    # DESIGN.md 초안 (theme + tone + anti_slop + page_requests)
     # ------------------------------------------------------------------
 
     @mcp.tool()
@@ -64,7 +66,7 @@ def register_design_tools(
         No LLM call. If DESIGN.md already exists, returns {"skip": true} — reuse the
         existing design intent (do not regenerate). Otherwise returns system_prompt,
         user_prompt, response_schema, and project_id. **Generate the draft JSON
-        (theme + tone + page_requests) matching response_schema, then call
+        (theme + tone + anti_slop + page_requests) matching response_schema, then call
         `ingest_design_doc_draft`.**
 
         Call this ONCE before generating slides, so every slide shares one design
@@ -98,7 +100,7 @@ def register_design_tools(
 
         Args:
             project_id: Project ID (required).
-            draft_json: Draft JSON (theme + tone + page_requests) from the client.
+            draft_json: Draft JSON (theme + tone + anti_slop + page_requests) from the client.
             color_theme: Color theme (stored into the theme).
 
         Returns:
@@ -515,6 +517,30 @@ def register_design_tools(
             deps,
             project_id=project_id,
             slide_index=slide_index,
+            review_json=review_json,
+            review_context=review_context,
+        )
+
+    @mcp.tool()
+    def prepare_deck_review(project_id: str) -> str:
+        """Prepares one read-only grounding and narrative review for the whole deck.
+
+        Generate JSON matching the returned response_schema, then call
+        `ingest_deck_review`. This checks evidence, assumptions, duplicate content,
+        terminology, mandatory agenda/body/closing alignment, and time density.
+        """
+        return handle_prepare_deck_review(deps, project_id=project_id)
+
+    @mcp.tool()
+    def ingest_deck_review(
+        project_id: str,
+        review_json: str,
+        review_context: str,
+    ) -> str:
+        """Validates a deck review result and reports semantic issues without editing."""
+        return handle_ingest_deck_review(
+            deps,
+            project_id=project_id,
             review_json=review_json,
             review_context=review_context,
         )

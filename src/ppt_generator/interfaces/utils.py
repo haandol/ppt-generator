@@ -54,6 +54,8 @@ def parse_outline_json(outline_json: str) -> OutlineResponse:
                 slide_type=item.get("slide_type", "content"),
                 slide_index=item.get("slide_index", i),
                 layout_plan=item.get("layout_plan", ""),
+                source_refs=list(item.get("source_refs", [])),
+                assumptions=list(item.get("assumptions", [])),
             )
         )
     return OutlineResponse(slides=slides)

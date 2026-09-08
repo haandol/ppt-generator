@@ -10,6 +10,7 @@ from typing import Literal, get_args
 import pytest
 
 from ppt_generator.interfaces.constants import (
+    DECK_REVIEW_SYSTEM_PROMPT,
     DESIGN_REVIEW_SYSTEM_PROMPT,
     DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE,
     DESIGN_SPEC_SYSTEM_PROMPTS,
@@ -21,15 +22,18 @@ from ppt_generator.interfaces.constants import (
 from ppt_generator.interfaces.llm_output_models import (
     ClosingSlideSpecOutput,
     ContentSlideSpecOutput,
+    DeckReviewIssue,
     DesignReviewIssue,
     ShapeOutput,
     SimpleSlideSpecOutput,
     TextBoxOutput,
     TitleSlideSpecOutput,
     VisualQAIssue,
+    VisualQAFixPatchOutput,
     VisualQAContentSlideSpecOutput,
     VisualQASimpleSlideSpecOutput,
 )
+from ppt_generator.interfaces.prompts import get_design_spec_system_prompt
 
 
 def _literal_values(model, field_name: str) -> set[str]:
@@ -77,10 +81,24 @@ def test_design_review_rule_ids_match_prompt() -> None:
 
 
 def test_visual_qa_fix_prompt_preserves_content_and_structure() -> None:
-    assert "Do NOT modify slide content" in VISUAL_QA_FIX_SYSTEM_PROMPT
-    assert "Preserve the number and array order" in VISUAL_QA_FIX_SYSTEM_PROMPT
+    assert "minimal list" in VISUAL_QA_FIX_SYSTEM_PROMPT
+    assert "Do not add, remove, move, or reorder" in VISUAL_QA_FIX_SYSTEM_PROMPT
     assert "move excess content to speaker_notes" not in VISUAL_QA_FIX_SYSTEM_PROMPT
     assert "trim text" not in VISUAL_QA_FIX_SYSTEM_PROMPT
+    schema = json.dumps(VisualQAFixPatchOutput.model_json_schema())
+    assert '"operations"' in schema
+    assert '"z_index"' in schema
+
+
+def test_deck_review_issue_types_match_prompt() -> None:
+    section = re.search(
+        r"<issue_types>\n(.*?)\n</issue_types>",
+        DECK_REVIEW_SYSTEM_PROMPT,
+        re.S,
+    )
+    assert section
+    prompt_values = set(re.findall(r"^- ([a-z_]+):", section.group(1), re.M))
+    assert prompt_values == _literal_values(DeckReviewIssue, "issue_type")
 
 
 def test_component_hint_docs_table_matches_outline_prompt() -> None:
@@ -200,11 +218,17 @@ def test_prompt_examples_validate_against_response_model(
         | type[ClosingSlideSpecOutput]
     ),
 ) -> None:
+    prompt = (
+        get_design_spec_system_prompt("content", "two_column")
+        if slide_type == "content"
+        else DESIGN_SPEC_SYSTEM_PROMPTS[slide_type]
+    )
     examples = re.findall(
         r"<layout_example[^>]*>\s*(\{.*?\})\s*</layout_example>",
-        DESIGN_SPEC_SYSTEM_PROMPTS[slide_type],
+        prompt,
         re.S,
     )
     assert examples
     for example in examples:
         model.model_validate(json.loads(example))
+    (DeckReviewIssue,)

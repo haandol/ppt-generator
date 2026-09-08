@@ -40,10 +40,12 @@ class TestRoundTrip:
         md = render_design_doc_md(
             FULL_SUMMARY,
             tone="차분한 기업 톤.",
+            anti_slop="- subject_specificity: 실제 제품 UI를 사용",
             page_requests=[PageRequest(3, "아키텍처 개요", "좌우 비교 레이아웃으로.")],
         )
         doc = parse_design_doc_md(md)
         assert doc.tone == "차분한 기업 톤."
+        assert "실제 제품 UI" in doc.anti_slop
         assert len(doc.page_requests) == 1
         assert doc.page_requests[0].number == 3
         assert doc.page_requests[0].title == "아키텍처 개요"
@@ -55,6 +57,7 @@ class TestParserRobustness:
         doc = parse_design_doc_md("")
         assert doc.design_summary == {}
         assert doc.tone == ""
+        assert doc.anti_slop == ""
         assert doc.page_requests == []
 
     def test_unknown_keys_and_sections_ignored(self) -> None:
@@ -77,11 +80,13 @@ class TestParserRobustness:
         md = (
             "## Design System\n- theme: light\n\n"
             "## Tone & Direction\n자유 산문.\n\n"
+            "## AI Slop Guardrails\n- layout_rhythm: 같은 레이아웃 반복 금지\n\n"
             "## Per-slide Requests\n### 2. Intro\n특별 요청.\n"
         )
         doc = parse_design_doc_md(md)
         assert doc.design_summary == {"color_theme": "light"}
         assert doc.tone == "자유 산문."
+        assert "layout_rhythm" in doc.anti_slop
         assert doc.page_requests[0].number == 2
 
     def test_garbage_int_value_is_skipped(self) -> None:
@@ -117,11 +122,13 @@ class TestDirectives:
             render_design_doc_md(
                 FULL_SUMMARY,
                 tone="기업 톤.",
+                anti_slop="- decoration_policy: 기능 없는 장식 제거",
                 page_requests=[PageRequest(2, "본론", "다이어그램 강조.")],
             )
         )
         out = doc.directives_for(2, "본론")
         assert "기업 톤." in out
+        assert "기능 없는 장식 제거" in out
         assert "다이어그램 강조." in out
 
     def test_directives_tone_only_for_unmatched_slide(self) -> None:
@@ -129,6 +136,7 @@ class TestDirectives:
             render_design_doc_md(
                 FULL_SUMMARY,
                 tone="기업 톤.",
+                anti_slop="- subject_specificity: 실제 데이터 사용",
                 page_requests=[PageRequest(2, "본론", "다이어그램 강조.")],
             )
         )

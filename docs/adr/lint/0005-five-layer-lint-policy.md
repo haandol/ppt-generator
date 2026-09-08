@@ -4,7 +4,7 @@ Date: 2026-05-26 (split from design/0011 결정 12/13)
 
 ## Status
 
-Accepted (2026-05-26)
+Accepted (2026-09-08)
 
 ## Context
 
@@ -14,6 +14,13 @@ design/0011 가 5단 계층(Project / Slide / Layout / Section / Content) 의 *�
 
 1. **Cross-layer link 정합성 검증** — base prompt 가이드만으로는 LLM 결함이 사후 modify 단계에서 ValueError 로 늦게 터진다. 이른 단계에서 lint 로 잡아야 한다.
 2. **단계적 lint 실행** — layer 별 우선순위에 따라 검사하다가 거시 layer 에 error 가 있으면 미시 검사를 스킵.
+
+## Decision Drivers
+
+- 후속 부분 수정에 필요한 의미 링크는 저장 전에 완전해야 한다.
+- 서버가 파생한 Section bbox와 실제 element 좌표의 정합성을 검증해야 한다.
+- 의도된 비대칭과 장식은 품질 경고로 남고 계약 오류로 승격되지 않아야 한다.
+- 거시 계약 오류가 미시 품질 경고에 가려지지 않아야 한다.
 
 ## Decision
 
@@ -34,21 +41,23 @@ design/0011 가 5단 계층(Project / Slide / Layout / Section / Content) 의 *�
 `design_doc` 또는 `grid_plan` 이 None 인 슬라이드는 검사 제외.
 
 **Section ↔ Content bbox 동기화 (`section-element-bbox-mismatch`)**:
-- design_doc 의 component leaf bbox 와 그 leaf 를 component_id 로 참조하는 textbox/shape 의 bbox 가 8px 이상 어긋나면 위반. design/0011 결정 3 의 "Section bbox 가 Content bbox 보다 *먼저* 결정된다" 는 약속을 lint 로 검증.
+- 서버가 파생한 component leaf bbox는 연결된 textbox/shape bbox와 같아야 한다.
+  group과 section bbox는 자식 bbox의 합집합을 포함해야 한다. LLM 응답에서 bbox를
+  중복 생성하지 않으므로 mismatch는 생성 오류가 아니라 파생·저장 회귀를 의미한다.
 
 **Section/Cell containment**:
 - `element-out-of-section` (severity=error): textbox/shape bbox 가 component_id 로 link 된 leaf 의 가장 가까운 ancestor section/group bbox 외부로 8px 초과 빠져나감.
 - `element-out-of-grid-cell` (severity=warning): textbox/shape 의 grid_cell 이 link 된 cell 의 region 분할 estimated bbox 외부로 16px 초과 빠져나감. design_doc.layout 의 cell_id 매칭 노드 bbox 가 더 정확하므로 보조 정보 수준.
 
-### 결정 2 — layout-tree 구조 위반은 warning 이 아닌 error 로 격상
+### 결정 2 — 의미 트리의 구조 위반만 error로 취급
 
 design/0011 결정 3 의 "구조적 사전 차단" 을 실질화하려면 다음 3 개 규칙은 *데이터 구조 결함* 이라 시각 결함보다 우선순위가 높다. modify_component 시 의미 영역을 잘못 가리키게 되어 부분 수정이 신뢰를 잃는다.
 
-- `layout-tree-sibling-overlap`: 같은 부모 아래 형제 섹션 bbox 가 1px² 초과로 겹침
 - `layout-tree-containment`: 자식 bbox 가 부모 bbox 외부로 빠져나감
 - `layout-tree-canvas-overflow`: bbox 가 캔버스 [0,0,1280,720] 밖
 
-`layout-tree-bbox-missing` 만 warning 유지 — LLM 이 의도적으로 bbox 를 nested 노드로 미루는 경우가 있음.
+같은 부모 아래 형제 bbox의 겹침은 의도된 레이어링이나 광학적 구성이 가능하므로
+warning으로 보고한다. 파생 후 bbox 누락은 서버 회귀이므로 error다.
 
 ### 결정 3 — 단계적 lint 실행 (`stop_on_layer_error`)
 
@@ -58,9 +67,11 @@ design/0011 결정 3 의 "구조적 사전 차단" 을 실질화하려면 다음
 
 부수적으로 `ALL_RULES` 를 layer 그룹 순서(layout → section → cross → content) 로 재정렬해, 호출자가 layer 별로 결과를 훑을 때 생성 파이프라인 순서와 일치시킨다.
 
-### 결정 4 — 디자인 스펙 ingest 응답에 cross-layer error 가드
+### 결정 4 — 디자인 스펙 ingest의 cross-layer error 가드
 
-디자인 스펙 ingest 결과에서 `severity="error"` & `layer="cross"` 위반이 발견되면 슬라이드별 결과에 `cross_layer_errors` 필드로 명시 노출한다. 자동 재시도는 비용 영향이 커서 본 ADR 에선 *경고만* 한다 — 자동 재생성 정책은 별도 ADR 에서 다룬다.
+디자인 스펙 ingest 결과에서 `severity="error"`인 layout, section 또는 cross 위반은
+저장 전에 거부한다. warning은 저장하고 read-only review와 Visual QA의 우선순위
+신호로 사용한다.
 
 ### 결정 5 — 외곽 정렬 lint (`slide-edge-alignment-*`)
 
@@ -72,7 +83,7 @@ design/0011 결정 3 의 "구조적 사전 차단" 을 실질화하려면 다음
 |---|---|
 | cross-layer 정합성을 prompt 가이드만으로 강제 | LLM 결함이 modify 단계에서 ValueError 로 늦게 터짐 |
 | 모든 layer 를 항상 동시에 검사 (단계적 stop 없음) | 거시 위반이 미시 노이즈에 가려져 사용자가 우선순위를 가리기 어려움 |
-| layout-tree 구조 위반을 warning 유지 | "구조적 차단" 약속이 사실상 안내 수준에 머물러 데이터 무결성을 깨는 LLM 출력이 통과 |
+| 모든 형제 bbox 겹침을 error로 거부 | 유효한 레이어링과 비대칭 표현까지 막아 제외 |
 | cross-layer error 발견 시 자동 재시도 | 토큰/지연 비용 영향 큼 — 사용자 결정에 맡김 (별도 ADR 에서 다룸) |
 
 ## Consequences
@@ -81,7 +92,8 @@ design/0011 결정 3 의 "구조적 사전 차단" 을 실질화하려면 다음
 
 - 5단 계층의 link 정합성이 schema 직후 단계에서 잡힘 → modify 단계의 ValueError 회귀 방지.
 - 단계적 lint 로 사용자가 거시 위반에 먼저 집중 가능 → 미시 노이즈에 매몰되지 않음.
-- layout-tree 구조 위반 error 격상으로 modify_component 가 잘못된 element 를 가리키는 회귀 차단.
+- 누락된 component link와 파생 bbox 회귀를 저장 전에 차단.
+- 의도된 레이어링은 warning으로 남아 디자인 자율성을 보존.
 - 외곽 정렬 lint 로 슬라이드 전체 인지 품질이 보호됨.
 
 ### Negative / Risks

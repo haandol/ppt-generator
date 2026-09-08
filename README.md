@@ -173,7 +173,7 @@ Move slide 6 to position 2.
 Add/update/component edits use the prepare/ingest handshake; move and delete are pure file
 operations with no generation.
 
-### Step 4 — Visual QA (Optional)
+### Step 4 — Visual QA
 
 Detects and fixes visual defects (line breaks, overlaps, margin misalignment, etc.). The
 server captures screenshots (Playwright); the client analyzes them and generates fixes via
@@ -190,7 +190,10 @@ uv run --group visual-qa playwright install chromium
 Run visual QA.
 ```
 
-> Visual QA is an opt-in tool. A suggestion message appears after design spec generation, but it will not run until explicitly requested. If Playwright is not installed, it can be skipped without affecting existing functionality.
+> End-to-end deck requests include read-only Visual QA and issue-scoped low-risk
+> patches. If Playwright is unavailable, provide a client-captured PNG through
+> `screenshot_path`. Content, data, element-count, and slide-count changes still
+> require user confirmation.
 
 ### Step 5 — Export Files
 

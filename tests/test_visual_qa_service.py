@@ -18,12 +18,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from ppt_generator.interfaces.llm_output_models import (
-    ParagraphOutput,
-    TextRunOutput,
+    VisualQAFixPatchOutput,
     VisualQAIssue,
     VisualQAOutput,
-    VisualQASimpleSlideSpecOutput,
-    VisualQATextBoxOutput,
 )
 from ppt_generator.interfaces.schemas import (
     DesignSpec,
@@ -53,53 +50,54 @@ def _make_qa_output_json(has_issues: bool, issues: list[dict] | None = None) -> 
 
 
 def _make_fix_output_json() -> str:
-    """클라이언트가 생성했을 법한 수정 spec JSON 을 조립한다 (ingest_fix 입력).
+    """클라이언트가 생성했을 법한 최소 시각 patch JSON."""
+    return VisualQAFixPatchOutput.model_validate(
+        {
+            "operations": [
+                {
+                    "element_type": "textbox",
+                    "element_index": 0,
+                    "field": "width_px",
+                    "value": 700,
+                },
+                {
+                    "element_type": "textbox",
+                    "element_index": 0,
+                    "field": "font_size_pt",
+                    "value": 28,
+                    "paragraph_index": 0,
+                    "run_index": 0,
+                },
+            ]
+        }
+    ).model_dump_json()
 
-    slide_type != "content" 슬라이드는 SimpleSlideSpecOutput 을 사용하므로
-    grid_layout/design_doc 없이 textbox 만으로 유효하다.
-    """
-    output = VisualQASimpleSlideSpecOutput(
-        background_color="#1a1a2e",
-        textboxes=[
-            VisualQATextBoxOutput(
-                left_px=40,
-                top_px=40,
-                width_px=700,
-                height_px=60,
-                paragraphs=[
-                    ParagraphOutput(
-                        runs=[TextRunOutput(text="테스트", font_size_pt=28, bold=True)]
-                    ),
-                ],
-            ),
-        ],
-        shapes=[],
+
+def _patch_json(*operations: dict) -> str:
+    return VisualQAFixPatchOutput.model_validate(
+        {"operations": list(operations)}
+    ).model_dump_json()
+
+
+def _run_patch(
+    field: str,
+    value,
+) -> str:
+    return _patch_json(
+        {
+            "element_type": "textbox",
+            "element_index": 0,
+            "field": field,
+            "value": value,
+            "paragraph_index": 0,
+            "run_index": 0,
+        }
     )
-    return output.model_dump_json()
 
 
 def _make_simple_spec(title: str = "테스트") -> PptxSlideSpec:
     """slide_type='title' 인 spec — ingest_fix 가 SimpleSlideSpecOutput 을 쓰게 한다."""
     return replace(_make_spec(title), slide_type="title")
-
-
-def _make_matching_fix_output(
-    current: PptxSlideSpec,
-) -> VisualQASimpleSlideSpecOutput:
-    output = VisualQASimpleSlideSpecOutput.model_validate_json(_make_fix_output_json())
-    fixed = output.textboxes[0]
-    existing = current.textboxes[0]
-    fixed.left_px = existing.left_px
-    fixed.top_px = existing.top_px
-    fixed.width_px = existing.width_px
-    fixed.height_px = existing.height_px
-    fixed.z_index = existing.z_index
-    fixed.paragraphs[0].alignment = existing.paragraphs[0].alignment
-    fixed.paragraphs[0].runs[0].text = existing.paragraphs[0].runs[0].text
-    fixed.paragraphs[0].runs[0].font_size_pt = (
-        existing.paragraphs[0].runs[0].font_size_pt
-    )
-    return output
 
 
 def _register_visual_tools(
@@ -387,8 +385,64 @@ class TestVisualQAServiceFix:
         result = svc.ingest_fix("{ not valid json", _make_simple_spec())
         assert result is None
 
+    def test_numeric_patch_rejects_boolean(self) -> None:
+        result = VisualQAService().ingest_fix(
+            _patch_json(
+                {
+                    "element_type": "textbox",
+                    "element_index": 0,
+                    "field": "width_px",
+                    "value": True,
+                }
+            ),
+            _make_simple_spec(),
+            [
+                {
+                    "issue_type": "text_truncation",
+                    "element_type": "textbox",
+                    "element_index": 0,
+                }
+            ],
+        )
+        assert result is None
+
 
 class TestVisualQAControllerContexts:
+    def test_prepare_analysis_accepts_external_png(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        project_id, project_dir, _, tools = _setup_visual_project(tmp_path, monkeypatch)
+        canonical = project_dir / "screenshots" / "slide_01_v0.png"
+        canonical.unlink()
+        external = tmp_path / "external.png"
+        external.write_bytes(b"\x89PNG\r\n\x1a\nexternal")
+
+        prepared = json.loads(
+            tools["prepare_visual_qa_analysis"](
+                project_id=project_id,
+                slide_index=1,
+                iteration=0,
+                screenshot_path=str(external),
+            )
+        )
+
+        assert canonical.read_bytes() == external.read_bytes()
+        assert prepared["images"] == [str(canonical)]
+
+    def test_prepare_analysis_rejects_non_png(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        project_id, _, _, tools = _setup_visual_project(tmp_path, monkeypatch)
+        external = tmp_path / "external.txt"
+        external.write_text("not png", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="must be a PNG"):
+            tools["prepare_visual_qa_analysis"](
+                project_id=project_id,
+                slide_index=1,
+                screenshot_path=str(external),
+            )
+
     def test_analysis_fix_round_trip(self, tmp_path: Path, monkeypatch) -> None:
         project_id, project_dir, project_service, tools = _setup_visual_project(
             tmp_path, monkeypatch
@@ -469,7 +523,6 @@ class TestVisualQAControllerContexts:
                 iteration=0,
             )
         )
-        current = project_service.load_design_spec_slide(project_dir, 0)
         monkeypatch.setattr(
             project_service,
             "save_design_spec_slide",
@@ -482,7 +535,7 @@ class TestVisualQAControllerContexts:
             tools["ingest_visual_qa_fix"](
                 project_id=project_id,
                 slide_index=1,
-                fix_json=_make_matching_fix_output(current).model_dump_json(),
+                fix_json=_patch_json(),
                 fix_context=prepared["fix_context"],
             )
         )
@@ -622,15 +675,17 @@ class TestVisualQAServiceFixPreservation:
             speaker_notes="발표 노트",
             textboxes=[replace(_make_simple_spec("원문").textboxes[0], z_index=1)],
         )
-        output = VisualQASimpleSlideSpecOutput.model_validate_json(
-            _make_fix_output_json()
+        result = VisualQAService().ingest_fix(
+            _patch_json(
+                {
+                    "element_type": "textbox",
+                    "element_index": 0,
+                    "field": "z_index",
+                    "value": 9,
+                }
+            ),
+            current,
         )
-        output.textboxes[0].width_px = current.textboxes[0].width_px
-        output.textboxes[0].paragraphs[0].runs[0].font_size_pt = 32
-        output.textboxes[0].z_index = 9
-        output.textboxes[0].paragraphs[0].runs[0].text = "원문"
-
-        result = VisualQAService().ingest_fix(output.model_dump_json(), current)
 
         assert result is None
 
@@ -640,16 +695,15 @@ class TestVisualQAServiceFixPreservation:
             speaker_notes="발표 노트",
             textboxes=[replace(_make_simple_spec("원문").textboxes[0], z_index=1)],
         )
-        output = VisualQASimpleSlideSpecOutput.model_validate_json(
-            _make_fix_output_json()
-        )
-        output.textboxes[0].width_px = current.textboxes[0].width_px
-        output.textboxes[0].paragraphs[0].runs[0].font_size_pt = 32
-        output.textboxes[0].z_index = 9
-        output.textboxes[0].paragraphs[0].runs[0].text = "원문"
-
         result = VisualQAService().ingest_fix(
-            output.model_dump_json(),
+            _patch_json(
+                {
+                    "element_type": "textbox",
+                    "element_index": 0,
+                    "field": "z_index",
+                    "value": 9,
+                }
+            ),
             current,
             [
                 {
@@ -667,13 +721,9 @@ class TestVisualQAServiceFixPreservation:
 
     def test_fix_rejects_content_change(self) -> None:
         current = _make_simple_spec("원문")
-        output = VisualQASimpleSlideSpecOutput.model_validate_json(
-            _make_fix_output_json()
-        )
-        output.textboxes[0].paragraphs[0].runs[0].text = "변조된 문구"
-
         result = VisualQAService().ingest_fix(
-            output.model_dump_json(),
+            '{"operations":[{"element_type":"textbox","element_index":0,'
+            '"field":"text","value":"변조된 문구"}]}',
             current,
             [{"issue_type": "overlap"}],
         )
@@ -688,27 +738,15 @@ class TestVisualQAServiceFixPreservation:
             paragraphs=_make_simple_spec("둘째").textboxes[0].paragraphs,
         )
         current = replace(_make_simple_spec("첫째"), textboxes=[first, second])
-        output = VisualQASimpleSlideSpecOutput.model_validate_json(
-            _make_fix_output_json()
-        )
-        output.textboxes[0].paragraphs[0].runs[0].text = "첫째"
-        output.textboxes.append(
-            output.textboxes[0].model_copy(
-                update={
-                    "top_px": 200,
-                    "paragraphs": [
-                        ParagraphOutput(
-                            runs=[
-                                TextRunOutput(text="둘째", font_size_pt=32, bold=True)
-                            ]
-                        )
-                    ],
-                }
-            )
-        )
-
         result = VisualQAService().ingest_fix(
-            output.model_dump_json(),
+            _patch_json(
+                {
+                    "element_type": "textbox",
+                    "element_index": 1,
+                    "field": "top_px",
+                    "value": 200,
+                }
+            ),
             current,
             [
                 {
@@ -732,11 +770,8 @@ class TestVisualQAServiceFixPreservation:
         self, issue_type: str, field_name: str, value: object
     ) -> None:
         current = _make_simple_spec()
-        output = _make_matching_fix_output(current)
-        setattr(output.textboxes[0].paragraphs[0].runs[0], field_name, value)
-
         result = VisualQAService().ingest_fix(
-            output.model_dump_json(),
+            _run_patch(field_name, value),
             current,
             [
                 {
@@ -761,11 +796,8 @@ class TestVisualQAServiceFixPreservation:
         self, issue_type: str, field_name: str, value: object
     ) -> None:
         current = _make_simple_spec()
-        output = _make_matching_fix_output(current)
-        setattr(output.textboxes[0].paragraphs[0].runs[0], field_name, value)
-
         result = VisualQAService().ingest_fix(
-            output.model_dump_json(),
+            _run_patch(field_name, value),
             current,
             [
                 {

@@ -330,7 +330,7 @@ class TestEdgeAlignment:
 
 
 class TestLayoutTreeErrorSeverity:
-    def test_sibling_overlap_is_error(self) -> None:
+    def test_sibling_overlap_is_warning(self) -> None:
         layout = [
             LayoutNode(
                 id="a",
@@ -359,7 +359,7 @@ class TestLayoutTreeErrorSeverity:
             for r in lint_slide_spec(spec).violations
             if r.rule == "layout-tree-sibling-overlap"
         ]
-        assert v and v[0].severity == "error"
+        assert v and v[0].severity == "warning"
 
     def test_containment_is_error(self) -> None:
         layout = [

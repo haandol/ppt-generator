@@ -5,10 +5,10 @@
 ## 주요 기능
 
 - **아웃라인 생성** — 주제와 슬라이드 수 입력 → 서버가 프롬프트+스키마를 반환하고, 클라이언트가 구조화된 아웃라인 JSON 을 생성
-- **DESIGN.md 초안** — 덱 전체의 디자인 의도(theme + tone + page_requests)를 한 번 생성하여 모든 슬라이드가 하나의 테마·서사를 공유
+- **DESIGN.md 초안** — 덱 전체의 디자인 의도(theme + tone + anti_slop + page_requests)를 한 번 생성하여 모든 슬라이드가 하나의 테마·서사를 공유
 - **디자인 스펙 생성** — 슬라이드별 정밀한 레이아웃을 PptxSlideSpec JSON 으로 설계 (슬라이드 단위 stateless, 클라이언트가 병렬화)
 - **슬라이드별 수정** — 개별 슬라이드의 디자인 스펙을 추가/수정/삭제 (전체 재생성 불필요), 단일 컴포넌트 부분 수정
-- **Visual QA** — Playwright 스크린샷(서버) + 비전 분석·수정(클라이언트)으로 시각적 결함 자동 감지 및 수정 (opt-in)
+- **Visual QA** — Playwright 또는 클라이언트 PNG + 비전 분석·최소 patch로 시각적 결함 자동 감지 및 수정
 - **HTML 미리보기** — 디자인 스펙에서 결정론적으로 HTML 변환
 - **PPTX 내보내기** — 디자인 스펙에서 편집 가능한 PPTX 로 결정론적 변환
 - **PPTX 임포트** — 기존 PPTX 파일을 디자인 스펙으로 역변환하여 편집·미리보기 (LLM 호출 없이 결정론적 파싱)
@@ -44,7 +44,7 @@ flowchart LR
     C --> D["per-slide:\nprepare_design_slide\n→ 생성 →\ningest_design_slide"]
     D --> F["finalize_design_spec"]
     F -.->|"개별 수정"| D
-    F -.->|"opt-in"| V["Visual QA\n(캡처→분석→수정 루프)"]
+    F --> V["Visual QA\n(캡처→분석→최소 patch 루프)"]
     V -.-> F
     F --> E{"내보내기"}
     E --> G["export_html\n미리보기"]
@@ -58,8 +58,7 @@ flowchart LR
 ```mermaid
 flowchart TD
     A["사용자 입력\n(주제 + 슬라이드 수)"] --> B["1. prepare_outline → 생성 → ingest_outline\n아웃라인 JSON"]
-    B --> C{"⏸ 아웃라인\n검토/확인"}
-    C --> D["2. prepare_design_doc_draft → 생성 → ingest_design_doc_draft\nDESIGN.md 초안 (1회, skip 가능)"]
+    B --> D["2. prepare_design_doc_draft → 생성 → ingest_design_doc_draft\nDESIGN.md 초안 (1회, skip 가능)"]
     D --> E["3. 슬라이드별 (클라이언트 병렬)\nprepare_design_slide → 생성 → ingest_design_slide"]
     E --> F["finalize_design_spec (1회)"]
     F --> G{"⏸ 검토"}
@@ -123,7 +122,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 ```
 텍스트 (가장 추상적)
   → 아웃라인 (구조화된 JSON — 제목, 내용 요약, 레이아웃 인덱스)
-    → DESIGN.md (덱 전체 디자인 의도 — theme, tone, page_requests)
+    → DESIGN.md (덱 전체 디자인 의도 — theme, tone, anti_slop, page_requests)
       → 디자인 스펙 (PptxSlideSpec JSON — 클라이언트가 정밀한 레이아웃 설계)
         ├→ HTML 슬라이드 (결정론적 변환, 브라우저 미리보기용)
         └→ PPTX (SlideBuilder 직접 사용, 편집 가능한 포맷으로 변환)
@@ -173,7 +172,9 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 
 ### Visual QA 도구
 
-Visual QA 는 opt-in 이며, 스크린샷 캡처만 서버(Playwright)가 하고 비전 분석·수정 생성은 클라이언트가 담당합니다. iteration 루프는 클라이언트가 오케스트레이션합니다.
+완성 덱 요청의 Visual QA는 기본 품질 단계입니다. 스크린샷 캡처는 서버 Playwright를
+우선하고 사용할 수 없으면 클라이언트 PNG를 받습니다. 비전 분석·patch 생성과 iteration
+루프는 클라이언트가 오케스트레이션합니다.
 
 | 도구 | 역할 |
 | ---- | ---- |

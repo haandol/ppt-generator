@@ -14,9 +14,14 @@ def _load(filename: str) -> str:
     return (_PROMPTS_DIR / filename).read_text(encoding="utf-8").strip()
 
 
-def _load_content_prompt() -> str:
-    """content 프롬프트의 예시 블록을 검증 대상 정식 예시 하나로 교체한다."""
+def _load_content_prompt(*, include_example: bool = False) -> str:
+    """content 프롬프트에서 상시 예시를 제거하고 필요할 때만 관련 예시를 붙인다."""
     prompt = _load("design_system_content.prompt.md")
+    start = prompt.index("<examples>")
+    end = prompt.index("</examples>", start) + len("</examples>")
+    without_examples = prompt[:start] + prompt[end:]
+    if not include_example:
+        return without_examples
     example = json.loads(
         (_PROMPTS_DIR / "examples" / "two_column_diagram.json").read_text(
             encoding="utf-8"
@@ -30,8 +35,6 @@ def _load_content_prompt() -> str:
         f"{example_json}\n"
         "  </layout_example>\n</examples>"
     )
-    start = prompt.index("<examples>")
-    end = prompt.index("</examples>", start) + len("</examples>")
     return prompt[:start] + examples + prompt[end:]
 
 
@@ -47,6 +50,26 @@ DESIGN_SPEC_SYSTEM_PROMPTS: dict[str, str] = {
     "closing": _DESIGN_SYSTEM_BASE + "\n\n" + _load("design_system_closing.prompt.md"),
 }
 
+
+def get_design_spec_system_prompt(slide_type: str, component_hint: str = "") -> str:
+    """현재 슬라이드에 관련된 guidance와 예시만 조립한다."""
+    if slide_type != "content":
+        return DESIGN_SPEC_SYSTEM_PROMPTS.get(
+            slide_type, DESIGN_SPEC_SYSTEM_PROMPTS["content"]
+        )
+    needs_example = component_hint in {
+        "two_column",
+        "concept_list",
+        "process_flow",
+        "quote_code",
+    }
+    return (
+        _DESIGN_SYSTEM_BASE
+        + "\n\n"
+        + _load_content_prompt(include_example=needs_example)
+    )
+
+
 # 하위 호환용 (design_summary 생성 등에서 사용)
 DESIGN_SPEC_SYSTEM_PROMPT = DESIGN_SPEC_SYSTEM_PROMPTS["content"]
 
@@ -59,6 +82,7 @@ VISUAL_QA_ANALYSIS_SYSTEM_PROMPT = _load("visual_qa_analysis.prompt.md")
 VISUAL_QA_FIX_SYSTEM_PROMPT = _load("visual_qa_fix.prompt.md")
 
 DESIGN_REVIEW_SYSTEM_PROMPT = _load("design_review.prompt.md")
+DECK_REVIEW_SYSTEM_PROMPT = _load("deck_review.prompt.md")
 
 # component-level partial modification
 COMPONENT_MODIFY_SYSTEM_PROMPT = _load("component_modify_system.prompt.md")
@@ -72,6 +96,7 @@ __all__ = [
     "DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE",
     "DESIGN_SPEC_SYSTEM_PROMPT",
     "DESIGN_SPEC_SYSTEM_PROMPTS",
+    "get_design_spec_system_prompt",
     "DESIGN_SPEC_USER_PROMPT_TEMPLATE",
     "DESIGN_SUMMARY_USER_PROMPT_TEMPLATE",
     "DESIGN_DOC_DRAFT_USER_PROMPT_TEMPLATE",
@@ -80,6 +105,7 @@ __all__ = [
     "VISUAL_QA_ANALYSIS_SYSTEM_PROMPT",
     "VISUAL_QA_FIX_SYSTEM_PROMPT",
     "DESIGN_REVIEW_SYSTEM_PROMPT",
+    "DECK_REVIEW_SYSTEM_PROMPT",
     "COMPONENT_MODIFY_SYSTEM_PROMPT",
     "COMPONENT_MODIFY_USER_PROMPT_TEMPLATE",
     "BACKFILL_DESIGN_DOC_SYSTEM_PROMPT",

@@ -7,13 +7,20 @@ LLM 호출을 클라이언트로 오프로딩했다. 이 서비스는 리뷰 태
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 
-from ppt_generator.interfaces.constants import DESIGN_REVIEW_SYSTEM_PROMPT
+from ppt_generator.interfaces.constants import (
+    DECK_REVIEW_SYSTEM_PROMPT,
+    DESIGN_REVIEW_SYSTEM_PROMPT,
+)
 from ppt_generator.interfaces.handoff import build_llm_task
-from ppt_generator.interfaces.llm_output_models import DesignReviewOutput
-from ppt_generator.interfaces.schemas import PptxSlideSpec
+from ppt_generator.interfaces.llm_output_models import (
+    DeckReviewOutput,
+    DesignReviewOutput,
+)
+from ppt_generator.interfaces.schemas import DesignSpec, OutlineResponse, PptxSlideSpec
 from ppt_generator.interfaces.spec_utils import lint_slide_spec
 from ppt_generator.interfaces.spec_utils.lint_types import SlideLintResult
 from ppt_generator.interfaces.spec_utils.serializer import slide_spec_to_json
@@ -60,6 +67,52 @@ class DesignReviewService:
         if isinstance(output_json, str):
             return DesignReviewOutput.model_validate_json(output_json)
         return DesignReviewOutput.model_validate(output_json)
+
+    def prepare_deck(
+        self,
+        outline: OutlineResponse,
+        design_spec: DesignSpec,
+        *,
+        presentation_minutes: int,
+    ) -> dict:
+        """슬라이드 간 근거·용어·서사 문제를 찾는 read-only 태스크를 만든다."""
+        if len(outline.slides) != len(design_spec.slides):
+            raise ValueError(
+                "deck review requires outline and design spec slide counts to match"
+            )
+        slides: list[dict] = []
+        for index, (planned, rendered) in enumerate(
+            zip(outline.slides, design_spec.slides, strict=True),
+            start=1,
+        ):
+            slides.append(
+                {
+                    "slide_index": index,
+                    "title": planned.title,
+                    "slide_type": planned.slide_type,
+                    "component_hint": planned.component_hint,
+                    "content_summary": planned.content_summary,
+                    "source_refs": planned.source_refs,
+                    "assumptions": planned.assumptions,
+                    "visible_text": _visible_text(rendered),
+                }
+            )
+        prompt = (
+            f"<presentation_minutes>{presentation_minutes}</presentation_minutes>\n"
+            f"<deck>\n{json.dumps({'slides': slides}, ensure_ascii=False, indent=2)}"
+            "\n</deck>"
+        )
+        return build_llm_task(
+            system_prompt=DECK_REVIEW_SYSTEM_PROMPT,
+            user_prompt=prompt,
+            response_schema=DeckReviewOutput.model_json_schema(),
+        )
+
+    def ingest_deck(self, output_json: str | dict) -> DeckReviewOutput:
+        """클라이언트가 생성한 덱 전체 review 결과를 검증한다."""
+        if isinstance(output_json, str):
+            return DeckReviewOutput.model_validate_json(output_json)
+        return DeckReviewOutput.model_validate(output_json)
 
     @staticmethod
     def format_feedback(review_output: DesignReviewOutput) -> str:
@@ -134,3 +187,29 @@ class ReviewResult:
     spec: PptxSlideSpec
     regenerated: bool = False
     review_issues: list[dict] = field(default_factory=list)
+
+
+def _visible_text(spec: PptxSlideSpec) -> list[str]:
+    """덱 review에 필요한 화면 텍스트만 순서대로 추출한다."""
+    values: list[str] = []
+    for textbox in spec.textboxes:
+        text = " ".join(
+            run.text.strip()
+            for paragraph in textbox.paragraphs
+            for run in paragraph.runs
+            if run.text.strip()
+        )
+        if text:
+            values.append(text)
+    for shape in spec.shapes:
+        if shape.text and shape.text.strip():
+            values.append(shape.text.strip())
+        text = " ".join(
+            run.text.strip()
+            for paragraph in shape.paragraphs
+            for run in paragraph.runs
+            if run.text.strip()
+        )
+        if text:
+            values.append(text)
+    return values

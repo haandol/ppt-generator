@@ -16,18 +16,18 @@
     "topic": "LLM 기반 에이전트는 외부 도구를 통해 환경과 상호작용한다.",
     "layout_summary": "좌측 c1 영역에는 상단부터 'Observation', 'Limitation' 두 개의 설명 카드가 세로로 쌓여 있고, 우측 c2 영역에는 중앙 LLM 박스를 중심으로 우측에 web_search/db_query 두 함수 카드가 있는 4-노드 다이어그램이 있다.",
     "layout": [
-      {"id": "header", "parent_id": "", "kind": "section", "role": "title_bar", "description": "슬라이드 제목 영역", "cell_id": "h1", "left_px": 64, "top_px": 72, "width_px": 1152, "height_px": 48},
-      {"id": "header.title", "parent_id": "header", "kind": "component", "role": "slide_title", "description": "슬라이드 제목 텍스트", "left_px": 64, "top_px": 72, "width_px": 1152, "height_px": 48},
+      {"id": "header", "parent_id": "", "kind": "section", "role": "title_bar", "description": "슬라이드 제목 영역", "cell_id": "h1"},
+      {"id": "header.title", "parent_id": "header", "kind": "component", "role": "slide_title", "description": "슬라이드 제목 텍스트", "cell_id": "h1"},
 
-      {"id": "left_explanation", "parent_id": "", "kind": "section", "role": "explanation_cards", "description": "좌측 설명 카드 2개", "cell_id": "c1", "left_px": 64, "top_px": 148, "width_px": 560, "height_px": 508},
-      {"id": "left_explanation.card_observation", "parent_id": "left_explanation", "kind": "component", "role": "card", "description": "Observation 카드", "left_px": 64, "top_px": 148, "width_px": 560, "height_px": 240},
-      {"id": "left_explanation.card_limitation", "parent_id": "left_explanation", "kind": "component", "role": "card", "description": "Limitation 카드", "left_px": 64, "top_px": 416, "width_px": 560, "height_px": 240},
+      {"id": "left_explanation", "parent_id": "", "kind": "section", "role": "explanation_cards", "description": "좌측 설명 카드 2개", "cell_id": "c1"},
+      {"id": "left_explanation.card_observation", "parent_id": "left_explanation", "kind": "component", "role": "card", "description": "Observation 카드", "cell_id": "c1"},
+      {"id": "left_explanation.card_limitation", "parent_id": "left_explanation", "kind": "component", "role": "card", "description": "Limitation 카드", "cell_id": "c1"},
 
-      {"id": "right_diagram", "parent_id": "", "kind": "section", "role": "relationship_diagram", "description": "LLM 중심 4-노드 다이어그램", "cell_id": "c2", "left_px": 656, "top_px": 148, "width_px": 560, "height_px": 508},
-      {"id": "right_diagram.llm_box", "parent_id": "right_diagram", "kind": "component", "role": "llm_box", "description": "중앙 LLM 박스", "left_px": 700, "top_px": 348, "width_px": 200, "height_px": 108},
-      {"id": "right_diagram.functions", "parent_id": "right_diagram", "kind": "group", "role": "function_cluster", "description": "외부 함수 클러스터", "left_px": 988, "top_px": 312, "width_px": 196, "height_px": 180},
-      {"id": "right_diagram.functions.web_search", "parent_id": "right_diagram.functions", "kind": "component", "role": "function_card", "description": "web_search() 함수", "left_px": 988, "top_px": 312, "width_px": 196, "height_px": 80},
-      {"id": "right_diagram.functions.db_query", "parent_id": "right_diagram.functions", "kind": "component", "role": "function_card", "description": "db_query() 함수", "left_px": 988, "top_px": 412, "width_px": 196, "height_px": 80}
+      {"id": "right_diagram", "parent_id": "", "kind": "section", "role": "relationship_diagram", "description": "LLM 중심 4-노드 다이어그램", "cell_id": "c2"},
+      {"id": "right_diagram.llm_box", "parent_id": "right_diagram", "kind": "component", "role": "llm_box", "description": "중앙 LLM 박스", "cell_id": "c2"},
+      {"id": "right_diagram.functions", "parent_id": "right_diagram", "kind": "group", "role": "function_cluster", "description": "외부 함수 클러스터", "cell_id": "c2"},
+      {"id": "right_diagram.functions.web_search", "parent_id": "right_diagram.functions", "kind": "component", "role": "function_card", "description": "web_search() 함수", "cell_id": "c2"},
+      {"id": "right_diagram.functions.db_query", "parent_id": "right_diagram.functions", "kind": "component", "role": "function_card", "description": "db_query() 함수", "cell_id": "c2"}
     ]
   },
   "background_color": "#0F172A",

@@ -24,12 +24,16 @@ def create_server() -> FastMCP:
             "and an `ingest_*` tool (validates + post-processes + saves the JSON YOU, "
             "the client, generate). Workflow for a new deck:\n"
             "1. prepare_outline → generate outline JSON (matching response_schema) → ingest_outline.\n"
-            "   Then show the outline to the user and get confirmation.\n"
+            "   The outline must be 4-20 slides: Title, Agenda, at least one Body, Closing.\n"
+            "   End-to-end deck requests may proceed without a separate outline approval.\n"
             "2. prepare_design_doc_draft → generate DESIGN.md draft JSON → ingest_design_doc_draft "
             '(call ONCE; skip if it returns {"skip": true}).\n'
             "3. For EACH slide (parallelize): prepare_design_slide → generate spec JSON "
             "(matching response_schema) → ingest_design_slide.\n"
-            "4. finalize_design_spec once, then export_html and share slides_html_path.\n"
+            "4. finalize_design_spec once, then prepare_deck_review → generate → ingest_deck_review.\n"
+            "5. Run read-only Visual QA and apply issue-scoped low-risk visual patches.\n"
+            "6. At the stable completion checkpoint export_html + export_pptx, open the "
+            "HTML in an available browser, and share both paths.\n"
             "## Rules\n"
             "- Always generate JSON that conforms to the `response_schema` returned by prepare_*.\n"
             '- **Adding a slide**: prepare_slide_edit(action="add") → generate → ingest_slide_edit.\n'
@@ -38,10 +42,14 @@ def create_server() -> FastMCP:
             '(imported slides return stage="backfill" first: generate → ingest_backfill → retry).\n'
             "- **Moving/deleting**: move_slide / delete_slide are pure file ops (no generation).\n"
             "- **Review**: prepare_review → generate → ingest_review (report-only; regenerate via prepare_slide_edit).\n"
-            "- **Visual QA** (opt-in, needs the `visual-qa` dependency group + Chromium): capture_slides → "
+            "- **Visual QA**: capture_slides → "
             "prepare_visual_qa_analysis → generate → ingest_visual_qa_analysis → (if issues) "
             "prepare_visual_qa_fix → generate → ingest_visual_qa_fix → finalize_visual_qa.\n"
-            "- After any add/update/modify/finalize, call export_html and share slides_html_path.\n"
+            "  If Playwright is unavailable, pass a client-captured PNG as screenshot_path.\n"
+            "- During a batch of edits use incremental slide HTML; export both formats once at "
+            "the stable completion checkpoint.\n"
+            "- Visual patches may change geometry, spacing, typography, color, autofit, and "
+            "verified z-order only. Ask before changing text, data, element count, or slide count.\n"
             "- Imported projects have no outline: pass title/content_summary inline to prepare_slide_edit.\n"
         ),
     )
@@ -68,6 +76,7 @@ def create_server() -> FastMCP:
         container.project_service,
         visual_qa_service=container.visual_qa_service,
         slides_service=container.slides_service,
+        export_service=container.export_service,
     )
     return mcp
 

@@ -21,7 +21,7 @@ inclusion: always
 | 새 덱 시작 (아웃라인) | `skills/ppt-outline/SKILL.md` |
 | 아웃라인 → 슬라이드 생성 | `skills/ppt-design/SKILL.md` |
 | 슬라이드 추가·수정·삭제·이동, 외부 PPTX 임포트 | `skills/ppt-modify/SKILL.md` |
-| 스크린샷 기반 시각 검사 (opt-in) | `skills/ppt-visual-qa/SKILL.md` |
+| 스크린샷 기반 시각 검사·저위험 patch | `skills/ppt-visual-qa/SKILL.md` |
 | 임포트 충실도 검증 | `skills/ppt-import-verify/SKILL.md` |
 
 디자인 의도의 품질(내러티브 아크, 밀도, AI slop 회피)은 `presentation-design` 스킬을
@@ -34,11 +34,9 @@ inclusion: always
 - 항상 `response_schema` 를 정확히 따르는 JSON 을 생성한다. ingest 검증 실패 시 반환된
   오류에 맞게 고쳐 재시도한다.
 - 슬라이드 생성은 **병렬로** — 서버측 stateless 라 순차 처리는 느리기만 하다.
-- add/update/modify/finalize 후에는 항상 `export_html` 과 `export_pptx` 를 호출하고
-  양쪽 결과 경로를 공유한다. 공유 렌더 의미(좌표·크기·타이포그래피·불렛·선·화살표·효과)가
-  한쪽에만 반영됐으면 완료하지 않는다.
-- **사용자 확인 게이트**: 아웃라인은 사용자에게 보여주고 확인받은 뒤 디자인으로 넘어간다.
-  Visual QA 는 사용자가 요청할 때만 실행한다.
-- lint 결과는 `ppt-design` 스킬의 "lint 처리" 기준으로 다룬다. warning 은 요약하되
-  Visual QA나 수정은 사용자가 요청하거나 명시적으로 동의했을 때만 실행한다. 중대한
-  건(error·overflow·레이아웃 파손·메시지 변경)은 사용자에게 확인받는다.
+- 아웃라인은 Title → Agenda → 최소 1개 Body → Closing 구조의 4~20장이다.
+- 완성 덱 요청은 별도 아웃라인 승인 없이 디자인, deck review, Visual QA까지 진행한다.
+- 여러 편집 중에는 증분 HTML을 사용하고 안정 체크포인트에서 `export_html`과
+  `export_pptx`를 한 번 호출한다. 최종 HTML은 반드시 브라우저로 연다.
+- 저위험 Visual QA patch는 자동 적용한다. 텍스트·데이터·요소 수·슬라이드 수 변경만
+  사용자에게 확인한다.

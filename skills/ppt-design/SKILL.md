@@ -9,8 +9,8 @@ description: Generate the design spec (per-slide layout/style) for a deck via th
 각 단계마다 서버가 프롬프트와 출력 스키마를 주면 **네가 그 스키마대로 JSON 을 생성**하고
 되돌려주면 서버가 검증·정합화·저장·렌더·lint 한다.
 
-전제: `ppt-outline` 으로 아웃라인이 만들어지고 사용자가 확인했어야 한다. 디자인 의도의
-품질(내러티브 아크, 밀도, AI slop 회피)은 `presentation-design` 스킬을 함께 참고한다.
+전제: `ppt-outline` 으로 필수 발표 골격이 만들어져 있어야 한다. AI Slop 방지 기준은
+DESIGN.md 초안에 내장되어 있으므로 별도 디자인 스킬 호출이 필요하지 않다.
 
 ## 절차
 
@@ -18,7 +18,8 @@ description: Generate the design spec (per-slide layout/style) for a deck via th
 
 1. `mcp__ppt-generator__prepare_design_doc_draft(project_id, color_theme)` 호출.
    - `{"skip": true}` 가 오면 이미 DESIGN.md 가 있는 것 — 그대로 재사용하고 이 단계를 건너뛴다.
-   - 아니면 `system_prompt`, `user_prompt` 를 받아 **네가** 초안 JSON(theme + tone + page_requests)을
+   - 아니면 `system_prompt`, `user_prompt` 를 받아 **네가** 초안 JSON
+     (theme + tone + anti_slop + page_requests)을
      반환된 `response_schema` 에 정확히 맞춰 생성한다.
 2. `mcp__ppt-generator__ingest_design_doc_draft(project_id, draft_json, color_theme)` 호출 — DESIGN.md 저장.
 
@@ -46,15 +47,14 @@ description: Generate the design spec (per-slide layout/style) for a deck via th
 
 - 모든 슬라이드 ingest 후 `mcp__ppt-generator__finalize_design_spec(project_id, overflow_json)` 호출
   (모은 overflow 를 JSON 배열 문자열로; 없으면 "").
-- 그 다음 **반드시** `mcp__ppt-generator__export_html(project_id)` 와
-  `mcp__ppt-generator__export_pptx(project_id)` 를 같은 DesignSpec에 호출한다.
-  HTML과 PPTX의 공유 렌더 의미를 확인하고 두 결과 경로를 사용자에게 공유한다.
+- `mcp__ppt-generator__prepare_deck_review(project_id)` → review JSON 생성 →
+  `mcp__ppt-generator__ingest_deck_review(...)` 로 덱 전체의 근거·중복·용어·서사를
+  read-only 검토한다. high 의미 이슈만 사용자 결정을 요청한다.
 
-### 4. lint 처리 (Visual QA와 수정은 opt-in)
+### 4. lint와 Visual QA
 
-finalize/export 의 lint 결과는 계약 거부가 아니라 품질 신호다. **경미**와 **중대**를
-나눠 사용자에게 필요한 정보만 보고하되, lint 경고만으로 Visual QA나 슬라이드 재생성을
-자동 실행하지 않는다.
+완성된 덱 요청은 read-only Visual QA와 저위험 시각 patch를 포함한다. lint warning이
+있거나 렌더 확인이 필요한 슬라이드를 우선 캡처한다.
 
 **경미** — 의도된 레이아웃/장식에서도 발생할 수 있는 구조적 warning:
 - `grid-cell-uniformity`, `grid-cell-coverage` (의도된 비대칭 강약 레이아웃·다이어그램 장식 도형)
@@ -63,11 +63,8 @@ finalize/export 의 lint 결과는 계약 거부가 아니라 품질 신호다. 
 
 처리 방법:
 - 경미 warning 은 슬라이드 번호와 규칙을 짧게 요약한다.
-- 사용자가 이미 Visual QA를 요청하거나 이번 덱에 대해 명시적으로 동의한 경우에만
-  해당 슬라이드를 `ppt-visual-qa`로 캡처·분석한다.
-- 실제 시각 결함이 확인되면 Visual QA fix 또는 좁은 component 수정처럼 승인된 범위의
-  최소 변경을 사용한다. 전체 슬라이드 재생성은 메시지·구성까지 바뀔 수 있으므로 별도
-  사용자 확인 없이 사용하지 않는다.
+- 실제 결함이 확인되면 `ppt-visual-qa`의 최소 patch를 적용하고 재캡처한다.
+- 텍스트·데이터·요소 수·슬라이드 수 변경은 사용자 확인 전 적용하지 않는다.
 
 **중대 (반드시 사용자에게 보고하고 확인)** — 내용·구조 판단이 필요해 임의로 못 고치는 것:
 - severity `error` (렌더 실패로 이어짐)
@@ -78,8 +75,14 @@ finalize/export 의 lint 결과는 계약 거부가 아니라 품질 신호다. 
   텍스트 축약 / 박스 확대 / 슬라이드 분할.
 - 슬라이드의 **메시지·구성 변경**이 필요한 결함 (문구 재작성, 슬라이드 분할 등)
 
-- 사용자가 승인한 Visual QA에서 Playwright(chromium)가 없어 캡처가 실패하면 warning
-  목록만 요약하고 설치를 강요하지 않는다.
+- Playwright 캡처가 불가능하면 사용 가능한 클라이언트 브라우저로 PNG를 만든 뒤
+  `prepare_visual_qa_analysis(..., screenshot_path=...)`에 전달한다.
+
+### 5. 최종 내보내기
+
+- QA가 끝난 안정 체크포인트에서 `export_html`과 `export_pptx`를 같은 DesignSpec에 호출한다.
+- 반환된 HTML을 사용 가능한 브라우저 또는 `open` 명령으로 반드시 연다.
+- HTML/PPTX 경로와 해결하지 못한 의미 이슈만 사용자에게 공유한다.
 
 ## 선택 — 리뷰
 
@@ -92,8 +95,5 @@ finalize/export 의 lint 결과는 계약 거부가 아니라 품질 신호다. 
 
 - 항상 `response_schema` 를 정확히 따르는 JSON 을 생성한다. ingest 검증 실패 시 스키마에 맞게 고쳐 재시도.
 - 슬라이드 생성은 병렬로 — 순차로 하면 느리다.
-- 생성/수정/마무리 후에는 항상 `export_html` 과 `export_pptx` 를 호출한다. 좌표·크기·
-  타이포그래피·불렛·선·화살표·효과가 한쪽에만 반영되지 않았는지 확인하고 두 결과 경로를
-  공유한다.
-- lint는 감지·보고 신호다. Visual QA와 수정은 사용자 요청 또는 명시적 동의가 있을 때만
-  실행한다. error·overflow·레이아웃 파손·메시지/구성 변경은 사용자에게 확인받는다.
+- 여러 수정 중에는 슬라이드 HTML만 증분 렌더하고 최종 체크포인트에서 두 출력을 만든다.
+- Visual QA patch는 시각 필드만 바꾼다. 메시지·구성 변경은 사용자에게 확인받는다.

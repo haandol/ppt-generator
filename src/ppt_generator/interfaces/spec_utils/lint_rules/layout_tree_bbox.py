@@ -84,7 +84,7 @@ def _walk(
                 result.violations.append(
                     LintViolation(
                         rule="layout-tree-sibling-overlap",
-                        severity="error",
+                        severity="warning",
                         message=(
                             f"depth {depth} sibling 노드 '{node_a.id}' 와 '{node_b.id}' "
                             f"bbox 가 겹침 (교집합 {inter:.0f}px²)"
@@ -143,21 +143,18 @@ def _walk(
                 )
             )
 
-    # bbox 미지정 노드 (section/group 만 강제)
+    # 파생 이후 모든 노드 bbox는 존재해야 한다.
     for node in nodes:
-        if node.kind in ("section", "group") and _bbox(node) is None:
+        if _bbox(node) is None:
             result.violations.append(
                 LintViolation(
                     rule="layout-tree-bbox-missing",
-                    severity="warning",
-                    message=(
-                        f"{node.kind} 노드 '{node.id}' 에 bbox 가 지정되지 않음 "
-                        f"(bbox-first 원칙: section/group 은 좌표를 먼저 결정)"
-                    ),
+                    severity="error",
+                    message=(f"{node.kind} 노드 '{node.id}' 의 파생 bbox 가 누락됨"),
                     element_index=-1,
                     element_type="slide",
                     current_value={"node_id": node.id, "kind": node.kind},
-                    expected="left_px/top_px/width_px/height_px 모두 지정",
+                    expected="서버가 모든 layout node bbox를 파생",
                 )
             )
 

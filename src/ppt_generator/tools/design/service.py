@@ -26,8 +26,11 @@ from ppt_generator.interfaces.constants import (
     COMPONENT_MODIFY_USER_PROMPT_TEMPLATE,
     DESIGN_DOC_DRAFT_USER_PROMPT_TEMPLATE,
     DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE,
-    DESIGN_SPEC_SYSTEM_PROMPTS,
     DESIGN_SPEC_USER_PROMPT_TEMPLATE,
+)
+from ppt_generator.interfaces.prompts import (
+    DESIGN_SPEC_SYSTEM_PROMPTS,
+    get_design_spec_system_prompt,
 )
 from ppt_generator.interfaces.handoff import build_llm_task
 from ppt_generator.interfaces.llm_output_models import (
@@ -51,6 +54,9 @@ from ppt_generator.interfaces.schemas import (
     SlideOutline,
 )
 from ppt_generator.interfaces.spec_utils import clean_slide_spec
+from ppt_generator.interfaces.layout_derivation import (
+    derive_spec_layout_bboxes,
+)
 from ppt_generator.interfaces.spec_utils.serializer import slide_spec_to_json
 
 logger = logging.getLogger(__name__)
@@ -116,8 +122,9 @@ class DesignService:
         if review_feedback:
             prompt = prompt + "\n\n" + review_feedback
 
-        system_prompt = DESIGN_SPEC_SYSTEM_PROMPTS.get(
-            slide_type, DESIGN_SPEC_SYSTEM_PROMPTS["content"]
+        system_prompt = get_design_spec_system_prompt(
+            slide_type,
+            slide_outline.component_hint,
         )
         model = slide_spec_output_model(slide_type)
         return build_llm_task(
@@ -159,7 +166,7 @@ class DesignService:
         return spec, overflow
 
     # ------------------------------------------------------------------
-    # DESIGN.md 초안 (theme + tone + page_requests): prepare / ingest
+    # DESIGN.md 초안 (theme + tone + anti_slop + page_requests): prepare / ingest
     # ------------------------------------------------------------------
 
     def prepare_design_doc_draft(
@@ -183,14 +190,14 @@ class DesignService:
             response_schema=DesignDocDraftOutput.model_json_schema(),
         )
 
-    def ingest_design_doc_draft(self, draft_text: str) -> tuple[dict, str, list]:
+    def ingest_design_doc_draft(self, draft_text: str) -> tuple[dict, str, str, list]:
         """클라이언트가 생성한 DESIGN.md 초안 JSON 을 파싱한다.
 
         prepare 에서 반환한 동일 Pydantic 모델로 검증한다. Markdown JSON fence 는
         클라이언트 호환을 위해 허용한다.
 
         Returns:
-            (design_summary, tone, page_requests)
+            (design_summary, tone, anti_slop, page_requests)
         """
         from ppt_generator.tools.design.design_doc_md import PageRequest
 
@@ -201,6 +208,10 @@ class DesignService:
         output = self._validate(DesignDocDraftOutput, raw_text.strip())
         summary = output.theme.model_dump()
         tone = output.tone.strip()
+        anti_slop_data = output.anti_slop.model_dump()
+        anti_slop = "\n".join(
+            f"- {key}: {value}" for key, value in anti_slop_data.items()
+        )
         page_requests = [
             PageRequest(
                 number=item.number,
@@ -211,11 +222,12 @@ class DesignService:
         ]
 
         logger.info(
-            "design_doc draft ingested: tone=%dchars, page_requests=%d",
+            "design_doc draft ingested: tone=%dchars, anti_slop=%dchars, page_requests=%d",
             len(tone),
+            len(anti_slop),
             len(page_requests),
         )
-        return summary, tone, page_requests
+        return summary, tone, anti_slop, page_requests
 
     @staticmethod
     def extract_design_summary(spec: PptxSlideSpec) -> dict:
@@ -400,12 +412,6 @@ class DesignService:
             new_textboxes = list(spec.textboxes)
             new_textboxes[idx] = new_tb
             new_spec = replace(spec, textboxes=new_textboxes)
-            new_bbox = (
-                new_tb.left_px,
-                new_tb.top_px,
-                new_tb.width_px,
-                new_tb.height_px,
-            )
         else:
             if output.shape is None:
                 raise ValueError(
@@ -421,28 +427,8 @@ class DesignService:
             new_shapes = list(spec.shapes)
             new_shapes[idx] = new_shape
             new_spec = replace(spec, shapes=new_shapes)
-            new_bbox = (
-                new_shape.left_px,
-                new_shape.top_px,
-                new_shape.width_px,
-                new_shape.height_px,
-            )
 
-        old_bbox = (
-            existing.left_px,
-            existing.top_px,
-            existing.width_px,
-            existing.height_px,
-        )
-        bbox_changed = new_bbox != old_bbox
-        if bbox_changed and new_spec.design_doc is not None:
-            updated_layout = _replace_node_bbox(
-                new_spec.design_doc.layout, component_id, new_bbox
-            )
-            new_design_doc = replace(new_spec.design_doc, layout=updated_layout)
-            new_spec = replace(new_spec, design_doc=new_design_doc)
-
-        return new_spec
+        return derive_spec_layout_bboxes(new_spec)
 
     # ------------------------------------------------------------------
     # 검증 헬퍼

@@ -31,7 +31,7 @@ Claude Code 의 스킬과 같은 안내를 받게 한다. 프롬프트·출력 �
 git clone https://github.com/haandol/ppt-generator.git
 cd ppt-generator
 uv sync
-# Visual QA 를 쓸 거면
+# 서버 Playwright 캡처를 쓸 거면
 uv sync --group visual-qa
 uv run --group visual-qa playwright install chromium
 ```
@@ -99,8 +99,8 @@ Claude Code 와 동일하게 움직인다.
 context.md 를 읽고 ppt-generator 로 발표자료를 만들어줘.
 ```
 
-Kiro 가 `prepare_outline` → 아웃라인 JSON 생성 → `ingest_outline` → (확인) →
-디자인 스펙 생성 → `export_html` + `export_pptx` 순으로 핸드셰이크를 구동한다.
+Kiro 가 필수 발표 골격의 아웃라인 → DESIGN.md → 디자인 스펙 → deck review →
+Visual QA patch → 최종 HTML/PPTX 순으로 핸드셰이크를 구동한다.
 
 ---
 
@@ -148,11 +148,11 @@ ppt-generator MCP 서버로 발표자료를 만든다. 서버는 LLM 을 호출�
 지켜야 할 것:
 - response_schema 를 정확히 따른다. ingest 검증 실패 시 오류에 맞게 고쳐 재시도.
 - 슬라이드 생성은 병렬로 (서버측 stateless).
-- add/update/modify/finalize 후 항상 export_html + export_pptx 를 호출하고 두 결과
-  경로를 공유한다. 공유 렌더 의미가 한쪽에만 반영됐으면 완료하지 않는다.
-- 아웃라인은 사용자에게 보여주고 확인받은 뒤 디자인으로 넘어간다.
-- lint 는 경미(구조적 warning)와 중대(error·overflow·레이아웃 파손·메시지 변경)를
-  나눠 다룬다. 경미는 검증 후 자가 수정, 중대는 사용자에게 확인받는다.
+- 아웃라인은 4~20장, Title → Agenda → 최소 1개 Body → Closing 구조다.
+- 완성 요청은 별도 아웃라인 승인 없이 deck review와 Visual QA까지 진행한다.
+- 여러 편집 후 안정 체크포인트에서 export_html + export_pptx를 호출한다.
+- 최종 HTML은 사용 가능한 브라우저로 연다.
+- 시각 patch는 자동 적용하고 텍스트·데이터·요소 수·슬라이드 수 변경만 확인한다.
 ```
 
 ### 3. 사용

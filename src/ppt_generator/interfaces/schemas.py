@@ -12,6 +12,8 @@ class SlideOutline:
     slide_type: str = "content"
     slide_index: int = -1
     layout_plan: str = ""
+    source_refs: list[str] = field(default_factory=list)
+    assumptions: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

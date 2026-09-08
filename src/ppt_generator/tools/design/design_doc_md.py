@@ -1,6 +1,6 @@
 """DESIGN.md — 사람이 편집하는 디자인 의도 단일 소스의 파서/직렬화.
 
-DESIGN.md 는 세 영역으로 구성된 구조화 마크다운이다:
+DESIGN.md 는 네 영역으로 구성된 구조화 마크다운이다:
 
     # DESIGN
 
@@ -18,6 +18,14 @@ DESIGN.md 는 세 영역으로 구성된 구조화 마크다운이다:
 
     ## 톤 & 방향
     (자유 산문 — 색감/격식/청중/여백 등 수치로 안 떨어지는 의도)
+
+    ## AI Slop 방지 원칙
+    - subject_specificity: ...
+    - visual_hierarchy: ...
+    - layout_rhythm: ...
+    - decoration_policy: ...
+    - content_grounding: ...
+    - max_consecutive_same_archetype: 2
 
     ## 페이지별 요청
     ### 3. 아키텍처 개요
@@ -41,6 +49,7 @@ logger = logging.getLogger(__name__)
 # 섹션 헤더 alias (한/영). 정규화된 키로 매핑.
 _SECTION_SYSTEM = "system"
 _SECTION_TONE = "tone"
+_SECTION_ANTI_SLOP = "anti_slop"
 _SECTION_PAGES = "pages"
 
 _SECTION_ALIASES: dict[str, str] = {
@@ -51,6 +60,9 @@ _SECTION_ALIASES: dict[str, str] = {
     "톤 및 방향": _SECTION_TONE,
     "tone & direction": _SECTION_TONE,
     "tone": _SECTION_TONE,
+    "ai slop 방지 원칙": _SECTION_ANTI_SLOP,
+    "ai slop guardrails": _SECTION_ANTI_SLOP,
+    "anti-slop guardrails": _SECTION_ANTI_SLOP,
     "페이지별 요청": _SECTION_PAGES,
     "페이지별 특별 요청": _SECTION_PAGES,
     "per-slide requests": _SECTION_PAGES,
@@ -102,6 +114,7 @@ class DesignDocMd:
 
     design_summary: dict = field(default_factory=dict)
     tone: str = ""
+    anti_slop: str = ""
     page_requests: list[PageRequest] = field(default_factory=list)
 
     def directives_for(self, slide_index: int, title: str) -> str:
@@ -117,6 +130,13 @@ class DesignDocMd:
                 "Apply this overall design direction across the deck:\n"
                 f"{self.tone.strip()}\n"
                 "</design_direction>"
+            )
+        if self.anti_slop.strip():
+            parts.append(
+                "<anti_slop_guardrails>\n"
+                "Use these deck-specific guardrails to avoid generic AI-generated design:\n"
+                f"{self.anti_slop.strip()}\n"
+                "</anti_slop_guardrails>"
             )
         req = match_page_request(self.page_requests, slide_index, title)
         if req is not None and req.text.strip():
@@ -176,6 +196,7 @@ def parse_design_doc_md(text: str) -> DesignDocMd:
     section = None
     system_lines: list[str] = []
     tone_lines: list[str] = []
+    anti_slop_lines: list[str] = []
     page_blocks: list[tuple[int | None, str, list[str]]] = []
     cur_page: tuple[int | None, str, list[str]] | None = None
 
@@ -191,6 +212,8 @@ def parse_design_doc_md(text: str) -> DesignDocMd:
             system_lines.append(raw)
         elif section == _SECTION_TONE:
             tone_lines.append(raw)
+        elif section == _SECTION_ANTI_SLOP:
+            anti_slop_lines.append(raw)
         elif section == _SECTION_PAGES:
             h3 = re.match(r"^\s*###\s+(.*?)\s*$", raw)
             if h3:
@@ -202,6 +225,7 @@ def parse_design_doc_md(text: str) -> DesignDocMd:
 
     doc.design_summary = _parse_system_lines(system_lines)
     doc.tone = _strip_prose(tone_lines)
+    doc.anti_slop = _strip_prose(anti_slop_lines)
     doc.page_requests = [
         PageRequest(number=n, title=t, text=_strip_prose(body))
         for (n, t, body) in page_blocks
@@ -287,6 +311,7 @@ def render_design_doc_md(
     design_summary: dict,
     *,
     tone: str = "",
+    anti_slop: str = "",
     page_requests: list[PageRequest] | None = None,
 ) -> str:
     """design_summary(+선택적 톤/페이지요청)를 DESIGN.md 문자열로 직렬화한다.
@@ -304,6 +329,15 @@ def render_design_doc_md(
         lines.append(
             "<!-- 색감·격식·청중·여백 등 디자인 의도를 자유롭게 적으세요. "
             "예: 차분한 기업 톤, 임원 대상이라 여백을 넉넉히. -->"
+        )
+    lines.append("")
+    lines.append("## AI Slop 방지 원칙")
+    if anti_slop.strip():
+        lines.append(anti_slop.strip())
+    else:
+        lines.append(
+            "<!-- 주제 고유성, 정보 위계, 레이아웃 리듬, 장식 기능, 콘텐츠 근거를 "
+            "덱에 맞게 적으세요. -->"
         )
     lines.append("")
     lines.append("## 페이지별 요청")

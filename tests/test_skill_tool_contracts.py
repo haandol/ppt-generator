@@ -129,7 +129,7 @@ def test_skill_frontmatter_name_matches_directory() -> None:
         assert declared.group(1) == skill_path.parent.name
 
 
-def test_visual_qa_remains_opt_in_across_harness_entry_points() -> None:
+def test_visual_qa_low_risk_flow_is_default_across_harness_entry_points() -> None:
     design_skill = (_SKILLS_DIR / "ppt-design" / "SKILL.md").read_text(encoding="utf-8")
     visual_skill = (_SKILLS_DIR / "ppt-visual-qa" / "SKILL.md").read_text(
         encoding="utf-8"
@@ -138,10 +138,24 @@ def test_visual_qa_remains_opt_in_across_harness_entry_points() -> None:
         encoding="utf-8"
     )
 
-    assert "자동 검증" not in design_skill
-    assert "사용자 요청 또는 명시적 동의" in design_skill
-    assert "사용자가 동의해야 한다 (opt-in)" in visual_skill
-    assert "Visual QA 는 사용자가 요청할 때만 실행한다" in steering
+    assert "read-only Visual QA" in design_skill
+    assert "저위험 시각 patch" in design_skill
+    assert "완성 덱 생성·편집 요청에는 이 검사가 포함된다" in visual_skill
+    assert "저위험 Visual QA patch는 자동 적용" in steering
+    for text in (design_skill, visual_skill, steering):
+        assert "텍스트" in text
+        assert "슬라이드 수" in text
+
+
+def test_final_html_is_opened_at_stable_checkpoint() -> None:
+    design_skill = (_SKILLS_DIR / "ppt-design" / "SKILL.md").read_text(encoding="utf-8")
+    modify_skill = (_SKILLS_DIR / "ppt-modify" / "SKILL.md").read_text(encoding="utf-8")
+    visual_skill = (_SKILLS_DIR / "ppt-visual-qa" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+    assert "반드시 연다" in design_skill
+    assert "반드시 브라우저로 연다" in modify_skill
+    assert "반드시 브라우저로 열고" in visual_skill
 
 
 def test_import_verify_commands_are_plugin_root_anchored() -> None:

@@ -2,22 +2,33 @@
 
 ## Status
 
-Accepted (2026-07-21)
+Accepted (2026-09-08)
 
 ## Context
 
-디자인 스펙 생성 후 실제 렌더링 결과에서 시각적 결함(의도하지 않은 줄바꿈, 요소 겹침, 텍스트 잘림 등)이 발생할 수 있다. 기존 `validator.py`는 좌표 기반 검증만 수행하며 실제 픽셀 렌더링 결과를 검증하지 않는다. Playwright는 큰 의존성이므로 opt-in 방식으로 구현한다.
+디자인 스펙 생성 후 실제 렌더링 결과에서 시각적 결함이 발생할 수 있다. 좌표 기반
+lint만으로는 브라우저 폰트 메트릭, 줄바꿈, 대비와 시각적 계층을 확인할 수 없다.
+완성된 덱을 요청한 사용자가 별도 QA 용어를 알지 못해도 결과물의 기본 품질 검사는
+수행되어야 한다.
+
+## Decision Drivers
+
+- end-to-end 생성 요청은 읽기 전용 시각 검사를 포함해야 한다.
+- 의미를 바꾸지 않는 시각 수정은 별도 승인 없이 완료할 수 있어야 한다.
+- 수정 응답은 전체 슬라이드를 다시 생성하지 않고 허용된 필드만 표현해야 한다.
+- 콘텐츠와 구조 변경은 시각 수정과 분리되어 사용자 결정으로 남아야 한다.
+- 브라우저 캡처 의존성이 없을 때 외부 스크린샷을 안전하게 사용할 수 있어야 한다.
 
 ## Decision
 
-Playwright 스크린샷과 클라이언트 비전 생성을 결합한 Visual QA 파이프라인을 opt-in
-도구로 제공한다.
+Playwright 스크린샷과 클라이언트 비전 생성을 결합한 Visual QA 파이프라인을 제공한다.
 
 - 서버는 스크린샷 캡처와 결과 검증·저장만 담당한다.
 - 클라이언트는 서버가 반환한 프롬프트·스키마·이미지로 분석과 수정 JSON을 생성한다.
 - Playwright는 선택 의존성으로 유지한다.
-- 런타임에 `try: import playwright` → `except ImportError`로 graceful degradation
-- 디자인 스펙 생성 완료 후 사용자에게 visual QA 실행을 제안하고, 동의 시에만 실행
+- 완성된 덱 생성·편집 요청에서는 read-only 분석과 저위험 수정 루프를 기본 실행한다.
+- Visual QA만 별도로 실행하거나 콘텐츠·구조 변경이 필요한 경우는 사용자 요청 경계를 따른다.
+- Playwright를 사용할 수 없으면 클라이언트가 만든 외부 스크린샷 경로를 분석 입력으로 받을 수 있다.
 
 ## Issue Types
 
@@ -54,7 +65,7 @@ for iteration in range(max_iterations):
     1. Playwright로 문제 슬라이드 스크린샷 캡처 (1280x720)
     2. 클라이언트가 준비된 프롬프트·스키마로 스크린샷 분석 → 이슈 목록
     3. 이슈 없으면 pass
-    4. 이슈 있으면 LLM으로 디자인 스펙 수정 → 저장 → HTML 재렌더링
+    4. 이슈 있으면 LLM으로 시각 속성 patch 생성 → 검증·적용 → HTML 재렌더링
     5. 남은 이슈 없으면 break
     6. Progress 리포트: iteration 완료 시 per_slide 상태 기반으로 한 번 보고
 ```
@@ -62,7 +73,9 @@ for iteration in range(max_iterations):
 ## Scope Constraints
 
 - **분석(analysis)**: 시각적 렌더링 이슈만 감지. 슬라이드 콘텐츠(텍스트 문구, 데이터 값, 서술 흐름, 언어 선택)는 절대 지적하지 않는다.
-- **수정(fix)**: 시각적 속성(위치, 크기, 폰트 크기, 색상, 정렬)만 변경. 텍스트 내용 자체를 수정하지 않는다. `text_truncation`/`overflow`를 리사이징/리포지셔닝으로 해결할 수 없으면 폰트 크기를 줄인다.
+- **수정(fix)**: 위치, 크기, 패딩, 정렬, 행간, autofit, 글꼴 크기, 색상과 검증된
+  레이어 결함의 z-order만 변경한다. 텍스트 내용, 데이터 값, 요소 수·순서와 의미 링크는
+  변경하지 않는다. 허용 범위로 해결할 수 없는 이슈는 미수정 상태로 보고한다.
 
 ## Contract Integrity
 
@@ -74,16 +87,15 @@ for iteration in range(max_iterations):
 목록에서 서버가 계산한다. 빈 목록은 통과, 하나 이상의 issue는 수정 대상으로
 분류한다.
 
-수정 단계는 다음 보존 규칙을 따른다.
+수정 단계는 전체 슬라이드 spec 대신 patch operation 목록을 사용하며 다음 규칙을 따른다.
 
 - 분석 이슈는 현재 슬라이드의 요소 종류와 인덱스 범위까지 서버가 검증한다.
 - fix prepare는 검증된 이슈, 프로젝트·슬라이드 식별자와 현재 spec revision을 서명한
   컨텍스트로 반환한다. fix ingest는 재전달된 자유 형식 이슈가 아니라 이 컨텍스트로
   변경 권한과 stale 여부를 판단한다.
 - 시각 결함과 무관한 슬라이드 필드는 기존 값을 보존한다.
-- 텍스트박스, 도형과 이미지의 수 및 배열 순서를 보존한다.
-- 요소의 immutable content와 component identity가 같은 인덱스에서 일치하지 않으면
-  재정렬 또는 구조 변경으로 간주해 거부한다.
+- operation은 기존 element 또는 slide의 허용된 시각 필드에 대한 replace만 허용한다.
+- add, remove, move, 배열 재정렬과 텍스트 run 내용 변경은 허용하지 않는다.
 - 렌더 순서 결함은 검증된 이슈 목록에 레이어 관련 이슈가 있을 때만 `z_index`를
   변경해 수정한다. 배열 순서 변경은 요소 정체성을 훼손할 수 있어 허용하지 않는다.
 - 기존 `z_index`는 레이어 관련 이슈가 없는 수정에서 보존한다.
@@ -92,25 +104,25 @@ for iteration in range(max_iterations):
 - 위치·스타일 수정으로 해결할 수 없는 경우에도 텍스트 문구, 데이터, 발표자 노트는
   변경하지 않는다. 해결 불가능한 이슈는 미수정 상태로 보고한다.
 
+수정 iteration이 끝나면 HTML과 PPTX를 같은 DesignSpec에서 다시 내보내고 HTML을
+클라이언트의 사용 가능한 브라우저로 연다.
+
 ## Alternatives Considered
 
 | 대안 | 판단 |
 |---|---|
 | 프롬프트와 응답 스키마가 각각 issue type을 관리 | 드리프트가 런타임 검증 실패로 이어져 제외 |
 | LLM의 `has_issues` 값을 그대로 사용 | issue 목록과 모순될 수 있어 제외 |
-| 수정 결과 전체를 새 슬라이드로 간주 | 수정과 무관한 필드 손실 위험이 있어 제외 |
-| 검증된 issue 목록과 기존 spec을 기준으로 서버가 요약·보존 | 계약과 데이터 무결성을 함께 보장해 채택 |
+| 수정 결과 전체 spec을 다시 생성 | 출력이 크고 무관한 필드가 흔들릴 수 있어 제외 |
+| 검증된 issue 범위의 patch operation | 여러 요소의 저위험 수정과 데이터 보존을 함께 보장해 채택 |
+| 모든 Visual QA를 별도 opt-in | 안전하지만 완성 요청에서도 결함이 남고 사용자가 내부 기능을 알아야 해 제외 |
 
 ## 기존 필드 보존
 
-`SlideSpecOutput` Pydantic 모델(LLM structured output)에는 `images`와 `slide_type` 필드가 없다. LLM은 시각적 속성만 수정하므로 이 필드를 생성할 수 없다.
-
-`fix_design_spec()` 에서 LLM 출력을 `to_dataclass()`로 변환한 후, 기존 spec의 다음 필드를 복원한다:
-
-| 필드 | 복원 조건 | 이유 |
-|------|----------|------|
-| `images` | 기존 spec에 images가 있을 때 | 배경 이미지, 임포트된 이미지 등 LLM이 생성할 수 없는 바이너리 데이터 |
-| `slide_type` | 기존 spec의 slide_type이 `"content"`가 아닐 때 | title/closing 슬라이드의 배경 이미지 적용에 필요 |
+patch에 포함되지 않은 모든 slide, element, paragraph와 run 필드는 기존 값을 그대로
+보존한다. images, slide_type, speaker_notes, grid_plan, design_doc, 배경 이미지와
+component identity는 Visual QA patch 대상이 아니다. 허용된 replace를 모두 적용한 뒤
+전체 slide spec을 다시 검증하고 렌더한다.
 
 ## Progress Reporting
 
@@ -123,6 +135,8 @@ for iteration in range(max_iterations):
 
 - 디자인 스펙 생성 후 시각적 결함을 자동 감지하고 수정할 수 있다.
 - Playwright 미설치 시에도 기존 기능에 영향 없음 (graceful degradation).
+- end-to-end 요청은 별도 승인 없이 read-only QA와 저위험 수정을 완료할 수 있다.
+- patch 응답으로 토큰과 무관 필드 회귀 위험이 줄어든다.
 - 클라이언트에서 분석과 수정 생성이 추가로 필요하다.
 - 스크린샷 파일이 `~/.ppt-generator/<project_id>/screenshots/`에 저장된다.
 - issue 분류가 프롬프트와 스키마에서 어긋나면 배포 전에 검출된다.

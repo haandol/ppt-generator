@@ -6,8 +6,8 @@
       "adrs": [
         {
           "path": "docs/adr/outline/0001-outline-generation.md",
-          "status": "Accepted (2026-02-11)",
-          "summary": "슬라이드 아웃라인 생성"
+          "status": "Accepted (2026-09-08)",
+          "summary": "목적 기반 아웃라인 계약 — Title·Agenda·Body·Closing 필수, 기본값 추론, 근거·가정 추적"
         },
         {
           "path": "docs/adr/outline/0002-agenda-optional-numbering.md",
@@ -21,8 +21,8 @@
         },
         {
           "path": "docs/adr/outline/0004-layout-planning-phase.md",
-          "status": "Accepted (2026-04-18)",
-          "summary": "아웃라인 내 레이아웃 계획"
+          "status": "Accepted (2026-09-08)",
+          "summary": "레이아웃 계획은 기본 의도이며 사용자 고정값만 하드 계약"
         },
         {
           "path": "docs/adr/outline/0005-load-outline-include-content.md",
@@ -51,8 +51,8 @@
         },
         {
           "path": "docs/adr/design/0004-slide-type-specific-prompts.md",
-          "status": "Accepted (2026-08-29)",
-          "summary": "슬라이드 타입별 생성 계약 — content 계층 계약과 title·closing 고정 레이아웃 검증 분리"
+          "status": "Accepted (2026-09-08)",
+          "summary": "슬라이드 타입별 역할 계약 — title·closing은 의미 역할을 검증하고 좌표·스타일은 자율화"
         },
         {
           "path": "docs/adr/design/0005-title-long-title-overflow-fix.md",
@@ -71,8 +71,8 @@
         },
         {
           "path": "docs/adr/design/0008-design-spec-post-generation-review.md",
-          "status": "Accepted (2026-07-21)",
-          "summary": "Design Spec Post-Generation LLM Review"
+          "status": "Accepted (2026-09-08)",
+          "summary": "슬라이드 위험 리뷰와 덱 전체 근거·서사 review 분리"
         },
         {
           "path": "docs/adr/design/0009-add-slide-design-consistency.md",
@@ -86,8 +86,8 @@
         },
         {
           "path": "docs/adr/design/0011-five-layer-design-spec-hierarchy.md",
-          "status": "Accepted (2026-07-21)",
-          "summary": "5단 디자인 스펙 계층 — Project / Slide / Layout / Section / Content"
+          "status": "Accepted (2026-09-08)",
+          "summary": "5단 계층 유지 — Section은 의미를 소유하고 bbox는 Content 좌표에서 파생"
         },
         {
           "path": "docs/adr/design/0012-content-local-grid.md",
@@ -96,8 +96,8 @@
         },
         {
           "path": "docs/adr/design/0013-five-layer-data-integrity.md",
-          "status": "Accepted (2026-07-21)",
-          "summary": "5단 디자인 스펙 계층 — 데이터 무결성"
+          "status": "Accepted (2026-09-08)",
+          "summary": "5단 계층 무결성 — 완전한 의미 링크와 서버 파생 bbox 보장"
         },
         {
           "path": "docs/adr/design/0014-shape-autofit-shrink-text.md",
@@ -106,8 +106,8 @@
         },
         {
           "path": "docs/adr/design/0015-design-md-source-of-truth.md",
-          "status": "Accepted (2026-06-15)",
-          "summary": "DESIGN.md — 사람이 편집하는 디자인 의도 단일 소스"
+          "status": "Accepted (2026-09-08)",
+          "summary": "DESIGN.md 단일 소스 — 디자인 시스템·톤·AI Slop guardrail·페이지별 요청"
         },
         {
           "path": "docs/adr/design/0016-design-md-background-policy.md",
@@ -121,8 +121,8 @@
         },
         {
           "path": "docs/adr/design/0018-design-md-taste-in-pipeline.md",
-          "status": "Accepted (2026-06-16)",
-          "summary": "DESIGN.md 의 taste 레이어를 파이프라인 안에서 생성한다"
+          "status": "Accepted (2026-09-08)",
+          "summary": "DESIGN.md가 taste·AI Slop guardrail 단일 소스이며 관련 guidance만 슬라이드에 주입"
         },
         {
           "path": "docs/adr/design/0019-background-image-deterministic-per-project.md",
@@ -146,8 +146,8 @@
         },
         {
           "path": "docs/adr/lint/0003-validator-to-lint.md",
-          "status": "Accepted (2026-08-29)",
-          "summary": "디자인 스펙 품질 게이트 — 계약 검증, 비차단 lint, 생성 권고 분리"
+          "status": "Accepted (2026-09-08)",
+          "summary": "품질 게이트 — 계약 검증, 비차단 lint, 저위험 자동 수정과 의미 변경 분리"
         },
         {
           "path": "docs/adr/lint/0004-arrow-label-attachment-lint.md",
@@ -156,8 +156,8 @@
         },
         {
           "path": "docs/adr/lint/0005-five-layer-lint-policy.md",
-          "status": "Accepted (2026-05-26)",
-          "summary": "5단 디자인 스펙 계층 — Lint 정책"
+          "status": "Accepted (2026-09-08)",
+          "summary": "5단 lint — 의미 링크·파생 bbox는 강제하고 표현 겹침은 warning 처리"
         },
         {
           "path": "docs/adr/lint/0006-cycle-diagram-topology-lint.md",
@@ -181,8 +181,8 @@
         },
         {
           "path": "docs/adr/modify/0003-modify-component-mcp-tool.md",
-          "status": "Accepted (2026-07-21)",
-          "summary": "modify_component MCP 도구 — Section 단위 부분 수정"
+          "status": "Accepted (2026-09-08)",
+          "summary": "modify_component MCP 도구 — Section 단위 단일 element 부분 수정"
         },
         {
           "path": "docs/adr/modify/0004-imported-slide-lazy-backfill.md",
@@ -256,13 +256,13 @@
       "adrs": [
         {
           "path": "docs/adr/visual-qa/0001-visual-qa-pipeline.md",
-          "status": "Accepted (2026-07-21)",
-          "summary": "Visual QA Pipeline"
+          "status": "Accepted (2026-09-08)",
+          "summary": "Visual QA — 기본 read-only 분석과 저위험 patch 수정"
         },
         {
           "path": "docs/adr/visual-qa/0002-browser-tool-fallback.md",
-          "status": "Proposed",
-          "summary": "Visual QA 브라우저 도구 안내 개선"
+          "status": "Accepted (2026-09-08)",
+          "summary": "Visual QA 캡처 폴백 — Playwright 또는 검증된 클라이언트 PNG"
         },
         {
           "path": "docs/adr/visual-qa/0003-two-phase-model-split.md",
@@ -336,8 +336,8 @@
       "adrs": [
         {
           "path": "docs/adr/offload/0001-client-llm-offload-plugin.md",
-          "status": "Accepted (2026-07-01)",
-          "summary": "LLM 생성을 클라이언트로 오프로딩 — 플러그인 + 스킬 + prepare/ingest 핸드셰이크"
+          "status": "Accepted (2026-09-08)",
+          "summary": "클라이언트 오프로딩 — 스킬 정본 workflow와 완료 체크포인트 정합성"
         }
       ]
     }

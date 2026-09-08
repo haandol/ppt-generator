@@ -4,6 +4,16 @@ This document is the **major decision-change history** of the lint category. Eac
 ADR body describes only the current state, while the timeline of "what changed and why"
 accumulates here, newest first. Git preserves the individual diffs.
 
+## 2026-09-08 — 저위험 시각 수정과 의미 변경의 권한 경계 분리
+
+- **Current ADRs**: [디자인 스펙 품질 게이트](./0003-validator-to-lint.md),
+  [5단 lint 정책](./0005-five-layer-lint-policy.md)
+- **Change type**: permission and validation policy
+- **What**: end-to-end 요청은 read-only QA와 저위험 시각 수정을 포함하고, 콘텐츠·구조
+  변경만 사용자 확인 대상으로 둔다. 누락된 의미 링크와 파생 bbox 회귀는 거부하되
+  의도 가능한 형제 영역 겹침은 warning으로 내린다.
+- **Why**: 필수 데이터 계약을 유지하면서 품질 수정 왕복과 표현 과잉 제약을 줄이기 위해.
+
 ## 2026-08-29 — 품질 게이트를 계약 검증·lint·생성 권고로 분리
 
 - **Current ADR**: [디자인 스펙 품질 게이트](./0003-validator-to-lint.md)

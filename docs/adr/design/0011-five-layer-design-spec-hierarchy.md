@@ -4,16 +4,27 @@ Date: 2026-05-26 (rolled up earlier grid-first + progressive abstraction ADRs; �
 
 ## Status
 
-Accepted (2026-07-21)
+Accepted (2026-09-08)
 
 ## Context
 
 초기에는 디자인 스펙을 grid-first 4단(outline → grid_layout → cell_assignment → textboxes/shapes) 으로 두었다. 이 4단은 LLM 자기-조건화에는 효과적이었지만 다음 두 가지를 해결하지 못했다.
 
 1. **사용자 부분 수정의 식별성**: "좌측 두 번째 카드 색을 빨강으로", "다이어그램 영역을 우측으로" 같은 의미 단위 명령에서 LLM 이 어떤 textbox/shape 을 가리키는지 추정해야 했다. cell 의 `role` 이 라벨로 쓰였지만 단일 라벨이라 카드/보조 라벨/장식이 한 cell 에 섞이면 모호했다.
-2. **공간 충돌의 구조적 차단**: 픽셀 좌표가 stage 4 에서야 결정되면서 형제 도형 간 겹침, 컨테이너 외부 침범 같은 문제가 stage 4 이후 lint 에서야 드러났다. 거시 단계에서 이미 캔버스를 nested 사각형으로 분할해두면 충돌이 *구조적으로* 발생하지 않는다.
+2. **공간 충돌의 구조적 검증**: 의미 그룹과 실제 렌더 요소가 연결되어야 어느 영역의
+   충돌인지 설명하고 부분 수정 후에도 범위를 검증할 수 있다. 다만 같은 bbox를 Section과
+   Content에 두 번 생성하게 하면 응답 크기와 실패 표면이 커진다.
 
-본 ADR 은 그 4단 사이에 **Section** 계층을 끼워 5단 계층으로 확장하고, Section 계층을 **의미 + bbox** 양쪽 책임을 가진 트리로 정의해 부분 수정 식별성과 공간 충돌 차단을 동시에 해결한다.
+본 ADR은 그 4단 사이에 **Section** 계층을 끼워 5단 계층으로 확장한다. Section은 의미
+구조와 component 식별을 소유하고, 좌표는 Content에서 한 번만 생성한 뒤 서버가 Section
+bbox를 파생한다.
+
+## Decision Drivers
+
+- 사용자는 배열 인덱스가 아니라 의미 이름으로 요소를 수정할 수 있어야 한다.
+- LLM은 같은 좌표를 두 계층에 반복 출력하지 않아야 한다.
+- 서버는 생성 결과에서 Section bbox를 결정론적으로 재구성할 수 있어야 한다.
+- 필수 의미 링크가 빈 design_doc 껍데기로 우회되지 않아야 한다.
 
 ## Decision
 
@@ -34,7 +45,7 @@ Project   = DesignSpec                  ── 전체 발표 묶음 (slides 리�
 | Project | 이 발표는 무엇을 다루는가? 슬라이드 순서는? |
 | Slide | 이 페이지의 한 가지 주제는 무엇인가? speaker_notes 는 무엇을 말할 것인가? |
 | Layout | 이 슬라이드를 어떻게 격자로 분할하는가? (header/content/footer × columns × rows) |
-| Section | 각 영역에 어떤 *의미* 가 들어가는가? 그 영역의 bbox 는? 어떤 component 들로 구성되는가? |
+| Section | 각 영역에 어떤 *의미* 가 들어가는가? 어떤 component 들로 구성되는가? |
 | Content | 그 component 를 실제로 어떤 textbox/shape 으로 그리는가? (픽셀, 텍스트, 스타일) |
 
 ### 결정 1 — Section 계층의 도입
@@ -47,7 +58,6 @@ Layout(GridPlan) 과 Content(textboxes/shapes) 사이에 **Section 트리** 를 
 - role: 자유 라벨 (`llm_box`, `function_card`, `card_title`, `axis_label` 등)
 - description: 1-2 문장 의미 설명
 - cell_id: GridPlan cell 과 매핑 (Layout 과의 link)
-- bbox (left/top/width/height)
 
 `section` 은 슬라이드의 큰 의미 영역(보통 cell 1개와 매핑), `group` 은 깊이 2 이상이 필요한 중간 묶음, `component` 는 leaf 로 정확히 한 textbox/shape 이 component_id 로 참조한다.
 
@@ -55,9 +65,15 @@ Layout(GridPlan) 과 Content(textboxes/shapes) 사이에 **Section 트리** 를 
 
 textbox/shape 의 component_id 필드를 Section 트리의 leaf id 와 link 한다. 부분 수정 시 LLM 은 의미 path(`right_diagram.llm_box`) 로 정확히 한 요소를 식별한다.
 
-### 결정 3 — bbox-first 점진적 하강
+### 결정 3 — Content 좌표에서 Section bbox를 파생
 
-Section/group 노드는 자식보다 *먼저* bbox 를 결정한다. 자식 bbox 는 부모 bbox 안에 완전히 포함되어야 하며, 같은 부모 아래 형제는 bbox 가 겹치면 안 된다. 이로써 Stage 4(Content) 진입 시점에 캔버스가 이미 nested 사각형으로 분할되어 있다. `layout-tree-bbox` lint 규칙군(sibling-overlap, containment, bbox-missing, canvas-overflow) 이 이 원칙을 강제한다.
+LLM 응답의 LayoutNode는 bbox를 출력하지 않는다. 서버는 component leaf가 참조하는
+textbox/shape의 bbox를 leaf bbox로 사용하고, group과 section bbox는 모든 자식 bbox의
+합집합으로 계산한다. 따라서 실제 좌표는 Content 계층에 한 번만 존재한다.
+
+파생 후에는 같은 부모 아래 형제 영역의 의도하지 않은 겹침, 부모 영역 외부 침범과
+캔버스 이탈을 lint로 검출한다. 장식 connector처럼 의미 component가 아닌 element는
+Section 트리에 포함하지 않는다.
 
 ### 결정 4 — speaker_notes 는 발표 narrative 전용
 
@@ -65,16 +81,23 @@ Section/group 노드는 자식보다 *먼저* bbox 를 결정한다. 자식 bbox
 슬라이드에 배치하지 못한 보충 콘텐츠를 speaker_notes로 이동하지 않으며, 해당 내용은
 구조화된 overflow로 보고해 upstream 콘텐츠 결정으로 돌려보낸다.
 
-### 결정 5 — design_doc 은 content 슬라이드에서 Required, title/closing 은 Optional
+### 결정 5 — design_doc은 content 슬라이드에서 실질적으로 Required
 
-content 슬라이드 LLM 응답 모델은 grid_layout / cell_assignment / design_doc 모두 Required. title/closing 슬라이드는 fixed special layout 이라 모두 Optional. 슬라이드 타입별 프롬프트(`design_system_title` / `design_system_closing`) 도 동일 정책을 명시해 base prompt 와 정합을 맞춘다.
+content 슬라이드 LLM 응답 모델은 grid_layout, cell_assignment와 design_doc을 모두
+요구한다. design_doc의 topic과 layout_summary는 비어 있을 수 없고, 최소 한 개의 root
+section과 component leaf가 있어야 한다. 모든 의미 있는 textbox/shape는 선언된 grid
+cell과 component leaf를 참조하고, 모든 component leaf는 정확히 한 element에서
+참조되어야 한다. 빈 객체나 빈 layout은 계약을 만족하지 않는다.
+
+title/closing은 Layout과 Section을 생략할 수 있지만 타입별 의미 역할을 component_id로
+표현한다.
 
 LLM 은 거시 → 미시 순서로 출력한다 (Pydantic 필드 선언 순서가 schema 에 박힘):
 
 ```
 grid_layout       ← Stage 2 (격자 거시)
 cell_assignment   ← Stage 3 (격자 슬롯)
-design_doc        ← Stage 3.5 (Section 트리 + bbox)
+design_doc        ← Stage 3.5 (Section 의미 트리)
 background_color
 speaker_notes     ← 발표 narrative ONLY
 textboxes / shapes ← Stage 4 (Content, component_id 로 Section 과 link)
@@ -85,9 +108,11 @@ overflow
 
 자기 참조 트리(`children: list["LayoutNodeOutput"]`) 는 strands `structured_output_model` 처리 시 schema 재귀로 RecursionError 를 유발한다. flat list + parent_id 로 직렬화하고 dataclass 변환 시 트리로 재구성한다.
 
-### 결정 7 — examples 디렉토리는 5단 계층 데모로 채운다
+### 결정 7 — 예시는 관련 슬라이드에서만 제공한다
 
-`prompts/examples/` 는 LLM 인-컨텍스트 학습용 슬라이드 예시 모음이다. 5단 계층(특히 design_doc.layout 트리 + component_id 링크) 이 충실히 채워진 예시 ≥1 개를 두고, base 프롬프트에서 참조한다.
+응답 계약 예시는 테스트 가능한 별도 자산으로 유지하되 모든 슬라이드 프롬프트에
+상시 주입하지 않는다. 현재 component_hint와 복잡도에 도움이 되는 예시만 prepare
+단계에서 선택해 제공한다.
 
 ### 결정 8 — 프롬프트 예시는 실제 응답 계약을 통과해야 한다
 
@@ -101,7 +126,8 @@ Content 링크를 모두 포함하고, title/closing 예시는 해당 타입의 
 | 대안 | 채택하지 않은 이유 |
 |---|---|
 | 4단 유지 + 프롬프트로 의미 라벨 강화 | cell.role 단일 라벨이 카드/보조 라벨/장식 혼재를 표현 못함 |
-| Section 계층은 의미만, bbox 는 Content 가 결정 | 공간 충돌이 Stage 4 이후 lint 에서야 드러남 — 구조적 사전 차단 불가 |
+| Section 계층과 Content가 bbox를 각각 출력 | 충돌을 일찍 생각하게 하지만 같은 값을 두 번 맞춰야 해 응답과 검증이 비대해짐 |
+| Section은 의미만 출력하고 서버가 Content 좌표에서 bbox 파생 | 식별성과 검증 가능성을 유지하면서 중복 좌표를 제거하므로 채택 |
 | design_doc 을 별도 LLM 호출로 분리 | 호출 수 증가·지연 증가, single-call self-conditioning 의 이점 손실 |
 | LayoutNode 를 nested children 으로 직렬화 | strands schema 재귀로 RecursionError, flat + parent_id 로 우회 필요 |
 
@@ -116,15 +142,16 @@ Content 링크를 모두 포함하고, title/closing 예시는 해당 타입의 
 ### Positive
 
 - **사용자 부분 수정 명확**: "좌측 두 번째 카드", "LLM 박스" 같은 의미 명령이 component_id 매칭으로 정확히 식별됨.
-- **구조적 충돌 차단**: bbox-first 원칙 + layout-tree lint 로 형제 겹침/외부 침범이 stage 4 이전에 차단.
+- **중복 좌표 제거**: 실제 좌표는 Content에 한 번만 생성되고 Section bbox는 서버가 파생.
+- **실질 계약 보장**: 빈 design_doc과 누락된 component link가 ingest를 통과하지 못함.
 - **speaker_notes 정화**: 발표용 텍스트가 청중-facing tone 으로 유지.
 - **추상화 응집**: Layout(격자)와 Section(의미)이 분리되어 각 계층이 한 종류의 결정만 담당.
 - **단방향 의존성 강화**: lint 가 Content → Section → Layout 단방향성을 강제.
 
 ### Negative / Risks
 
-- LLM 응답 schema 가 커져 토큰/지연 약간 증가 (실측 단일 호출 ~3-5%).
-- design_doc Required 로 인해 LLM 출력 실패율이 미미하게 상승 가능 → review/재생성 메커니즘으로 회복.
+- 의미 트리와 component link를 생성하는 비용은 남지만 bbox 반복 출력 비용은 제거된다.
+- component link가 필수라 기존의 느슨한 content 응답은 새 schema로 재생성해야 한다.
 - LayoutNode 의 자기 참조 트리는 schema 제약상 flat list + parent_id 로 우회 (직접 nested children 사용 불가).
 - 프롬프트 예시를 계약 테스트 대상으로 유지해야 하므로 예시 변경 시 검증 비용이
   추가된다.

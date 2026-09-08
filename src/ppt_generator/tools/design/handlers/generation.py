@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# DESIGN.md 초안 (theme + tone + page_requests)
+# DESIGN.md 초안 (theme + tone + anti_slop + page_requests)
 # ---------------------------------------------------------------------------
 
 
@@ -92,13 +92,22 @@ def handle_ingest_design_doc_draft(
     project_service = deps.project_service
     _, project_dir = project_service.resolve_existing_project_dir(project_id)
 
-    summary, tone, page_requests = deps.design_service.ingest_design_doc_draft(
-        draft_json
-    )
+    draft_result = deps.design_service.ingest_design_doc_draft(draft_json)
+    if len(draft_result) == 3:
+        # 기존 클라이언트/테스트 더블은 anti_slop 필드가 없을 수 있다.
+        summary, tone, page_requests = draft_result
+        anti_slop = ""
+    else:
+        summary, tone, anti_slop, page_requests = draft_result
     summary["color_theme"] = color_theme
     project_service.save_design_doc_md(
         project_dir,
-        render_design_doc_md(summary, tone=tone, page_requests=page_requests),
+        render_design_doc_md(
+            summary,
+            tone=tone,
+            anti_slop=anti_slop,
+            page_requests=page_requests,
+        ),
     )
     logger.info("DESIGN.md draft ingested and saved")
     return json.dumps(
