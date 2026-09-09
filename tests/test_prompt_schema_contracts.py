@@ -34,6 +34,8 @@ from ppt_generator.interfaces.llm_output_models import (
     VisualQASimpleSlideSpecOutput,
 )
 from ppt_generator.interfaces.prompts import get_design_spec_system_prompt
+from ppt_generator.interfaces.schemas import SlideOutline
+from ppt_generator.tools.design.service import DesignService
 
 
 def _literal_values(model, field_name: str) -> set[str]:
@@ -162,6 +164,19 @@ def test_design_prompt_separates_contracts_from_quality_guidance() -> None:
     assert "Endpoints must touch block edges exactly" not in base
     for prompt in DESIGN_SPEC_SYSTEM_PROMPTS.values():
         assert "Hard constraints (rendering will fail if violated)" not in prompt
+
+
+@pytest.mark.parametrize("summary", [None, {"background_color": "#FFFFFF"}])
+def test_prepared_slide_prompt_has_no_legacy_plan_or_bbox_contract(summary) -> None:
+    task = DesignService().prepare_slide(
+        SlideOutline(title="전환", content_summary="하나의 핵심 주장"),
+        design_summary=summary,
+    )
+    prompt = task["system_prompt"] + "\n" + task["user_prompt"]
+    assert "follow it precisely for element count and direction" not in prompt
+    assert "Each section/group/component carries its bbox" not in prompt
+    assert "outline element\n  count/relationships" not in prompt
+    assert "server derives" in prompt
 
 
 def test_z_index_is_scoped_to_visual_qa_schemas() -> None:

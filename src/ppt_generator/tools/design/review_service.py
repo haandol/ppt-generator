@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 
 from ppt_generator.interfaces.constants import (
     DECK_REVIEW_SYSTEM_PROMPT,
@@ -36,6 +36,8 @@ class DesignReviewService:
         spec: PptxSlideSpec,
         slide_index: int,
         lint_result: SlideLintResult | None = None,
+        *,
+        design_directives: str = "",
     ) -> dict:
         """슬라이드 리뷰를 위한 LLM 태스크를 조립한다.
 
@@ -55,6 +57,7 @@ class DesignReviewService:
             f"against the review checklist.\n\n"
             f"{lint_block}"
             f"<design_spec>\n{spec_json}\n</design_spec>"
+            f"\n\n<design_intent>\n{design_directives}\n</design_intent>"
         )
         return build_llm_task(
             system_prompt=DESIGN_REVIEW_SYSTEM_PROMPT,
@@ -74,6 +77,8 @@ class DesignReviewService:
         design_spec: DesignSpec,
         *,
         presentation_minutes: int,
+        design_intent: str = "",
+        presentation_context: dict | None = None,
     ) -> dict:
         """슬라이드 간 근거·용어·서사 문제를 찾는 read-only 태스크를 만든다."""
         if len(outline.slides) != len(design_spec.slides):
@@ -92,13 +97,18 @@ class DesignReviewService:
                     "slide_type": planned.slide_type,
                     "component_hint": planned.component_hint,
                     "content_summary": planned.content_summary,
+                    "layout_plan": planned.layout_plan,
                     "source_refs": planned.source_refs,
                     "assumptions": planned.assumptions,
                     "visible_text": _visible_text(rendered),
+                    "speaker_notes": rendered.speaker_notes,
+                    "composition": _composition(rendered),
                 }
             )
         prompt = (
             f"<presentation_minutes>{presentation_minutes}</presentation_minutes>\n"
+            f"<presentation_context>\n{json.dumps(presentation_context or {}, ensure_ascii=False)}\n</presentation_context>\n"
+            f"<design_intent>\n{design_intent}\n</design_intent>\n"
             f"<deck>\n{json.dumps({'slides': slides}, ensure_ascii=False, indent=2)}"
             "\n</deck>"
         )
@@ -143,6 +153,60 @@ class DesignReviewService:
             )
         lines.append("</design_review_feedback>")
         return "\n".join(lines)
+
+
+def _composition(spec: PptxSlideSpec) -> dict:
+    """힌트 이름과 독립적으로 실제 배치와 역할을 비교할 입력을 만든다.
+
+    요소 순서와 좌표를 보존하고 이미지 바이트처럼 비교에 불필요한 데이터는 제외한다.
+    """
+    elements: list[dict] = []
+    for kind, items in (
+        ("textbox", spec.textboxes),
+        ("shape", spec.shapes),
+        ("image", spec.images),
+    ):
+        for index, item in enumerate(items):
+            element = {
+                "kind": kind,
+                "index": index,
+                "bbox_px": [item.left_px, item.top_px, item.width_px, item.height_px],
+                "grid_cell": item.grid_cell,
+                "component_id": getattr(item, "component_id", None),
+                "z_index": item.z_index,
+            }
+            if kind != "image":
+                element["paragraphs"] = [
+                    [
+                        {
+                            "text": run.text,
+                            "font_size_pt": run.font_size_pt,
+                            "bold": run.bold,
+                            "italic": run.italic,
+                            "color": run.color,
+                        }
+                        for run in paragraph.runs
+                    ]
+                    for paragraph in item.paragraphs
+                ]
+            if kind == "shape":
+                element.update(
+                    shape_type=item.shape_type,
+                    fill_color=item.fill_color,
+                    start_arrow=item.start_arrow,
+                    end_arrow=item.end_arrow,
+                    text=item.text,
+                    text_size_pt=item.text_size_pt,
+                    text_bold=item.text_bold,
+                    text_color=item.text_color,
+                )
+            elements.append(element)
+    return {
+        "background_color": spec.background_color,
+        "grid_plan": asdict(spec.grid_plan) if spec.grid_plan else None,
+        "design_doc": asdict(spec.design_doc) if spec.design_doc else None,
+        "elements": elements,
+    }
 
 
 def _format_lint_block(lint_result: SlideLintResult) -> str:

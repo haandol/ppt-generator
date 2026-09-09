@@ -99,8 +99,8 @@ class TestParserRobustness:
 class TestPageMatching:
     REQS = [PageRequest(3, "아키텍처 개요", "좌우 비교.")]
 
-    def test_match_by_number(self) -> None:
-        r = match_page_request(self.REQS, 3, "전혀 다른 제목")
+    def test_match_by_number_and_title(self) -> None:
+        r = match_page_request(self.REQS, 3, "아키텍처 개요")
         assert r is not None and r.number == 3
 
     def test_match_by_title_when_number_shifted(self) -> None:

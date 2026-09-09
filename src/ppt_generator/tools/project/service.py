@@ -321,6 +321,32 @@ class ProjectService:
     def design_doc_md_exists(self, project_dir: Path) -> bool:
         return self.design_spec_store.design_doc_md_exists(project_dir)
 
+    def load_design_directives(
+        self, project_dir: Path, slide_index: int, title: str | None = None
+    ) -> str:
+        """검사·생성 모두 현재 아웃라인을 기준으로 같은 페이지 의도를 읽는다.
+
+        아웃라인 없는 임포트 프로젝트도 번호 전용 요청과 전역 의도를 사용할 수 있다.
+        제목 보정에는 전체 제목을 전달해 중복 제목 중 임의 선택을 막는다.
+        """
+        doc = self.load_design_doc_md(project_dir)
+        if doc is None:
+            return ""
+        try:
+            slides = json.loads(self.load_outline(project_dir))["slides"]
+            titles = [slide["title"] for slide in slides]
+        except FileNotFoundError:
+            titles = None
+        if titles is not None:
+            doc.warn_unbound_requests(titles)
+        if title is None:
+            title = (
+                titles[slide_index - 1]
+                if titles and 0 < slide_index <= len(titles)
+                else ""
+            )
+        return doc.directives_for(slide_index, title, slide_titles=titles)
+
     def load_bg_image_policy(self, project_dir: Path) -> str:
         """title/closing 배경 자동 주입 정책을 반환한다 ("gradient" | "none").
 
@@ -351,6 +377,7 @@ class ProjectService:
             "steps_completed": metadata.steps_completed,
             "audience_type": metadata.audience_type,
             "presentation_minutes": metadata.presentation_minutes,
+            "purpose": metadata.purpose,
             "source": metadata.source,
             "presenter_name": metadata.presenter_name,
             "presenter_title": metadata.presenter_title,
@@ -394,6 +421,7 @@ class ProjectService:
             steps_completed=data.get("steps_completed", {}),
             audience_type=data.get("audience_type", "general"),
             presentation_minutes=data.get("presentation_minutes", 15),
+            purpose=data.get("purpose", ""),
             source=data.get("source", "generated"),
             presenter_name=data.get("presenter_name", ""),
             presenter_title=data.get("presenter_title", ""),

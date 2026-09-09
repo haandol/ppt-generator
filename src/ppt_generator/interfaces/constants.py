@@ -144,6 +144,7 @@ COMPONENT_HINT_COMPLEXITY: dict[str, int] = {
 PROJECT_SLIDES_DIR = "slides"
 PROJECT_IMAGES_DIR = "slides/images"
 PROJECT_OUTLINE_DIR = "outline"
+PROJECT_DESIGN_DRAFT_CONTEXT_FILE = ".design-doc-draft-context"
 
 TEMPLATE_BG_IMAGES_DIR = (
     Path(__file__).parent.parent / "templates" / "template_bg_images"
@@ -246,6 +247,7 @@ __all__ = [
     "PROJECT_SLIDES_DIR",
     "PROJECT_IMAGES_DIR",
     "PROJECT_OUTLINE_DIR",
+    "PROJECT_DESIGN_DRAFT_CONTEXT_FILE",
     "TEMPLATE_BG_IMAGES_DIR",
     "SLIDES_TEMPLATE_PATH",
     "SLIDE_TEMPLATE_PATH",

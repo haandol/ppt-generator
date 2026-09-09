@@ -77,6 +77,7 @@ DESIGN_SPEC_USER_PROMPT_TEMPLATE = _load("design_user.prompt.md")
 DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE = _load("design_batch_user.prompt.md")
 DESIGN_SUMMARY_USER_PROMPT_TEMPLATE = _load("design_summary_user.prompt.md")
 DESIGN_DOC_DRAFT_USER_PROMPT_TEMPLATE = _load("design_doc_draft_user.prompt.md")
+DESIGN_DOC_DRAFT_SYSTEM_PROMPT = _load("design_doc_draft_system.prompt.md")
 
 VISUAL_QA_ANALYSIS_SYSTEM_PROMPT = _load("visual_qa_analysis.prompt.md")
 VISUAL_QA_FIX_SYSTEM_PROMPT = _load("visual_qa_fix.prompt.md")
@@ -100,6 +101,7 @@ __all__ = [
     "DESIGN_SPEC_USER_PROMPT_TEMPLATE",
     "DESIGN_SUMMARY_USER_PROMPT_TEMPLATE",
     "DESIGN_DOC_DRAFT_USER_PROMPT_TEMPLATE",
+    "DESIGN_DOC_DRAFT_SYSTEM_PROMPT",
     "OUTLINE_SYSTEM_PROMPT",
     "OUTLINE_USER_PROMPT_TEMPLATE",
     "VISUAL_QA_ANALYSIS_SYSTEM_PROMPT",

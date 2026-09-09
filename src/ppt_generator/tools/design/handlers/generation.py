@@ -10,12 +10,15 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import tempfile
 from dataclasses import asdict, replace
+from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ppt_generator.interfaces.constants import PROJECT_DESIGN_DRAFT_CONTEXT_FILE
 from ppt_generator.interfaces.index_validation import require_positive_slide_index
 from ppt_generator.interfaces.llm_output_models import slide_spec_output_model
-from ppt_generator.interfaces.schemas import SlideOutline
+from ppt_generator.interfaces.schemas import PptxSlideSpec, SlideOutline
 from ppt_generator.interfaces.spec_utils import lint_design_spec, lint_slide_spec
 from ppt_generator.interfaces.utils import (
     complexity_to_budget_tokens,
@@ -48,7 +51,10 @@ def handle_prepare_design_doc_draft(
     outline_json: str,
     color_theme: str,
 ) -> str:
-    """DESIGN.md 초안 생성 태스크를 조립한다. 이미 DESIGN.md 가 있으면 skip."""
+    """초안 프롬프트와 검증 입력을 함께 준비하고 기존 DESIGN.md는 재생성하지 않는다.
+
+    인라인 아웃라인은 별도의 서명된 준비 문맥에 보존해 저장된 아웃라인을 덮지 않는다.
+    """
     outline = parse_outline_json(outline_json) if outline_json else None
     project_service = deps.project_service
     if project_id:
@@ -73,7 +79,37 @@ def handle_prepare_design_doc_draft(
 
     if outline is None:
         outline = _load_outline(deps, project_id=project_id, outline_json="")
-    task = deps.design_service.prepare_design_doc_draft(outline, color_theme)
+    metadata = project_service.load_metadata(project_dir)
+    task = deps.design_service.prepare_design_doc_draft(
+        outline,
+        color_theme,
+        presentation_context={
+            "topic": metadata.topic,
+            "purpose": metadata.purpose,
+            "audience_type": metadata.audience_type,
+            "presentation_minutes": metadata.presentation_minutes,
+        },
+    )
+    # 인라인 입력을 프로젝트 아웃라인에 덮어쓰지 않고 수신 검증에 보존한다.
+    context = encode_signed_context(
+        {
+            "kind": "design_doc_draft",
+            "version": 1,
+            "project_id": project_id,
+            "outline": asdict(outline),
+            "source": "inline" if outline_json else "stored",
+        },
+        project_dir,
+    )
+    with tempfile.NamedTemporaryFile(
+        mode="w", dir=project_dir, encoding="utf-8", delete=False
+    ) as pending:
+        pending.write(context)
+    pending_path = Path(pending.name)
+    try:
+        pending_path.replace(project_dir / PROJECT_DESIGN_DRAFT_CONTEXT_FILE)
+    finally:
+        pending_path.unlink(missing_ok=True)
     task["project_id"] = project_id
     task["color_theme"] = color_theme
     return json.dumps(task, ensure_ascii=False)
@@ -86,7 +122,10 @@ def handle_ingest_design_doc_draft(
     draft_json: str,
     color_theme: str,
 ) -> str:
-    """클라이언트가 생성한 DESIGN.md 초안을 파싱해 DESIGN.md 로 저장한다."""
+    """준비한 아웃라인으로 초안을 검증하고 DESIGN.md로 저장한다.
+
+    저장된 아웃라인이 준비 이후 바뀌면 거부하며 인라인 입력의 바인딩도 동일하게 검사한다.
+    """
     from ppt_generator.tools.design.design_doc_md import render_design_doc_md
 
     project_service = deps.project_service
@@ -99,6 +138,41 @@ def handle_ingest_design_doc_draft(
         anti_slop = ""
     else:
         summary, tone, anti_slop, page_requests = draft_result
+    context_path = project_dir / PROJECT_DESIGN_DRAFT_CONTEXT_FILE
+    outline = None
+    if context_path.exists():
+        context = decode_signed_context(
+            context_path.read_text(encoding="utf-8"), project_dir
+        )
+        if (
+            context.get("kind") != "design_doc_draft"
+            or context.get("version") != 1
+            or context.get("project_id") != project_id
+        ):
+            raise ValueError("draft context does not match project")
+        outline = parse_outline_json(json.dumps(context["outline"], ensure_ascii=False))
+        if context.get("source") == "stored":
+            current = _load_outline(deps, project_id=project_id, outline_json="")
+            if asdict(current) != asdict(outline):
+                raise ValueError("Stale draft context: outline changed after prepare")
+    if page_requests:
+        if outline is None:
+            # 준비 문맥을 도입하기 전에 저장된 프로젝트의 직접 수신도 지원한다.
+            outline = _load_outline(deps, project_id=project_id, outline_json="")
+        seen: set[int] = set()
+        for request in page_requests:
+            number = request.number
+            if (
+                number is None
+                or number < 1
+                or number > len(outline.slides)
+                or request.title != outline.slides[number - 1].title
+                or number in seen
+            ):
+                raise ValueError(
+                    "page_requests must use unique valid outline numbers and exact titles"
+                )
+            seen.add(number)
     summary["color_theme"] = color_theme
     project_service.save_design_doc_md(
         project_dir,
@@ -416,12 +490,19 @@ def handle_finalize_design_spec(
 # --- helpers ---
 
 
-def _enforce_background_color(spec, design_summary, bg_image_policy, idx):
-    """content 슬라이드(및 bg 정책 none)의 배경색을 deck 배경색으로 보정한다.
+def _enforce_background_color(
+    spec: PptxSlideSpec,
+    design_summary: dict | None,
+    bg_image_policy: str,
+    idx: int,
+) -> PptxSlideSpec:
+    """본문의 덱 배경을 유지하고 이미지 없는 표지의 누락된 색상만 보완한다.
 
-    parallel_runner 의 배경 보정과 동일 (design/0016).
+    표지·클로징에 명시된 단색은 자동 배경 보완으로 덮어쓰지 않는다.
     """
-    _enforce_bg = spec.slide_type == "content" or bg_image_policy == "none"
+    _enforce_bg = spec.slide_type == "content" or (
+        bg_image_policy == "none" and not spec.background_color
+    )
     if (
         design_summary
         and _enforce_bg
@@ -440,10 +521,7 @@ def _enforce_background_color(spec, design_summary, bg_image_policy, idx):
 
 def _directives_for(project_service, project_dir, slide_index: int, title: str) -> str:
     """DESIGN.md 에서 해당 슬라이드의 디자인 지시(톤+페이지 요청)를 만든다."""
-    design_doc = project_service.load_design_doc_md(project_dir)
-    if design_doc is None:
-        return ""
-    return design_doc.directives_for(slide_index, title)
+    return project_service.load_design_directives(project_dir, slide_index, title)
 
 
 def _load_outline(

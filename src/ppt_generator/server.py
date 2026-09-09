@@ -46,6 +46,8 @@ def create_server() -> FastMCP:
             "prepare_visual_qa_analysis → generate → ingest_visual_qa_analysis → (if issues) "
             "prepare_visual_qa_fix → generate → ingest_visual_qa_fix → finalize_visual_qa.\n"
             "  If Playwright is unavailable, pass a client-captured PNG as screenshot_path.\n"
+            "  Echo prepared_context from prepare_visual_qa_analysis when calling "
+            "ingest_visual_qa_analysis; restart analysis if its inputs changed.\n"
             "- During a batch of edits use incremental slide HTML; export both formats once at "
             "the stable completion checkpoint.\n"
             "- Visual patches may change geometry, spacing, typography, color, autofit, and "

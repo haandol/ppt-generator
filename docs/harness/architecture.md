@@ -44,9 +44,10 @@ flowchart LR
     C --> D["per-slide:\nprepare_design_slide\n→ 생성 →\ningest_design_slide"]
     D --> F["finalize_design_spec"]
     F -.->|"개별 수정"| D
-    F --> V["Visual QA\n(캡처→분석→최소 patch 루프)"]
+    F --> R["prepare_deck_review\n→ 생성 → ingest_deck_review\n근거·중복·용어·서사 검토"]
+    R --> V["Visual QA\n(캡처→분석→최소 patch 루프)"]
     V -.-> F
-    F --> E{"내보내기"}
+    V --> E{"내보내기"}
     E --> G["export_html\n미리보기"]
     E --> H["export_pptx\n다운로드"]
 
@@ -61,7 +62,8 @@ flowchart TD
     B --> D["2. prepare_design_doc_draft → 생성 → ingest_design_doc_draft\nDESIGN.md 초안 (1회, skip 가능)"]
     D --> E["3. 슬라이드별 (클라이언트 병렬)\nprepare_design_slide → 생성 → ingest_design_slide"]
     E --> F["finalize_design_spec (1회)"]
-    F --> G{"⏸ 검토"}
+    F --> DR["prepare_deck_review → 생성 → ingest_deck_review"]
+    DR --> G{"검토"}
     G -->|"add/update"| H["prepare_slide_edit → 생성 → ingest_slide_edit"]
     H --> G
     G -->|"단일 컴포넌트"| M["prepare_modify_component → 생성 → ingest_modify_component"]
@@ -151,6 +153,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 | `prepare_slide_edit` | `ingest_slide_edit` | 읽기 전용 프롬프트+edit_context 반환 → 스펙 검증·원자적 삽입/갱신·렌더 |
 | `prepare_modify_component` | `ingest_modify_component` | 단일 컴포넌트 부분 수정 프롬프트 반환 → 정확히 한 요소에 적용·렌더 |
 | `prepare_review` | `ingest_review` | 슬라이드 디자인 규칙 리뷰 프롬프트 반환 → 이슈 리포트 (리포트 전용, 자동 재생성 없음) |
+| `prepare_deck_review` | `ingest_deck_review` | 덱 전체의 근거·가정·중복·용어·서사 검토 → 수정 범위 리포트 (리포트 전용) |
 
 - **finalize_design_spec** — 모든 슬라이드 ingest 완료 후 1회 호출. `slides.html` 조립 + 덱 전체 lint 실행 (LLM 없음).
 - **ingest_backfill** — imported 슬라이드의 `prepare_modify_component` 가 `stage="backfill"` 을 반환한 경우 design_doc 트리를 backfill 하여 `available_components` 반환. 이후 유효한 component_id 로 `prepare_modify_component` 재호출.
@@ -179,8 +182,8 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 | 도구 | 역할 |
 | ---- | ---- |
 | `capture_slides` | Playwright 로 슬라이드 스크린샷 캡처(1280×720, iteration 별 버전 관리). LLM 없음 |
-| `prepare_visual_qa_analysis` / `ingest_visual_qa_analysis` | 스크린샷 분석 프롬프트+`images` 반환 → 분석 JSON 검증, 이슈 리포트 (수정 미적용) |
-| `prepare_visual_qa_fix` / `ingest_visual_qa_fix` | 수정 프롬프트 반환 → 교정된 전체 스펙 검증·저장·HTML 재렌더 |
+| `prepare_visual_qa_analysis` / `ingest_visual_qa_analysis` | 프롬프트·`images`·`prepared_context` 반환 → 같은 토큰과 분석 JSON을 수신해 입력 변경 검증, 이슈 리포트 (수정 미적용) |
+| `prepare_visual_qa_fix` / `ingest_visual_qa_fix` | 수정 프롬프트 반환 → 검증된 이슈 범위의 최소 replace patch 적용·저장·HTML 재렌더 |
 | `finalize_visual_qa` | 모든 수정 iteration 후 1회 호출. 덱 컨테이너 HTML + 전체 export 재구성. LLM 없음 |
 
 **감지 이슈 타입**: `word_break` · `text_truncation` · `overlap` · `overflow` · `contrast` · `misalignment` · `wrong_vertical_alignment` · `inconsistent_font_size` · `inconsistent_spacing` · `arrow_disconnected`

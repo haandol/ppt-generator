@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import hashlib
 import logging
-from dataclasses import replace
+from dataclasses import asdict, replace
 from typing import TYPE_CHECKING, NoReturn
 
 from ppt_generator.interfaces.index_validation import require_positive_slide_index
@@ -26,6 +26,8 @@ from ppt_generator.tools.design.edit_context import (
     project_revision,
     save_receipt,
 )
+from ppt_generator.tools.design.handlers.generation import _enforce_background_color
+from ppt_generator.tools.design.design_doc_md import remap_page_request_numbers
 
 if TYPE_CHECKING:
     from ppt_generator.tools.design.handlers.deps import DesignDeps
@@ -52,7 +54,7 @@ def handle_move(
     from_index: int,
     to_index: int,
 ) -> str:
-    """슬라이드를 from_index → to_index로 이동한다."""
+    """슬라이드 파일과 번호로 연결된 디자인 요청을 같은 트랜잭션에서 이동한다."""
     if from_index < 1:
         _raise_validation(
             "move_slide",
@@ -109,6 +111,16 @@ def handle_move(
             project_service.move_design_spec_slide(project_dir, from_idx, to_idx)
             project_service.move_slide_html(project_dir, from_idx, to_idx)
             project_service.renumber_design_spec_image_srcs(project_dir)
+            raw_design = project_service.design_spec_store.load_design_doc_md(
+                project_dir
+            )
+            if raw_design is not None:
+                order = list(range(1, slide_count + 1))
+                order.insert(to_idx, order.pop(from_idx))
+                positions = {old: new for new, old in enumerate(order, start=1)}
+                updated_design = remap_page_request_numbers(raw_design, positions)
+                if updated_design != raw_design:
+                    project_service.save_design_doc_md(project_dir, updated_design)
             project_service.update_step(project_dir, "design_spec_modified")
             snapshot.commit()
 
@@ -363,6 +375,13 @@ def _handle_ingest_slide_edit_locked(
     spec, _overflow = deps.design_service.ingest_slide(
         spec_json, slide_type=raw_slide_type
     )
+    if spec.background_color is None:
+        spec = _enforce_background_color(
+            spec,
+            project_service.load_design_summary(project_dir),
+            project_service.load_bg_image_policy(project_dir),
+            idx,
+        )
 
     existing_images = None
     if action == "update":
@@ -541,6 +560,7 @@ def _prepare_update(
             source=metadata.source,
         )
 
+    existing_outline = _load_outline_for_edit(project_service, project_dir, idx)
     if title and content_summary:
         outline_data = {
             "title": title,
@@ -552,15 +572,16 @@ def _prepare_update(
         slide_outline = parse_outline_json(
             json.dumps(outline_data, ensure_ascii=False)
         ).slides[0]
+        if content_summary == existing_outline.content_summary:
+            slide_outline = replace(
+                slide_outline,
+                layout_plan=existing_outline.layout_plan,
+                source_refs=existing_outline.source_refs,
+                assumptions=existing_outline.assumptions,
+            )
     else:
-        slide_outline = _load_outline_for_edit(project_service, project_dir, idx)
-        outline_data = {
-            "title": slide_outline.title,
-            "content_summary": slide_outline.content_summary,
-            "component_hint": slide_outline.component_hint,
-            "slide_type": slide_outline.slide_type,
-            "speaker_notes": slide_outline.speaker_notes,
-        }
+        slide_outline = existing_outline
+    outline_data = asdict(slide_outline)
     directives = _directives_for(
         project_service, project_dir, slide_index, slide_outline.title
     )
@@ -596,10 +617,7 @@ def _load_outline_for_edit(project_service, project_dir, index: int):
 
 def _directives_for(project_service, project_dir, slide_index: int, title: str) -> str:
     """DESIGN.md 에서 해당 슬라이드의 디자인 지시(톤+페이지 요청)를 만든다."""
-    design_doc = project_service.load_design_doc_md(project_dir)
-    if design_doc is None:
-        return ""
-    return design_doc.directives_for(slide_index, title)
+    return project_service.load_design_directives(project_dir, slide_index, title)
 
 
 # ---------------------------------------------------------------------------

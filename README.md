@@ -127,6 +127,14 @@ You interact in natural language; the client drives the prepare→generate→ing
 behind the scenes (guided by the bundled skills). You don't call the `prepare_*`/`ingest_*`
 tools by hand — just describe what you want.
 
+### Tool-client update for 0.8.1
+
+Visual QA clients must pass the `prepared_context` returned by
+`prepare_visual_qa_analysis` to `ingest_visual_qa_analysis`. The bundled skill
+does this automatically. Restart in-flight analysis from prepare after upgrading;
+results without that context, or with changed slide/intent/screenshot inputs, are
+rejected before they can authorize a visual fix.
+
 ### Step 1 — Generate or Import PPT
 
 **Create new** — Prepare your content in a file like `context.md`, then request via your MCP client:

@@ -41,6 +41,7 @@ def _review_deps(tmp_path, review_output: DesignReviewOutput):
         tmp_path,
     )
     deps.project_service.get_design_spec_slide_count.return_value = 3
+    deps.project_service.load_design_directives.return_value = ""
     deps.project_service.load_design_spec_slide.return_value = make_slide_spec("review")
     deps.review_service.prepare.return_value = {
         "system_prompt": "system",

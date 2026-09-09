@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ppt_generator.interfaces.index_validation import require_positive_slide_index
+from ppt_generator.interfaces.schemas import DesignSpec, ProjectMetadata
 from ppt_generator.interfaces.spec_utils import lint_slide_spec
 from ppt_generator.interfaces.spec_utils.serializer import (
     design_spec_to_json,
@@ -53,9 +55,13 @@ def handle_prepare_review(
     idx = slide_index - 1
     spec = project_service.load_design_spec_slide(project_dir, idx)
     lint_result = lint_slide_spec(spec)
+    directives = project_service.load_design_directives(project_dir, slide_index)
 
     task = deps.review_service.prepare(
-        spec, slide_index=slide_index, lint_result=lint_result
+        spec,
+        slide_index=slide_index,
+        lint_result=lint_result,
+        design_directives=directives,
     )
     task["project_id"] = project_id
     task["slide_index"] = slide_index
@@ -75,6 +81,7 @@ def handle_prepare_review(
             "project_id": project_id,
             "slide_index": slide_index,
             "spec_fingerprint": _spec_fingerprint(spec),
+            "design_directives": directives,
             "lint_issues": lint_issues,
         },
         project_dir,
@@ -117,6 +124,10 @@ def handle_ingest_review(
     current_spec = project_service.load_design_spec_slide(project_dir, slide_index - 1)
     if context.get("spec_fingerprint") != _spec_fingerprint(current_spec):
         raise ValueError("Stale review_context: slide changed after prepare")
+    if context.get("design_directives", "") != project_service.load_design_directives(
+        project_dir, slide_index
+    ):
+        raise ValueError("Stale review_context: design intent changed after prepare")
     lint_issues = context.get("lint_issues")
     if not isinstance(lint_issues, list) or any(
         not isinstance(issue, dict) for issue in lint_issues
@@ -179,11 +190,13 @@ def handle_prepare_deck_review(
     outline = parse_outline_json(outline_json)
     design_spec = project_service.load_design_spec(project_dir)
     metadata = project_service.load_metadata(project_dir)
-    fingerprint = _deck_fingerprint(outline_json, design_spec)
+    review_inputs = _deck_review_inputs(project_dir, metadata)
+    fingerprint = _deck_fingerprint(outline_json, design_spec, review_inputs)
     task = deps.review_service.prepare_deck(
         outline,
         design_spec,
         presentation_minutes=metadata.presentation_minutes,
+        **review_inputs,
     )
     task["project_id"] = project_id
     task["review_context"] = encode_signed_context(
@@ -220,7 +233,12 @@ def handle_ingest_deck_review(
         raise ValueError("review_context does not match deck review request")
     outline_json = project_service.load_outline(project_dir)
     design_spec = project_service.load_design_spec(project_dir)
-    if context.get("fingerprint") != _deck_fingerprint(outline_json, design_spec):
+    review_inputs = _deck_review_inputs(
+        project_dir, project_service.load_metadata(project_dir)
+    )
+    if context.get("fingerprint") != _deck_fingerprint(
+        outline_json, design_spec, review_inputs
+    ):
         raise ValueError("Stale review_context: deck changed after prepare")
 
     output = deps.review_service.ingest_deck(review_json)
@@ -241,8 +259,31 @@ def handle_ingest_deck_review(
     )
 
 
-def _deck_fingerprint(outline_json: str, design_spec) -> str:
+def _deck_review_inputs(project_dir: Path, metadata: ProjectMetadata) -> dict:
+    """리뷰가 판단에 사용한 문서와 발표 조건을 같은 형태로 재구성한다."""
+    path = project_dir / "DESIGN.md"
+    return {
+        "design_intent": path.read_text(encoding="utf-8") if path.exists() else "",
+        "presentation_context": {
+            "topic": metadata.topic,
+            "purpose": metadata.purpose,
+            "audience_type": metadata.audience_type,
+            "presentation_minutes": metadata.presentation_minutes,
+        },
+    }
+
+
+def _deck_fingerprint(
+    outline_json: str, design_spec: DesignSpec, review_inputs: dict
+) -> str:
+    """슬라이드뿐 아니라 판단 기준 변경 후의 오래된 리뷰도 거부한다."""
     import hashlib
 
-    payload = outline_json + "\n" + design_spec_to_json(design_spec)
+    payload = (
+        outline_json
+        + "\n"
+        + design_spec_to_json(design_spec)
+        + "\n"
+        + json.dumps(review_inputs, ensure_ascii=False, sort_keys=True)
+    )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()

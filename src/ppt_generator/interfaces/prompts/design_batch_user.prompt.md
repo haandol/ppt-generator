@@ -19,7 +19,7 @@ Color theme: {color_theme}
 
 <output_requirements>
 If this is a content slide, follow the five-layer hierarchy strictly:
-1. **Layout** — output `grid_layout` (regions / content_columns / content_rows) FIRST, then `cell_assignment.cells` (id / region / row / col / span / role). Declare every cell BEFORE any element.
+1. **Layout** — include `grid_layout` and `cell_assignment.cells` (id / region / row / col / span / role), declaring every referenced cell in the final response.
 2. **Section** — output `design_doc` with non-empty `topic`, `layout_summary`, and
    semantic `layout` nodes. Do not output node coordinates; the server derives them from
    linked Content elements.

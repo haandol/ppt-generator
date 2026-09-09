@@ -129,7 +129,8 @@ Content adjustment rules by audience type:
 - executive (decision-makers):
   · Focus on business impact, ROI, and strategic value
   · Preferred component_hint: summary_grid, vs_comparison, info_cards, cta
-  · Include metrics and business KPIs in content_summary
+  · Include metrics and business KPIs only when supplied by the context. Otherwise describe
+    the decision criteria and what must be measured; do not fabricate performance evidence.
 </audience_adaptation>
 
 <time_adaptation>
@@ -149,7 +150,9 @@ STRONGLY prefer visual/diagrammatic representations over text-heavy slides:
 - If content describes a process, flow, or sequence → use process_flow or pipeline (NOT bullets)
 - If content describes system architecture or component relationships → use arch_diagram
 - If content compares 2 options → use vs_comparison
-- If content lists 3-5 parallel items with descriptions → use step_cards or info_cards (NOT bullets)
+- If content lists 3-5 parallel items with descriptions → choose a structure that clarifies
+  the comparison or grouping. Cards are an option; independent points may remain a plain list.
+  Use step_cards only when the items are steps in a real sequence.
 - If content has hierarchical structure → use concept_list
 - If content explains a concept with multiple aspects → use concept_list or arch_diagram with relationships, NOT bullets
 - If content describes how something works (mechanism, algorithm, protocol) → use process_flow or arch_diagram to show the flow visually
@@ -162,16 +165,19 @@ Priority order for concept explanation slides:
 3. two_column (if natural left-right split)
 4. bullets (only if nothing else fits)
 
-Reason: Diagrams communicate structure and relationships 10x faster than text. The design phase can render any diagram — prefer it.
+Reason: Diagrams can make meaningful relationships easier to inspect. Use them when the
+relationships matter; do not invent a process or hierarchy to decorate independent points.
 </diagram_preference>
 
 <writing_rules>
 Writing rules:
 
 - Cover only one topic per slide (One Topic Per Slide — MANDATORY).
-  · Do not combine multiple topics or sub-topics in a single slide. If there are many topics, increase the number of slides.
-  · **Splitting test**: If the content_summary has 2 or more distinct sub-topics (e.g., "A의 장점" AND "B의 동작 방식"), split them into separate slides. Each slide should have exactly ONE clear message.
-  · **Density test**: If the content_summary would require more than 4-5 bullet points or more than 4 diagram blocks to represent visually, the content is too dense for one slide — split it.
+  · Keep one clear message per slide and prioritize the material within the requested slide count.
+  · **Splitting test**: If the content_summary has distinct sub-topics, distribute them within
+    the requested count, simplify, or report that the requested scope does not fit.
+  · **Density test**: More than 4-5 bullet points or 4 diagram blocks is a signal to review
+    density. Preserve required evidence and relationships instead of filling a template.
   · Preserve the requested slide count. Simplify content or report overflow rather than adding slides.
   · Example: "Control Plane 인증 방식의 6단계" → Split into 2 slides: "인증 흐름 개요 (3단계)" + "인증 상세: Presigned GetCallerIdentity"
   Reason: Mixing multiple topics in one slide forces the design phase to shrink fonts below readable sizes (< 16pt), degrading presentation quality.

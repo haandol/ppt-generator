@@ -151,6 +151,14 @@ def _setup_visual_project(
     )
 
 
+def _prepare_analysis_context(tools: dict, project_id: str) -> str:
+    """분석 결과를 만들기 전에 준비한 현재 입력의 검증 토큰을 받는다."""
+    prepared = json.loads(
+        tools["prepare_visual_qa_analysis"](project_id=project_id, slide_index=1)
+    )
+    return prepared["prepared_context"]
+
+
 class TestVisualQAServiceCapture:
     """capture_screenshots 테스트 (Playwright mock)."""
 
@@ -408,6 +416,76 @@ class TestVisualQAServiceFix:
 
 
 class TestVisualQAControllerContexts:
+    @pytest.mark.parametrize("changed", ["spec", "intent", "screenshot"])
+    def test_analysis_rejects_input_changed_since_prepare(
+        self, tmp_path: Path, monkeypatch, changed: str
+    ) -> None:
+        project_id, project_dir, project_service, tools = _setup_visual_project(
+            tmp_path, monkeypatch
+        )
+        project_service.save_design_doc_md(project_dir, "## 톤 & 방향\nBefore")
+        prepared = json.loads(
+            tools["prepare_visual_qa_analysis"](project_id=project_id, slide_index=1)
+        )
+        if changed == "spec":
+            project_service.save_design_spec_slide(
+                project_dir, 0, _make_simple_spec("Changed")
+            )
+        elif changed == "intent":
+            project_service.save_design_doc_md(project_dir, "## 톤 & 방향\nAfter")
+        else:
+            (project_dir / "screenshots/slide_01_v0.png").write_bytes(
+                b"\x89PNG\r\n\x1a\nchanged"
+            )
+        with pytest.raises(ValueError, match="Stale"):
+            tools["ingest_visual_qa_analysis"](
+                project_id=project_id,
+                slide_index=1,
+                analysis_json=_make_qa_output_json(False),
+                prepared_context=prepared["prepared_context"],
+            )
+
+    def test_analysis_requires_its_prepare_context(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        project_id, _, _, tools = _setup_visual_project(tmp_path, monkeypatch)
+        with pytest.raises(ValueError, match="prepared_context"):
+            tools["ingest_visual_qa_analysis"](
+                project_id=project_id,
+                slide_index=1,
+                analysis_json=_make_qa_output_json(False),
+            )
+
+    def test_fix_rejects_stale_design_intent(self, tmp_path: Path, monkeypatch) -> None:
+        project_id, project_dir, project_service, tools = _setup_visual_project(
+            tmp_path, monkeypatch
+        )
+        project_service.save_design_doc_md(project_dir, "## 톤 & 방향\n한 문장 전환")
+        analyzed = json.loads(
+            tools["ingest_visual_qa_analysis"](
+                project_id=project_id,
+                slide_index=1,
+                analysis_json=_make_qa_output_json(False),
+                prepared_context=_prepare_analysis_context(tools, project_id),
+            )
+        )
+        prepared = json.loads(
+            tools["prepare_visual_qa_fix"](
+                project_id=project_id,
+                slide_index=1,
+                analysis_context=analyzed["analysis_context"],
+            )
+        )
+        assert "한 문장 전환" in prepared["user_prompt"]
+        project_service.save_design_doc_md(project_dir, "## 톤 & 방향\n균일한 비교 표")
+        with pytest.raises(ValueError, match="design intent changed"):
+            tools["ingest_visual_qa_fix"](
+                project_id=project_id,
+                slide_index=1,
+                fix_context=prepared["fix_context"],
+                fix_json='{"operations":[]}',
+            )
+
     def test_prepare_analysis_accepts_external_png(
         self, tmp_path: Path, monkeypatch
     ) -> None:
@@ -461,6 +539,7 @@ class TestVisualQAControllerContexts:
                 project_id=project_id,
                 slide_index=1,
                 analysis_json=_make_qa_output_json(True, [issue]),
+                prepared_context=_prepare_analysis_context(tools, project_id),
             )
         )
         prepared = json.loads(
@@ -513,6 +592,7 @@ class TestVisualQAControllerContexts:
                 project_id=project_id,
                 slide_index=1,
                 analysis_json=_make_qa_output_json(True, [issue]),
+                prepared_context=_prepare_analysis_context(tools, project_id),
             )
         )
         prepared = json.loads(
@@ -563,6 +643,7 @@ class TestVisualQAControllerContexts:
                 project_id=project_id,
                 slide_index=1,
                 analysis_json=_make_qa_output_json(True, [issue]),
+                prepared_context=_prepare_analysis_context(tools, project_id),
             )
         )
         context = analysis["analysis_context"]
@@ -615,6 +696,7 @@ class TestVisualQAControllerContexts:
                 project_id=project_id,
                 slide_index=1,
                 analysis_json=_make_qa_output_json(True, [issue]),
+                prepared_context=_prepare_analysis_context(tools, project_id),
             )
 
 

@@ -4,8 +4,8 @@ do not rewrite slides or suggest visual pixel changes.
 </role>
 
 <task>
-Check the outline evidence metadata and the rendered slide text summaries for issues that
-only become visible across slides.
+Check the outline plans and evidence, actual composition, visible text, speaker notes,
+presentation context, and design_intent for issues that become visible across slides.
 </task>
 
 <issue_types>
@@ -30,7 +30,16 @@ only become visible across slides.
 - Do not invent a missing source. State what needs verification.
 - A user-supplied assumption is not an unsupported claim when the slide presents it as an assumption.
 - Title, agenda, body, and closing are mandatory; assess whether they work together.
-- Flag duplicate_content when the same component_hint/archetype appears on 3 consecutive
-  content slides without a clear rhetorical reason.
+- Compare actual composition (element geometry, semantic roles, relationships and grouping),
+  not component_hint labels. Different hints can render the same layout, and the same hint
+  can render different layouts. Three consecutive uses of the same actual content archetype
+  are a signal to inspect. Preserve repetition that supports comparison, continuity, or a
+  step-by-step explanation. Report duplicate_content only when repetition adds no useful
+  information or explanatory purpose; do not force cosmetic variety.
+- A source identifier alone does not prove that it supports a claim. When the source content
+  is absent, do not report verification as complete; identify what must be checked.
+  Check new claims in speaker_notes as well as visible_text.
+- Use design_intent to distinguish deliberate emphasis and transitions from accidental
+  sameness or missing premises. Report problems without automatically changing content.
 - Return an empty issue list when the deck is coherent and grounded.
 </rules>

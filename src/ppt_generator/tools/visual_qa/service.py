@@ -118,6 +118,8 @@ class VisualQAService:
         png_path: Path,
         slide_index: int,
         design_spec: PptxSlideSpec,
+        *,
+        design_directives: str = "",
     ) -> dict:
         """스크린샷 분석 태스크를 조립한다. images 에 스크린샷 경로를 실어 보낸다.
 
@@ -131,6 +133,7 @@ class VisualQAService:
             f"다음은 슬라이드 {slide_index + 1}의 스크린샷과 디자인 스펙입니다.\n\n"
             f"<design_spec>\n{spec_json}\n</design_spec>\n\n"
             "위 스크린샷을 분석하여 시각적 이슈를 감지해주세요."
+            f"\n\n<design_intent>\n{design_directives}\n</design_intent>"
         )
         return build_llm_task(
             system_prompt=VISUAL_QA_ANALYSIS_SYSTEM_PROMPT,
@@ -180,6 +183,8 @@ class VisualQAService:
         png_path: Path,
         current_spec: PptxSlideSpec,
         issues: list[dict],
+        *,
+        design_directives: str = "",
     ) -> dict:
         """수정 태스크를 조립한다. 현재 spec + 스크린샷 + 이슈 목록을 실어 보낸다."""
         spec_json = slide_spec_to_json(current_spec)
@@ -190,6 +195,7 @@ class VisualQAService:
             f"<detected_issues>\n{issues_json}\n</detected_issues>\n\n"
             "위 이슈를 해결하는 최소 replace operation 목록만 출력해주세요. "
             "텍스트 내용, 요소 수·순서와 의미 링크는 변경하지 마세요."
+            f"\n\n<design_intent>\n{design_directives}\n</design_intent>"
         )
         return build_llm_task(
             system_prompt=VISUAL_QA_FIX_SYSTEM_PROMPT,

@@ -108,6 +108,7 @@ class DesignThemeOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     background_color: str
+    background_image: Literal["gradient", "none"] = "gradient"
     text_colors: list[str]
     title_font_pt: int = Field(ge=28, le=36)
     body_font_pt: int = Field(ge=16, le=22)
@@ -140,18 +141,28 @@ class DesignPageRequestOutput(BaseModel):
     title: str = Field(min_length=1)
     request: str = Field(min_length=1)
 
+    @model_validator(mode="after")
+    def validate_nonblank_request(self) -> "DesignPageRequestOutput":
+        """빈 요청은 거부하되 바인딩 키인 원본 제목을 변경하지 않는다."""
+        if not self.title.strip() or not self.request.strip():
+            raise ValueError("page request title and request must not be blank")
+        return self
+
 
 class AntiSlopGuardrailsOutput(BaseModel):
     """DESIGN.md에 저장되는 덱별 AI Slop 방지 기준."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     subject_specificity: str = Field(min_length=1)
     visual_hierarchy: str = Field(min_length=1)
     layout_rhythm: str = Field(min_length=1)
     decoration_policy: str = Field(min_length=1)
     content_grounding: str = Field(min_length=1)
-    max_consecutive_same_archetype: Literal[2] = 2
+    max_consecutive_same_archetype: Literal[2] = Field(
+        default=2,
+        description="Legacy client field. Repetition is reviewed for purpose, not prohibited.",
+    )
 
 
 class DesignDocDraftOutput(BaseModel):

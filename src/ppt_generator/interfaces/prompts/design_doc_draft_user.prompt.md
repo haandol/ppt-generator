@@ -35,8 +35,9 @@ missing craft. Produce five deck-specific guardrails:
   generic stock metaphors.
 - visual_hierarchy: state what receives primary emphasis and how secondary evidence stays
   subordinate. Avoid making every card, icon, badge, and label compete equally.
-- layout_rhythm: map the deck's loud/breathe/turn/land rhythm and prevent the same content
-  archetype from appearing on 3 consecutive slides.
+- layout_rhythm: map the deck's loud/breathe/turn/land rhythm. Inspect 3 consecutive uses
+  of the same content archetype for empty repetition, while preserving layouts that help
+  compare cases or explain progressive changes.
 - decoration_policy: allow a visual element only when it encodes data, grouping, hierarchy,
   navigation, or a deliberate brand motif. Remove decorative card grids and accents that
   serve no job.
@@ -69,6 +70,7 @@ Output ONLY the following JSON (no other text, no markdown fence):
 {{
   "theme": {{
     "background_color": "#RRGGBB",
+    "background_image": "none",
     "text_colors": ["#RRGGBB", "..."],
     "title_font_pt": number,
     "body_font_pt": number,
@@ -84,8 +86,7 @@ Output ONLY the following JSON (no other text, no markdown fence):
     "visual_hierarchy": "<primary vs secondary emphasis rule>",
     "layout_rhythm": "<loud/breathe/turn/land and repetition rule>",
     "decoration_policy": "<what visual decoration must accomplish>",
-    "content_grounding": "<how claims and imagery stay concrete>",
-    "max_consecutive_same_archetype": 2
+    "content_grounding": "<how claims and imagery stay concrete>"
   }},
   "page_requests": [
     {{"number": <1-based int>, "title": "<exact slide title from outline>", "request": "<short prose deviation for this slide>"}}
@@ -94,6 +95,9 @@ Output ONLY the following JSON (no other text, no markdown fence):
 
 Theme field rules:
 - background_color: slide background (deliberate, not a wash)
+- background_image: "none" for a solid background, or "gradient" only when the default
+  title/closing background image serves this deck. This explicit choice controls export;
+  prose alone does not disable automatic imagery. Omitted legacy values default to "gradient".
 - text_colors: [title, body, secondary] colors
 - title_font_pt: 28~36
 - body_font_pt: 16~22

@@ -36,7 +36,9 @@ description: Run visual QA on a generated deck — capture or provide slide scre
    - 반환: `system_prompt`, `user_prompt`, `response_schema`, `images`(스크린샷 경로).
 2. **네가** `images` 의 스크린샷을 읽고 spec 과 대조해 시각적 이슈를 찾아,
    `response_schema` 대로 분석 JSON 을 생성한다.
-3. `mcp__ppt-generator__ingest_visual_qa_analysis(project_id, slide_index, analysis_json)` 호출.
+3. `mcp__ppt-generator__ingest_visual_qa_analysis(project_id, slide_index, analysis_json, prepared_context)` 호출.
+   - `prepared_context`는 같은 분석 prepare 응답의 토큰을 그대로 전달한다.
+   - 명세·디자인 의도·스크린샷이 바뀌었거나 토큰이 없으면 prepare부터 다시 분석한다.
    - 반환의 `has_issues` 가 false 면 이 슬라이드는 통과 — 다음 iteration 대상에서 제외.
    - true 면 `analysis_context` 를 다음 단계로 넘긴다.
 

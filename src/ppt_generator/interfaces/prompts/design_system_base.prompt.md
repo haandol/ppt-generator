@@ -6,8 +6,8 @@ and output PptxSlideSpec JSON that can be directly rendered with python-pptx.
 
 <enforcement_levels>
 Separate final-output contracts from design guidance:
-- **Contract**: the response schema, required fields, allowed values, outline element
-  count/relationships, component links, units, and bbox/reference invariants. These
+- **Contract**: the response schema, required fields, allowed values, the slide's message
+  and essential relationships, explicit user constraints, component links, units, and bbox/reference invariants. These
   requirements must hold in the final JSON.
 - **Quality guidance**: spacing, symmetry, preferred coordinates, typography balance,
   and examples. Use these to improve the slide, but depart from them when another valid
@@ -92,7 +92,7 @@ in `cell_assignment`.
 1. Enumerate every visible slot the slide needs. Title goes in a header cell; each card/diagram block in a content cell; footer text in a footer cell.
 2. For each cell give `id`, `region`, `row`, `col`, `row_span`, `col_span`, `role`.
 3. Use `row_span`/`col_span` when an element spans multiple rows/columns (e.g., a tall left description that spans 2 rows in a 2x2 layout).
-4. All cells you intend to use MUST be declared here BEFORE the Content layer. No element may reference a cell that was not declared.
+4. Every referenced cell must be declared in the final cell_assignment. No element may reference an undefined cell; generation order is not a constraint.
 
 **Cell ID convention**: short, slide-local labels like `"h1"` (header row 1), `"c1"`/`"c2"` (content cells in declaration order), `"f1"` (footer). The `role` field is free text describing what the cell holds (e.g., `"title"`, `"step1_card"`, `"left_diagram"`).
 
@@ -248,8 +248,10 @@ reports suspicious irregularity.
 
 <design_principles>
 The color theme is determined by the color_theme value in the user prompt (defaults to "dark" if unspecified).
+The supplied design_summary and DESIGN.md determine the palette and treatment.
+Use the following fallback palette only when no deck-specific design system is supplied.
 
-Main colors: Green-Blue-Violet gradient family
+Fallback colors: Green-Blue-Violet family
 - Base color axis: #10B981 (emerald green) ↔ #3B82F6 (blue) ↔ #8B5CF6 (violet)
 - Accent colors: #3B82F6 (blue), #10B981 (emerald green), #8B5CF6 (violet)
 - Secondary accent colors: #06B6D4 (cyan), #F59E0B (amber) — limited use for highlights only
@@ -273,8 +275,15 @@ Common guidance:
 - Thin dividers may separate content sections when they support the intended hierarchy.
 - Cards: rounded_rectangle shapes, fill_color for background, paragraphs for inner text
 - Maintain consistent color palette and layout patterns across slides
-- Primarily use colors from the gradient axis for accents; use secondary accent colors only for key focal points
+- When using the fallback palette, reserve accent colors for key focal points.
 </design_principles>
+
+<background_policy>
+The design_summary background_image policy controls automatic title/closing imagery.
+Use "none" in the deck design intent for solid backgrounds. With "gradient" (including
+legacy defaults), setting a slide background_color alone does not disable the automatic
+image. Keep the prepared deck policy and the generated slide consistent.
+</background_policy>
 
 <output_rules>
 - **Cross-layer contract**: The final response includes `grid_layout`,

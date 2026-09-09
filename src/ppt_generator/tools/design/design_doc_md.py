@@ -25,7 +25,6 @@ DESIGN.md 는 네 영역으로 구성된 구조화 마크다운이다:
     - layout_rhythm: ...
     - decoration_policy: ...
     - content_grounding: ...
-    - max_consecutive_same_archetype: 2
 
     ## 페이지별 요청
     ### 3. 아키텍처 개요
@@ -117,7 +116,25 @@ class DesignDocMd:
     anti_slop: str = ""
     page_requests: list[PageRequest] = field(default_factory=list)
 
-    def directives_for(self, slide_index: int, title: str) -> str:
+    def warn_unbound_requests(self, slide_titles: list[str]) -> None:
+        """어느 페이지에도 적용할 수 없는 수동 요청을 조용히 버리지 않는다."""
+        normalized = [_normalize_title(title) for title in slide_titles]
+        for request in self.page_requests:
+            norm = _normalize_title(request.title)
+            index = (request.number or 0) - 1
+            exact = 0 <= index < len(slide_titles) and (
+                not request.title.strip() or normalized[index] == norm
+            )
+            if not exact and (not norm or normalized.count(norm) != 1):
+                logger.warning(
+                    "DESIGN.md: unbound or ambiguous page request %r (%s)",
+                    request.title,
+                    request.number,
+                )
+
+    def directives_for(
+        self, slide_index: int, title: str, *, slide_titles: list[str] | None = None
+    ) -> str:
         """해당 슬라이드(1-based index + 제목)에 적용할 디자인 지시 텍스트를 만든다.
 
         전역 톤은 모든 슬라이드에, 페이지별 요청은 매칭된 슬라이드에만 붙인다.
@@ -138,7 +155,9 @@ class DesignDocMd:
                 f"{self.anti_slop.strip()}\n"
                 "</anti_slop_guardrails>"
             )
-        req = match_page_request(self.page_requests, slide_index, title)
+        req = match_page_request(
+            self.page_requests, slide_index, title, slide_titles=slide_titles
+        )
         if req is not None and req.text.strip():
             parts.append(
                 "<slide_specific_request>\n"
@@ -154,26 +173,78 @@ def _normalize_title(title: str) -> str:
     return re.sub(r"[\s\W]+", "", title or "").lower()
 
 
-def match_page_request(
-    requests: list[PageRequest], slide_index: int, title: str
-) -> PageRequest | None:
-    """페이지 요청을 슬라이드에 매칭한다 (번호 1차 → 제목 보정 → 실패).
+def remap_page_request_numbers(text: str, positions: dict[int, int]) -> str:
+    """슬라이드 이동에 따라 페이지 요청 번호만 바꾸고 사람이 쓴 산문을 보존한다.
 
-    Args:
-        requests: 파싱된 페이지 요청 목록
-        slide_index: 1-based 슬라이드 번호
-        title: 슬라이드 제목
+    알려진 페이지 요청 섹션의 번호만 수정한다. 코드 블록과 다른 섹션은 건드리지 않는다.
     """
-    # 1) 번호 매칭
-    for req in requests:
-        if req.number is not None and req.number == slide_index:
-            return req
-    # 2) 제목 보정 매칭
+    output: list[str] = []
+    section: str | None = None
+    fence: str | None = None
+    for line in text.splitlines(keepends=True):
+        marker = re.match(r"^\s*(`{3,}|~{3,})", line)
+        if marker:
+            token = marker.group(1)
+            if fence is None:
+                fence = token
+            elif token[0] == fence[0] and len(token) >= len(fence):
+                fence = None
+            output.append(line)
+            continue
+        if fence is None:
+            heading = re.match(r"^\s*##\s+(.*?)\s*$", line)
+            if heading:
+                section = _SECTION_ALIASES.get(heading.group(1).strip().lower())
+            if section == _SECTION_PAGES:
+                match = re.match(r"^\s*###\s+(\d+)(?=\s*[.):\-])", line)
+                if match and int(match.group(1)) in positions:
+                    old = match.group(1)
+                    new = str(positions[int(old)])
+                    if old.startswith("0"):
+                        new = new.zfill(len(old))
+                    line = line[: match.start(1)] + new + line[match.end(1) :]
+        output.append(line)
+    return "".join(output)
+
+
+def match_page_request(
+    requests: list[PageRequest],
+    slide_index: int,
+    title: str,
+    *,
+    slide_titles: list[str] | None = None,
+) -> PageRequest | None:
+    """이동한 페이지의 의도가 다른 슬라이드에 적용되지 않도록 매칭한다.
+
+    번호와 제목이 맞는 요청을 우선하고 제목 없는 번호 전용 요청도 허용한다.
+    제목 보정은 후보와 덱 내 대상이 유일할 때만 사용하며 모호함은 경고한다.
+    """
     norm = _normalize_title(title)
-    if norm:
-        for req in requests:
-            if req.title and _normalize_title(req.title) == norm:
-                return req
+    exact = [
+        req
+        for req in requests
+        if req.number == slide_index
+        and (not req.title.strip() or _normalize_title(req.title) == norm)
+    ]
+    candidates = exact or [
+        req for req in requests if norm and _normalize_title(req.title) == norm
+    ]
+    if not exact and candidates and slide_titles is not None:
+        if sum(_normalize_title(value) == norm for value in slide_titles) != 1:
+            logger.warning(
+                "DESIGN.md: ambiguous page title %r; request not applied", title
+            )
+            return None
+    if len(candidates) == 1:
+        return candidates[0]
+    if len(candidates) > 1:
+        logger.warning(
+            "DESIGN.md: ambiguous page requests for slide %d (%s)", slide_index, title
+        )
+    elif any(req.number == slide_index for req in requests):
+        logger.warning(
+            "DESIGN.md: no matching page request for slide %d (%s)", slide_index, title
+        )
     return None
 
 

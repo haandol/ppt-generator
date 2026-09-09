@@ -71,8 +71,8 @@
         },
         {
           "path": "docs/adr/design/0008-design-spec-post-generation-review.md",
-          "status": "Accepted (2026-09-08)",
-          "summary": "슬라이드 위험 리뷰와 덱 전체 근거·서사 review 분리"
+          "status": "Accepted (2026-09-09)",
+          "summary": "실제 구성·근거·의도를 검토하고 유효한 반복을 허용하는 읽기 전용 리뷰"
         },
         {
           "path": "docs/adr/design/0009-add-slide-design-consistency.md",
@@ -106,13 +106,13 @@
         },
         {
           "path": "docs/adr/design/0015-design-md-source-of-truth.md",
-          "status": "Accepted (2026-09-08)",
-          "summary": "DESIGN.md 단일 소스 — 디자인 시스템·톤·AI Slop guardrail·페이지별 요청"
+          "status": "Accepted (2026-09-09)",
+          "summary": "준비 입력과 페이지 요청 연결을 보존하는 DESIGN.md 단일 소스"
         },
         {
           "path": "docs/adr/design/0016-design-md-background-policy.md",
-          "status": "Accepted (2026-06-15)",
-          "summary": "DESIGN.md 가 배경 이미지 자동 주입을 제어한다"
+          "status": "Accepted (2026-09-09)",
+          "summary": "배경 정책 선택과 기존 자동 배경·편집 색상 호환성 유지"
         },
         {
           "path": "docs/adr/design/0017-cycle-diagram-marking.md",
@@ -121,8 +121,8 @@
         },
         {
           "path": "docs/adr/design/0018-design-md-taste-in-pipeline.md",
-          "status": "Accepted (2026-09-08)",
-          "summary": "DESIGN.md가 taste·AI Slop guardrail 단일 소스이며 관련 guidance만 슬라이드에 주입"
+          "status": "Accepted (2026-09-09)",
+          "summary": "덱별 디자인 의도를 생성하고 불필요한 복제만 검토하는 taste 지침"
         },
         {
           "path": "docs/adr/design/0019-background-image-deterministic-per-project.md",
@@ -256,8 +256,8 @@
       "adrs": [
         {
           "path": "docs/adr/visual-qa/0001-visual-qa-pipeline.md",
-          "status": "Accepted (2026-09-08)",
-          "summary": "Visual QA — 기본 read-only 분석과 저위험 patch 수정"
+          "status": "Accepted (2026-09-09)",
+          "summary": "준비 시점의 명세·의도·이미지를 검증하는 분석과 제한된 시각 patch"
         },
         {
           "path": "docs/adr/visual-qa/0002-browser-tool-fallback.md",

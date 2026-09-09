@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from dataclasses import replace
+from dataclasses import asdict, replace
 from typing import NoReturn
 
 from ppt_generator.interfaces.constants import (
@@ -29,7 +29,7 @@ from ppt_generator.interfaces.constants import (
     DESIGN_SPEC_USER_PROMPT_TEMPLATE,
 )
 from ppt_generator.interfaces.prompts import (
-    DESIGN_SPEC_SYSTEM_PROMPTS,
+    DESIGN_DOC_DRAFT_SYSTEM_PROMPT,
     get_design_spec_system_prompt,
 )
 from ppt_generator.interfaces.handoff import build_llm_task
@@ -173,6 +173,8 @@ class DesignService:
         self,
         outline: OutlineResponse,
         color_theme: str = "dark",
+        *,
+        presentation_context: dict | None = None,
     ) -> dict:
         """DESIGN.md 초안(수치 테마 + 톤 + 선별적 페이지 요청) 생성 태스크를 조립한다.
 
@@ -184,8 +186,14 @@ class DesignService:
             color_theme=color_theme,
             outline_json=outline_json,
         )
+        if presentation_context:
+            prompt += (
+                "\n\n<presentation_context>\n"
+                + json.dumps(presentation_context, ensure_ascii=False, indent=2)
+                + "\n</presentation_context>"
+            )
         return build_llm_task(
-            system_prompt=DESIGN_SPEC_SYSTEM_PROMPTS["content"],
+            system_prompt=DESIGN_DOC_DRAFT_SYSTEM_PROMPT,
             user_prompt=prompt,
             response_schema=DesignDocDraftOutput.model_json_schema(),
         )
@@ -209,13 +217,15 @@ class DesignService:
         summary = output.theme.model_dump()
         tone = output.tone.strip()
         anti_slop_data = output.anti_slop.model_dump()
+        # 기존 클라이언트의 필드는 허용하지만 생성 지시에 강제 반복 상한을 남기지 않는다.
+        anti_slop_data.pop("max_consecutive_same_archetype", None)
         anti_slop = "\n".join(
             f"- {key}: {value}" for key, value in anti_slop_data.items()
         )
         page_requests = [
             PageRequest(
                 number=item.number,
-                title=item.title.strip(),
+                title=item.title,
                 text=item.request.strip(),
             )
             for item in output.page_requests
@@ -445,15 +455,7 @@ class DesignService:
     def _outline_summary_json(outline: OutlineResponse) -> str:
         """DESIGN.md 초안 프롬프트용 outline 요약 JSON."""
         return json.dumps(
-            [
-                {
-                    "title": s.title,
-                    "content_summary": s.content_summary,
-                    "component_hint": s.component_hint,
-                    "slide_type": s.slide_type,
-                }
-                for s in outline.slides
-            ],
+            [_outline_prompt_data(s, include_notes=False) for s in outline.slides],
             ensure_ascii=False,
             indent=2,
         )
@@ -481,12 +483,7 @@ class DesignService:
             return ""
 
         def _summarize(outline: SlideOutline) -> dict:
-            return {
-                "title": outline.title,
-                "content_summary": outline.content_summary,
-                "component_hint": outline.component_hint,
-                "slide_type": outline.slide_type,
-            }
+            return _outline_prompt_data(outline, include_notes=False)
 
         parts: list[str] = ["<adjacent_slides>"]
         if prev_outline is not None:
@@ -513,16 +510,19 @@ class DesignService:
     def _outline_to_json(slide: SlideOutline) -> str:
         """Converts a SlideOutline to a JSON string."""
         return json.dumps(
-            {
-                "title": slide.title,
-                "content_summary": slide.content_summary,
-                "component_hint": slide.component_hint,
-                "speaker_notes": slide.speaker_notes,
-                "slide_type": slide.slide_type,
-            },
+            _outline_prompt_data(slide),
             ensure_ascii=False,
             indent=2,
         )
+
+
+def _outline_prompt_data(slide: SlideOutline, *, include_notes: bool = True) -> dict:
+    """계획과 근거를 보존하고 내부 저장 인덱스만 프롬프트에서 제외한다."""
+    data = asdict(slide)
+    data.pop("slide_index", None)
+    if not include_notes:
+        data.pop("speaker_notes", None)
+    return data
 
 
 # ---------------------------------------------------------------------------
