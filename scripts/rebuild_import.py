@@ -20,7 +20,7 @@ from ppt_generator.interfaces.spec_utils.contrast_utils import (
     _hex_to_relative_luminance,
 )
 from ppt_generator.tools.design.design_doc_md import render_design_doc_md
-from ppt_generator.tools.design.service import DesignService
+from ppt_generator.tools.design.summary import extract_design_summary
 
 logging.disable(logging.CRITICAL)
 
@@ -68,7 +68,7 @@ def rebuild(file_path: str, project_id: str) -> str:
         if len(design_spec.slides) >= 2
         else design_spec.slides[0],
     )
-    dsum = DesignService.extract_design_summary(ref)
+    dsum = extract_design_summary(ref)
     bg = dsum.get("background_color")
     dsum["color_theme"] = (
         "light" if bg and _hex_to_relative_luminance(bg) >= 0.5 else "dark"

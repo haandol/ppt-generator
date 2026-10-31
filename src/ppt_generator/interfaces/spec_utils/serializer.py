@@ -5,6 +5,7 @@ PptxSlideSpec/DesignSpec → JSON 문자열 변환을 담당한다.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import asdict
 
@@ -59,6 +60,11 @@ def slide_spec_to_json(slide_spec: PptxSlideSpec) -> str:
     _strip_none_grid_cell(data)
     _strip_empty_grid_plan(data)
     return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+def slide_spec_fingerprint(slide_spec: PptxSlideSpec) -> str:
+    """편집과 리뷰의 준비 문맥을 기존 슬라이드 JSON 바이트에 결속한다."""
+    return hashlib.sha256(slide_spec_to_json(slide_spec).encode("utf-8")).hexdigest()
 
 
 def design_spec_to_json(design_spec: DesignSpec) -> str:

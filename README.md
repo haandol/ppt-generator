@@ -19,7 +19,7 @@ the generating. See the ADR index under [`docs/adr/`](docs/adr/) for the design 
 ## 1. Install as a Claude Code plugin (recommended)
 
 The repo ships as a Claude Code plugin (manifest at `.claude-plugin/plugin.json`) that
-registers the MCP server and the `ppt-outline` / `ppt-design` / `ppt-modify` /
+registers the MCP server and the `ppt-outline` / `ppt-design` / `ppt-speaker-script` / `ppt-modify` /
 `ppt-visual-qa` skills which drive the prepare→generate→ingest workflow.
 
 Add the marketplace and install the plugin from within Claude Code:
@@ -145,6 +145,9 @@ Read @context.md and generate a PPT using ppt-generator.
 
 The client generates the outline JSON, then the per-slide design specs, following the
 prompts and schemas the server hands back — no model credentials on the server side.
+The `ppt-speaker-script` skill then writes the spoken script from the actual deck.
+Its writing guide covers read-aloud wording, grounded claims, slide transitions,
+and timing without tying the workflow to a particular customer or language.
 
 **Import existing PPTX** — You can also import an existing PPTX file for editing:
 
@@ -163,8 +166,27 @@ Before outline generation, you will be asked for the following:
 - **Audience type** — `general` / `technical` / `executive`
 - **Presenter info** — name / title / organization
 
-The flow proceeds Outline → DESIGN.md (design intent) → per-slide Design Spec. You review
-and confirm the outline before slides are generated, and can edit at each stage.
+The flow proceeds Outline → DESIGN.md (design intent) → per-slide Design Spec →
+Speaker Script → deck review → Visual QA → final export. A complete-deck request
+can proceed through these stages without a separate outline approval. You can
+request an outline-only result, omit script generation, or edit at each stage.
+
+### Speaker scripts and notes
+
+Ask for a script or revise notes without regenerating the visual slides:
+
+```text
+Write an English speaker script for this deck for a 15-minute online introduction.
+Revise only slide 3's notes and keep the rest of the script unchanged.
+```
+
+The skill uses `prepare_speaker_script` / `ingest_speaker_script` to validate and
+save only the notes. Generated and imported decks both work. Preparation includes
+the actual slides and existing notes; stale submissions are rejected if the deck
+changes. The completion checkpoint exports `speaker-script.md`, HTML, and PPTX
+from the same saved notes. Re-export the script with `export_speaker_script` after
+slide moves or edits so its order and headings match the current deck. Calculated
+timing is an estimate; a read-through still verifies the presenter's actual pace.
 
 ### Step 3 — Edit Individual Slides (Optional)
 
@@ -269,15 +291,13 @@ tail -f /tmp/ppt-generator/*.log
 
 ```bash
 uv run ppt-generator          # Run MCP server (stdio mode)
-uv run pytest                  # Run all tests
+python3 scripts/verify.py      # Locked checks, tests, build, and wheel smoke
+uv run --locked pytest        # Run tests directly while debugging
 ```
 
 ## Documentation
 
-- [Architecture](docs/harness/architecture.md) — prepare/ingest handshake, MCP tool list, workflows, project structure
-- [Environment & Config](docs/harness/environment.md) — environment variables, MCP client / plugin config
-- [Kiro / Codex Setup](docs/harness/kiro-codex.md) — use the workflow as a skill in Kiro and Codex
-- [Schemas](docs/harness/schemas.md) — domain models, client output models, component_hint table
-- [Testing](docs/harness/testing.md) — test writing rules and patterns
-- [ADR](docs/adr/) — Architecture Decision Records (the client-LLM offload decision lives under the `offload/` category)
-- [Contributing Guide](CONTRIBUTING.md)
+- Design and contracts: [Architecture](docs/harness/architecture.md), [Schemas](docs/harness/schemas.md)
+- Setup: [Environment & Config](docs/harness/environment.md), [Kiro / Codex](docs/harness/kiro-codex.md)
+- Verification and delivery: [Testing](docs/harness/testing.md), [Release](docs/harness/release.md)
+- Development decisions: [ADR](docs/adr/), [Contributing Guide](CONTRIBUTING.md)

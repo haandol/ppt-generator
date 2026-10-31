@@ -1,5 +1,5 @@
 <slide_type_title>
-Title slide (slide_type: "title") design rules:
+Title slide (slide_type: "title") role contract:
 
 - Title slides may omit `grid_layout`, `cell_assignment`, and `design_doc`.
 - The first slide is mandatory and must contain exactly one non-empty textbox with
@@ -18,7 +18,7 @@ Title slide (slide_type: "title") design rules:
   <layout_example id="title-1" hint="title — Presentation title slide with semantic roles">
   {
     "background_color": null,
-    "speaker_notes": "Presentation introduction...",
+    "speaker_notes": "",
     "textboxes": [
       {
         "component_id": "title.main",

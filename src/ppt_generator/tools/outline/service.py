@@ -18,7 +18,7 @@ from ppt_generator.interfaces.constants import (
     OUTLINE_USER_PROMPT_TEMPLATE,
 )
 from ppt_generator.interfaces.handoff import build_llm_task
-from ppt_generator.interfaces.llm_output_models import OutlineOutput
+from ppt_generator.interfaces.output_models.outline import OutlineOutput
 from ppt_generator.interfaces.schemas import (
     OutlineRequest,
     OutlineResponse,

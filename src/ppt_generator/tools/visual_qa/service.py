@@ -22,16 +22,16 @@ from ppt_generator.interfaces.constants import (
     VISUAL_QA_ANALYSIS_SYSTEM_PROMPT,
     VISUAL_QA_FIX_SYSTEM_PROMPT,
 )
-from ppt_generator.interfaces.handoff import build_llm_task
-from ppt_generator.interfaces.llm_output_models import (
+from ppt_generator.interfaces.handoff import build_llm_task, validate_llm_output
+from ppt_generator.interfaces.layout_derivation import (
+    derive_spec_layout_bboxes,
+)
+from ppt_generator.interfaces.output_models.visual_qa import (
     VisualQAFixPatchOutput,
     VisualQAOutput,
     VisualQAPatchOperation,
 )
 from ppt_generator.interfaces.schemas import PptxParagraph, PptxSlideSpec
-from ppt_generator.interfaces.layout_derivation import (
-    derive_spec_layout_bboxes,
-)
 from ppt_generator.interfaces.spec_utils.serializer import slide_spec_to_json
 from ppt_generator.tools.visual_qa.screenshot import capture_screenshots
 
@@ -144,9 +144,7 @@ class VisualQAService:
 
     def ingest_analysis(self, analysis_json: str | dict) -> VisualQAOutput:
         """클라이언트가 생성한 분석 결과 JSON 을 검증한다."""
-        if isinstance(analysis_json, str):
-            return VisualQAOutput.model_validate_json(analysis_json)
-        return VisualQAOutput.model_validate(analysis_json)
+        return validate_llm_output(VisualQAOutput, analysis_json)
 
     @staticmethod
     def validate_issue_targets(
@@ -216,10 +214,7 @@ class VisualQAService:
         허용되지 않은 field나 target이 하나라도 있으면 아무 변경도 반환하지 않는다.
         """
         try:
-            if isinstance(fix_json, str):
-                output = VisualQAFixPatchOutput.model_validate_json(fix_json)
-            else:
-                output = VisualQAFixPatchOutput.model_validate(fix_json)
+            output = validate_llm_output(VisualQAFixPatchOutput, fix_json)
             return _apply_visual_patch(current_spec, output.operations, issues or [])
         except Exception:
             logger.exception("Visual QA patch 검증 실패")

@@ -17,7 +17,6 @@ import json
 import logging
 import re
 from dataclasses import asdict, replace
-from typing import NoReturn
 
 from ppt_generator.interfaces.constants import (
     BACKFILL_DESIGN_DOC_SYSTEM_PROMPT,
@@ -28,25 +27,25 @@ from ppt_generator.interfaces.constants import (
     DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE,
     DESIGN_SPEC_USER_PROMPT_TEMPLATE,
 )
+from ppt_generator.interfaces.handoff import build_llm_task, validate_llm_output
+from ppt_generator.interfaces.layout_derivation import (
+    derive_spec_layout_bboxes,
+)
+from ppt_generator.interfaces.output_models.design_doc import DesignDocDraftOutput
+from ppt_generator.interfaces.output_models.elements import (
+    shape_output_to_dataclass,
+    textbox_output_to_dataclass,
+)
+from ppt_generator.interfaces.output_models.modification import (
+    BackfillDesignDocOutput,
+    ComponentModifyOutput,
+)
+from ppt_generator.interfaces.output_models.slides import slide_spec_output_model
 from ppt_generator.interfaces.prompts import (
     DESIGN_DOC_DRAFT_SYSTEM_PROMPT,
     get_design_spec_system_prompt,
 )
-from ppt_generator.interfaces.handoff import build_llm_task
-from ppt_generator.interfaces.llm_output_models import (
-    BackfillDesignDocOutput,
-    BackfillNode,
-    ComponentModifyOutput,
-    DesignDocDraftOutput,
-    shape_output_to_dataclass,
-    slide_spec_output_model,
-    textbox_output_to_dataclass,
-)
 from ppt_generator.interfaces.schemas import (
-    DesignDoc,
-    GridCell,
-    GridPlan,
-    LayoutNode,
     OutlineResponse,
     PptxShape,
     PptxSlideSpec,
@@ -54,10 +53,24 @@ from ppt_generator.interfaces.schemas import (
     SlideOutline,
 )
 from ppt_generator.interfaces.spec_utils import clean_slide_spec
-from ppt_generator.interfaces.layout_derivation import (
-    derive_spec_layout_bboxes,
-)
 from ppt_generator.interfaces.spec_utils.serializer import slide_spec_to_json
+from ppt_generator.tools.design.backfill import (
+    _apply_backfill_output,
+    _serialize_elements_for_backfill,
+)
+from ppt_generator.tools.design.backfill import (
+    _is_decorative as _is_decorative,
+)
+from ppt_generator.tools.design.components import (
+    _find_element_by_component_id,
+    _find_layout_leaf_by_id,
+)
+from ppt_generator.tools.design.components import (
+    _replace_node_bbox as _replace_node_bbox,
+)
+from ppt_generator.tools.design.summary import (
+    extract_design_summary as summarize_design,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -241,57 +254,8 @@ class DesignService:
 
     @staticmethod
     def extract_design_summary(spec: PptxSlideSpec) -> dict:
-        """Extracts design theme summary directly from slide spec (no LLM call)."""
-        text_colors: set[str] = set()
-        title_font: int | None = None
-        body_font: int | None = None
-
-        for tb in spec.textboxes:
-            for para in tb.paragraphs:
-                for run in para.runs:
-                    if run.color:
-                        text_colors.add(run.color)
-                    if run.font_size_pt:
-                        if run.bold and (
-                            title_font is None or run.font_size_pt > title_font
-                        ):
-                            title_font = run.font_size_pt
-                        elif not run.bold and (
-                            body_font is None or run.font_size_pt > body_font
-                        ):
-                            body_font = run.font_size_pt
-
-        card_fills: set[str] = set()
-        card_borders: set[str] = set()
-        for s in spec.shapes:
-            if s.fill_color:
-                card_fills.add(s.fill_color)
-            if s.border_color:
-                card_borders.add(s.border_color)
-            for para in s.paragraphs:
-                for run in para.runs:
-                    if run.color:
-                        text_colors.add(run.color)
-                    if run.font_size_pt:
-                        if run.bold and (
-                            title_font is None or run.font_size_pt > title_font
-                        ):
-                            title_font = run.font_size_pt
-                        elif not run.bold and (
-                            body_font is None or run.font_size_pt > body_font
-                        ):
-                            body_font = run.font_size_pt
-            if s.text_color:
-                text_colors.add(s.text_color)
-
-        return {
-            "background_color": spec.background_color or None,
-            "text_colors": sorted(text_colors) if text_colors else [],
-            "title_font_pt": title_font,
-            "body_font_pt": body_font,
-            "card_fills": sorted(card_fills) if card_fills else [],
-            "card_borders": sorted(card_borders) if card_borders else [],
-        }
+        """디자인·임포트 경로에서 공통 테마 요약을 반환한다."""
+        return summarize_design(spec)
 
     # ------------------------------------------------------------------
     # imported 슬라이드 design_doc backfill: prepare / ingest
@@ -444,12 +408,7 @@ class DesignService:
     # 검증 헬퍼
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _validate(model, payload: str | dict):
-        """클라이언트 JSON 을 Pydantic 모델로 검증한다 (문자열/딕셔너리 모두 허용)."""
-        if isinstance(payload, str):
-            return model.model_validate_json(payload)
-        return model.model_validate(payload)
+    _validate = staticmethod(validate_llm_output)
 
     @staticmethod
     def _outline_summary_json(outline: OutlineResponse) -> str:
@@ -523,431 +482,3 @@ def _outline_prompt_data(slide: SlideOutline, *, include_notes: bool = True) -> 
     if not include_notes:
         data.pop("speaker_notes", None)
     return data
-
-
-# ---------------------------------------------------------------------------
-# helpers for modify_component
-# ---------------------------------------------------------------------------
-
-
-def _find_element_by_component_id(
-    spec: PptxSlideSpec, component_id: str
-) -> tuple[str, int, "PptxTextBox | PptxShape"]:
-    """spec 의 textboxes/shapes 중 component_id 일치 element 를 찾는다.
-
-    Returns:
-        (kind, index, element) — kind 는 "textbox" | "shape", index 는 0-based.
-
-    Raises:
-        ValueError: component_id 가 어디에도 없거나 (정상 케이스), 두 곳 이상에서
-            중복 매칭 (ambiguous link, 결정 12).
-    """
-    matches: list[tuple[str, int, PptxTextBox | PptxShape]] = []
-    for i, tb in enumerate(spec.textboxes):
-        if tb.component_id == component_id:
-            matches.append(("textbox", i, tb))
-    for i, s in enumerate(spec.shapes):
-        if s.component_id == component_id:
-            matches.append(("shape", i, s))
-    if not matches:
-        raise ValueError(
-            f"component_id not found in slide: {component_id!r}. "
-            "Check design_doc.layout for the available component ids."
-        )
-    if len(matches) > 1:
-        locs = ", ".join(f"{k}#{i}" for k, i, _ in matches)
-        raise ValueError(
-            f"component_id {component_id!r} is ambiguous — matches multiple "
-            f"elements: {locs}. component_id must be unique within a slide."
-        )
-    return matches[0]
-
-
-def _find_layout_leaf_by_id(nodes: list[LayoutNode], component_id: str) -> LayoutNode:
-    """design tree에서 id가 일치하는 유일한 component leaf를 찾는다."""
-    matches: list[LayoutNode] = []
-
-    def _walk(node: LayoutNode) -> None:
-        if node.id == component_id:
-            matches.append(node)
-        for child in node.children:
-            _walk(child)
-
-    for root in nodes:
-        _walk(root)
-    if not matches:
-        raise ValueError(
-            f"component_id not found in design_doc.layout: {component_id!r}"
-        )
-    if len(matches) > 1:
-        raise ValueError(
-            f"component_id {component_id!r} is ambiguous in design_doc.layout"
-        )
-    node = matches[0]
-    if node.kind != "component" or node.children:
-        raise ValueError(
-            f"component_id {component_id!r} must reference a component leaf"
-        )
-    return node
-
-
-def _replace_node_bbox(
-    nodes: list[LayoutNode],
-    target_id: str,
-    bbox: tuple[float, float, float, float],
-) -> list[LayoutNode]:
-    """design_doc.layout 트리(임의 깊이)에서 target_id 노드의 bbox 만 교체한다.
-
-    frozen dataclass 라 path 따라 부모 체인을 replace 로 새로 만든다.
-    """
-    left, top, width, height = bbox
-
-    def _walk(node: LayoutNode) -> tuple[LayoutNode, bool]:
-        if node.id == target_id:
-            return (
-                replace(
-                    node,
-                    left_px=left,
-                    top_px=top,
-                    width_px=width,
-                    height_px=height,
-                ),
-                True,
-            )
-        new_children: list[LayoutNode] = []
-        changed = False
-        for child in node.children:
-            new_child, child_changed = _walk(child)
-            new_children.append(new_child)
-            if child_changed:
-                changed = True
-        if changed:
-            return (replace(node, children=new_children), True)
-        return (node, False)
-
-    out: list[LayoutNode] = []
-    for n in nodes:
-        new_node, _ = _walk(n)
-        out.append(new_node)
-    return out
-
-
-# ---------------------------------------------------------------------------
-# helpers for backfill_design_doc
-# ---------------------------------------------------------------------------
-
-
-def _is_decorative(shape: PptxShape) -> bool:
-    """단순 connecting line/arrow (텍스트 없고 두께 ≤3px) 는 backfill 에서 제외."""
-    has_text = bool(shape.text and shape.text.strip())
-    if not has_text and shape.paragraphs:
-        has_text = any(
-            run.text.strip() for para in shape.paragraphs for run in para.runs
-        )
-    if has_text:
-        return False
-    is_thin_line = (
-        shape.shape_type == "line"
-        or abs(shape.width_px) <= 3
-        or abs(shape.height_px) <= 3
-    )
-    return is_thin_line
-
-
-def _serialize_elements_for_backfill(spec: PptxSlideSpec) -> str:
-    """LLM 에 전달할 element 요약 JSON. bbox + 텍스트 + 핵심 스타일."""
-    items: list[dict] = []
-    for i, tb in enumerate(spec.textboxes):
-        text_parts: list[str] = []
-        for para in tb.paragraphs:
-            for run in para.runs:
-                if run.text.strip():
-                    text_parts.append(run.text)
-        items.append(
-            {
-                "kind": "textbox",
-                "index": i,
-                "bbox": [tb.left_px, tb.top_px, tb.width_px, tb.height_px],
-                "text": " ".join(text_parts).strip(),
-            }
-        )
-    for i, s in enumerate(spec.shapes):
-        text_parts = []
-        if s.text and s.text.strip():
-            text_parts.append(s.text)
-        for para in s.paragraphs:
-            for run in para.runs:
-                if run.text.strip():
-                    text_parts.append(run.text)
-        item: dict = {
-            "kind": "shape",
-            "index": i,
-            "bbox": [s.left_px, s.top_px, s.width_px, s.height_px],
-            "shape_type": s.shape_type,
-            "fill_color": s.fill_color,
-            "text": " ".join(text_parts).strip(),
-            "decorative": _is_decorative(s),
-        }
-        items.append(item)
-    return json.dumps({"elements": items}, ensure_ascii=False, indent=2)
-
-
-def _backfill_fail(reason: str, **context) -> NoReturn:
-    """backfill 검증 실패를 로깅하고 ValueError raise. context 는 디버깅용 메타."""
-    ctx_str = " ".join(f"{k}={v!r}" for k, v in context.items() if v is not None)
-    logger.error("backfill validation failed: %s | %s", reason, ctx_str)
-    raise ValueError(reason)
-
-
-def _apply_backfill_output(
-    spec: PptxSlideSpec, output: BackfillDesignDocOutput
-) -> PptxSlideSpec:
-    """LLM 응답을 검증하고, design_doc 트리 + textbox/shape component_id 를 채운다.
-
-    bbox 후처리:
-      - leaf component bbox = 참조한 element bbox
-      - section/group bbox = 자식 bbox 의 axis-aligned 합집합
-    """
-    nodes_by_id: dict[str, BackfillNode] = {}
-    for ni, n in enumerate(output.nodes):
-        if not n.id:
-            _backfill_fail(
-                "backfill output contains a node with empty id",
-                node_position=ni,
-                kind=n.kind,
-                parent_id=n.parent_id,
-            )
-        if n.id in nodes_by_id:
-            _backfill_fail(
-                f"backfill output has duplicate node id: {n.id}",
-                node_id=n.id,
-                node_position=ni,
-            )
-        nodes_by_id[n.id] = n
-
-    # parent 검증
-    for n in output.nodes:
-        pid = n.parent_id or ""
-        if pid and pid not in nodes_by_id:
-            _backfill_fail(
-                f"backfill node {n.id!r} has unknown parent_id: {pid!r}",
-                node_id=n.id,
-                parent_id=pid,
-                known_ids=sorted(nodes_by_id.keys()),
-            )
-
-    # leaf 의 element_ref 검증 + 매핑 수집
-    tb_to_component: dict[int, str] = {}
-    sh_to_component: dict[int, str] = {}
-    for n in output.nodes:
-        if n.kind != "component":
-            continue
-        if n.element_ref is None:
-            _backfill_fail(
-                f"component leaf {n.id!r} has no element_ref",
-                node_id=n.id,
-            )
-        ref = n.element_ref
-        if ref.kind == "textbox":
-            if ref.index >= len(spec.textboxes):
-                _backfill_fail(
-                    f"component {n.id!r} references textbox#{ref.index} but slide "
-                    f"has {len(spec.textboxes)} textboxes",
-                    node_id=n.id,
-                    ref_kind=ref.kind,
-                    ref_index=ref.index,
-                    textbox_count=len(spec.textboxes),
-                )
-            if ref.index in tb_to_component:
-                _backfill_fail(
-                    f"textbox#{ref.index} is referenced by multiple components: "
-                    f"{tb_to_component[ref.index]!r} and {n.id!r}",
-                    ref_index=ref.index,
-                    first_node=tb_to_component[ref.index],
-                    second_node=n.id,
-                )
-            tb_to_component[ref.index] = n.id
-        else:
-            if ref.index >= len(spec.shapes):
-                _backfill_fail(
-                    f"component {n.id!r} references shape#{ref.index} but slide "
-                    f"has {len(spec.shapes)} shapes",
-                    node_id=n.id,
-                    ref_kind=ref.kind,
-                    ref_index=ref.index,
-                    shape_count=len(spec.shapes),
-                )
-            if ref.index in sh_to_component:
-                _backfill_fail(
-                    f"shape#{ref.index} is referenced by multiple components: "
-                    f"{sh_to_component[ref.index]!r} and {n.id!r}",
-                    ref_index=ref.index,
-                    first_node=sh_to_component[ref.index],
-                    second_node=n.id,
-                )
-            sh_to_component[ref.index] = n.id
-
-    # 모든 textbox 가 매핑되었는지 확인 (decorative 가 textbox 일 수는 없음)
-    missing_tb = [i for i in range(len(spec.textboxes)) if i not in tb_to_component]
-    if missing_tb:
-        _backfill_fail(
-            f"backfill missed textbox indices: {missing_tb} — "
-            "every textbox must map to exactly one component leaf",
-            missing_textbox_indices=missing_tb,
-        )
-    # decorative 가 아닌 모든 shape 매핑 확인
-    missing_sh = [
-        i
-        for i, s in enumerate(spec.shapes)
-        if i not in sh_to_component and not _is_decorative(s)
-    ]
-    if missing_sh:
-        _backfill_fail(
-            f"backfill missed non-decorative shape indices: {missing_sh}",
-            missing_shape_indices=missing_sh,
-        )
-
-    # 1) component leaf bbox 계산
-    leaf_bboxes: dict[str, tuple[float, float, float, float]] = {}
-    for n in output.nodes:
-        if n.kind != "component":
-            continue
-        ref = n.element_ref
-        if ref.kind == "textbox":
-            tb = spec.textboxes[ref.index]
-            leaf_bboxes[n.id] = (tb.left_px, tb.top_px, tb.width_px, tb.height_px)
-        else:
-            sh = spec.shapes[ref.index]
-            leaf_bboxes[n.id] = (sh.left_px, sh.top_px, sh.width_px, sh.height_px)
-
-    # 2) parent → children 인덱스 (입력 순서 유지)
-    children_of: dict[str, list[str]] = {}
-    order: list[str] = []
-    for n in output.nodes:
-        order.append(n.id)
-        children_of.setdefault(n.parent_id or "", []).append(n.id)
-
-    # 3) post-order 로 bbox 합집합
-    bbox_of: dict[str, tuple[float, float, float, float]] = dict(leaf_bboxes)
-    pending = list(order)
-    while pending:
-        progress = False
-        for nid in list(pending):
-            kids = children_of.get(nid, [])
-            if all(k in bbox_of for k in kids):
-                if nid in bbox_of:
-                    pending.remove(nid)
-                    progress = True
-                    continue
-                if not kids:
-                    _backfill_fail(
-                        f"non-component node {nid!r} has no children — invalid tree",
-                        node_id=nid,
-                    )
-                lefts = [bbox_of[k][0] for k in kids]
-                tops = [bbox_of[k][1] for k in kids]
-                rights = [bbox_of[k][0] + bbox_of[k][2] for k in kids]
-                bottoms = [bbox_of[k][1] + bbox_of[k][3] for k in kids]
-                left = min(lefts)
-                top = min(tops)
-                width = max(rights) - left
-                height = max(bottoms) - top
-                bbox_of[nid] = (left, top, width, height)
-                pending.remove(nid)
-                progress = True
-        if not progress:
-            _backfill_fail(
-                f"backfill tree has cycle or dangling parent_id: pending={pending}",
-                pending_ids=pending,
-            )
-
-    # 4) LayoutNode 트리 구성 (post-order, frozen dataclass replace)
-    finalized: dict[str, LayoutNode] = {}
-    pending = list(order)
-    while pending:
-        progress = False
-        for nid in list(pending):
-            kids = children_of.get(nid, [])
-            if all(k in finalized for k in kids):
-                src = nodes_by_id[nid]
-                left, top, width, height = bbox_of[nid]
-                cell_id = ""
-                # leaf 의 component_id 는 textbox/shape 의 grid_cell 에서 가져오면
-                # imported 슬라이드는 None 이므로 그대로 빈 문자열 유지
-                ref = src.element_ref
-                if ref is not None:
-                    if ref.kind == "textbox":
-                        cell_id = spec.textboxes[ref.index].grid_cell or ""
-                    else:
-                        cell_id = spec.shapes[ref.index].grid_cell or ""
-                finalized[nid] = LayoutNode(
-                    id=nid,
-                    kind=src.kind,
-                    role=src.role or "",
-                    description=src.description or "",
-                    cell_id=cell_id,
-                    left_px=left,
-                    top_px=top,
-                    width_px=width,
-                    height_px=height,
-                    children=[finalized[k] for k in kids],
-                )
-                pending.remove(nid)
-                progress = True
-        if not progress:
-            _backfill_fail(
-                "backfill tree finalization failed (cycle or unresolvable parent)",
-                pending_ids=pending,
-            )
-
-    roots: list[LayoutNode] = [
-        finalized[nid] for nid in order if not (nodes_by_id[nid].parent_id or "")
-    ]
-    new_design_doc = DesignDoc(
-        topic=output.topic,
-        layout_summary=output.layout_summary,
-        layout=roots,
-    )
-
-    # 5) textbox/shape 에 component_id 채우기
-    new_textboxes = [
-        replace(tb, component_id=tb_to_component.get(i))
-        for i, tb in enumerate(spec.textboxes)
-    ]
-    new_shapes = [
-        replace(s, component_id=sh_to_component.get(i))
-        for i, s in enumerate(spec.shapes)
-    ]
-
-    # 6) grid_plan 백필 — LLM 이 grid_layout/cell_assignment 를 출력했을
-    # 때만 채운다. 그렇지 않으면 기존 spec.grid_plan 유지 (보통 None).
-    new_grid_plan: GridPlan | None = spec.grid_plan
-    if output.grid_layout is not None:
-        cells_src = (
-            output.cell_assignment.cells if output.cell_assignment is not None else []
-        )
-        new_grid_plan = GridPlan(
-            regions=list(output.grid_layout.regions),
-            content_columns=output.grid_layout.content_columns,
-            content_rows=output.grid_layout.content_rows,
-            cells=[
-                GridCell(
-                    id=c.id,
-                    region=c.region,
-                    row=c.row,
-                    col=c.col,
-                    row_span=c.row_span,
-                    col_span=c.col_span,
-                    role=c.role,
-                )
-                for c in cells_src
-            ],
-        )
-
-    return replace(
-        spec,
-        textboxes=new_textboxes,
-        shapes=new_shapes,
-        design_doc=new_design_doc,
-        grid_plan=new_grid_plan,
-    )

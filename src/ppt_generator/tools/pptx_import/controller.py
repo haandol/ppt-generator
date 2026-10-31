@@ -10,11 +10,11 @@ from ppt_generator.interfaces.schemas import (
     PptxSlideSpec,
     ProjectMetadata,
 )
+from ppt_generator.interfaces.spec_utils import lint_design_spec
 from ppt_generator.interfaces.spec_utils.contrast_utils import (
     _hex_to_relative_luminance,
 )
-from ppt_generator.interfaces.spec_utils import lint_design_spec
-from ppt_generator.tools.design.service import DesignService
+from ppt_generator.tools.design.summary import extract_design_summary
 from ppt_generator.tools.pptx_import.service import ImportService
 from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
@@ -86,7 +86,7 @@ def run_import_pptx(
         if len(design_spec.slides) >= 2
         else design_spec.slides[0],
     )
-    design_summary = DesignService.extract_design_summary(ref_slide)
+    design_summary = extract_design_summary(ref_slide)
     bg_color = design_summary.get("background_color")
     design_summary["color_theme"] = (
         "light" if bg_color and _hex_to_relative_luminance(bg_color) >= 0.5 else "dark"

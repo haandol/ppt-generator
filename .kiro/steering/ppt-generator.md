@@ -20,6 +20,7 @@ inclusion: always
 | --- | --- |
 | 새 덱 시작 (아웃라인) | `skills/ppt-outline/SKILL.md` |
 | 아웃라인 → 슬라이드 생성 | `skills/ppt-design/SKILL.md` |
+| 발표 대본·발표자 노트 작성 및 수정 | `skills/ppt-speaker-script/SKILL.md` |
 | 슬라이드 추가·수정·삭제·이동, 외부 PPTX 임포트 | `skills/ppt-modify/SKILL.md` |
 | 스크린샷 기반 시각 검사·저위험 patch | `skills/ppt-visual-qa/SKILL.md` |
 | 임포트 충실도 검증 | `skills/ppt-import-verify/SKILL.md` |
@@ -35,7 +36,7 @@ inclusion: always
   오류에 맞게 고쳐 재시도한다.
 - 슬라이드 생성은 **병렬로** — 서버측 stateless 라 순차 처리는 느리기만 하다.
 - 아웃라인은 Title → Agenda → 최소 1개 Body → Closing 구조의 4~20장이다.
-- 완성 덱 요청은 별도 아웃라인 승인 없이 디자인, deck review, Visual QA까지 진행한다.
+- 완성 덱 요청은 별도 아웃라인 승인 없이 디자인, 발표 대본, deck review, Visual QA까지 진행한다.
 - 여러 편집 중에는 증분 HTML을 사용하고 안정 체크포인트에서 `export_html`과
   `export_pptx`를 한 번 호출한다. 최종 HTML은 반드시 브라우저로 연다.
 - 저위험 Visual QA patch는 자동 적용한다. 텍스트·데이터·요소 수·슬라이드 수 변경만

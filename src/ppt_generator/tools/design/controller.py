@@ -8,6 +8,11 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
+from ppt_generator.tools.design.handlers.component_edit import (
+    handle_ingest_backfill,
+    handle_ingest_modify_component,
+    handle_prepare_modify_component,
+)
 from ppt_generator.tools.design.handlers.deps import DesignDeps
 from ppt_generator.tools.design.handlers.generation import (
     handle_finalize_design_spec,
@@ -16,21 +21,17 @@ from ppt_generator.tools.design.handlers.generation import (
     handle_prepare_design_doc_draft,
     handle_prepare_design_slide,
 )
-from ppt_generator.tools.design.handlers.modification import (
-    handle_delete,
-    handle_ingest_backfill,
-    handle_ingest_modify_component,
-    handle_ingest_slide_edit,
-    handle_move,
-    handle_prepare_modify_component,
-    handle_prepare_slide_edit,
-)
 from ppt_generator.tools.design.handlers.review import (
     handle_ingest_deck_review,
     handle_ingest_review,
     handle_prepare_deck_review,
     handle_prepare_review,
 )
+from ppt_generator.tools.design.handlers.slide_edit import (
+    handle_ingest_slide_edit,
+    handle_prepare_slide_edit,
+)
+from ppt_generator.tools.design.handlers.slide_order import handle_delete, handle_move
 from ppt_generator.tools.design.review_service import DesignReviewService
 from ppt_generator.tools.design.service import DesignService
 from ppt_generator.tools.project.service import ProjectService

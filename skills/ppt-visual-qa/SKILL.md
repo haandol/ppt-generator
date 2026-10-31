@@ -1,70 +1,45 @@
 ---
 name: ppt-visual-qa
-description: Run visual QA on a generated deck — capture or provide slide screenshots, analyze visual defects, and apply minimal verified visual patches. Keywords - "비주얼 QA / 시각 검사 / 스크린샷 점검 / visual qa / pixel-perfect check".
+description: Inspect actual slide screenshots and apply issue-scoped visual patches while preserving content, structure, notes and element identity.
 ---
 
 # ppt-visual-qa
 
-렌더된 슬라이드의 시각적 결함(줄바꿈, 겹침, 잘림, 대비, 정렬 등)을 스크린샷으로 점검하고
-고친다. 스크린샷 캡처는 서버(Playwright)가, **비전 분석과 수정 spec 생성은 네가(클라이언트)**
-담당한다. 반복 루프(분석→수정→재캡처)도 네가 오케스트레이션한다.
+완성 덱 생성·편집 요청에는 이 검사가 포함된다. [공통 핸드셰이크](../_shared/handshake.md)와
+[품질·전달](../_shared/quality-and-delivery.md)을 적용한다. 서버는 캡처·검증·저장을,
+클라이언트는 시각 판단과 patch 생성을 담당한다.
 
-전제: 디자인 스펙이 생성돼 있어야 한다. 완성 덱 생성·편집 요청에는 이 검사가 포함된다.
-`uv sync --group visual-qa` 와
-`uv run --group visual-qa playwright install chromium` 으로 선택 의존성과 브라우저
-바이너리가 설치돼 있어야 한다.
+## 캡처와 분석
 
-## 반복 루프
+1. `mcp__ppt-generator__capture_slides(project_id, slide_indices, iteration)`.
+   인덱스는 1-based comma 문자열이고 iteration은 0부터 시작한다. 서버가 반환한
+   max_iterations를 사용하며, 후속 캡처는 남은 이슈가 있는 슬라이드에 집중한다.
+2. `mcp__ppt-generator__prepare_visual_qa_analysis(project_id, slide_index, iteration)`.
+   실제 images를 읽고 spec·design_intent와 대조해 반환 schema로 분석한다.
+3. `mcp__ppt-generator__ingest_visual_qa_analysis(project_id, slide_index, analysis_json, prepared_context)`.
+   같은 prepare의 토큰을 되돌린다. 입력이 바뀌면 다시 준비한다. has_issues=false이면 그 슬라이드는 통과다.
 
-`max_iterations`(기본 2)만큼 반복하되, 이슈가 없어지면 멈춘다. iteration 은 0 부터 센다.
+서버 캡처의 선택 의존성은 `uv sync --group visual-qa` 및
+`uv run --group visual-qa playwright install chromium`으로 준비한다. 서버 Playwright가
+없으면 격리된 클라이언트 브라우저에서 PNG를 만들고 screenshot_path로 분석에 전달한다.
+사용 가능한 캡처·비전 경로가 없으면 검사 불가 범위를 밝히며 성공 분석을 만들지 않는다.
 
-각 iteration `n` 에서:
+## 수정과 재검증
 
-### 1. 스크린샷 캡처 (서버)
+`mcp__ppt-generator__prepare_visual_qa_fix(project_id, slide_index, analysis_context, iteration)`
+→ 최소 operation 생성 →
+`mcp__ppt-generator__ingest_visual_qa_fix(project_id, slide_index, fix_json, fix_context)`.
+분석 ingest의 analysis_context와 fix prepare의 fix_context를 그대로 사용한다.
 
-`mcp__ppt-generator__capture_slides(project_id, slide_indices, iteration=n)` 호출.
-- `slide_indices` 는 1-based comma 문자열 (빈 문자열 = 전체). 이후 iteration 에서는
-  아직 이슈가 남은 슬라이드만 넘긴다.
-- 반환: `screenshots: [{slide_index, screenshot_path}]`, `max_iterations`.
-- Playwright를 사용할 수 없으면 클라이언트 브라우저로 PNG를 캡처하고
-  `prepare_visual_qa_analysis(..., screenshot_path="<PNG>")`를 호출한다.
+- fixed: 다시 캡처해 실제 효과를 검증한다.
+- unfixed: 실패 이유에 맞춰 입력을 고치거나 재준비한다. 동일 요청을 맹목적으로 반복하지 않는다.
+- unresolved: 허용된 시각 필드로 해결하지 못한 이슈를 보존·보고한다. 다른 독립적인 안전한 수정은 계속한다.
 
-### 2. 분석 (슬라이드별, 병렬)
+텍스트·데이터·요소 수·순서·슬라이드 수·의미 링크는 visual patch로 바꾸지 않는다.
+이미 승인된 더 넓은 편집은 적절한 modify 도구로 보내며, 승인 범위 밖이면 사용자 결정을 받는다.
 
-각 캡처된 슬라이드에 대해:
-1. `mcp__ppt-generator__prepare_visual_qa_analysis(project_id, slide_index, iteration=n)` 호출.
-   - 반환: `system_prompt`, `user_prompt`, `response_schema`, `images`(스크린샷 경로).
-2. **네가** `images` 의 스크린샷을 읽고 spec 과 대조해 시각적 이슈를 찾아,
-   `response_schema` 대로 분석 JSON 을 생성한다.
-3. `mcp__ppt-generator__ingest_visual_qa_analysis(project_id, slide_index, analysis_json, prepared_context)` 호출.
-   - `prepared_context`는 같은 분석 prepare 응답의 토큰을 그대로 전달한다.
-   - 명세·디자인 의도·스크린샷이 바뀌었거나 토큰이 없으면 prepare부터 다시 분석한다.
-   - 반환의 `has_issues` 가 false 면 이 슬라이드는 통과 — 다음 iteration 대상에서 제외.
-   - true 면 `analysis_context` 를 다음 단계로 넘긴다.
+## 완료
 
-### 3. 수정 (이슈 있는 슬라이드만, 병렬)
-
-이슈가 있는 각 슬라이드에 대해:
-1. `mcp__ppt-generator__prepare_visual_qa_fix(project_id, slide_index, analysis_context, iteration=n)` 호출.
-   - `analysis_context` 는 이전 분석 ingest가 반환한 opaque token.
-   - 반환: `response_schema`, `images`, `fix_context`.
-2. **네가** 이슈를 해결하는 최소 replace operation JSON을 `response_schema` 대로 생성한다.
-3. `mcp__ppt-generator__ingest_visual_qa_fix(project_id, slide_index, fix_json, fix_context)` 호출 — 저장·재렌더.
-   - `status="fixed"` 면 다음 iteration 에서 이 슬라이드를 다시 캡처·분석해 검증.
-   - `status="unfixed"` 면 검증 실패 — 그대로 두거나 재시도.
-   - `status="unresolved"` 면 허용된 시각 속성만으로 해결할 수 없어 원본을 보존한 상태다.
-     반환된 `remaining_issues` 를 최종 보고에 포함하고 반복 대상에서 제외한다.
-
-### 4. 마무리
-
-- 반복이 끝나면 `mcp__ppt-generator__finalize_visual_qa(project_id)` 를 1회 호출한다.
-- 반환된 HTML을 반드시 브라우저로 열고 HTML/PPTX 경로를 공유한다.
-- 최대 반복에 도달했는데 마지막 분석에 이슈가 남았거나 `unresolved`가 반환된 슬라이드는
-  슬라이드 번호와 잔여 이슈를 사용자에게 명시한다.
-
-## 규칙
-
-- 스크린샷을 실제로 읽고 분석한다 (`images` 경로). 근거 없이 이슈를 지어내지 않는다.
-- 생성 단계에서는 항상 `response_schema` 를 정확히 따른다. ingest 검증 실패 시 고쳐 재시도.
-- `max_iterations` 를 넘겨 무한히 반복하지 않는다. 이슈가 없어지면 즉시 멈춘다.
-- 텍스트·데이터·요소 수·순서·슬라이드 수는 patch하지 않는다. 필요한 경우 unresolved로 보고한다.
+이슈가 없어지거나 반환된 반복 상한에 도달하면 `mcp__ppt-generator__finalize_visual_qa(project_id)`.
+마지막 수정의 재검증을 못 했다면 그 사실을 남긴다. 현재 명세에서 나온 산출물은 재사용하고,
+HTML을 반드시 브라우저로 열고 경로·잔여 이슈·실제 검사 범위를 전달한다.

@@ -15,7 +15,7 @@
 
 ```
 .claude-plugin/plugin.json # Claude Code plugin manifest (runs the MCP server via uv)
-skills/                    # ppt-outline, ppt-design, ppt-modify, ppt-visual-qa (client workflows)
+skills/                    # ppt-outline, ppt-design, ppt-speaker-script, ppt-modify, ppt-visual-qa
 .kiro/                     # Kiro entry points: steering/ppt-generator.md + settings/mcp.json.example
 src/ppt_generator/
 ├── server.py              # MCP server entry point
@@ -25,6 +25,7 @@ src/ppt_generator/
 └── tools/
     ├── outline/           # Outline: prepare_outline / ingest_outline
     ├── design/            # Design spec: prepare_*/ingest_* (generation, modify, review)
+    ├── script/            # Notes-only prepare/ingest + current-note Markdown export
     ├── slides/            # HTML slide rendering
     ├── visual_qa/         # Visual QA: screenshot (server) + analyze/fix (client, prepare/ingest)
     ├── pptx/              # PPTX export
@@ -45,11 +46,18 @@ post-processing stay server-side, so output is byte-for-byte what the old in-ser
 produced. Per-slide tools are stateless; the client drives parallelism and iteration loops
 (see `skills/`). See the ADR index under [`docs/adr/`](docs/adr/) for the design rationale.
 
+Speaker-script writing guidance lives in `skills/ppt-speaker-script/SKILL.md` and its
+reference guide. Outline/design preserve supplied notes; the script skill writes the
+final narrative after design and before deck review. Server prompts and output models
+still own the task envelope and JSON contract. Export the reading document from saved
+notes at the same final checkpoint as HTML/PPTX; do not maintain a separate script copy.
+
 ## Commands
 
 ```bash
 uv sync                                          # Install dependencies
 uv run ppt-generator                             # Run MCP server (stdio)
+python3 scripts/verify.py                         # Locked local/CI checks + verified packages
 uv run pytest                                    # Run all tests
 uv run pytest tests/test_xxx.py::test_func -v    # Run specific test
 ```
@@ -79,13 +87,14 @@ Each pipeline stage has a distinct abstraction level. Stages must NOT overlap re
 
 | Stage | Decides | Does NOT decide |
 |-------|---------|-----------------|
-| **Outline** | WHAT (topics, key points) + HOW (layout direction, element count, relationships) | Colors, fonts, coordinates, exact sizes |
-| **Design Spec** | WHERE (pixel coordinates) + STYLE (colors, fonts, sizes) | Content topics, element count, spatial direction |
+| **Outline** | WHAT (topics, evidence, key points) + proposed HOW (grouping, direction, count, relationships) | Colors, fonts, coordinates, exact sizes |
+| **Design Spec** | WHERE + STYLE; refine the proposed composition while preserving the message and essential relationships | New claims/topics or changes to explicit user-fixed constraints |
 
 When modifying prompts or pipeline logic:
-- Never let a downstream stage re-decide what an upstream stage already determined
+- Preserve upstream content and explicit user-fixed counts, directions and relationships. Other layout choices are proposals that design may refine for readability.
 - Never let an upstream stage specify details that belong to a downstream stage
 - If a stage needs information from another, pass it explicitly — don't duplicate the decision
+- Keep schema/link/unit contracts distinct from visual guidance. Examples, heuristic thresholds and concurrency preferences do not prescribe the model's private reasoning or a single valid composition.
 
 ## Conventions
 

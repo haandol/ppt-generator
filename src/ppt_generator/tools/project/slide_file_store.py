@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -59,7 +60,7 @@ def insert_slide_file(
     # 새 파일 작성
     (directory / name_fn(index)).write_text(content, encoding="utf-8")
     if ext == ".json":
-        _renumber_slide_index(directory, ext)
+        _renumber_files(directory, ext)
 
 
 def move_slide_file(
@@ -84,18 +85,18 @@ def move_slide_file(
     for i, content in enumerate(contents):
         (directory / name_fn(i)).write_text(content, encoding="utf-8")
     if ext == ".json":
-        _renumber_slide_index(directory, ext)
+        _renumber_files(directory, ext)
 
 
 def renumber_dir(directory: Path) -> None:
-    """디렉토리 내 모든 slide JSON 파일의 slide_index를 파일 순서에 맞게 재번호한다."""
-    _renumber_slide_index(directory, ".json")
+    """slide JSON 파일명과 slide_index를 파일 순서에 맞게 재번호한다."""
+    _renumber_files(directory, ".json")
 
 
 # --- internal ---
 
 
-def _make_filename_fn(ext: str):
+def _make_filename_fn(ext: str) -> Callable[[int], str]:
     """확장자에 맞는 파일명 생성 함수를 반환."""
     if ext == ".html":
         return lambda i: f"slide_{i + 1:02d}.html"
@@ -125,25 +126,3 @@ def _renumber_files(directory: Path, ext: str) -> None:
                 tmp.unlink()
         else:
             tmp.rename(target)
-
-
-def _renumber_slide_index(directory: Path, ext: str) -> None:
-    """JSON 파일의 slide_index만 파일 순서에 맞게 갱신 (파일명 변경 없이)."""
-    files = sorted_slide_files(directory, ext)
-    # 임시 이름으로 rename (충돌 방지)
-    tmp_pairs: list[tuple[Path, int]] = []
-    for i, f in enumerate(files):
-        tmp = directory / f"_tmp_{i}{ext}"
-        f.rename(tmp)
-        tmp_pairs.append((tmp, i))
-    # 최종 이름으로 rename + slide_index 갱신
-    name_fn = _make_filename_fn(ext)
-    for tmp, i in tmp_pairs:
-        data = json.loads(tmp.read_text(encoding="utf-8"))
-        data["slide_index"] = i
-        target = directory / name_fn(i)
-        target.write_text(
-            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-        if tmp.exists():
-            tmp.unlink()

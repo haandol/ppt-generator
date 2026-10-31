@@ -230,6 +230,14 @@ git push -u origin feat/my-feature
 
 ## 테스트
 
+커밋 전 전체 검증과 릴리스 패키징은 로컬·CI 공통 명령으로 실행한다.
+
+```bash
+python3 scripts/verify.py
+```
+
+아래 명령은 테스트를 직접 실행하거나 문제를 좁힐 때 사용한다.
+
 ```bash
 # 전체 테스트
 uv run pytest
@@ -262,19 +270,18 @@ uv run pytest tests/test_xxx.py::test_function_name -v
 
 ## Git 훅
 
-`.git/hooks/` 는 git 추적 대상이 아니라 **클론한 사람에게 전파되지 않는다.** 저장소를
-새로 클론했으면 훅이 없는 상태이므로, 커밋 전 검사를 로컬에서 직접 돌려야 한다.
+`.git/hooks/`는 Git 추적 대상이 아니며, `core.hooksPath`가 설정되면 다른 디렉토리의
+훅이 활성화된다. 로컬 파일이 있다는 이유로 이 프로젝트의 검사가 실행된다고 가정하지 않는다.
+기존 보안 훅과 보호 규칙은 유지하고 프로젝트 검증은 명시적인 공통 명령으로 실행한다.
 
 ```bash
-uv run ruff format .   # 포매팅
-uv run ruff check .    # 린트
-uv run pytest          # 전체 테스트
+git config --show-origin --get core.hooksPath
+python3 scripts/verify.py
 ```
 
-기존 훅이 설치돼 있으면 `src/` `tests/` `skills/` `scripts/` `.claude-plugin/` 변경 시
-위 검사를 자동 수행하고, `pyproject.toml` 버전 변경 시 `uv.lock` 과
-`.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` 의 버전을 함께
-동기화한다. CI도 동일한 버전 일치 계약을 검증한다.
+검증은 파일을 자동 포맷하거나 스테이징하지 않는다. 버전은 `scripts/release.py prepare`
+명령으로 명시적으로 동기화한다. CI도 같은 검증 명령과 버전 일치 검사를 실행하며,
+검사한 패키지를 커밋별 산출물로 보관한다. [검증·릴리스 절차](docs/harness/release.md)를 따른다.
 
 ---
 

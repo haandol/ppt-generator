@@ -199,3 +199,11 @@ def test_distribution_versions_match() -> None:
         marketplace["plugins"][0]["version"],
     }
     assert len(versions) == 1, versions
+
+
+def test_plugin_and_example_start_from_the_committed_lock() -> None:
+    for relative in (".claude-plugin/plugin.json", ".kiro/settings/mcp.json.example"):
+        config = json.loads((_REPO_ROOT / relative).read_text())
+        server = config["mcpServers"]["ppt-generator"]
+        assert server["command"] == "uv"
+        assert server["args"][server["args"].index("run") + 1] == "--locked"

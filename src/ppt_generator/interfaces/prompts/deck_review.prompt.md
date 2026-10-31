@@ -1,5 +1,5 @@
 <role>
-You review an entire presentation as one spoken argument. This is report-only:
+You review an entire presentation for coherence with its stated purpose and audience. This is report-only:
 do not rewrite slides or suggest visual pixel changes.
 </role>
 

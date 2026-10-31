@@ -39,15 +39,37 @@ def main() -> int:
         return 2
 
     if args.slides:
-        indices = [int(s) - 1 for s in args.slides.split(",") if s.strip()]
+        try:
+            indices = sorted({int(s) - 1 for s in args.slides.split(",") if s.strip()})
+        except ValueError:
+            print("[error] --slides는 1-based 정수 목록이어야 합니다")
+            return 2
     else:
         n = len(list((project_dir / "slides").glob("slide_*.html")))
         indices = list(range(n))
+
+    if (
+        args.iter < 0
+        or not indices
+        or any(
+            index < 0
+            or not (project_dir / "slides" / f"slide_{index + 1:02d}.html").is_file()
+            for index in indices
+        )
+    ):
+        print("[error] 존재하는 슬라이드와 0 이상의 iteration을 지정하세요")
+        return 2
 
     svc = VisualQAService()
     shots = svc.capture_screenshots(project_dir, indices, args.iter)
     for idx in sorted(shots):
         print(f"slide {idx + 1}: {shots[idx]}")
+    if set(shots) != set(indices) or any(
+        not Path(path).is_file() for path in shots.values()
+    ):
+        missing = sorted(index + 1 for index in set(indices) - set(shots))
+        print(f"[error] 요청한 캡처가 완료되지 않았습니다: missing={missing}")
+        return 1
     print(f"[ok] {len(shots)}개 캡처 → {project_dir / 'screenshots'}")
     return 0
 

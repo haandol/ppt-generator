@@ -1,6 +1,8 @@
 # Key Data Schemas
 
-내부 도메인 모델은 `interfaces/schemas.py`에 `@dataclass`로, LLM 출력 모델은 `interfaces/llm_output_models.py`에 Pydantic `BaseModel`로 정의되어 있습니다.
+내부 도메인 모델은 `interfaces/schemas.py`의 `@dataclass`로 정의합니다. 클라이언트의
+LLM 출력은 `interfaces/output_models/`의 도메인별 Pydantic `BaseModel`로 검증합니다.
+`interfaces/llm_output_models.py`는 기존 모델 이름과 import 경로를 그대로 재노출합니다.
 
 ## 내부 도메인 모델 (`schemas.py`)
 
@@ -21,10 +23,16 @@
 | ----------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `OutlineOutput` / `SlideOutlineOutput` | 아웃라인 prepare 응답 스키마와 ingest 검증에 함께 사용하는 엄격한 모델                      |
 | `DesignDocDraftOutput`              | DESIGN.md 초안 prepare 응답 스키마와 ingest 검증에 함께 사용하는 엄격한 모델                  |
-| `SlideSpecOutput`                   | 슬라이드 prepare 응답 스키마와 ingest 검증에 사용하는 Pydantic 모델. `to_dataclass()`로 `PptxSlideSpec`으로 변환 |
+| `SpeakerScriptOutput` / `SpeakerScriptSlideOutput` | 슬라이드 번호와 발표자 노트를 검증하는 대본 응답 |
+| `ContentSlideSpecOutput` / `TitleSlideSpecOutput` / `ClosingSlideSpecOutput` | `slide_spec_output_model()`이 선택하는 슬라이드별 응답 모델. prepare와 ingest가 공유하고 `to_dataclass()`로 `PptxSlideSpec`으로 변환 |
 | `TextRunOutput` / `ParagraphOutput` | LLM 출력용 텍스트 런/단락                                                                      |
 | `TextBoxOutput` / `ShapeOutput`     | LLM 출력용 텍스트박스/도형                                                                     |
 | `VisualQAIssue` / `VisualQAOutput`  | Visual QA 분석 결과 (이슈 타입, 심각도, 수정 제안)                                             |
+
+텍스트·도형 변환은 `output_models/elements.py`, 그리드 변환은 `output_models/layout.py`에
+모은다. 전체 슬라이드 생성, 단일 요소 수정과 임포트 의미 트리 보완이 같은 변환을
+사용해 렌더 필드와 계층 연결을 보존한다. 문자열·객체 응답의 검증은 `handoff.py`에서
+입력 형식에 맞는 Pydantic 검증 함수를 호출한다.
 
 ## 슬라이드 아웃라인 저장
 

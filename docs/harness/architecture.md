@@ -7,6 +7,7 @@
 - **아웃라인 생성** — 주제와 슬라이드 수 입력 → 서버가 프롬프트+스키마를 반환하고, 클라이언트가 구조화된 아웃라인 JSON 을 생성
 - **DESIGN.md 초안** — 덱 전체의 디자인 의도(theme + tone + anti_slop + page_requests)를 한 번 생성하여 모든 슬라이드가 하나의 테마·서사를 공유
 - **디자인 스펙 생성** — 슬라이드별 정밀한 레이아웃을 PptxSlideSpec JSON 으로 설계 (슬라이드 단위 stateless, 클라이언트가 병렬화)
+- **발표 대본 작성** — 전용 스킬이 실제 덱에서 대본 작성, 서버가 노트만 검증·저장하고 같은 노트로 Markdown 내보내기
 - **슬라이드별 수정** — 개별 슬라이드의 디자인 스펙을 추가/수정/삭제 (전체 재생성 불필요), 단일 컴포넌트 부분 수정
 - **Visual QA** — Playwright 또는 클라이언트 PNG + 비전 분석·최소 patch로 시각적 결함 자동 감지 및 수정
 - **HTML 미리보기** — 디자인 스펙에서 결정론적으로 HTML 변환
@@ -44,12 +45,14 @@ flowchart LR
     C --> D["per-slide:\nprepare_design_slide\n→ 생성 →\ningest_design_slide"]
     D --> F["finalize_design_spec"]
     F -.->|"개별 수정"| D
-    F --> R["prepare_deck_review\n→ 생성 → ingest_deck_review\n근거·중복·용어·서사 검토"]
+    F --> S["ppt-speaker-script\nprepare_speaker_script\n→ 생성 → ingest_speaker_script"]
+    S --> R["prepare_deck_review\n→ 생성 → ingest_deck_review\n근거·중복·용어·서사 검토"]
     R --> V["Visual QA\n(캡처→분석→최소 patch 루프)"]
     V -.-> F
     V --> E{"내보내기"}
     E --> G["export_html\n미리보기"]
     E --> H["export_pptx\n다운로드"]
+    E --> M["export_speaker_script\nMarkdown 대본"]
 
     I["기존 PPTX\n파일"] -->|"import_pptx"| F
 ```
@@ -62,7 +65,8 @@ flowchart TD
     B --> D["2. prepare_design_doc_draft → 생성 → ingest_design_doc_draft\nDESIGN.md 초안 (1회, skip 가능)"]
     D --> E["3. 슬라이드별 (클라이언트 병렬)\nprepare_design_slide → 생성 → ingest_design_slide"]
     E --> F["finalize_design_spec (1회)"]
-    F --> DR["prepare_deck_review → 생성 → ingest_deck_review"]
+    F --> SS["ppt-speaker-script\n대본 작성·검토·저장"]
+    SS --> DR["prepare_deck_review → 생성 → ingest_deck_review"]
     DR --> G{"검토"}
     G -->|"add/update"| H["prepare_slide_edit → 생성 → ingest_slide_edit"]
     H --> G
@@ -77,6 +81,7 @@ flowchart TD
     G -->|"완료"| I["4. 내보내기"]
     I --> J["export_html\nHTML 미리보기"]
     I --> K["export_pptx\n편집 가능한 .pptx"]
+    I --> SM["export_speaker_script\n현재 순서의 Markdown 대본"]
 
     L["기존 PPTX 파일"] -->|"import_pptx"| G
 ```
@@ -104,7 +109,9 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 | 모듈 | 역할 |
 |------|------|
 | `interfaces/schemas.py` | 내부 도메인 모델 (`@dataclass`) |
-| `interfaces/llm_output_models.py` | 클라이언트 출력 검증용 Pydantic 모델, `to_dataclass()`로 변환 |
+| `interfaces/output_models/` | 아웃라인·대본·디자인·편집·리뷰·시각 QA별 Pydantic 모델과 공통 요소·그리드 변환 |
+| `interfaces/llm_output_models.py` | 기존 모델 import 경로를 유지하는 재노출 모듈 |
+| `interfaces/handoff.py` | prepare 응답 조립과 문자열·객체 응답의 공통 Pydantic 검증 |
 | `interfaces/constants.py` | 수치 상수, 프롬프트·JSON 스키마 re-export (모델 자격 증명 없음) |
 | `interfaces/prompts/*.prompt.md` | 프롬프트 템플릿 (`.prompt.md` 파일 → `__init__.py`에서 로딩) — `prepare_*` 가 반환하는 소스 |
 | `interfaces/spec_utils/` | PptxSlideSpec 파싱/검증/직렬화 공유 유틸리티 (패키지: parser, serializer, validator) |
@@ -116,6 +123,16 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 | `tools/pptx/slide_builder.py` | PptxSlideSpec → python-pptx 변환 |
 | `tools/slides/html_renderer.py` | PptxSlideSpec → HTML 변환 |
 | `tools/project/service.py` | 프로젝트 디렉토리 IO, 메타데이터, 슬라이드별 파일 관리 |
+
+디자인 도구의 MCP 등록은 `controller.py`에 유지한다. 슬라이드 추가·수정은
+`handlers/slide_edit.py`, 단일 요소 수정과 임포트 의미 트리 보완은
+`handlers/component_edit.py`, 이동·삭제는 `handlers/slide_order.py`가 처리한다.
+`handlers/modification.py`는 기존 핸들러 import 경로를 재노출한다.
+
+`DesignService`는 준비·수신 인터페이스를 제공하고, 의미 트리 보완은 `backfill.py`,
+요소 식별은 `components.py`, 테마 요약은 `summary.py`, 배경색 적용은 `backgrounds.py`에
+위임한다. 임포트 경로는 테마 요약 함수만 참조한다. 잠금, 준비 문맥 검증, 멱등 저장과
+실패 시 복원은 각 편집 핸들러에서 기존 순서로 실행한다.
 
 ## Pipeline Design Philosophy: Progressive Refinement
 
@@ -150,6 +167,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 | `prepare_outline` | `ingest_outline` | 아웃라인 프롬프트+스키마 반환 → 생성된 아웃라인 JSON 검증·저장 |
 | `prepare_design_doc_draft` | `ingest_design_doc_draft` | DESIGN.md 초안(테마·톤·서사) 프롬프트 반환 → 초안 저장 (1회, 이미 있으면 `{"skip": true}`) |
 | `prepare_design_slide` | `ingest_design_slide` | 단일 슬라이드 디자인 스펙 프롬프트+스키마+`thinking_budget` 힌트 반환 → 검증·정합화·저장·렌더·lint |
+| `prepare_speaker_script` | `ingest_speaker_script` | 실제 덱·기존 노트·근거와 스키마 제공 → 준비 상태 검증 후 노트만 저장, 아웃라인 노트·Markdown 동기화 |
 | `prepare_slide_edit` | `ingest_slide_edit` | 읽기 전용 프롬프트+edit_context 반환 → 스펙 검증·원자적 삽입/갱신·렌더 |
 | `prepare_modify_component` | `ingest_modify_component` | 단일 컴포넌트 부분 수정 프롬프트 반환 → 정확히 한 요소에 적용·렌더 |
 | `prepare_review` | `ingest_review` | 슬라이드 디자인 규칙 리뷰 프롬프트 반환 → 이슈 리포트 (리포트 전용, 자동 재생성 없음) |
@@ -166,6 +184,7 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 | `delete_slide` | 슬라이드 삭제 + 재인덱싱 — LLM 없음 |
 | `export_html` | 디자인 스펙 → HTML 슬라이드 내보내기 (결정론적) |
 | `export_pptx` | 디자인 스펙 → 편집 가능한 PPTX 내보내기 (결정론적) |
+| `export_speaker_script` | 현재 디자인 스펙 노트 → 순서·제목·줄바꿈을 보존한 Markdown 대본 |
 | `import_pptx` | 기존 PPTX 파일 → 디자인 스펙 역변환 (결정론적 파싱, HTML 미리보기 자동 생성) |
 | `save_outline_slide` | 아웃라인의 개별 슬라이드 항목 저장/갱신 |
 

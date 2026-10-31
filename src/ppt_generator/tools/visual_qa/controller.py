@@ -17,15 +17,15 @@ from mcp.server.fastmcp import FastMCP
 from ppt_generator.interfaces.constants import VISUAL_QA_MAX_ITERATIONS
 from ppt_generator.interfaces.index_validation import require_positive_slide_index
 from ppt_generator.interfaces.schemas import PptxSlideSpec
-from ppt_generator.interfaces.spec_utils.serializer import slide_spec_to_json
+from ppt_generator.interfaces.spec_utils.serializer import slide_spec_fingerprint
 from ppt_generator.tools.design.edit_context import (
     ProjectSnapshot,
     decode_signed_context,
     encode_signed_context,
     project_edit_lock,
 )
-from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.pptx.service import ExportService
+from ppt_generator.tools.project.service import ProjectService
 from ppt_generator.tools.slides.service import SlidesService
 from ppt_generator.tools.visual_qa.service import VisualQAService
 
@@ -76,7 +76,7 @@ def register_visual_qa_tools(
 
     def _spec_fingerprint(spec: PptxSlideSpec) -> str:
         """명세가 바뀐 뒤 이전 분석으로 수정하지 못하도록 내용을 식별한다."""
-        return hashlib.sha256(slide_spec_to_json(spec).encode("utf-8")).hexdigest()
+        return slide_spec_fingerprint(spec)
 
     def _analysis_snapshot(
         project_dir: Path, spec: PptxSlideSpec, slide_index: int, iteration: int

@@ -15,8 +15,8 @@ from ppt_generator.interfaces.constants import (
     DECK_REVIEW_SYSTEM_PROMPT,
     DESIGN_REVIEW_SYSTEM_PROMPT,
 )
-from ppt_generator.interfaces.handoff import build_llm_task
-from ppt_generator.interfaces.llm_output_models import (
+from ppt_generator.interfaces.handoff import build_llm_task, validate_llm_output
+from ppt_generator.interfaces.output_models.review import (
     DeckReviewOutput,
     DesignReviewOutput,
 )
@@ -67,9 +67,7 @@ class DesignReviewService:
 
     def ingest(self, output_json: str | dict) -> DesignReviewOutput:
         """클라이언트가 생성한 리뷰 결과 JSON 을 검증한다."""
-        if isinstance(output_json, str):
-            return DesignReviewOutput.model_validate_json(output_json)
-        return DesignReviewOutput.model_validate(output_json)
+        return validate_llm_output(DesignReviewOutput, output_json)
 
     def prepare_deck(
         self,
@@ -120,9 +118,7 @@ class DesignReviewService:
 
     def ingest_deck(self, output_json: str | dict) -> DeckReviewOutput:
         """클라이언트가 생성한 덱 전체 review 결과를 검증한다."""
-        if isinstance(output_json, str):
-            return DeckReviewOutput.model_validate_json(output_json)
-        return DeckReviewOutput.model_validate(output_json)
+        return validate_llm_output(DeckReviewOutput, output_json)
 
     @staticmethod
     def format_feedback(review_output: DesignReviewOutput) -> str:

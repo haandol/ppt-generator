@@ -26,13 +26,20 @@ def test_real_stdio_generation_qa_and_exports(tmp_path: Path) -> None:
 
     async def exercise(home: Path) -> None:
         bootstrap = (
-            "import sys; from pathlib import Path; "
+            "import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); "
             "import ppt_generator.tools.project.service as p; "
-            "p.PPT_GENERATOR_HOME = Path(sys.argv[1]); "
+            "assert Path(p.__file__).resolve().is_relative_to(Path(sys.argv[1]).resolve()); "
+            "p.PPT_GENERATOR_HOME = Path(sys.argv[2]); "
             "from ppt_generator.server import main; main()"
         )
         params = StdioServerParameters(
-            command=sys.executable, args=["-c", bootstrap, str(home)]
+            command=sys.executable,
+            args=[
+                "-c",
+                bootstrap,
+                str(Path(__file__).resolve().parents[1] / "src"),
+                str(home),
+            ],
         )
         with (tmp_path / "server.log").open("w") as log:
             async with stdio_client(params, errlog=log) as streams:

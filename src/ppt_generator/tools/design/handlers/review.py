@@ -17,7 +17,7 @@ from ppt_generator.interfaces.schemas import DesignSpec, ProjectMetadata
 from ppt_generator.interfaces.spec_utils import lint_slide_spec
 from ppt_generator.interfaces.spec_utils.serializer import (
     design_spec_to_json,
-    slide_spec_to_json,
+    slide_spec_fingerprint,
 )
 from ppt_generator.interfaces.utils import parse_outline_json
 from ppt_generator.tools.design.edit_context import (
@@ -171,9 +171,7 @@ def handle_ingest_review(
 
 
 def _spec_fingerprint(spec) -> str:
-    import hashlib
-
-    return hashlib.sha256(slide_spec_to_json(spec).encode("utf-8")).hexdigest()
+    return slide_spec_fingerprint(spec)
 
 
 def handle_prepare_deck_review(

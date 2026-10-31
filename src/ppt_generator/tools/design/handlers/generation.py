@@ -17,14 +17,15 @@ from typing import TYPE_CHECKING
 
 from ppt_generator.interfaces.constants import PROJECT_DESIGN_DRAFT_CONTEXT_FILE
 from ppt_generator.interfaces.index_validation import require_positive_slide_index
-from ppt_generator.interfaces.llm_output_models import slide_spec_output_model
-from ppt_generator.interfaces.schemas import PptxSlideSpec, SlideOutline
+from ppt_generator.interfaces.output_models.slides import slide_spec_output_model
+from ppt_generator.interfaces.schemas import SlideOutline
 from ppt_generator.interfaces.spec_utils import lint_design_spec, lint_slide_spec
 from ppt_generator.interfaces.utils import (
     complexity_to_budget_tokens,
     estimate_slide_complexity,
     parse_outline_json,
 )
+from ppt_generator.tools.design.backgrounds import _enforce_background_color
 from ppt_generator.tools.design.edit_context import (
     decode_signed_context,
     encode_signed_context,
@@ -326,6 +327,7 @@ def handle_ingest_design_slide(
             slide_index=slide_index,
             spec_json=spec_json,
             raw_slide_type=slide_outline.slide_type,
+            speaker_notes=slide_outline.speaker_notes,
             color_theme=color_theme,
         )
 
@@ -338,6 +340,7 @@ def _ingest_design_slide_locked(
     slide_index: int,
     spec_json: str,
     raw_slide_type: str,
+    speaker_notes: str,
     color_theme: str,
 ) -> str:
     """서명 컨텍스트 검증 뒤 대상 슬라이드 결과를 저장한다."""
@@ -351,6 +354,7 @@ def _ingest_design_slide_locked(
     spec, overflow = deps.design_service.ingest_slide(
         spec_json, slide_type=raw_slide_type
     )
+    spec = replace(spec, speaker_notes=speaker_notes)
 
     design_summary = project_service.load_design_summary(project_dir)
     bg_image_policy = project_service.load_bg_image_policy(project_dir)
@@ -488,35 +492,6 @@ def handle_finalize_design_spec(
 
 
 # --- helpers ---
-
-
-def _enforce_background_color(
-    spec: PptxSlideSpec,
-    design_summary: dict | None,
-    bg_image_policy: str,
-    idx: int,
-) -> PptxSlideSpec:
-    """본문의 덱 배경을 유지하고 이미지 없는 표지의 누락된 색상만 보완한다.
-
-    표지·클로징에 명시된 단색은 자동 배경 보완으로 덮어쓰지 않는다.
-    """
-    _enforce_bg = spec.slide_type == "content" or (
-        bg_image_policy == "none" and not spec.background_color
-    )
-    if (
-        design_summary
-        and _enforce_bg
-        and design_summary.get("background_color")
-        and spec.background_color != design_summary["background_color"]
-    ):
-        logger.info(
-            "slide[%d] 배경색 보정: %s → %s",
-            idx,
-            spec.background_color,
-            design_summary["background_color"],
-        )
-        spec = replace(spec, background_color=design_summary["background_color"])
-    return spec
 
 
 def _directives_for(project_service, project_dir, slide_index: int, title: str) -> str:
