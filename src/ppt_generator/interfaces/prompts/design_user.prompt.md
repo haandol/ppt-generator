@@ -32,5 +32,5 @@ If this is a content slide, follow the five-layer hierarchy strictly:
 
 The response schema requires `grid_layout`, `cell_assignment`, and `design_doc` for content slides; omitting any will fail validation.
 
-`speaker_notes` is the actual presenter narrative (1-3 short paragraphs, audience-facing tone). Do NOT describe slide structure here — that belongs in `design_doc`. Layout node coordinates are server-derived from the linked elements.
+Copy existing `speaker_notes` verbatim, or use an empty string. Do not generate or refine the script here; the `ppt-speaker-script` skill writes it after design. Layout descriptions belong in `design_doc`, whose node coordinates are server-derived from the linked elements.
 </output_requirements>

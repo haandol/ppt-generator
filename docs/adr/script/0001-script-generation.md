@@ -1,74 +1,76 @@
-# 발표 스크립트 생성 (F2)
+# 발표 스크립트를 전용 스킬에서 작성한다
 
-Date: 2026-02-11
+Date: 2026-10-31
 
 ## Status
 
-Deprecated (2026-02-11)
-
-별도의 스크립트 생성 단계(`generate_script`)는 파이프라인에서 제거되었다. 발표자 노트는
-이제 design_doc 의 `speaker_notes` 로 흡수되어 슬라이드 디자인 생성과 함께 채워진다.
-아래는 독립 스크립트 단계가 존재하던 시절의 기록이다.
+Accepted (2026-10-31)
 
 ## Context
 
-F1에서 생성한 아웃라인 JSON의 speaker_notes는 비어있다. 각 슬라이드의 제목과 본문 요점을 기반으로 자연스러운 발표자 노트를 생성하여 speaker_notes를 채워야 한다.
+현재 아웃라인과 디자인 생성이 발표자 노트까지 작성한다. 이 방식에서는 화면 구성과
+말로 전달할 설명을 동시에 결정하므로, 실제 슬라이드 순서에 맞춘 전환·낭독·시간 검토가
+여러 단계에 흩어진다. 사용자는 고객 정보를 제거한 발표 스크립트 작성 가이드를 플러그인의
+전용 스킬로 통합하고 기존 생성 흐름도 그 스킬을 사용하도록 요청했다.
 
-이 단계를 거치면 아웃라인에 발표자 노트가 포함되어, F3(HTML 슬라이드 생성)에서 `data-speaker-notes` 속성에 반영할 수 있다.
+가이드는 비모국어 발표자가 소규모 온라인 미팅에서 읽는 영어 대본을 기준으로 한다.
+그 기준을 모든 발표의 언어·청중·속도에 강제하면 안 된다. 고객사 정보와 특정 서비스
+도입 사례는 재사용 지침에 포함하지 않는다.
 
 ## Decision
 
-MCP 도구 `generate_script`를 구현하여, 아웃라인 JSON을 입력받아 LLM이 슬라이드별 발표자 노트를 생성하고, speaker_notes가 채워진 아웃라인 JSON을 반환한다.
+발표 스크립트의 작성과 검토는 전용 스킬이 담당한다. 아웃라인은 발표의 내용과 순서를,
+디자인은 화면 구성을 담당한다. 완성 덱 생성에서는 디자인 이후 스크립트를 작성하고,
+덱 전체 검토와 최종 내보내기가 그 결과를 사용한다. 스크립트만 요청하거나 기존 덱을
+임포트한 경우에도 같은 스킬을 사용할 수 있다.
 
-### Technical Details
+### 작성 계약
 
-- LLM 호출은 MCP 클라이언트가 담당 (서버는 prepare/ingest 로 프롬프트·스키마만 제공, [offload/0001](../offload/0001-client-llm-offload-plugin.md) 참조)
-- 프롬프트: 아웃라인 JSON을 기반으로 슬라이드별 발표자 노트(speaker_notes) 생성 요청
-- LLM 출력 JSON 스키마: `{ scripts: [{ slide_index, speaker_notes }] }`
-- 출력의 speaker_notes를 원본 아웃라인의 각 슬라이드에 적용하여 최종 아웃라인 JSON 반환
+- 발표 언어·청중·발표 시간·질문 및 호스트 역할은 사용자 문맥을 따른다. 원본 가이드의
+  영어·소규모 온라인·비모국어 발표 기준은 해당 상황의 기본값이다.
+- 실제 화면 내용과 제공된 근거를 바탕으로 자연스러운 발화, 의미 단위 줄바꿈,
+  슬라이드 사이 전환을 작성한다. 고객 상황·수치·발표자 경험을 지어내지 않는다.
+- 중복 설명과 상투적 문구를 걷어내면서 인사·마무리·호스트에게 말 넘기기는 보존한다.
+- 기존에 제공되거나 임포트된 노트는 초안 자료로 보존하고, 전용 스크립트 단계에서
+  요청 범위에 맞게 다듬는다. 스크립트를 바꾸기 위해 화면을 재생성하지 않는다.
 
-### MCP Tool Interface
+### 저장 및 호환성 계약
 
-| 항목 | 값 |
-|------|-----|
-| Tool | `generate_script` |
-| 입력 | `outline_json: str` (speaker_notes 비어있는 아웃라인), `project_id: str` (선택) |
-| 출력 | 아웃라인 JSON 문자열 (speaker_notes 채워짐, project_id 포함) |
+- 생성은 기존과 같이 클라이언트가 담당한다. 서버는 준비·수집 쌍으로 실제 슬라이드
+  문맥과 출력 스키마를 제공하고 같은 스키마로 수집 결과를 검증한다.
+- 준비한 덱의 상태가 바뀌거나, 슬라이드가 누락·중복되거나 잘못된 번호로 제출되면
+  노트를 저장하지 않고 다시 준비하도록 안내한다.
+- 노트 변경은 슬라이드의 내용·좌표·스타일을 보존한다. 아웃라인이 있으면 해당 노트도
+  일치시킨다. 아웃라인이 없는 임포트 덱에도 적용할 수 있다.
+- 읽을 Markdown 대본은 최종 노트에서 결정론적으로 내보낸다. Markdown·HTML·PPTX는
+  같은 노트와 슬라이드 순서, 의미 단위 줄바꿈을 사용한다.
+- 슬라이드 수정·이동·삭제 후에는 스크립트와 연결을 재검토하고 최종 덱에서 대본을
+  다시 내보낸다. 시간 계산은 코드로 확인하고 실측 리허설 여부와 구분한다.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
-1. 아웃라인 JSON을 입력하면 speaker_notes가 채워진 아웃라인 JSON이 반환된다
-2. 각 슬라이드의 speaker_notes가 해당 슬라이드 내용에 맞는 자연스러운 발표 스크립트를 포함한다
-3. 슬라이드 간 자연스러운 전환이 반영된다
-4. project_id가 자동 생성되어 `~/.ppt-generator/<UUID>/script/` 디렉토리에 개별 JSON 파일로 저장된다 (슬라이드별 `slide_01.json`, `slide_02.json`, ...)
-
-### Out of Scope
-
-- 사용자가 직접 speaker_notes를 편집하는 기능 (MCP 클라이언트에서 JSON 수정으로 가능)
-
-```mermaid
-sequenceDiagram
-    participant Client as MCP Client
-    participant Server as MCP Server
-    participant LLM as Claude Sonnet 4.6
-
-    Client->>Server: generate_script(outline_json, project_id)
-    Server->>LLM: 슬라이드별 발표자 노트 생성 요청
-    LLM-->>Server: { scripts: [{ slide_index, speaker_notes }] }
-    Server->>Server: speaker_notes를 원본 아웃라인에 적용
-    Server->>Server: ~/.ppt-generator/<UUID>/script/ 개별 파일 저장
-    Server-->>Client: speaker_notes가 채워진 아웃라인 JSON (project_id 포함)
-```
+1. 플러그인에서 발표 스크립트 전용 스킬을 발견할 수 있으며, 고객사 정보 없이
+   원본 가이드의 낭독·문체·전환·시간·산출물 지침을 적용한다.
+2. 새 덱의 아웃라인·디자인 단계는 대본을 독자적으로 재작성하지 않고 전용 스킬로
+   연결된다. 기존 노트와 스크립트 작성 생략 요청은 보존된다.
+3. 새 덱과 임포트 덱에서 스크립트만 갱신할 수 있고, 실제 화면 요소와 근거는 유지된다.
+4. 잘못된 제출과 준비 이후 변경된 덱은 저장 전에 거부된다.
+5. Markdown 대본·HTML 노트·PPTX 노트의 내용·순서·줄바꿈이 일치하는 통합 검증이 통과한다.
 
 ## Consequences
 
-- 반환되는 아웃라인 JSON은 F1의 출력과 동일한 스키마이며, speaker_notes만 채워져 있다
-- 이후 F3(HTML 슬라이드 생성)에서 이 아웃라인 JSON을 그대로 사용할 수 있다
-- 아웃라인이 비어있는 경우 입력 검증 후 에러 반환한다
-- LLM이 유효하지 않은 JSON 반환 시 재시도 또는 에러 반환한다
-- 일부 슬라이드의 speaker_notes가 누락된 경우 기존 값(빈 문자열) 유지한다
+슬라이드 디자인과 낭독용 대본의 책임을 분리한다. 덱 전체를 보고 말의 흐름과 분량을
+검토할 수 있으며, 디자인을 다시 생성하지 않고 노트만 고칠 수 있다. 생성 단계가 하나
+추가되지만 작성 지침과 출력 스키마는 각각 스킬과 서버에 한 번만 정의한다.
+
+## History
+
+2026-02-11의 독립 스크립트 생성 단계는 같은 날 폐기되고 노트 작성이 다른 생성 단계에
+흡수되었다. 이번 결정은 서버의 직접 모델 호출을 되살리지 않고, 전용 클라이언트 스킬과
+결정론적 저장·내보내기로 책임을 다시 분리한다.
 
 ## Related
 
-- [outline/0001](../outline/0001-outline-generation.md) — speaker_notes 를 빈 문자열로 생성하는 선행 단계
-- [offload/0001](../offload/0001-client-llm-offload-plugin.md) — LLM 생성을 클라이언트로 오프로딩하며 파이프라인 재편
+- [아웃라인 생성](../outline/0001-outline-generation.md)
+- [클라이언트 LLM 오프로딩](../offload/0001-client-llm-offload-plugin.md)
+- [HTML·PPTX 렌더 패리티](../pptx-export/0002-html-pptx-render-parity-gate.md)

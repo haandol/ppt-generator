@@ -13,6 +13,7 @@ from ppt_generator.tools.outline.service import OutlineService
 from ppt_generator.tools.pptx.service import ExportService
 from ppt_generator.tools.pptx_import.service import ImportService
 from ppt_generator.tools.project.service import ProjectService
+from ppt_generator.tools.script.service import SpeakerScriptService
 from ppt_generator.tools.slides.service import SlidesService
 from ppt_generator.tools.visual_qa.service import VisualQAService
 
@@ -30,6 +31,7 @@ class DIContainer:
         self._design_service: DesignService | None = None
         self._review_service: DesignReviewService | None = None
         self._visual_qa_service: VisualQAService | None = None
+        self._script_service: SpeakerScriptService | None = None
 
     # ---- Service properties (lazy init) ----
 
@@ -74,6 +76,12 @@ class DIContainer:
         if self._import_service is None:
             self._import_service = ImportService()
         return self._import_service
+
+    @property
+    def script_service(self) -> SpeakerScriptService:
+        if self._script_service is None:
+            self._script_service = SpeakerScriptService()
+        return self._script_service
 
     @property
     def project_service(self) -> ProjectService:

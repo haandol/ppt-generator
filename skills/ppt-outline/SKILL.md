@@ -22,6 +22,8 @@ description: Start a presentation by generating its outline via the ppt-generato
    `response_schema` 를 **정확히** 따르는 아웃라인 JSON (`{"slides": [...]}`) 을 생성한다.
    - 스키마의 required 필드와 `source_refs`, `assumptions`를 모두 채운다.
    - 4~20장, Title → Agenda → 최소 1개 Body → Closing 구조를 지킨다.
+   - `speaker_notes`는 제공된 대본을 그대로 보존하거나 빈 문자열로 둔다.
+     최종 대본은 실제 슬라이드가 나온 뒤 `ppt-speaker-script`가 작성한다.
 3. `mcp__ppt-generator__ingest_outline(project_id, outline_json)` 호출 — 서버가 검증·발표자 정보 주입·저장.
 4. 아웃라인만 요청받았으면 결과를 보여주고 멈춘다. 완성된 덱 요청이면 바로
    `ppt-design` 단계로 진행한다.

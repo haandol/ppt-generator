@@ -15,7 +15,7 @@
 
 ```
 .claude-plugin/plugin.json # Claude Code plugin manifest (runs the MCP server via uv)
-skills/                    # ppt-outline, ppt-design, ppt-modify, ppt-visual-qa (client workflows)
+skills/                    # ppt-outline, ppt-design, ppt-speaker-script, ppt-modify, ppt-visual-qa
 .kiro/                     # Kiro entry points: steering/ppt-generator.md + settings/mcp.json.example
 src/ppt_generator/
 ├── server.py              # MCP server entry point
@@ -25,6 +25,7 @@ src/ppt_generator/
 └── tools/
     ├── outline/           # Outline: prepare_outline / ingest_outline
     ├── design/            # Design spec: prepare_*/ingest_* (generation, modify, review)
+    ├── script/            # Notes-only prepare/ingest + current-note Markdown export
     ├── slides/            # HTML slide rendering
     ├── visual_qa/         # Visual QA: screenshot (server) + analyze/fix (client, prepare/ingest)
     ├── pptx/              # PPTX export
@@ -44,6 +45,12 @@ Prompts (`interfaces/prompts/`), output models (`interfaces/llm_output_models.py
 post-processing stay server-side, so output is byte-for-byte what the old in-server LLM path
 produced. Per-slide tools are stateless; the client drives parallelism and iteration loops
 (see `skills/`). See the ADR index under [`docs/adr/`](docs/adr/) for the design rationale.
+
+Speaker-script writing guidance lives in `skills/ppt-speaker-script/SKILL.md` and its
+reference guide. Outline/design preserve supplied notes; the script skill writes the
+final narrative after design and before deck review. Server prompts and output models
+still own the task envelope and JSON contract. Export the reading document from saved
+notes at the same final checkpoint as HTML/PPTX; do not maintain a separate script copy.
 
 ## Commands
 

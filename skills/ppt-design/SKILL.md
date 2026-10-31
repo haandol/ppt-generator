@@ -35,6 +35,8 @@ DESIGN.md 초안에 내장되어 있으므로 별도 디자인 스킬 호출이 
    - 반환: `system_prompt`, `user_prompt`(인접 슬라이드 컨텍스트·DESIGN.md 지시 포함),
      `response_schema`, `slide_type`, `thinking_budget`(사고 예산 힌트).
 2. **네가** `response_schema` 를 정확히 따르는 슬라이드 spec JSON 을 생성한다.
+   - `speaker_notes`는 입력 노트를 그대로 보존하거나 빈 문자열로 둔다.
+     이 단계에서 대본을 생성·교정하지 않는다.
    - `thinking_budget` 이 크면(복잡한 다이어그램 등) 더 신중하게 사고한다.
    - content 슬라이드는 grid_layout·cell_assignment·design_doc 이 required 다 (스키마가 강제).
 3. `mcp__ppt-generator__ingest_design_slide(project_id, slide_index=i, spec_json, generation_context)` 호출.
@@ -47,6 +49,9 @@ DESIGN.md 초안에 내장되어 있으므로 별도 디자인 스킬 호출이 
 
 - 모든 슬라이드 ingest 후 `mcp__ppt-generator__finalize_design_spec(project_id, overflow_json)` 호출
   (모은 overflow 를 JSON 배열 문자열로; 없으면 "").
+- `ppt-speaker-script` 스킬을 읽고 실제 덱에 맞는 대본을 작성·검토·저장한다.
+  사용자가 대본 생성을 생략하도록 요청했다면 기존 노트를 보존하고 건너뛴다.
+  이 호출은 대본 저장까지 진행한 뒤 이 워크플로로 돌아온다.
 - `mcp__ppt-generator__prepare_deck_review(project_id)` → review JSON 생성 →
   `mcp__ppt-generator__ingest_deck_review(...)` 로 덱 전체의 근거·중복·용어·서사를
   read-only 검토한다. high 의미 이슈만 사용자 결정을 요청한다.
@@ -82,8 +87,10 @@ DESIGN.md 초안에 내장되어 있으므로 별도 디자인 스킬 호출이 
 ### 5. 최종 내보내기
 
 - QA가 끝난 안정 체크포인트에서 `export_html`과 `export_pptx`를 같은 DesignSpec에 호출한다.
+- `mcp__ppt-generator__export_speaker_script(project_id)`를 호출해 현재 노트의
+  Markdown 대본을 내보낸다. 순서나 제목이 바뀌었다면 이전 대본을 재사용하지 않는다.
 - 반환된 HTML을 사용 가능한 브라우저 또는 `open` 명령으로 반드시 연다.
-- HTML/PPTX 경로와 미해결 의미·시각 이슈를 공유한다. medium 이슈도 관련 슬라이드와
+- Markdown 대본·HTML/PPTX 경로와 미해결 의미·시각 이슈를 공유한다. medium 이슈도 관련 슬라이드와
   함께 요약한다. 검사를 실행하지 못한 경우 그 범위와 이유를 명시한다.
 
 ## 선택 — 리뷰

@@ -9,24 +9,17 @@ Each slide must include the following 8 fields:
 - component_hint: Visual component type to use for the slide (see list below)
 - slide_type: Slide type — "title" (title slide), "closing" (Thank You/Q&A slide), "content" (regular body slide)
 - layout_plan: Content layout plan — describes the body area's overall arrangement direction and key elements (see layout_plan section below)
-- speaker_notes: Presenter script for this slide (see speaker_notes section below)
+- speaker_notes: Existing user-provided notes, or an empty string (see speaker_notes section below)
 - source_refs: Source identifiers supplied by the user or research context; use [] when none
 - assumptions: Unverified factual assumptions introduced by the outline; use [] when none
 </output_schema>
 
 <speaker_notes_rules>
-speaker_notes is the presenter's spoken script for each slide. Write it as natural speech the presenter would say while showing the slide.
-
-Rules:
-- Use natural conversational tone as if speaking to the audience
-- Naturally expand the slide's title and key points into spoken form
-- Include transition phrases between slides ("Next, let's look at...", "Now let's get into...")
-- Length: 2-4 sentences per slide (adjust based on presentation time per slide)
-- Do NOT repeat content_summary verbatim — expand and explain it conversationally
-- Adapt tone to audience_type:
-  · general: easy, friendly, with analogies and everyday examples
-  · technical: precise terminology, implementation details, as if explaining to engineers
-  · executive: business value focus, concise, metrics-driven
+The outline decides content and sequence, not the final spoken script.
+Set speaker_notes to an empty string unless the user supplied notes for that slide;
+in that case preserve those notes verbatim. Do not generate or refine notes here.
+After slide design, the ppt-speaker-script skill writes the deck-wide script using
+the actual visual content, presentation brief, and supplied evidence.
 </speaker_notes_rules>
 
 <layout_plan_schema>

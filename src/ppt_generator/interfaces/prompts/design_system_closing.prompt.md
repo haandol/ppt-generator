@@ -15,7 +15,7 @@ Thank You slide (slide_type: "closing") design rules:
   <layout_example id="closing-1" hint="closing — Thank You slide (left-aligned, same layout pattern as title slide)">
   {
     "background_color": null,
-    "speaker_notes": "Questions and feedback are welcome.",
+    "speaker_notes": "",
     "textboxes": [
       {
         "component_id": "closing.message",

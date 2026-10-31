@@ -121,7 +121,7 @@ Bottom auxiliary elements (top >= 540):
       ]
     },
     "background_color": "#0F172A",
-    "speaker_notes": "In this slide...",
+    "speaker_notes": "",
     "textboxes": [
       {
         "grid_cell": "h1",

@@ -375,6 +375,7 @@ def _handle_ingest_slide_edit_locked(
     spec, _overflow = deps.design_service.ingest_slide(
         spec_json, slide_type=raw_slide_type
     )
+    spec = replace(spec, speaker_notes=outline.slides[0].speaker_notes)
     if spec.background_color is None:
         spec = _enforce_background_color(
             spec,
@@ -561,13 +562,17 @@ def _prepare_update(
         )
 
     existing_outline = _load_outline_for_edit(project_service, project_dir, idx)
+    existing_notes = (
+        existing_outline.speaker_notes
+        or project_service.load_design_spec_slide(project_dir, idx).speaker_notes
+    )
     if title and content_summary:
         outline_data = {
             "title": title,
             "content_summary": content_summary,
             "component_hint": component_hint,
             "slide_type": slide_type,
-            "speaker_notes": speaker_notes,
+            "speaker_notes": speaker_notes or existing_notes,
         }
         slide_outline = parse_outline_json(
             json.dumps(outline_data, ensure_ascii=False)
@@ -580,7 +585,9 @@ def _prepare_update(
                 assumptions=existing_outline.assumptions,
             )
     else:
-        slide_outline = existing_outline
+        slide_outline = replace(
+            existing_outline, speaker_notes=speaker_notes or existing_notes
+        )
     outline_data = asdict(slide_outline)
     directives = _directives_for(
         project_service, project_dir, slide_index, slide_outline.title

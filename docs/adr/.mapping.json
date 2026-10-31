@@ -306,8 +306,8 @@
       "adrs": [
         {
           "path": "docs/adr/script/0001-script-generation.md",
-          "status": "Deprecated (2026-02-11)",
-          "summary": "발표 스크립트 생성 (F2)"
+          "status": "Accepted (2026-10-31)",
+          "summary": "전용 스킬에서 대본 작성 — 디자인과 분리하고 노트·Markdown·HTML·PPTX를 동기화"
         }
       ]
     },

@@ -11,6 +11,11 @@ description: Add, update, delete, move, or make narrow single-component edits to
 
 여러 편집은 먼저 완료하고, 안정 체크포인트에서 HTML/PPTX를 한 번 내보낸다.
 
+## 발표자 노트만 수정
+
+대본 작성·교정·분량 조정은 `ppt-speaker-script` 스킬을 따른다. 노트를 바꾸기 위해
+슬라이드를 재생성하지 않는다. 이 경로는 임포트 덱에도 사용할 수 있다.
+
 ## 슬라이드 추가 / 수정 (add / update)
 
 1. `mcp__ppt-generator__prepare_slide_edit(project_id, action, slide_index, title, content_summary, component_hint, slide_type, speaker_notes, color_theme)` 호출.
@@ -52,6 +57,10 @@ description: Add, update, delete, move, or make narrow single-component edits to
 
 ## 규칙
 
+- 화면 내용이나 순서가 바뀌면 `ppt-speaker-script`의 기준으로 영향받은 노트와
+  인접 슬라이드 전환을 다시 검토한다. 대본 수정 생략 요청은 보존한다.
+- 최종 체크포인트에서 `mcp__ppt-generator__export_speaker_script(project_id)`를
+  호출해 현재 제목·순서·노트에 맞는 Markdown을 내보낸다.
 - 생성 단계에서는 항상 `response_schema` 를 정확히 따른다. ingest 검증 실패 시 고쳐 재시도.
 - 편집 묶음이 끝나면 변경 슬라이드에 Visual QA를 실행하고 최종 `export_html` +
   `export_pptx`를 호출한다. HTML은 반드시 브라우저로 연다.

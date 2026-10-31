@@ -40,6 +40,7 @@ def _load_content_prompt(*, include_example: bool = False) -> str:
 
 OUTLINE_SYSTEM_PROMPT = _load("outline_system.prompt.md")
 OUTLINE_USER_PROMPT_TEMPLATE = _load("outline_user.prompt.md")
+SPEAKER_SCRIPT_SYSTEM_PROMPT = _load("speaker_script_system.prompt.md")
 
 # slide_type별 분리된 시스템 프롬프트 (공통 베이스 + 타입별 오버라이드)
 _DESIGN_SYSTEM_BASE = _load("design_system_base.prompt.md")
@@ -104,6 +105,7 @@ __all__ = [
     "DESIGN_DOC_DRAFT_SYSTEM_PROMPT",
     "OUTLINE_SYSTEM_PROMPT",
     "OUTLINE_USER_PROMPT_TEMPLATE",
+    "SPEAKER_SCRIPT_SYSTEM_PROMPT",
     "VISUAL_QA_ANALYSIS_SYSTEM_PROMPT",
     "VISUAL_QA_FIX_SYSTEM_PROMPT",
     "DESIGN_REVIEW_SYSTEM_PROMPT",

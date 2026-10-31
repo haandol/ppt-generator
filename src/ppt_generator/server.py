@@ -8,6 +8,7 @@ from ppt_generator.tools.outline.controller import register_outline_tools
 from ppt_generator.tools.pptx.controller import register_pptx_tools
 from ppt_generator.tools.pptx_import.controller import register_pptx_import_tools
 from ppt_generator.tools.project.controller import register_project_tools
+from ppt_generator.tools.script.controller import register_script_tools
 from ppt_generator.tools.slides.controller import register_slides_tools
 from ppt_generator.tools.visual_qa.controller import register_visual_qa_tools
 
@@ -30,10 +31,13 @@ def create_server() -> FastMCP:
             '(call ONCE; skip if it returns {"skip": true}).\n'
             "3. For EACH slide (parallelize): prepare_design_slide → generate spec JSON "
             "(matching response_schema) → ingest_design_slide.\n"
-            "4. finalize_design_spec once, then prepare_deck_review → generate → ingest_deck_review.\n"
+            "4. finalize_design_spec once. Use the ppt-speaker-script skill: "
+            "prepare_speaker_script → generate script JSON → ingest_speaker_script, "
+            "echoing script_context unchanged. Skip script generation if the user asks to.\n"
+            "   Then prepare_deck_review → generate → ingest_deck_review.\n"
             "5. Run read-only Visual QA and apply issue-scoped low-risk visual patches.\n"
-            "6. At the stable completion checkpoint export_html + export_pptx, open the "
-            "HTML in an available browser, and share both paths.\n"
+            "6. At the stable completion checkpoint export_speaker_script + export_html + export_pptx, open the "
+            "HTML in an available browser, and share all artifact paths.\n"
             "## Rules\n"
             "- Always generate JSON that conforms to the `response_schema` returned by prepare_*.\n"
             '- **Adding a slide**: prepare_slide_edit(action="add") → generate → ingest_slide_edit.\n'
@@ -41,6 +45,8 @@ def create_server() -> FastMCP:
             "- **Narrow single-element edit**: prepare_modify_component → generate → ingest_modify_component "
             '(imported slides return stage="backfill" first: generate → ingest_backfill → retry).\n'
             "- **Moving/deleting**: move_slide / delete_slide are pure file ops (no generation).\n"
+            "- **Speaker notes only**: use ppt-speaker-script and the script prepare/ingest pair; "
+            "do not regenerate the slide design. Recheck transitions after content/order changes.\n"
             "- **Review**: prepare_review → generate → ingest_review (report-only; regenerate via prepare_slide_edit).\n"
             "- **Visual QA**: capture_slides → "
             "prepare_visual_qa_analysis → generate → ingest_visual_qa_analysis → (if issues) "
@@ -73,6 +79,7 @@ def create_server() -> FastMCP:
     )
     register_slides_tools(mcp, container.slides_service, container.project_service)
     register_project_tools(mcp, container.project_service)
+    register_script_tools(mcp, container.script_service, container.project_service)
     register_visual_qa_tools(
         mcp,
         container.project_service,

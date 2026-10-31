@@ -99,7 +99,7 @@ Claude Code 와 동일하게 움직인다.
 context.md 를 읽고 ppt-generator 로 발표자료를 만들어줘.
 ```
 
-Kiro 가 필수 발표 골격의 아웃라인 → DESIGN.md → 디자인 스펙 → deck review →
+Kiro 가 필수 발표 골격의 아웃라인 → DESIGN.md → 디자인 스펙 → 발표 대본 → deck review →
 Visual QA patch → 최종 HTML/PPTX 순으로 핸드셰이크를 구동한다.
 
 ---
@@ -150,6 +150,7 @@ ppt-generator MCP 서버로 발표자료를 만든다. 서버는 LLM 을 호출�
 - 슬라이드 생성은 병렬로 (서버측 stateless).
 - 아웃라인은 4~20장, Title → Agenda → 최소 1개 Body → Closing 구조다.
 - 완성 요청은 별도 아웃라인 승인 없이 deck review와 Visual QA까지 진행한다.
+- 디자인 이후 발표 대본 작성·수정은 skills/ppt-speaker-script/SKILL.md를 따른다.
 - 여러 편집 후 안정 체크포인트에서 export_html + export_pptx를 호출한다.
 - 최종 HTML은 사용 가능한 브라우저로 연다.
 - 시각 patch는 자동 적용하고 텍스트·데이터·요소 수·슬라이드 수 변경만 확인한다.

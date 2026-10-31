@@ -184,7 +184,7 @@ reports suspicious irregularity.
     ]
   },
   "background_color": "#RRGGBB or null",
-  "speaker_notes": "The actual presenter narrative (what the speaker will say). Keep slide structure, grid, and layout descriptions in design_doc. Use a conversational, audience-facing tone.",
+  "speaker_notes": "Copy existing input notes verbatim, or use an empty string. The ppt-speaker-script skill writes the spoken script after design.",
   "textboxes": [
     {
       "grid_cell": "h1"|"c1"|...|null,
@@ -297,7 +297,7 @@ image. Keep the prepared deck policy and the generated slide consistent.
   Regular-grid peers normally share row heights and column widths. Use spans or a clearly
   intentional asymmetric layout when the content benefits from different dimensions.
 - **Footer-aware content sizing**: When `regions` includes `"footer"`, keep content cells above `footer_region.top_px - 16` (16px gap). The lint rule `region-stacking` reports violations.
-- **speaker_notes (presenter narrative)**: This field is what the speaker will literally say while presenting this slide. Keep visual structure, grid cells, sections, and component ids in `design_doc`. The audience never sees this; the speaker reads it. Use a conversational, audience-facing tone (1-3 short paragraphs). When the input outline already provides speaker_notes, treat it as draft narrative and refine for tone.
+- **speaker_notes (preserved narrative)**: Copy input speaker_notes verbatim, or use an empty string if absent. Do not generate or refine the spoken script during design; the ppt-speaker-script skill owns that work after the actual slides exist. Keep layout descriptions in `design_doc`.
 - autofit_mode controls how text overflow is handled in shapes:
   - **"shrink_text" (default)**: Keeps the declared height fixed and shrinks the font to fit. Default because card-grid uniformity is the common case and a slightly smaller font is preferable to height drift. The `font-range` lint rule reports fonts smaller than 10pt, so prefer shortening text over relying on extreme shrinking.
   - "expand_height": Expands the height when the text overflows. Prefer it for free-flowing text blocks where height drift will not collide with siblings. In a vertical card stack, verify the resulting heights and gaps carefully.

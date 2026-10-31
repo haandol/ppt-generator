@@ -326,6 +326,7 @@ def handle_ingest_design_slide(
             slide_index=slide_index,
             spec_json=spec_json,
             raw_slide_type=slide_outline.slide_type,
+            speaker_notes=slide_outline.speaker_notes,
             color_theme=color_theme,
         )
 
@@ -338,6 +339,7 @@ def _ingest_design_slide_locked(
     slide_index: int,
     spec_json: str,
     raw_slide_type: str,
+    speaker_notes: str,
     color_theme: str,
 ) -> str:
     """서명 컨텍스트 검증 뒤 대상 슬라이드 결과를 저장한다."""
@@ -351,6 +353,7 @@ def _ingest_design_slide_locked(
     spec, overflow = deps.design_service.ingest_slide(
         spec_json, slide_type=raw_slide_type
     )
+    spec = replace(spec, speaker_notes=speaker_notes)
 
     design_summary = project_service.load_design_summary(project_dir)
     bg_image_policy = project_service.load_bg_image_policy(project_dir)

@@ -18,7 +18,7 @@ Title slide (slide_type: "title") design rules:
   <layout_example id="title-1" hint="title — Presentation title slide with semantic roles">
   {
     "background_color": null,
-    "speaker_notes": "Presentation introduction...",
+    "speaker_notes": "",
     "textboxes": [
       {
         "component_id": "title.main",

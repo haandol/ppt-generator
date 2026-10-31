@@ -16,6 +16,8 @@ from ppt_generator.interfaces.schemas import (
 )
 from ppt_generator.tools.design.handlers.deps import DesignDeps
 from ppt_generator.tools.design.handlers.generation import (
+    handle_ingest_design_slide,
+    handle_prepare_design_slide,
     handle_prepare_design_doc_draft,
 )
 from ppt_generator.tools.design.handlers.modification import (
@@ -176,3 +178,58 @@ def test_unchanged_content_update_keeps_all_outline_metadata(
     after = json.loads(deps.project_service.load_outline_slide(directory, 0))
     for key in ("layout_plan", "source_refs", "assumptions"):
         assert after[key] == before[key]
+
+
+@pytest.mark.parametrize("stage", ["generation", "edit"])
+def test_design_generation_does_not_rewrite_supplied_notes(
+    real_project, stage: str
+) -> None:
+    deps, project_id, directory = real_project
+    payload = {**_payload(), "speaker_notes": "Unrequested generated narration"}
+    if stage == "generation":
+        prepared = json.loads(
+            handle_prepare_design_slide(
+                deps,
+                project_id=project_id,
+                slide_index=1,
+                outline_json="",
+                total_slides=1,
+                color_theme="dark",
+            )
+        )
+        handle_ingest_design_slide(
+            deps,
+            project_id=project_id,
+            slide_index=1,
+            spec_json=json.dumps(payload),
+            generation_context=prepared["generation_context"],
+            color_theme="dark",
+        )
+    else:
+        prepared = json.loads(
+            handle_prepare_slide_edit(
+                deps,
+                project_id=project_id,
+                action="update",
+                slide_index=1,
+                title="",
+                content_summary="",
+                component_hint="custom",
+                slide_type="content",
+                speaker_notes="",
+                color_theme="dark",
+            )
+        )
+        handle_ingest_slide_edit(
+            deps,
+            project_id=project_id,
+            action="update",
+            slide_index=1,
+            spec_json=json.dumps(payload),
+            edit_context=prepared["edit_context"],
+            color_theme="dark",
+        )
+    assert (
+        deps.project_service.load_design_spec_slide(directory, 0).speaker_notes
+        == _outline().speaker_notes
+    )
