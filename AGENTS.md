@@ -57,6 +57,7 @@ notes at the same final checkpoint as HTML/PPTX; do not maintain a separate scri
 ```bash
 uv sync                                          # Install dependencies
 uv run ppt-generator                             # Run MCP server (stdio)
+python3 scripts/verify.py                         # Locked local/CI checks + verified packages
 uv run pytest                                    # Run all tests
 uv run pytest tests/test_xxx.py::test_func -v    # Run specific test
 ```
@@ -86,13 +87,14 @@ Each pipeline stage has a distinct abstraction level. Stages must NOT overlap re
 
 | Stage | Decides | Does NOT decide |
 |-------|---------|-----------------|
-| **Outline** | WHAT (topics, key points) + HOW (layout direction, element count, relationships) | Colors, fonts, coordinates, exact sizes |
-| **Design Spec** | WHERE (pixel coordinates) + STYLE (colors, fonts, sizes) | Content topics, element count, spatial direction |
+| **Outline** | WHAT (topics, evidence, key points) + proposed HOW (grouping, direction, count, relationships) | Colors, fonts, coordinates, exact sizes |
+| **Design Spec** | WHERE + STYLE; refine the proposed composition while preserving the message and essential relationships | New claims/topics or changes to explicit user-fixed constraints |
 
 When modifying prompts or pipeline logic:
-- Never let a downstream stage re-decide what an upstream stage already determined
+- Preserve upstream content and explicit user-fixed counts, directions and relationships. Other layout choices are proposals that design may refine for readability.
 - Never let an upstream stage specify details that belong to a downstream stage
 - If a stage needs information from another, pass it explicitly — don't duplicate the decision
+- Keep schema/link/unit contracts distinct from visual guidance. Examples, heuristic thresholds and concurrency preferences do not prescribe the model's private reasoning or a single valid composition.
 
 ## Conventions
 

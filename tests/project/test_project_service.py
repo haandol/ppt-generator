@@ -482,16 +482,21 @@ class TestListProjects:
         assert len(result) == 1
         assert result[0]["topic"] == "유효한 프로젝트"
 
+    @pytest.mark.parametrize("birthtime_available", [True, False])
     def test_sorted_by_created_at_desc(
-        self, project_service: ProjectService, tmp_path: Path, monkeypatch
+        self,
+        project_service: ProjectService,
+        tmp_path: Path,
+        monkeypatch,
+        birthtime_available: bool,
     ) -> None:
-        import time
+        from types import SimpleNamespace
 
         import ppt_generator.tools.project.service as svc_module
 
         monkeypatch.setattr(svc_module, "PPT_GENERATOR_HOME", tmp_path)
 
-        # 시간차를 두고 프로젝트 생성
+        # 파일 생성 속도와 OS 시간 해상도에 의존하지 않는, 오래된 순서의 입력.
         for name in ["older", "newer"]:
             d = tmp_path / name
             d.mkdir()
@@ -499,7 +504,24 @@ class TestListProjects:
             (d / "project.json").write_text(
                 json.dumps(meta, ensure_ascii=False), encoding="utf-8"
             )
-            time.sleep(0.1)
+
+        real_stat, real_iterdir = Path.stat, Path.iterdir
+        times = {tmp_path / "older": 1700000000, tmp_path / "newer": 1700000100}
+
+        def fixed_stat(path: Path, *args, **kwargs):
+            result = real_stat(path, *args, **kwargs)
+            if path not in times:
+                return result
+            values = {"st_mode": result.st_mode, "st_mtime": times[path]}
+            if birthtime_available:
+                values["st_birthtime"] = times[path]
+            return SimpleNamespace(**values)
+
+        def fixed_order(path: Path):
+            return iter(times) if path == tmp_path else real_iterdir(path)
+
+        monkeypatch.setattr(Path, "stat", fixed_stat)
+        monkeypatch.setattr(Path, "iterdir", fixed_order)
 
         result = project_service.list_projects()
         assert result[0]["topic"] == "newer"

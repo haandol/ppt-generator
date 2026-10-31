@@ -291,15 +291,13 @@ tail -f /tmp/ppt-generator/*.log
 
 ```bash
 uv run ppt-generator          # Run MCP server (stdio mode)
-uv run pytest                  # Run all tests
+python3 scripts/verify.py      # Locked checks, tests, build, and wheel smoke
+uv run --locked pytest        # Run tests directly while debugging
 ```
 
 ## Documentation
 
-- [Architecture](docs/harness/architecture.md) — prepare/ingest handshake, MCP tool list, workflows, project structure
-- [Environment & Config](docs/harness/environment.md) — environment variables, MCP client / plugin config
-- [Kiro / Codex Setup](docs/harness/kiro-codex.md) — use the workflow as a skill in Kiro and Codex
-- [Schemas](docs/harness/schemas.md) — domain models, client output models, component_hint table
-- [Testing](docs/harness/testing.md) — test writing rules and patterns
-- [ADR](docs/adr/) — Architecture Decision Records (the client-LLM offload decision lives under the `offload/` category)
-- [Contributing Guide](CONTRIBUTING.md)
+- Design and contracts: [Architecture](docs/harness/architecture.md), [Schemas](docs/harness/schemas.md)
+- Setup: [Environment & Config](docs/harness/environment.md), [Kiro / Codex](docs/harness/kiro-codex.md)
+- Verification and delivery: [Testing](docs/harness/testing.md), [Release](docs/harness/release.md)
+- Development decisions: [ADR](docs/adr/), [Contributing Guide](CONTRIBUTING.md)

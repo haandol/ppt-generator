@@ -2,7 +2,7 @@
   "mcpServers": {
     "ppt-generator": {
       "command": "uv",
-      "args": ["--directory", "/path/to/ppt-generator", "run", "ppt-generator"],
+      "args": ["--directory", "/path/to/ppt-generator", "run", "--locked", "ppt-generator"],
       "env": {
         "PPT_LOG_DIR": "/tmp/ppt-generator"
       },

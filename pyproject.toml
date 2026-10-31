@@ -1,6 +1,6 @@
 [project]
 name = "ppt-generator"
-version = "0.8.1"
+version = "0.8.2"
 description = "자동 프레젠테이션 생성 MCP 서버 (LLM 생성은 클라이언트로 오프로딩)"
 requires-python = ">=3.13"
 dependencies = [
@@ -14,8 +14,12 @@ dependencies = [
 ppt-generator = "ppt_generator.server:main"
 
 [dependency-groups]
+build = [
+    "hatchling==1.33.0",
+]
 dev = [
     "pytest",
+    "pytest-xdist>=3.8.0",
     "ruff",
 ]
 visual-qa = [
@@ -24,8 +28,30 @@ visual-qa = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src", "."]
 addopts = ["--strict-markers", "--strict-config", "-ra"]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling==1.33.0"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.sdist]
+only-include = [
+    "src/ppt_generator",
+    "skills",
+    "scripts",
+    "tests",
+    "docs/adr",
+    "docs/harness",
+    ".claude-plugin",
+    ".github",
+    ".kiro",
+    ".python-version",
+    ".uv-version",
+    ".gitignore",
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "README.md",
+    "pyproject.toml",
+    "uv.lock",
+]

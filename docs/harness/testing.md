@@ -10,11 +10,20 @@
 
 ## pytest 설정
 
+로컬과 CI의 전체 검증은 `python3 scripts/verify.py`를 사용한다. 잠금 파일을 바꾸지
+않고 의존성을 준비한 뒤 포맷·린트·전체 테스트·빌드·실제 wheel 검증을 실행한다.
+기본은 직렬이며 `--workers 2`로 병렬 실행할 수 있다. 단계별 로그와 종료 코드는
+새 `output/verification-*`에 남는다. 상세 절차는 [검증과 릴리스](release.md)를 따른다.
+
+검증 명령은 환경 변수의 `PYTEST_ADDOPTS`나 추가 플러그인이 전체 검사를 부분 실행으로
+바꾸지 않게 한다. 특정 테스트 디버깅에는 아래의 직접 pytest 명령을 사용한다.
+
 `pyproject.toml`에 다음 설정이 적용되어 있다:
 
 ```toml
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src", "."]
 addopts = ["--strict-markers", "--strict-config", "-ra"]
 ```
 
