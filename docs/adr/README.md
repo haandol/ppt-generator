@@ -27,7 +27,7 @@ docs/adr/
 ├── import/     PPTX 임포트 — tools/pptx_import/
 ├── visual-qa/  스크린샷 기반 자동 QA — tools/visual_qa/
 ├── project/    파이프라인 인프라 (저장, 토큰/비용, 진행률, 안정성) — tools/project/, infra
-├── script/     발표 스크립트 생성 (deprecated, 코드 제거 — speaker_notes 는 design_doc 로 흡수)
+├── script/     전용 스킬의 발표 대본 작성과 노트 기반 내보내기
 ├── template/   PPTX 템플릿 분석 (proposed) — 미구현
 ├── chart/      차트/데이터 시각화 (proposed) — 미구현
 └── offload/    LLM 생성을 클라이언트로 오프로딩 — 플러그인 + 스킬 + prepare/ingest
@@ -88,6 +88,7 @@ docs/adr/
 
 - [0001 슬라이드별 HTML 파일 분리 + iframe 컨테이너](./slides/0001-per-slide-html-iframe.md)
 - [0002 컨텍스트 안전 HTML 렌더링](./slides/0002-context-safe-html-rendering.md)
+- [0003 line shape 방향 무관 끝점 계약](./slides/0003-line-shape-direction-agnostic-endpoints.md)
 
 ### pptx-export — PPTX 내보내기
 
@@ -104,7 +105,7 @@ docs/adr/
 ### visual-qa — 스크린샷 기반 자동 QA
 
 - [0001 Visual QA Pipeline](./visual-qa/0001-visual-qa-pipeline.md)
-- [0002 Visual QA 브라우저 도구 안내 개선](./visual-qa/0002-browser-tool-fallback.md) — _Proposed_
+- [0002 Visual QA 브라우저 도구 안내 개선](./visual-qa/0002-browser-tool-fallback.md)
 - [0003 Visual QA 2-Phase 모델 분리 (Haiku 분석 + Sonnet 수정)](./visual-qa/0003-two-phase-model-split.md) — _Superseded by offload/0001_
 
 ### project — 파이프라인 인프라
@@ -115,9 +116,9 @@ docs/adr/
 - [0004 파이프라인 전체 진행률 보고 및 로깅 강화](./project/0004-progress-reporting-and-logging.md) — _Superseded by offload/0001_
 - [0005 MCP Server Stability Improvements](./project/0005-mcp-server-stability.md)
 
-### script — 발표 스크립트 생성 (deprecated)
+### script — 발표 스크립트
 
-- [0001 발표 스크립트 생성 (F2)](./script/0001-script-generation.md) — _Deprecated (코드 제거, speaker_notes 는 design_doc 로 흡수)_
+- [0001 발표 스크립트를 전용 스킬에서 작성한다](./script/0001-script-generation.md)
 
 ### template — PPTX 템플릿 분석 (proposed)
 

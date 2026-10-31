@@ -1,5 +1,5 @@
 <slide_type_closing>
-Thank You slide (slide_type: "closing") design rules:
+Closing slide (slide_type: "closing") role contract:
 
 - Closing slides may omit `grid_layout`, `cell_assignment`, and `design_doc`.
 - The last slide is mandatory and must contain exactly one non-empty textbox with
@@ -10,6 +10,9 @@ Thank You slide (slide_type: "closing") design rules:
 - Choose composition, coordinates and typography from DESIGN.md and keep every element
   inside the canvas.
 </slide_type_closing>
+
+Land the user's intended result or action. Thanks, contact details and Q&A are optional
+content choices; do not fabricate them to reproduce the example.
 
 <examples>
   <layout_example id="closing-1" hint="closing — Thank You slide (left-aligned, same layout pattern as title slide)">
@@ -51,7 +54,7 @@ Thank You slide (slide_type: "closing") design rules:
 </examples>
 
 <typography_rules>
-- Thank you message: font_size_pt 40~44, bold
+- Closing message: 40~44pt bold is a starting point, not a fixed treatment
 - Subtitle/label: font_size_pt 16~20
 - Secondary text: font_size_pt 12~16
 </typography_rules>
@@ -67,6 +70,6 @@ Thank You slide (slide_type: "closing") design rules:
 - Size each textbox for likely wrapping and avoid accidental same-level overlap.
 - Prefer text inside a shape's paragraphs when that text labels the shape.
 - Keep the key content from content_summary while preserving readable spacing.
-- Use the deck accent color for the divider.
+- Use a divider only when it clarifies hierarchy; choose its treatment from DESIGN.md.
 - Specify vertical alignment explicitly when it helps communicate intent.
 </closing_quality_guidance>

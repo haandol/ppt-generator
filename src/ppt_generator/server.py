@@ -29,7 +29,7 @@ def create_server() -> FastMCP:
             "   End-to-end deck requests may proceed without a separate outline approval.\n"
             "2. prepare_design_doc_draft → generate DESIGN.md draft JSON → ingest_design_doc_draft "
             '(call ONCE; skip if it returns {"skip": true}).\n'
-            "3. For EACH slide (parallelize): prepare_design_slide → generate spec JSON "
+            "3. For EACH slide (parallelize when supported): prepare_design_slide → generate spec JSON "
             "(matching response_schema) → ingest_design_slide.\n"
             "4. finalize_design_spec once. Use the ppt-speaker-script skill: "
             "prepare_speaker_script → generate script JSON → ingest_speaker_script, "
@@ -57,7 +57,8 @@ def create_server() -> FastMCP:
             "- During a batch of edits use incremental slide HTML; export both formats once at "
             "the stable completion checkpoint.\n"
             "- Visual patches may change geometry, spacing, typography, color, autofit, and "
-            "verified z-order only. Ask before changing text, data, element count, or slide count.\n"
+            "verified z-order only. Route text/data/structure edits through the appropriate tools. "
+            "Reuse existing user authorization; ask only for changes beyond its scope.\n"
             "- Imported projects have no outline: pass title/content_summary inline to prepare_slide_edit.\n"
         ),
     )

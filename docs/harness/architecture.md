@@ -109,7 +109,9 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 | 모듈 | 역할 |
 |------|------|
 | `interfaces/schemas.py` | 내부 도메인 모델 (`@dataclass`) |
-| `interfaces/llm_output_models.py` | 클라이언트 출력 검증용 Pydantic 모델, `to_dataclass()`로 변환 |
+| `interfaces/output_models/` | 아웃라인·대본·디자인·편집·리뷰·시각 QA별 Pydantic 모델과 공통 요소·그리드 변환 |
+| `interfaces/llm_output_models.py` | 기존 모델 import 경로를 유지하는 재노출 모듈 |
+| `interfaces/handoff.py` | prepare 응답 조립과 문자열·객체 응답의 공통 Pydantic 검증 |
 | `interfaces/constants.py` | 수치 상수, 프롬프트·JSON 스키마 re-export (모델 자격 증명 없음) |
 | `interfaces/prompts/*.prompt.md` | 프롬프트 템플릿 (`.prompt.md` 파일 → `__init__.py`에서 로딩) — `prepare_*` 가 반환하는 소스 |
 | `interfaces/spec_utils/` | PptxSlideSpec 파싱/검증/직렬화 공유 유틸리티 (패키지: parser, serializer, validator) |
@@ -121,6 +123,16 @@ Controller-Service 패턴 + 의존성 주입(DI)을 사용합니다:
 | `tools/pptx/slide_builder.py` | PptxSlideSpec → python-pptx 변환 |
 | `tools/slides/html_renderer.py` | PptxSlideSpec → HTML 변환 |
 | `tools/project/service.py` | 프로젝트 디렉토리 IO, 메타데이터, 슬라이드별 파일 관리 |
+
+디자인 도구의 MCP 등록은 `controller.py`에 유지한다. 슬라이드 추가·수정은
+`handlers/slide_edit.py`, 단일 요소 수정과 임포트 의미 트리 보완은
+`handlers/component_edit.py`, 이동·삭제는 `handlers/slide_order.py`가 처리한다.
+`handlers/modification.py`는 기존 핸들러 import 경로를 재노출한다.
+
+`DesignService`는 준비·수신 인터페이스를 제공하고, 의미 트리 보완은 `backfill.py`,
+요소 식별은 `components.py`, 테마 요약은 `summary.py`, 배경색 적용은 `backgrounds.py`에
+위임한다. 임포트 경로는 테마 요약 함수만 참조한다. 잠금, 준비 문맥 검증, 멱등 저장과
+실패 시 복원은 각 편집 핸들러에서 기존 순서로 실행한다.
 
 ## Pipeline Design Philosophy: Progressive Refinement
 

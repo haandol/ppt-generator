@@ -7,9 +7,11 @@ description: Verify PPTX import fidelity by comparing the original .pptx against
 
 임포트된 프로젝트가 원본 PPTX와 얼마나 일치하는지 **시각(육안) + 좌표(수치)** 이중으로
 검증하고, 불일치를 **근본 원인 카테고리**로 태깅해 코드/린트 개선의 근거를 만든다.
+작업별로 고유한 출력 디렉토리를 사용해 이전 캡처와 섞이지 않게 한다.
 
 이 스킬은 코드를 수정하지 않는다 — **진단·측정·리포트**만 한다. 발견한 근본 원인은
-저장소의 ADR-First 워크플로우로 수정한다.
+승인된 코드 작업으로 이어갈 수 있다. 이미 수정까지 요청받았다면 같은 범위의 승인을
+다시 묻지 않는다. 진단만 요청받았다면 이 스킬은 읽기 전용으로 끝낸다.
 
 ## 전제
 
@@ -24,10 +26,10 @@ description: Verify PPTX import fidelity by comparing the original .pptx against
 ```bash
 uv --directory "${CLAUDE_PLUGIN_ROOT}" run python \
   "${CLAUDE_PLUGIN_ROOT}/skills/ppt-import-verify/scripts/render_original.py" \
-  "<원본.pptx>" /tmp/hiv_ref --dpi 110 --slides 1,2,3,4
+  "<원본.pptx>" "<작업별 출력 디렉토리>" --dpi 110 --slides 1,2,3,4
 ```
 `soffice --headless --convert-to pdf` 로 PDF 를 만들고 `pdftoppm -png` 로 슬라이드별 PNG 를
-`/tmp/hiv_ref/ref-NN.png` 로 저장한다.
+`"<작업별 출력 디렉토리>"/ref-NN.png` 로 저장한다.
 
 ### 2. 임포트 프로젝트 → 슬라이드 PNG
 ```bash
@@ -60,8 +62,10 @@ uv --directory "${CLAUDE_PLUGIN_ROOT}" run python \
 차이를 표로 출력한다. 임계값(기본 위치 ±4px, 폰트 ±1pt)을 넘는 항목만 강조한다.
 
 ### 5. 일치율 리포트 + 근본 원인 태깅
-시각·좌표 결과를 종합해 슬라이드별/전체 **일치율**과, 불일치를 아래 카테고리로 태깅한 표를
-사용자에게 제시한다:
+시각·좌표 결과에서 관찰한 누락 수와 좌표·폰트 차이, 실제 비교 범위를 제시한다.
+일치율을 계산한다면 비교 단위·분모·허용 오차를 함께 밝히고, 근거 없는 종합 백분율을
+만들지 않는다. 좌표 비교는 임포터와 같은 파서를 사용하므로 양쪽에서 누락된 요소는
+잡지 못할 수 있다. 원본 PNG 비교가 이 한계를 보완한다. 불일치는 다음처럼 분류한다:
 
 | 카테고리 | 증상 | 근본 원인 위치 |
 |---|---|---|
@@ -74,9 +78,10 @@ uv --directory "${CLAUDE_PLUGIN_ROOT}" run python \
 | `missing` | 그 외 요소 누락 | `shape_extractors.py` 분기 |
 
 ### 6. 확인 후 개선 루프
-사용자에게 리포트를 보이고 확인을 받는다. 남은 불일치는 **근본 원인 기준으로** ADR 갱신 →
-코드/린트 수정 → 재임포트 → 이 스킬 재실행(일치율 상승 확인)을 반복한다.
-증상을 개별 슬라이드에서 땜질하지 말고, 항상 카테고리의 근본 지점을 고친다.
+진단만 요청받았으면 근거와 수정 제안을 전달한다. 수정도 승인된 작업이면 원인에 맞는
+코드 변경과 재임포트·재검증으로 이어간다. 기존 동작 복구와 구조 정리는 해당 작업 지침을
+따르고, 새로운 계약이나 범위 변경만 별도 결정을 받는다. 공통 임포트 결함과 사용자가
+원하는 개별 슬라이드 편집을 구분한다.
 
 ## 참고
 - 로컬 clone/Kiro/Codex 환경에서는 `${CLAUDE_PLUGIN_ROOT}` 를 clone의 절대 경로로

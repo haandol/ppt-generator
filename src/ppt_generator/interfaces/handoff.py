@@ -13,7 +13,18 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TypeVar
+
+from pydantic import BaseModel
+
+OutputT = TypeVar("OutputT", bound=BaseModel)
+
+
+def validate_llm_output(model: type[OutputT], payload: str | dict) -> OutputT:
+    """문자열과 객체 입력을 같은 응답 모델로 검증하고 원래 검증 오류를 보존한다."""
+    if isinstance(payload, str):
+        return model.model_validate_json(payload)
+    return model.model_validate(payload)
 
 
 def build_llm_task(

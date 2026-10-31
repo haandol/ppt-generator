@@ -5,6 +5,7 @@ LLM 호출을 클라이언트로 오프로딩한 뒤로, 서버는 모델·프�
 구성해 보관한다. 각 서비스는 prepare/ingest 두 단계를 노출한다.
 """
 
+from functools import cached_property
 from pathlib import Path
 
 from ppt_generator.tools.design.review_service import DesignReviewService
@@ -23,68 +24,41 @@ __all__ = ["DIContainer"]
 class DIContainer:
     def __init__(self, project_root: Path | None = None) -> None:
         self._project_root = project_root or Path(__file__).resolve().parents[3]
-        self._outline_service: OutlineService | None = None
-        self._export_service: ExportService | None = None
-        self._slides_service: SlidesService | None = None
-        self._project_service: ProjectService | None = None
-        self._import_service: ImportService | None = None
-        self._design_service: DesignService | None = None
-        self._review_service: DesignReviewService | None = None
-        self._visual_qa_service: VisualQAService | None = None
-        self._script_service: SpeakerScriptService | None = None
 
     # ---- Service properties (lazy init) ----
 
-    @property
+    @cached_property
     def outline_service(self) -> OutlineService:
-        if self._outline_service is None:
-            self._outline_service = OutlineService()
-        return self._outline_service
+        return OutlineService()
 
-    @property
+    @cached_property
     def export_service(self) -> ExportService:
-        if self._export_service is None:
-            self._export_service = ExportService()
-        return self._export_service
+        return ExportService()
 
-    @property
+    @cached_property
     def slides_service(self) -> SlidesService:
-        if self._slides_service is None:
-            self._slides_service = SlidesService()
-        return self._slides_service
+        return SlidesService()
 
-    @property
+    @cached_property
     def design_service(self) -> DesignService:
-        if self._design_service is None:
-            self._design_service = DesignService()
-        return self._design_service
+        return DesignService()
 
-    @property
+    @cached_property
     def review_service(self) -> DesignReviewService:
-        if self._review_service is None:
-            self._review_service = DesignReviewService()
-        return self._review_service
+        return DesignReviewService()
 
-    @property
+    @cached_property
     def visual_qa_service(self) -> VisualQAService:
-        if self._visual_qa_service is None:
-            self._visual_qa_service = VisualQAService()
-        return self._visual_qa_service
+        return VisualQAService()
 
-    @property
+    @cached_property
     def import_service(self) -> ImportService:
-        if self._import_service is None:
-            self._import_service = ImportService()
-        return self._import_service
+        return ImportService()
 
-    @property
+    @cached_property
     def script_service(self) -> SpeakerScriptService:
-        if self._script_service is None:
-            self._script_service = SpeakerScriptService()
-        return self._script_service
+        return SpeakerScriptService()
 
-    @property
+    @cached_property
     def project_service(self) -> ProjectService:
-        if self._project_service is None:
-            self._project_service = ProjectService()
-        return self._project_service
+        return ProjectService()

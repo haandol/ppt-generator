@@ -103,6 +103,9 @@ def main() -> int:
         )
 
     pngs = sorted(out_dir.glob("ref-*.png"))
+    if not pngs:
+        print("[error] 변환 결과 PNG가 없습니다", file=sys.stderr)
+        return 1
     for png in pngs:
         print(png)
     print(f"[ok] {len(pngs)}개 PNG → {out_dir}")

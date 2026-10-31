@@ -10,8 +10,9 @@ This skill owns spoken wording and review. The server owns deck inputs, output
 schemas, validation, and deterministic storage/export. Do not copy the JSON
 schema into this skill or regenerate slide designs to change notes.
 
-Read [the writing guide](references/speaker-script-guide.md) before drafting or
-revising. It adapts the supplied SPEAKER-SCRIPT-GUIDE.md into reusable instructions
+Read [the shared handshake](../_shared/handshake.md) for the server protocol.
+For a new script or substantial revision, read [the writing guide](references/speaker-script-guide.md).
+For a narrow edit, consult its relevant sections and preserve unaffected notes. It adapts the supplied SPEAKER-SCRIPT-GUIDE.md into reusable instructions
 without customer names, adoption claims, or dependence on a local source file.
 
 ## Establish the delivery brief
@@ -20,7 +21,8 @@ Use the user's request, saved presentation context, and supplied notes to establ
 language, audience, purpose, content time, question time, and who closes the session.
 Honor explicit preferences; infer routine details from context. Ask only for a
 missing detail that would materially change the script. Do not invent a host,
-presenter experience, customer situation, or a presentation duration.
+presenter experience or customer situation. Label inferred delivery defaults as estimates
+rather than presenting them as user-provided or rehearsed facts.
 
 The source guide's English, non-native presenter, small online meeting is a
 **delivery profile**, not a universal restriction. Apply its breath-line and
@@ -46,8 +48,8 @@ slides but copy unaffected notes verbatim. A silent slide may keep empty notes.
    `mcp__ppt-generator__load_design_spec(project_id)` provides the spec directory
    when relative asset paths need resolving. Do not infer image content from a filename;
    identify missing visual evidence if it cannot be inspected.
-4. Review the **whole sequence**, especially each slide's last two lines and the
-   next slide's first two lines. Correct in-scope factual, flow, and wording issues
+4. Review the **whole sequence**, especially the end of each slide and the
+   start of the next. Correct in-scope factual, flow, and wording issues
    before saving. Preserve greetings, question openings, closing signals, and
    host handoffs when they serve the actual conversation.
 5. Call `mcp__ppt-generator__ingest_speaker_script(project_id, script_json, script_context)`.

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from ppt_generator.interfaces.handoff import build_llm_task
-from ppt_generator.interfaces.llm_output_models import SpeakerScriptOutput
+from ppt_generator.interfaces.output_models.script import SpeakerScriptOutput
 from ppt_generator.interfaces.prompts import SPEAKER_SCRIPT_SYSTEM_PROMPT
 from ppt_generator.tools.design.edit_context import (
     ProjectSnapshot,

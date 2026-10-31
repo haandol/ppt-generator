@@ -17,14 +17,15 @@ from typing import TYPE_CHECKING
 
 from ppt_generator.interfaces.constants import PROJECT_DESIGN_DRAFT_CONTEXT_FILE
 from ppt_generator.interfaces.index_validation import require_positive_slide_index
-from ppt_generator.interfaces.llm_output_models import slide_spec_output_model
-from ppt_generator.interfaces.schemas import PptxSlideSpec, SlideOutline
+from ppt_generator.interfaces.output_models.slides import slide_spec_output_model
+from ppt_generator.interfaces.schemas import SlideOutline
 from ppt_generator.interfaces.spec_utils import lint_design_spec, lint_slide_spec
 from ppt_generator.interfaces.utils import (
     complexity_to_budget_tokens,
     estimate_slide_complexity,
     parse_outline_json,
 )
+from ppt_generator.tools.design.backgrounds import _enforce_background_color
 from ppt_generator.tools.design.edit_context import (
     decode_signed_context,
     encode_signed_context,
@@ -491,35 +492,6 @@ def handle_finalize_design_spec(
 
 
 # --- helpers ---
-
-
-def _enforce_background_color(
-    spec: PptxSlideSpec,
-    design_summary: dict | None,
-    bg_image_policy: str,
-    idx: int,
-) -> PptxSlideSpec:
-    """본문의 덱 배경을 유지하고 이미지 없는 표지의 누락된 색상만 보완한다.
-
-    표지·클로징에 명시된 단색은 자동 배경 보완으로 덮어쓰지 않는다.
-    """
-    _enforce_bg = spec.slide_type == "content" or (
-        bg_image_policy == "none" and not spec.background_color
-    )
-    if (
-        design_summary
-        and _enforce_bg
-        and design_summary.get("background_color")
-        and spec.background_color != design_summary["background_color"]
-    ):
-        logger.info(
-            "slide[%d] 배경색 보정: %s → %s",
-            idx,
-            spec.background_color,
-            design_summary["background_color"],
-        )
-        spec = replace(spec, background_color=design_summary["background_color"])
-    return spec
 
 
 def _directives_for(project_service, project_dir, slide_index: int, title: str) -> str:

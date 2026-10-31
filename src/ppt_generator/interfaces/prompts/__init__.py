@@ -15,13 +15,10 @@ def _load(filename: str) -> str:
 
 
 def _load_content_prompt(*, include_example: bool = False) -> str:
-    """content 프롬프트에서 상시 예시를 제거하고 필요할 때만 관련 예시를 붙인다."""
+    """본문 계약에 현재 구성과 관련된 검증된 예시만 선택적으로 붙인다."""
     prompt = _load("design_system_content.prompt.md")
-    start = prompt.index("<examples>")
-    end = prompt.index("</examples>", start) + len("</examples>")
-    without_examples = prompt[:start] + prompt[end:]
     if not include_example:
-        return without_examples
+        return prompt
     example = json.loads(
         (_PROMPTS_DIR / "examples" / "two_column_diagram.json").read_text(
             encoding="utf-8"
@@ -35,7 +32,7 @@ def _load_content_prompt(*, include_example: bool = False) -> str:
         f"{example_json}\n"
         "  </layout_example>\n</examples>"
     )
-    return prompt[:start] + examples + prompt[end:]
+    return prompt + "\n\n" + examples
 
 
 OUTLINE_SYSTEM_PROMPT = _load("outline_system.prompt.md")
@@ -43,7 +40,14 @@ OUTLINE_USER_PROMPT_TEMPLATE = _load("outline_user.prompt.md")
 SPEAKER_SCRIPT_SYSTEM_PROMPT = _load("speaker_script_system.prompt.md")
 
 # slide_type별 분리된 시스템 프롬프트 (공통 베이스 + 타입별 오버라이드)
-_DESIGN_SYSTEM_BASE = _load("design_system_base.prompt.md")
+_LINE_GEOMETRY = _load("line_geometry.prompt.md")
+_LINE_GEOMETRY += (
+    "\n\nThese numerical examples illustrate endpoint encoding, not a required layout."
+    "\n<line_examples>\n"
+    + json.dumps(json.loads(_load("examples/line_directions.json")), indent=2)
+    + "\n</line_examples>"
+)
+_DESIGN_SYSTEM_BASE = _load("design_system_base.prompt.md") + "\n\n" + _LINE_GEOMETRY
 
 DESIGN_SPEC_SYSTEM_PROMPTS: dict[str, str] = {
     "content": _DESIGN_SYSTEM_BASE + "\n\n" + _load_content_prompt(),
@@ -58,12 +62,7 @@ def get_design_spec_system_prompt(slide_type: str, component_hint: str = "") -> 
         return DESIGN_SPEC_SYSTEM_PROMPTS.get(
             slide_type, DESIGN_SPEC_SYSTEM_PROMPTS["content"]
         )
-    needs_example = component_hint in {
-        "two_column",
-        "concept_list",
-        "process_flow",
-        "quote_code",
-    }
+    needs_example = component_hint == "two_column"
     return (
         _DESIGN_SYSTEM_BASE
         + "\n\n"
@@ -76,18 +75,23 @@ DESIGN_SPEC_SYSTEM_PROMPT = DESIGN_SPEC_SYSTEM_PROMPTS["content"]
 
 DESIGN_SPEC_USER_PROMPT_TEMPLATE = _load("design_user.prompt.md")
 DESIGN_SPEC_BATCH_USER_PROMPT_TEMPLATE = _load("design_batch_user.prompt.md")
+# 기존 import 호환성. 현재 도구는 DESIGN.md 초안 또는 결정론적 요약을 사용한다.
 DESIGN_SUMMARY_USER_PROMPT_TEMPLATE = _load("design_summary_user.prompt.md")
 DESIGN_DOC_DRAFT_USER_PROMPT_TEMPLATE = _load("design_doc_draft_user.prompt.md")
 DESIGN_DOC_DRAFT_SYSTEM_PROMPT = _load("design_doc_draft_system.prompt.md")
 
-VISUAL_QA_ANALYSIS_SYSTEM_PROMPT = _load("visual_qa_analysis.prompt.md")
-VISUAL_QA_FIX_SYSTEM_PROMPT = _load("visual_qa_fix.prompt.md")
+VISUAL_QA_ANALYSIS_SYSTEM_PROMPT = (
+    _load("visual_qa_analysis.prompt.md") + "\n\n" + _LINE_GEOMETRY
+)
+VISUAL_QA_FIX_SYSTEM_PROMPT = _load("visual_qa_fix.prompt.md") + "\n\n" + _LINE_GEOMETRY
 
 DESIGN_REVIEW_SYSTEM_PROMPT = _load("design_review.prompt.md")
 DECK_REVIEW_SYSTEM_PROMPT = _load("deck_review.prompt.md")
 
 # component-level partial modification
-COMPONENT_MODIFY_SYSTEM_PROMPT = _load("component_modify_system.prompt.md")
+COMPONENT_MODIFY_SYSTEM_PROMPT = (
+    _load("component_modify_system.prompt.md") + "\n\n" + _LINE_GEOMETRY
+)
 COMPONENT_MODIFY_USER_PROMPT_TEMPLATE = _load("component_modify_user.prompt.md")
 
 # imported slide design_doc lazy backfill

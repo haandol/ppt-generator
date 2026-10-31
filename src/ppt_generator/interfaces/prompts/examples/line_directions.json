@@ -1,0 +1,22 @@
+[
+  {
+    "source": [300, 450],
+    "target": [300, 280],
+    "shape": {"shape_type": "line", "left_px": 300, "top_px": 280, "width_px": 0, "height_px": -170, "end_arrow": true}
+  },
+  {
+    "source": [850, 300],
+    "target": [610, 300],
+    "shape": {"shape_type": "line", "left_px": 610, "top_px": 300, "width_px": -240, "height_px": 0, "end_arrow": true}
+  },
+  {
+    "source": [760, 480],
+    "target": [620, 340],
+    "shape": {"shape_type": "line", "left_px": 620, "top_px": 340, "width_px": -140, "height_px": -140, "end_arrow": true}
+  },
+  {
+    "source": [200, 220],
+    "target": [500, 222],
+    "shape": {"shape_type": "line", "left_px": 200, "top_px": 220, "width_px": 300, "height_px": 2, "end_arrow": true}
+  }
+]

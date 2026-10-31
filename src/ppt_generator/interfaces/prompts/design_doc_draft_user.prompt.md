@@ -1,120 +1,58 @@
 <task>
-You are the design lead for this specific deck. Read the entire presentation outline below and produce the **design intent** that will steer every slide — not just numeric theme values, but the deliberate tone and the few per-slide decisions that keep this deck from looking like a generic auto-generated slideshow.
-
-Your output has four parts: a numeric design system, global tone & direction,
-deck-specific AI Slop guardrails, and selective per-slide requests.
+Create this deck's design intent from the outline and presentation context.
+Return JSON matching response_schema: theme, tone, anti_slop and page_requests.
+Ground visual choices in the subject, audience, viewing setting and intended outcome.
 </task>
 
-<grounding>
-First pin three things from the outline and let them drive every choice:
-- Subject — what this deck is actually about, concretely.
-- Audience & room — who is watching and where (executives in a boardroom, engineers at a conference, general customers). This sets formality, contrast, font sizes, density.
-- The single job of the deck — to decide, to teach, to persuade, to report.
-Adjust color intensity, font sizes, and card styles to match. A dense technical talk can carry detail; a customer/vision pitch needs space and a few large statements.
-</grounding>
+<design_judgment>
+Choose a coherent palette, type hierarchy and visual treatment that help this specific
+content. Existing brand/user constraints take priority over generic design preferences.
+Cards, bullets, gradients and large numbers are options when they serve the material;
+do not apply or reject them as a universal style. Avoid inventing evidence or decoration
+to make a sparse slide look busy. Repetition may support comparisons and continuity.
+</design_judgment>
 
-<avoid_ai_slop>
-Auto-generated decks cluster around a recognizable set of unchosen defaults. Where the outline leaves a choice free, do NOT spend it on these:
-- Every slide as title + three bullets — uniform structure means no slide was thought about as itself.
-- The icon-card trio/quad — three or four rounded cards, each a two-word heading + a line of filler, repeated on slide after slide. This is decoration pretending to be structure. If several content slides all carry parallel items, do NOT let them all become identical card rows.
-- Gradient wash / glassmorphism as a substitute for a real palette.
-- A big number with a small label and a gradient accent as the answer to every "make this pop".
-- Uniform pitch — every slide at identical density and emphasis, no arc, no breath.
-- Numbered markers (01 / 02 / 03) on parallel features that are not an actual sequence.
-
-The point is not to ban these and replace them with a different uniform — it is to choose what is true to THIS talk.
-</avoid_ai_slop>
+<parts>
+- theme: Choose background and text colors, optional card fills/borders, type scale and
+  region bands. The schema's title_font_pt range is 28–36 and body_font_pt is 16–22;
+  these are deck defaults, not the permitted size range for every individual element.
+- tone: Describe the visual hierarchy and narrative arc: how the deck opens, develops,
+  changes emphasis and lands. Add a recognizable treatment when useful. Keep this global
+  direction concise without a sentence quota or a requirement to invent a signature motif.
+- anti_slop: Supply concrete guidance for all five fields below. Tie it to the outline
+  rather than repeating a general anti-pattern checklist.
+- page_requests: Add selective deviations when a particular slide needs direction beyond
+  the shared system. An empty list is valid. Do not generate a compulsory quota of changes.
+</parts>
 
 <anti_slop_guardrails>
-AI Slop is not merely "bad gradients." It is a first-draft look caused by generic
-content, repeated composition, flattened hierarchy, context-free decoration, and
-missing craft. Produce five deck-specific guardrails:
-
-- subject_specificity: name the real visual material this subject gives you—product UI,
-  diagrams, data shapes, terminology, environments, or artifacts. Prefer these over
-  generic stock metaphors.
-- visual_hierarchy: state what receives primary emphasis and how secondary evidence stays
-  subordinate. Avoid making every card, icon, badge, and label compete equally.
-- layout_rhythm: map the deck's loud/breathe/turn/land rhythm. Inspect 3 consecutive uses
-  of the same content archetype for empty repetition, while preserving layouts that help
-  compare cases or explain progressive changes.
-- decoration_policy: allow a visual element only when it encodes data, grouping, hierarchy,
-  navigation, or a deliberate brand motif. Remove decorative card grids and accents that
-  serve no job.
-- content_grounding: require concrete claims, named examples, supplied sources, and explicit
-  assumptions. Avoid generic filler, stock imagery prompts, and unsupported KPI theater.
-
-These rules must be specific to this outline. Do not return the generic wording above.
+- subject_specificity: Identify subject-specific visual material, terminology or artifacts.
+- visual_hierarchy: Explain the primary emphasis and how supporting evidence stays readable.
+- layout_rhythm: Describe useful variation and continuity. Three consecutive uses of the
+  same actual archetype are a review signal; preserve purposeful repetition.
+- decoration_policy: Explain when decoration supports grouping, navigation or a brand motif.
+- content_grounding: Keep claims, examples, supplied sources and assumptions distinguishable.
 </anti_slop_guardrails>
 
-<how_to_write_each_part>
+<theme_contract>
+Choose background_image="none" for solid backgrounds or "gradient" when automatic
+cover/closing imagery serves the deck. This explicit policy controls export; prose alone
+does not disable imagery. Legacy responses that omit it default to "gradient".
+The schema requires header_region, content_region and footer_region. Reliable defaults
+are (top_px,height_px)=(64,64), (148,508), (664,24). Choose different valid bands when
+appropriate. Header ends before content, content ends before footer, and footer ends
+at or before 688px. Individual slides need not use a footer cell.
+</theme_contract>
 
-**Numeric design system (theme):** Pick a real palette with projection-grade contrast. The background, primary text, secondary text, and 1–2 accents must be deliberate — not a gradient wash. Set font sizes the back row can read (body floor ~16pt in cards, slide titles 28–36pt).
-
-**Global tone & direction (prose, 3–6 sentences):** State the audience and room, the formality and density you chose, and — most importantly — the **narrative arc**: how the deck opens (the thesis), where it turns, where it breathes, how it lands. Name ONE signature treatment the deck is remembered by (a recurring motif, a typographic move, a consistent way of showing the key idea), to be used with restraint. This prose is injected into every slide's generation, so keep it about direction, not slide-by-slide detail.
-
-**Per-slide requests (prose, SELECTIVE):** Look at the outline slide by slide. For the few slides that would otherwise become a generic card trio or sit flat in the arc, write a short deviation request that breaks the default — e.g. turn a set of parallel items into a comparison or a single dominant statement, make a turning-point slide a full-bleed one-liner, let a "breathe" moment be mostly negative space, render a process as an actual left-to-right diagram. 
-- Be SELECTIVE: only flag slides that genuinely need to break the system. A deck where every slide has a special request is just a new uniformity. Aim for a minority of slides — concentrate the boldness, keep the rest quiet and disciplined.
-- Do NOT add a request for the title slide or closing slide unless it genuinely needs one.
-- Key each request by the slide's 1-based number AND its exact title from the outline.
-- If no slide needs a deviation, return an empty list — that is a valid, disciplined answer.
-</how_to_write_each_part>
+<page_requests_contract>
+Each request has a 1-based number, the exact outline title and a nonblank request.
+Use existing slide numbers/titles; do not create new slides or silently rebind a request.
+</page_requests_contract>
 
 <context>
 Total slides: {total_slides}
 Color theme: {color_theme}
 </context>
-
-<output_format>
-Output ONLY the following JSON (no other text, no markdown fence):
-{{
-  "theme": {{
-    "background_color": "#RRGGBB",
-    "background_image": "none",
-    "text_colors": ["#RRGGBB", "..."],
-    "title_font_pt": number,
-    "body_font_pt": number,
-    "card_fills": ["#RRGGBB", "..."],
-    "card_borders": ["#RRGGBB", "..."],
-    "header_region": {{"top_px": number, "height_px": number}},
-    "content_region": {{"top_px": number, "height_px": number}},
-    "footer_region": {{"top_px": number, "height_px": number}}
-  }},
-  "tone": "3-6 sentence prose: audience/room, formality, density, the narrative arc, the one signature treatment.",
-  "anti_slop": {{
-    "subject_specificity": "<deck-specific visual material>",
-    "visual_hierarchy": "<primary vs secondary emphasis rule>",
-    "layout_rhythm": "<loud/breathe/turn/land and repetition rule>",
-    "decoration_policy": "<what visual decoration must accomplish>",
-    "content_grounding": "<how claims and imagery stay concrete>"
-  }},
-  "page_requests": [
-    {{"number": <1-based int>, "title": "<exact slide title from outline>", "request": "<short prose deviation for this slide>"}}
-  ]
-}}
-
-Theme field rules:
-- background_color: slide background (deliberate, not a wash)
-- background_image: "none" for a solid background, or "gradient" only when the default
-  title/closing background image serves this deck. This explicit choice controls export;
-  prose alone does not disable automatic imagery. Omitted legacy values default to "gradient".
-- text_colors: [title, body, secondary] colors
-- title_font_pt: 28~36
-- body_font_pt: 16~22
-- card_fills / card_borders: arrays (empty array if none)
-- header_region: default top_px=64, height_px=64
-- content_region (REQUIRED): default top_px=148, height_px=508
-- footer_region: default top_px=664, height_px=24
-- All three regions are presentation-level — every slide shares the SAME pixel bands for cross-slide consistency.
-- header_region.top_px + header_region.height_px <= content_region.top_px
-- content_region.top_px + content_region.height_px <= footer_region.top_px
-- footer_region.top_px + footer_region.height_px <= 688
-
-page_requests rules:
-- Selective — a minority of slides, only those that must break the default. Empty list is valid.
-- number is 1-based and title must match the outline exactly (used to bind the request to the slide).
-</output_format>
-
 <input>
 {outline_json}
 </input>

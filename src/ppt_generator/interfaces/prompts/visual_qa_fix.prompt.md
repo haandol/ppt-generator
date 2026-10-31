@@ -50,19 +50,8 @@ Do not add, remove, move, or reorder array items. Do not change text or links.
 </operation_contract>
 
 <output_format>
-Return JSON matching the response schema:
-{
-  "operations": [
-    {
-      "element_type": "textbox",
-      "element_index": 0,
-      "field": "width_px",
-      "value": 720,
-      "paragraph_index": null,
-      "run_index": null
-    }
-  ]
-}
-
-Return {"operations": []} when the issue requires content or structural editing.
+Return JSON matching response_schema. Return {"operations": []} only when none of the
+verified issues can be safely repaired with allowed fields. For independent issues,
+apply safe repairs and leave the unsolvable ones unchanged; do not omit all repairs
+because one issue requires a content or structural edit.
 </output_format>
